@@ -40,10 +40,7 @@ PROGRESS = {"status": "idle", "message": "", "pct": 0}  # for client polling
 PROCESSING_LOCK = threading.Lock()
 BACKED = False  # True if adata.X is on disk (backed mode)
 X_CSC = None  # CSC copy of expression matrix for fast column access
-HVG_NAMES = []  # ordered list of HVG names for the client
 GENE_INDEX = {}  # gene_name -> column index
-CSC_BUILDING = False  # True while background CSC build is running
-LOAD_SETTINGS = {}  # Sent to client so it knows what options were active
 
 def _progress(msg, pct=None):
     """Update global progress for client polling."""
@@ -70,7 +67,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     
     backed: "auto" (use file size vs RAM), "on" (force backed), "off" (force in-memory)
     """
-    global ADATA, UMAP_2D, UMAP_3D, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, HVG_NAMES, GENE_INDEX, CSC_BUILDING
+    global ADATA, UMAP_2D, UMAP_3D, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, GENE_INDEX
 
     import scanpy as sc
     import scipy.sparse as sp
@@ -86,9 +83,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         CLUSTER_NAMES = None
         GENE_NAMES_LIST = None
         X_CSC = None
-        HVG_NAMES = []
         GENE_INDEX = {}
-        CSC_BUILDING = False
         N_CELLS = 0
         gc.collect()
 
@@ -342,69 +337,17 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
 
     # Build fast lookup structures
     GENE_INDEX = {g: i for i, g in enumerate(ADATA.var_names)}
-
-    # Detect HVG names (instant if pre-annotated, fast subsample if not)
-    # Used for UI chips only — gene lookups use full CSC once built
-    HVG_NAMES = []
-    _has_hvg_col = "highly_variable" in ADATA.var.columns
-    if _has_hvg_col:
-        hvg_mask = ADATA.var["highly_variable"].values.astype(bool)
-        HVG_NAMES = [str(ADATA.var_names[i]) for i in np.where(hvg_mask)[0]]
-        print(f"  Found {len(HVG_NAMES):,} pre-annotated HVGs")
-
     if not BACKED and sp.issparse(ADATA.X):
-        CSC_BUILDING = True
-        def _build_gene_index():
-            global HVG_NAMES, X_CSC, CSC_BUILDING
-
-            # Compute HVGs by variance if not pre-annotated (subsample for speed)
-            if not _has_hvg_col:
-                PROGRESS["status"] = "csc"
-                PROGRESS["message"] = "Computing top variable genes..."
-                print("  Computing top variable genes...")
-                t0 = time.time()
-                import scipy.sparse as _sp
-                X = ADATA.X
-                n_sub = min(50000, X.shape[0])
-                if n_sub < X.shape[0]:
-                    rng = np.random.default_rng(42)
-                    X_sub = X[rng.choice(X.shape[0], n_sub, replace=False)]
-                else:
-                    X_sub = X
-                if _sp.issparse(X_sub):
-                    mean = np.asarray(X_sub.mean(axis=0)).ravel()
-                    sq_mean = np.asarray(X_sub.multiply(X_sub).mean(axis=0)).ravel()
-                    var = sq_mean - mean ** 2
-                else:
-                    var = np.var(np.asarray(X_sub), axis=0)
-                del X_sub
-                n_hvg = min(2000, len(var))
-                hvg_idx = np.argsort(var)[-n_hvg:][::-1]
-                HVG_NAMES = [str(ADATA.var_names[i]) for i in hvg_idx]
-                print(f"  Computed top {n_hvg:,} variable genes ({time.time()-t0:.1f}s, {n_sub:,}-cell subsample)")
-
-            # Build full CSC — single pass, no intermediate copies
-            PROGRESS["status"] = "csc"
-            PROGRESS["message"] = "Building gene index..."
-            print("  Building CSC column index...")
-            t1 = time.time()
+        # Build CSC in background — server is usable immediately with slower CSR lookups
+        def _build_csc():
+            global X_CSC
+            print("  Building CSC column index in background...")
+            t0 = time.time()
             X_CSC = ADATA.X.tocsc()
-            CSC_BUILDING = False
-            PROGRESS["status"] = "idle"
-            PROGRESS["message"] = ""
-            print(f"  CSC index ready ({time.time()-t1:.0f}s) — all gene lookups now fast")
-        threading.Thread(target=_build_gene_index, daemon=True).start()
+            print(f"  CSC index ready ({time.time()-t0:.0f}s) — gene lookups now fast")
+        threading.Thread(target=_build_csc, daemon=True).start()
     else:
         X_CSC = None
-        CSC_BUILDING = False
-
-    # Record load settings for the client
-    umap_from_cache = len(dims_needed) == 0  # True if ALL dims were cache hits
-    LOAD_SETTINGS.clear()
-    LOAD_SETTINGS["backed"] = BACKED
-    LOAD_SETTINGS["quickmap"] = use_fast
-    LOAD_SETTINGS["quickmap_n"] = fast_umap_subsample if use_fast else 0
-    LOAD_SETTINGS["umap_cached"] = umap_from_cache
 
     PROGRESS["status"] = "done"
     PROGRESS["pct"] = 100
@@ -479,7 +422,7 @@ def get_gene_expression(gene_name):
         return None
 
     if X_CSC is not None:
-        # Fast path: full CSC column slice — O(nnz in column)
+        # Fast path: CSC column slice — O(nnz in column)
         col = X_CSC[:, idx].toarray().ravel().astype(np.float32)
     elif BACKED:
         # Backed mode: read in row batches
@@ -535,8 +478,6 @@ def build_init_payload():
         "total_genes": len(GENE_NAMES_LIST),
         "cluster_names": CLUSTER_NAMES,
         "metadata_columns": {},
-        "load_settings": dict(LOAD_SETTINGS),
-        "hvg_genes": HVG_NAMES[:200],  # top HVGs for quick-access UI
     }
     header_bytes = json.dumps(header, separators=(",", ":")).encode("utf-8")
 
@@ -559,16 +500,9 @@ def build_init_payload():
 
 
 def run_deg(group_a, group_b, test="wilcoxon"):
-    """Run DEG between two cell groups with Cohen's d.
-    
-    Speed optimization: filters to genes expressed in >=3 cells across both
-    groups before testing.  On a 60k-gene dataset this typically reduces the
-    test set to 10–20k genes → 3–6× faster.
-    """
+    """Run DEG between two cell groups with Cohen's d."""
     import scanpy as sc
     import scipy.sparse as sp
-
-    MIN_CELLS_EXPR = 3  # gene must be nonzero in >=3 cells to be tested
 
     t0 = time.time()
     indices_a = list(group_a)
@@ -581,7 +515,7 @@ def run_deg(group_a, group_b, test="wilcoxon"):
         try:
             sub = sub.to_memory()
         except AttributeError:
-            sub = sub.copy()
+            sub = sub.copy()  # older anndata
     else:
         sub = sub.copy()
     sub.obs["deg_group"] = labels
@@ -595,18 +529,6 @@ def run_deg(group_a, group_b, test="wilcoxon"):
     if is_raw:
         sc.pp.normalize_total(sub, target_sum=1e4)
         sc.pp.log1p(sub)
-
-    # ── Filter to expressed genes (big speedup) ──
-    n_all_orig = sub.n_vars
-    if sp.issparse(sub.X):
-        nnz = np.asarray((sub.X != 0).sum(axis=0)).ravel()
-    else:
-        nnz = np.asarray((np.asarray(sub.X) != 0).sum(axis=0)).ravel()
-    keep_mask = nnz >= MIN_CELLS_EXPR
-    n_kept = int(keep_mask.sum())
-    if n_kept < n_all_orig and n_kept > 0:
-        sub = sub[:, keep_mask].copy()
-        print(f"  DEG: filtered {n_all_orig:,} → {n_kept:,} expressed genes")
 
     t_prep = time.time() - t0
 
@@ -624,27 +546,19 @@ def run_deg(group_a, group_b, test="wilcoxon"):
     pvals = [float(x) for x in result["pvals"]["A"]]
     padj = [float(x) for x in result["pvals_adj"]["A"]]
 
-    # Cohen's d — computed on sparse directly, no densification
+    # Cohen's d
     print(f"  DEG: computing Cohen's d...")
     X_a = sub.X[:na]
     X_b = sub.X[na:]
     if sp.issparse(X_a):
-        mean_a = np.asarray(X_a.mean(axis=0)).ravel()
-        mean_b = np.asarray(X_b.mean(axis=0)).ravel()
-        sq_a = X_a.multiply(X_a)
-        sq_b = X_b.multiply(X_b)
-        var_a = np.asarray(sq_a.mean(axis=0)).ravel() - mean_a**2
-        var_b = np.asarray(sq_b.mean(axis=0)).ravel() - mean_b**2
-        if na > 1: var_a *= na / (na - 1)
-        if nb > 1: var_b *= nb / (nb - 1)
-        del sq_a, sq_b
-    else:
-        X_a = np.asarray(X_a, dtype=np.float64)
-        X_b = np.asarray(X_b, dtype=np.float64)
-        mean_a = X_a.mean(axis=0)
-        mean_b = X_b.mean(axis=0)
-        var_a = X_a.var(axis=0, ddof=1) if na > 1 else np.zeros(n_all)
-        var_b = X_b.var(axis=0, ddof=1) if nb > 1 else np.zeros(n_all)
+        X_a = X_a.toarray()
+        X_b = X_b.toarray()
+    X_a = np.asarray(X_a, dtype=np.float64)
+    X_b = np.asarray(X_b, dtype=np.float64)
+    mean_a = X_a.mean(axis=0)
+    mean_b = X_b.mean(axis=0)
+    var_a = X_a.var(axis=0, ddof=1) if na > 1 else np.zeros(n_all)
+    var_b = X_b.var(axis=0, ddof=1) if nb > 1 else np.zeros(n_all)
     pooled_sd = np.sqrt(((na - 1) * var_a + (nb - 1) * var_b) / max(na + nb - 2, 1))
     cohens_d_all = np.where(pooled_sd > 0, (mean_a - mean_b) / pooled_sd, 0.0)
 
@@ -666,13 +580,11 @@ def run_deg(group_a, group_b, test="wilcoxon"):
     clean.sort(key=lambda x: x["padj"])
     elapsed = time.time() - t0
     n_sig = sum(1 for g in clean if abs(g["log2fc"]) >= 0.5 and g["padj"] < 0.05)
-    n_filt_note = f" (filtered from {n_all_orig:,})" if n_kept < n_all_orig else ""
-    print(f"  DEG: done in {elapsed:.1f}s — {len(clean):,} genes{n_filt_note}, {n_sig:,} significant")
+    print(f"  DEG: done in {elapsed:.1f}s — {len(clean):,} genes, {n_sig:,} significant")
 
     return {
         "genes": clean, "test": method, "n_a": na, "n_b": nb,
-        "n_total_genes": n_all, "n_total_genes_unfiltered": n_all_orig,
-        "elapsed": round(elapsed, 1),
+        "n_total_genes": n_all, "elapsed": round(elapsed, 1),
         "note": "P-values from single-sample comparison — pseudoreplication caveat applies."
     }
 
@@ -784,12 +696,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def _serve_progress(self):
-        p = dict(PROGRESS)
-        p["csc_building"] = CSC_BUILDING
-        p["hvg_ready"] = len(HVG_NAMES) > 0
-        if len(HVG_NAMES) > 0:
-            p["hvg_genes"] = HVG_NAMES[:200]
-        data = json.dumps(p).encode("utf-8")
+        data = json.dumps(PROGRESS).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
@@ -856,39 +763,24 @@ class FleekHandler(SimpleHTTPRequestHandler):
             indices = req["indices"]
             name = req.get("name", "subset")
             fpath, fname = export_h5ad_subset(indices, name)
-            fsize = os.path.getsize(fpath)
+            with open(fpath, "rb") as f:
+                data = f.read()
+            os.remove(fpath)
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
-            self.send_header("Content-Length", str(fsize))
+            self.send_header("Content-Length", str(len(data)))
             self.end_headers()
-            # Stream in chunks — macOS sendall fails on buffers > ~2GB
-            CHUNK = 4 * 1024 * 1024  # 4MB
-            with open(fpath, "rb") as f:
-                while True:
-                    chunk = f.read(CHUNK)
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-            os.remove(fpath)
+            self.wfile.write(data)
         except Exception as e:
             import traceback
             traceback.print_exc()
-            # Clean up temp file if it exists
-            try:
-                if 'fpath' in locals() and os.path.exists(fpath):
-                    os.remove(fpath)
-            except OSError:
-                pass
             err = json.dumps({"error": str(e)}).encode("utf-8")
-            try:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(err)))
-                self.end_headers()
-                self.wfile.write(err)
-            except Exception:
-                pass  # headers may already be sent
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(err)))
+            self.end_headers()
+            self.wfile.write(err)
 
     def _serve_load(self, req):
         """Load a new h5ad file from path (kept for compatibility)."""

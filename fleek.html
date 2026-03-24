@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RNA-FLEEK — Fast Lightweight Expression Evaluation Kit</title>
+<title>RNA-FLEEK — Fast Lightweight Expression Exploration Kit</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap');
@@ -39,9 +39,9 @@
   .btn{display:block;width:100%;padding:5px 8px;border-radius:4px;border:none;text-align:left;cursor:pointer;font-size:11px;margin-bottom:2px;background:transparent;color:var(--text2);font-family:inherit;transition:all 0.1s;}
   .btn:hover{background:var(--bg-hover);color:var(--accent2);}
   .btn.on{background:var(--bg-active);color:var(--accent2);}
-  .gbtn{display:inline-block;padding:3px 7px;border-radius:3px;border:none;cursor:pointer;font-size:10px;margin:1px;background:#111318;color:#6b7080;font-family:inherit;transition:all 0.1s;}
-  .gbtn:hover{background:var(--bg-hover);color:#22c55e;}
-  .gbtn.on{background:rgba(34,197,94,0.1);color:#22c55e;}
+  .gbtn{display:inline-block;padding:3px 7px;border-radius:3px;border:none;cursor:pointer;font-size:10px;margin:1px;background:var(--bg3);color:var(--text4);font-family:inherit;transition:all 0.1s;border:1px solid var(--border);}
+  .gbtn:hover{background:var(--bg-hover);color:#22c55e;border-color:var(--border2);}
+  .gbtn.on{background:rgba(34,197,94,0.1);color:#22c55e;border-color:rgba(34,197,94,0.3);}
   #gsearch{width:100%;padding:6px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;}
   .li{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:10px;color:var(--text2);}
   .leg-item{padding:3px 4px;border-radius:3px;margin:0 -4px;}
@@ -128,6 +128,36 @@
   @keyframes deg-pulse{0%,100%{opacity:0.6;}50%{opacity:1;}}
   @keyframes btn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,0.4);}50%{box-shadow:0 0 0 6px rgba(99,102,241,0);}}
   @keyframes spin{to{transform:rotate(360deg);}}
+  /* Help panel */
+  #help-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);}
+  .light #help-overlay{background:rgba(0,0,0,0.25);}
+  #help-panel{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(680px,90vw);max-height:85vh;background:var(--bg2);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,0.5);}
+  .light #help-panel{box-shadow:0 24px 80px rgba(0,0,0,0.15);}
+  #help-hdr{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  #help-hdr h1{font-size:15px;font-weight:800;margin:0;color:var(--text);}
+  #help-hdr h1 span:first-child{color:var(--text3);font-weight:600;}
+  #help-hdr h1 span:last-child{color:var(--accent2);}
+  #help-close{background:none;border:none;color:var(--text4);cursor:pointer;font-size:20px;font-family:inherit;padding:0 4px;line-height:1;}
+  #help-close:hover{color:var(--text);}
+  #help-body{overflow-y:auto;padding:20px 24px 28px;flex:1;}
+  #help-body p{font-size:11px;line-height:1.7;color:var(--text2);margin:0 0 10px;}
+  #help-body .help-tagline{font-size:12px;color:var(--text3);font-style:italic;margin-bottom:16px;}
+  .help-toc{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:20px;}
+  .help-toc a{font-size:9px;padding:3px 8px;border-radius:4px;background:var(--bg3);color:var(--accent2);text-decoration:none;border:1px solid var(--border);transition:all 0.1s;}
+  .help-toc a:hover{background:var(--bg-active);border-color:var(--accent);}
+  .help-sec{margin-bottom:4px;}
+  .help-sec-hdr{display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;user-select:none;border-bottom:1px solid var(--border);}
+  .help-sec-hdr:hover .help-sec-title{color:var(--text);}
+  .help-sec-chev{font-size:8px;color:var(--text4);transition:transform 0.15s;flex-shrink:0;}
+  .help-sec.collapsed .help-sec-chev{transform:rotate(-90deg);}
+  .help-sec-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);}
+  .help-sec-body{padding:12px 0 8px;display:block;}
+  .help-sec.collapsed .help-sec-body{display:none;}
+  .help-table{width:100%;border-collapse:collapse;font-size:10px;margin:8px 0;}
+  .help-table th{text-align:left;color:var(--text3);font-weight:600;padding:4px 8px 4px 0;border-bottom:1px solid var(--border);font-size:9px;text-transform:uppercase;letter-spacing:0.05em;}
+  .help-table td{padding:4px 8px 4px 0;color:var(--text2);border-bottom:1px solid var(--bg3);vertical-align:top;line-height:1.5;}
+  .help-table td:first-child{white-space:nowrap;color:var(--text);font-weight:600;min-width:120px;}
+  .help-key{display:inline-block;padding:1px 5px;border-radius:3px;background:var(--bg3);border:1px solid var(--border);font-size:9px;font-weight:600;color:var(--text2);font-family:inherit;}
   .deg-close{background:none!important;border:none!important;color:var(--text4)!important;font-size:14px;cursor:pointer;padding:0 4px!important;line-height:1;}
   .deg-close:hover{color:#f87171!important;}
   /* Save icons */
@@ -158,7 +188,7 @@
   <!-- Header: always visible -->
   <div class="sec" style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:baseline;gap:8px;">
-      <span style="font-weight:800;font-size:13px;"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
+      <span style="font-weight:800;font-size:13px;cursor:pointer;" onclick="toggleHelp()" title="About & Help"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
       <span id="view-badge" style="font-size:9px;color:var(--text4);">3D</span>
       <span style="font-size:7px;color:var(--text4);opacity:0.5;" title="Build version">v26</span>
     </div>
@@ -222,7 +252,7 @@
         <button class="vbtn on" id="vb3" onclick="setView('3d')">3D</button>
       </div>
       <div class="lbl" style="margin-top:6px;">Point Size</div>
-      <input type="range" min="0.02" max="2" step="0.02" value="0.4" oninput="setPtSz(this.value)">
+      <input type="range" min="0.02" max="0.6" step="0.02" value="0.4" oninput="setPtSz(this.value)">
       <div id="rot-sec" style="margin-top:8px;">
         <button class="btn" id="b-auto" onclick="toggleAuto()">&#10227; Auto-Rotate</button>
       </div>
@@ -378,6 +408,193 @@
 </div>
 </div>
 <div id="tooltip"></div>
+<!-- Help overlay -->
+<div id="help-overlay" onclick="if(event.target===this)toggleHelp()">
+<div id="help-panel">
+  <div id="help-hdr">
+    <h1><span>RNA</span><span>-FLEEK</span></h1>
+    <button id="help-close" onclick="toggleHelp()">&times;</button>
+  </div>
+  <div id="help-body">
+    <p class="help-tagline">Fast Lightweight Expression Exploration Kit — a browser-based single-cell RNA-seq visualizer.</p>
+    <div class="help-toc">
+      <a href="#" onclick="event.preventDefault();helpJump('help-nav')">Navigation</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-sel')">Selection</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-celltypes')">Cell Types</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-gene')">Gene Expression</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-deg')">DEG Analysis</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-data')">Data</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-ref')">Quick Reference</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-stats')">Methods</a>
+    </div>
+
+    <!-- Navigation -->
+    <div class="help-sec" id="help-nav">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Navigation</span>
+      </div>
+      <div class="help-sec-body">
+        <p><strong>3D View</strong> uses an orbit camera — you rotate around a center point marked by a small white cross (dark in light theme). The cross has a fixed world size, so <em>zooming</em> makes it grow on screen while <em>flying</em> keeps it the same apparent size. This is intentional: it tells you whether you're changing orbit distance or translating through space. Points closer to the camera appear larger (perspective depth).</p>
+        <p>The orbit center is constrained inside a bounding sphere computed from the point cloud. You can fly through the entire cloud but the center can't leave it, keeping the view grounded. Zoom-out is capped at 4× the cloud radius.</p>
+        <p>On first load, the camera performs a brief intro orbit — starting close and pulling back with a half-rotation — to convey that the space is 3D and interactive. Any click or scroll cancels it.</p>
+        <p><strong>2D View</strong> uses an orthographic camera with pan and zoom. Panning is limited so the cloud can't be dragged fully off-screen. Zoom-out shows about 2× the cloud extent; zoom-in goes to 500×. A crosshair appears at screen center during panning to aid orientation.</p>
+        <table class="help-table">
+          <tr><th>Action</th><th>3D</th><th>2D</th></tr>
+          <tr><td>Rotate</td><td>Left-drag</td><td>—</td></tr>
+          <tr><td>Pan</td><td><span class="help-key">Ctrl</span>+drag or right-drag</td><td>Drag</td></tr>
+          <tr><td>Fly through</td><td><span class="help-key">⌥ Opt</span>+drag or middle-drag</td><td>—</td></tr>
+          <tr><td>Zoom</td><td>Scroll wheel</td><td>Scroll wheel</td></tr>
+          <tr><td>Reset</td><td colspan="2">Reset View button in View panel</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Selection -->
+    <div class="help-sec" id="help-sel">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Selection Groups</span>
+      </div>
+      <div class="help-sec-body">
+        <p>Selection groups let you define populations of cells for comparison (e.g. DEG analysis). Cells belong to at most one group. Groups are color-coded and their highlighted cells appear on the UMAP with the rest dimmed.</p>
+        <table class="help-table">
+          <tr><th>Action</th><th>How</th></tr>
+          <tr><td>Lasso select</td><td><span class="help-key">Shift</span>+drag on UMAP</td></tr>
+          <tr><td>Lasso deselect</td><td><span class="help-key">Shift</span>+<span class="help-key">⌥ Opt</span>+drag</td></tr>
+          <tr><td>Single cell</td><td><span class="help-key">Shift</span>+click on UMAP</td></tr>
+          <tr><td>Entire cell type</td><td><span class="help-key">Shift</span>+double-click on UMAP, or<br><span class="help-key">Shift</span>+click in Cell Types panel</td></tr>
+          <tr><td>Toggle visibility</td><td>Click the color dot</td></tr>
+          <tr><td>Solo group</td><td><span class="help-key">⌥ Opt</span>+click the dot (click again to restore)</td></tr>
+          <tr><td>Rename</td><td>Double-click the name</td></tr>
+          <tr><td>Export subset</td><td>Click the save icon (downloads .h5ad)</td></tr>
+        </table>
+        <p>Cells are assigned to the <em>active</em> group (highlighted row). Click a group row to make it active. Groups are non-overlapping: adding a cell to one group removes it from any other.</p>
+      </div>
+    </div>
+
+    <!-- Cell Types -->
+    <div class="help-sec" id="help-celltypes">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Cell Types</span>
+      </div>
+      <div class="help-sec-body">
+        <p>The bottom panel lists all cell types (cluster annotations from the h5ad file) with cell counts. Types can be sorted alphabetically or by count using the <strong>A→Z / #↓</strong> toggle.</p>
+        <table class="help-table">
+          <tr><th>Action</th><th>How</th></tr>
+          <tr><td>Show/hide type</td><td>Click the row</td></tr>
+          <tr><td>Solo type</td><td><span class="help-key">⌥ Opt</span>+click (click again to restore)</td></tr>
+          <tr><td>Select into group</td><td><span class="help-key">Shift</span>+click</td></tr>
+          <tr><td>Show/hide all</td><td><strong>all</strong> / <strong>none</strong> buttons</td></tr>
+        </table>
+        <p>Hidden cell types are removed from the 3D/2D view entirely (moved off-screen), not just faded.</p>
+      </div>
+    </div>
+
+    <!-- Gene Expression -->
+    <div class="help-sec" id="help-gene">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Gene Expression</span>
+      </div>
+      <div class="help-sec-body">
+        <p>Switch to <strong>Gene Expression</strong> mode in the Color By section. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP.</p>
+        <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a colorscale: <strong>Viridis</strong> (dark mode) or <strong>Blues sequential</strong> (light mode, where low expression fades into the white background).</p>
+        <p><strong>Top Variable Genes</strong> — shown as clickable chips below search. These are either pre-annotated HVGs from the dataset (<code>adata.var['highly_variable']</code>) or the top 2,000 genes by variance, computed on a 50k-cell subsample in the background.</p>
+        <p><strong>Gene index performance</strong> — on load, a CSC (compressed sparse column) index is built in the background for fast per-gene lookups. The spinner in the Data panel shows progress. Before the index completes, gene lookups use a slower row-scan fallback but still work.</p>
+      </div>
+    </div>
+
+    <!-- DEG Analysis -->
+    <div class="help-sec" id="help-deg">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">DEG Analysis</span>
+      </div>
+      <div class="help-sec-body">
+        <p>The DEG button (enabled when 2+ groups have cells) opens the analysis panel at the bottom. Select two groups to compare, choose a test, and click <strong>Run</strong>.</p>
+        <p><strong>Tests available:</strong></p>
+        <table class="help-table">
+          <tr><th>Test</th><th>Description</th></tr>
+          <tr><td>Wilcoxon</td><td>Rank-sum test. Non-parametric, robust for scRNA-seq. Recommended default.</td></tr>
+          <tr><td>t-test</td><td>Welch's t-test. Faster, assumes roughly normal expression in each group.</td></tr>
+        </table>
+        <p><strong>Gene filtering:</strong> Before testing, genes expressed in fewer than 3 cells across both groups are removed. This typically reduces ~60k genes to ~10–20k, giving a 3–6× speedup without affecting results for meaningful genes.</p>
+        <p><strong>Normalization:</strong> If the data appears to contain raw counts (integer values with max > 5 in a sample), the server auto-applies <code>normalize_total(target_sum=1e4)</code> and <code>log1p</code> to the subset before testing.</p>
+        <p><strong>Volcano plot:</strong> log₂ fold-change on x-axis. Y-axis toggles between −log₁₀(padj) and |Cohen's d|. Significance thresholds: |log₂FC| ≥ 0.5 and padj &lt; 0.05. Hover to see gene stats; click a gene to load its expression on the UMAP.</p>
+        <p><strong>Cohen's d</strong> is computed directly on the sparse matrix using E[X²]−E[X]² with Bessel correction, avoiding densification.</p>
+        <p><strong>Caching:</strong> Results are cached by test type + group combination. Switching between Wilcoxon and t-test shows cached results instantly if available.</p>
+        <p><strong>Pseudoreplication caveat:</strong> Cells from the same donor/sample are not independent observations. P-values from single-cell comparisons are anti-conservative — they reflect intra-sample variability, not inter-donor. For publication-level results, use pseudobulk approaches.</p>
+      </div>
+    </div>
+
+    <!-- Data -->
+    <div class="help-sec" id="help-data">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Data Management</span>
+      </div>
+      <div class="help-sec-body">
+        <p>RNA-FLEEK loads <strong>.h5ad</strong> files (AnnData format). Click the upload icon to select a file. Before loading, a popover lets you set:</p>
+        <table class="help-table">
+          <tr><th>Option</th><th>Description</th></tr>
+          <tr><td>QuickMap</td><td>Subsample-and-project UMAP. Fits UMAP on a subset (default 50k cells), then projects the rest via PCA → nearest-neighbor. Much faster for large datasets with near-identical quality.</td></tr>
+          <tr><td>Disk-backed</td><td>Keeps the expression matrix on disk (backed mode). Slower gene lookups but allows datasets larger than available RAM.</td></tr>
+        </table>
+        <p>After loading, status badges in the Data panel show which options are active. UMAP coordinates are cached to disk (<code>.umap_cache.npz</code>) for instant reload.</p>
+        <p><strong>Server startup:</strong> <code>python fleek_server.py [file.h5ad]</code> — or start without a file and upload via the UI. The server uses a threading HTTP server for concurrent progress polling during heavy computation.</p>
+        <p><strong>Exports:</strong> Click the save icon on a selection group to download that cell subset as an .h5ad file. Large exports are streamed in 4MB chunks.</p>
+      </div>
+    </div>
+
+    <!-- Quick Reference -->
+    <div class="help-sec" id="help-ref">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Quick Reference</span>
+      </div>
+      <div class="help-sec-body">
+        <table class="help-table">
+          <tr><th>Input</th><th>Action</th></tr>
+          <tr><td>Left-drag</td><td>3D rotate / 2D pan</td></tr>
+          <tr><td><span class="help-key">Ctrl</span>/<span class="help-key">⌘</span>+drag</td><td>3D pan</td></tr>
+          <tr><td>Right-drag</td><td>3D pan</td></tr>
+          <tr><td><span class="help-key">⌥ Opt</span>+drag</td><td>3D fly through</td></tr>
+          <tr><td>Middle-drag</td><td>3D fly through</td></tr>
+          <tr><td>Scroll</td><td>Zoom in/out</td></tr>
+          <tr><td><span class="help-key">Shift</span>+drag</td><td>Lasso select</td></tr>
+          <tr><td><span class="help-key">Shift</span>+<span class="help-key">⌥</span>+drag</td><td>Lasso deselect</td></tr>
+          <tr><td><span class="help-key">Shift</span>+click (UMAP)</td><td>Toggle single cell</td></tr>
+          <tr><td><span class="help-key">Shift</span>+dblclick (UMAP)</td><td>Toggle entire cell type</td></tr>
+          <tr><td><span class="help-key">Shift</span>+click (Cell Types)</td><td>Select cell type into group</td></tr>
+          <tr><td><span class="help-key">⌥ Opt</span>+click (legend dot)</td><td>Solo / unsolo</td></tr>
+          <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span></td><td>Undo</td></tr>
+          <tr><td><span class="help-key">⌘</span>+<span class="help-key">]</span></td><td>Redo</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Methods & Statistics -->
+    <div class="help-sec" id="help-stats">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Methods &amp; Statistics</span>
+      </div>
+      <div class="help-sec-body">
+        <p><strong>UMAP</strong> is computed via scanpy using default parameters (n_neighbors=15, min_dist=0.5). Both 2D and 3D embeddings are computed and cached. QuickMap fits on a stratified subsample (preserving cluster proportions) and projects remaining cells via batch PCA and UMAP transform.</p>
+        <p><strong>Differential expression</strong> uses scanpy's <code>rank_genes_groups</code>. P-values are adjusted for multiple testing using Benjamini-Hochberg. Genes expressed in fewer than 3 cells are filtered before testing.</p>
+        <p><strong>Cohen's d</strong> (effect size) is computed as the difference in means divided by pooled standard deviation, with Bessel correction. Computed directly on the sparse matrix via E[X²]−E[X]² to avoid materializing dense arrays.</p>
+        <p><strong>Expression normalization</strong> for visualization uses 98th percentile of expressing cells as the ceiling, mapping to [0, 1]. This prevents a handful of extreme outliers from washing out the color range.</p>
+        <p><strong>Point rendering</strong> uses Three.js WebGL with circle-textured point sprites. In 3D, sizeAttenuation provides perspective-correct depth. In 2D, sizes are manually scaled by zoom level. Point opacity auto-scales inversely with density to prevent over-saturation on large datasets.</p>
+        <p><strong>Performance notes:</strong> The CSC (compressed sparse column) gene index takes ~5 minutes on 1.6M cells but makes individual gene lookups instant. All heavy computation runs in background threads — the visualization is interactive immediately. DEG analysis pre-filters to expressed genes for 3–6× speedup.</p>
+      </div>
+    </div>
+
+    <p style="font-size:9px;color:var(--text4);text-align:center;margin-top:16px;margin-bottom:0;">RNA-FLEEK · Built with Three.js, scanpy, and anndata</p>
+  </div>
+</div>
+</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -478,7 +695,7 @@ function applyHistEntry(snap){
   _navigating=true;
   if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){
-    var ps=Math.max(0.02,Math.min(2,s.ptSize));
+    var ps=Math.max(0.02,Math.min(0.6,s.ptSize));
     document.querySelector('input[type=range]').value=ps;
     if(pts){basePtSz=ps;var n=D?D.header.n_cells:10000;var base=n<50000?0.85:n<200000?0.7:0.55;pts.material.opacity=Math.max(0.15,Math.min(0.9,base-(ps-0.4)*0.3));}
   }
@@ -566,7 +783,7 @@ function restoreState(preloaded){
   _restoring=true;
   if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){
-    var ps=Math.max(0.02,Math.min(2,s.ptSize));
+    var ps=Math.max(0.02,Math.min(0.6,s.ptSize));
     var slider=document.querySelector('input[type=range]');
     slider.value=ps;
     setPtSz(ps);
@@ -1201,7 +1418,8 @@ function recolor(){
       if(selGroups[gi].cells.size>0&&groupVisible[selGroups[gi].id]!==false){hasAnyVisible=true;break;}
     }
   }
-  var dimFactor=hasAnyVisible?0.45:1;
+  var isLight=document.body.classList.contains("light");
+  var dimFactor=hasAnyVisible?(isLight?0.17:0.45):1;
   /* In light mode, fade toward BG instead of toward black */
   var dimBias=hasAnyVisible?(1-dimFactor):0;
 
@@ -1559,8 +1777,12 @@ function setupCtrl(){
       var idx=parseInt(e.key)-1;
       if(idx<selGroups.length){setActiveGroup(selGroups[idx].id);}
     }
-    /* Escape clears active group */
-    if(e.key==="Escape"){clearActiveGroup();}
+    /* Escape clears active group or closes help */
+    if(e.key==="Escape"){
+      var help=document.getElementById("help-overlay");
+      if(help.style.display==="block"){help.style.display="none";return;}
+      clearActiveGroup();
+    }
   });
 }
 
@@ -1671,6 +1893,18 @@ function setPtSz(v){
   saveState();
 }
 function toggleAuto(){autoRotate=!autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");saveState();}
+
+function toggleHelp(){
+  var el=document.getElementById("help-overlay");
+  el.style.display=el.style.display==="block"?"none":"block";
+}
+function helpJump(id){
+  var sec=document.getElementById(id);
+  if(!sec)return;
+  sec.classList.remove("collapsed");
+  var body=document.getElementById("help-body");
+  body.scrollTop=sec.offsetTop-body.offsetTop;
+}
 function resetView(){
   if(viewIs3d){sph={theta:0.5,phi:1.0,radius:cloudBounds.radius*2.5};tgt3.set(0,0,0);}
   else{pan2={x:0,y:0};zoom2=zoom2Fit();}
@@ -1722,7 +1956,7 @@ function renderLeg(){
       ?"background:"+rgb+";"
       :"background:transparent;border:1.5px solid "+rgb+";";
     var textColor=vis?"var(--text2)":"var(--text4)";
-    html.push('<div class="li leg-item" data-ci="'+i+'" onclick="toggleCluster('+i+',event)" style="cursor:pointer;user-select:none;">'
+    html.push('<div class="li leg-item" data-ci="'+i+'" onclick="toggleCluster('+i+',event)" style="cursor:pointer;user-select:none;" title="Click: toggle · Opt: solo · Shift: select">'
       +'<div class="dot" style="'+dotStyle+'"></div>'
       +'<span class="nm" style="color:'+textColor+'">'+nm+'</span>'
       +'<span style="flex:1;"></span>'
@@ -1733,6 +1967,13 @@ function renderLeg(){
 }
 function toggleCluster(i,ev){
   if(ev&&ev.altKey){soloCluster(i);return;}
+  if(ev&&ev.shiftKey){
+    /* Shift+click: select all cells of this type into active group */
+    if(selGroups.length===0)addSelGroup();
+    if(!cellGroupMap)initCellGroupMap();
+    selToggleCellType(i);
+    return;
+  }
   _preSoloVis=null;_soloIdx=null;
   visibleClusters[i]=visibleClusters[i]===false?true:false;
   renderLeg();recolor();saveState();
