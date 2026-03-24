@@ -39,6 +39,13 @@ HTML_DIR = None
 PROGRESS = {"status": "idle", "message": "", "pct": 0}  # for client polling
 PROCESSING_LOCK = threading.Lock()
 BACKED = False  # True if adata.X is on disk (backed mode)
+X_CSC = None  # CSC copy of expression matrix for fast column access
+X_CSC_HVG = None  # CSC copy of just HVG columns (built first, fast)
+HVG_LOCAL_MAP = {}  # gene_name -> column index in X_CSC_HVG
+HVG_NAMES = []  # ordered list of HVG names for the client
+GENE_INDEX = {}  # gene_name -> column index
+CSC_BUILDING = False  # True while background CSC build is running
+LOAD_SETTINGS = {}  # Sent to client so it knows what options were active
 
 def _progress(msg, pct=None):
     """Update global progress for client polling."""
@@ -60,12 +67,12 @@ def _get_available_ram_gb():
 
 
 def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False,
-                     fast_umap_subsample=50000, backed="auto"):
+                     fast_umap_subsample=50000, backed="off"):
     """Load h5ad, subsample if needed, compute UMAP(s).
     
     backed: "auto" (use file size vs RAM), "on" (force backed), "off" (force in-memory)
     """
-    global ADATA, UMAP_2D, UMAP_3D, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED
+    global ADATA, UMAP_2D, UMAP_3D, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, X_CSC_HVG, HVG_LOCAL_MAP, HVG_NAMES, GENE_INDEX, CSC_BUILDING
 
     import scanpy as sc
     import scipy.sparse as sp
@@ -80,6 +87,12 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         CLUSTER_IDS = None
         CLUSTER_NAMES = None
         GENE_NAMES_LIST = None
+        X_CSC = None
+        X_CSC_HVG = None
+        HVG_LOCAL_MAP = {}
+        HVG_NAMES = []
+        GENE_INDEX = {}
+        CSC_BUILDING = False
         N_CELLS = 0
         gc.collect()
 
@@ -330,6 +343,88 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         np.savez(cache_path, **cached)
 
     ADATA = adata
+
+    # Build fast lookup structures
+    GENE_INDEX = {g: i for i, g in enumerate(ADATA.var_names)}
+
+    # Quick check: grab pre-annotated HVGs synchronously (instant, just reading a column)
+    # Variance-based fallback and all CSC builds happen in background
+    HVG_NAMES = []
+    _has_hvg_col = "highly_variable" in ADATA.var.columns
+    if _has_hvg_col:
+        hvg_mask = ADATA.var["highly_variable"].values.astype(bool)
+        _hvg_col_indices = np.where(hvg_mask)[0]
+        HVG_NAMES = [str(ADATA.var_names[i]) for i in _hvg_col_indices]
+        print(f"  Found {len(HVG_NAMES):,} pre-annotated HVGs")
+
+    if not BACKED and sp.issparse(ADATA.X):
+        CSC_BUILDING = True
+        _pre_hvg_indices = _hvg_col_indices if _has_hvg_col else None
+        def _build_gene_index():
+            global X_CSC_HVG, HVG_LOCAL_MAP, HVG_NAMES, X_CSC, CSC_BUILDING
+            import scipy.sparse as _sp
+
+            # Phase 0: compute HVGs if not pre-annotated
+            hvg_idx = _pre_hvg_indices
+            if hvg_idx is None:
+                PROGRESS["status"] = "csc"
+                PROGRESS["message"] = "Computing top variable genes..."
+                print("  Computing top variable genes...")
+                t0 = time.time()
+                X = ADATA.X
+                # Subsample cells for speed — gene rankings are stable at 50k
+                n_sub = min(50000, X.shape[0])
+                if n_sub < X.shape[0]:
+                    rng = np.random.default_rng(42)
+                    sub_idx = rng.choice(X.shape[0], n_sub, replace=False)
+                    X_sub = X[sub_idx]
+                else:
+                    X_sub = X
+                if _sp.issparse(X_sub):
+                    mean = np.asarray(X_sub.mean(axis=0)).ravel()
+                    sq_mean = np.asarray(X_sub.multiply(X_sub).mean(axis=0)).ravel()
+                    var = sq_mean - mean ** 2
+                else:
+                    var = np.var(np.asarray(X_sub), axis=0)
+                del X_sub
+                n_hvg = min(2000, len(var))
+                hvg_idx = np.argsort(var)[-n_hvg:][::-1]
+                HVG_NAMES = [str(ADATA.var_names[i]) for i in hvg_idx]
+                print(f"  Computed top {n_hvg:,} variable genes ({time.time()-t0:.1f}s, {n_sub:,}-cell subsample)")
+
+            # Phase 1: Build small HVG CSC (fast)
+            PROGRESS["status"] = "csc"
+            PROGRESS["message"] = f"Indexing {len(hvg_idx):,} top genes..."
+            print(f"  Building HVG CSC ({len(hvg_idx):,} genes)...")
+            t1 = time.time()
+            X_CSC_HVG = ADATA.X[:, hvg_idx].tocsc()
+            HVG_LOCAL_MAP = {HVG_NAMES[i]: i for i in range(len(HVG_NAMES))}
+            print(f"  HVG index ready ({time.time()-t1:.1f}s) — {len(HVG_NAMES):,} genes fast")
+
+            # Phase 2: Full CSC (slow)
+            PROGRESS["message"] = "Building full gene index..."
+            print("  Building full CSC column index...")
+            t2 = time.time()
+            X_CSC = ADATA.X.tocsc()
+            CSC_BUILDING = False
+            PROGRESS["status"] = "idle"
+            PROGRESS["message"] = ""
+            print(f"  Full CSC index ready ({time.time()-t2:.0f}s) — all gene lookups now fast")
+        threading.Thread(target=_build_gene_index, daemon=True).start()
+    else:
+        X_CSC = None
+        X_CSC_HVG = None
+        HVG_LOCAL_MAP = {}
+        CSC_BUILDING = False
+
+    # Record load settings for the client
+    umap_from_cache = len(dims_needed) == 0  # True if ALL dims were cache hits
+    LOAD_SETTINGS.clear()
+    LOAD_SETTINGS["backed"] = BACKED
+    LOAD_SETTINGS["quickmap"] = use_fast
+    LOAD_SETTINGS["quickmap_n"] = fast_umap_subsample if use_fast else 0
+    LOAD_SETTINGS["umap_cached"] = umap_from_cache
+
     PROGRESS["status"] = "done"
     PROGRESS["pct"] = 100
     PROGRESS["message"] = f"Ready: {N_CELLS:,} cells, {len(CLUSTER_NAMES)} types, {len(GENE_NAMES_LIST):,} genes"
@@ -398,13 +493,19 @@ def get_gene_expression(gene_name):
     """Get normalized 0-1 expression for a single gene."""
     import scipy.sparse as sp
 
-    if gene_name not in ADATA.var_names:
+    idx = GENE_INDEX.get(gene_name)
+    if idx is None:
         return None
 
-    idx = list(ADATA.var_names).index(gene_name)
-
-    if BACKED:
-        # Backed mode: read column in chunks to avoid full-matrix scan
+    if X_CSC is not None:
+        # Fast path: full CSC column slice — O(nnz in column)
+        col = X_CSC[:, idx].toarray().ravel().astype(np.float32)
+    elif gene_name in HVG_LOCAL_MAP and X_CSC_HVG is not None:
+        # Fast path: HVG CSC (available within seconds of load)
+        local_idx = HVG_LOCAL_MAP[gene_name]
+        col = X_CSC_HVG[:, local_idx].toarray().ravel().astype(np.float32)
+    elif BACKED:
+        # Backed mode: read in row batches
         n = ADATA.n_obs
         col = np.empty(n, dtype=np.float32)
         batch = 50000
@@ -417,6 +518,7 @@ def get_gene_expression(gene_name):
                 chunk = np.asarray(chunk).ravel()
             col[bi:be] = chunk
     else:
+        # Dense or fallback
         col = ADATA.X[:, idx]
         if sp.issparse(col):
             col = col.toarray().ravel()
@@ -456,6 +558,8 @@ def build_init_payload():
         "total_genes": len(GENE_NAMES_LIST),
         "cluster_names": CLUSTER_NAMES,
         "metadata_columns": {},
+        "load_settings": dict(LOAD_SETTINGS),
+        "hvg_genes": HVG_NAMES[:200],  # top HVGs for quick-access UI
     }
     header_bytes = json.dumps(header, separators=(",", ":")).encode("utf-8")
 
@@ -478,9 +582,16 @@ def build_init_payload():
 
 
 def run_deg(group_a, group_b, test="wilcoxon"):
-    """Run DEG between two cell groups with Cohen's d."""
+    """Run DEG between two cell groups with Cohen's d.
+    
+    Speed optimization: filters to genes expressed in >=3 cells across both
+    groups before testing.  On a 60k-gene dataset this typically reduces the
+    test set to 10–20k genes → 3–6× faster.
+    """
     import scanpy as sc
     import scipy.sparse as sp
+
+    MIN_CELLS_EXPR = 3  # gene must be nonzero in >=3 cells to be tested
 
     t0 = time.time()
     indices_a = list(group_a)
@@ -493,7 +604,7 @@ def run_deg(group_a, group_b, test="wilcoxon"):
         try:
             sub = sub.to_memory()
         except AttributeError:
-            sub = sub.copy()  # older anndata
+            sub = sub.copy()
     else:
         sub = sub.copy()
     sub.obs["deg_group"] = labels
@@ -507,6 +618,18 @@ def run_deg(group_a, group_b, test="wilcoxon"):
     if is_raw:
         sc.pp.normalize_total(sub, target_sum=1e4)
         sc.pp.log1p(sub)
+
+    # ── Filter to expressed genes (big speedup) ──
+    n_all_orig = sub.n_vars
+    if sp.issparse(sub.X):
+        nnz = np.asarray((sub.X != 0).sum(axis=0)).ravel()
+    else:
+        nnz = np.asarray((np.asarray(sub.X) != 0).sum(axis=0)).ravel()
+    keep_mask = nnz >= MIN_CELLS_EXPR
+    n_kept = int(keep_mask.sum())
+    if n_kept < n_all_orig and n_kept > 0:
+        sub = sub[:, keep_mask].copy()
+        print(f"  DEG: filtered {n_all_orig:,} → {n_kept:,} expressed genes")
 
     t_prep = time.time() - t0
 
@@ -524,19 +647,27 @@ def run_deg(group_a, group_b, test="wilcoxon"):
     pvals = [float(x) for x in result["pvals"]["A"]]
     padj = [float(x) for x in result["pvals_adj"]["A"]]
 
-    # Cohen's d
+    # Cohen's d — computed on sparse directly, no densification
     print(f"  DEG: computing Cohen's d...")
     X_a = sub.X[:na]
     X_b = sub.X[na:]
     if sp.issparse(X_a):
-        X_a = X_a.toarray()
-        X_b = X_b.toarray()
-    X_a = np.asarray(X_a, dtype=np.float64)
-    X_b = np.asarray(X_b, dtype=np.float64)
-    mean_a = X_a.mean(axis=0)
-    mean_b = X_b.mean(axis=0)
-    var_a = X_a.var(axis=0, ddof=1) if na > 1 else np.zeros(n_all)
-    var_b = X_b.var(axis=0, ddof=1) if nb > 1 else np.zeros(n_all)
+        mean_a = np.asarray(X_a.mean(axis=0)).ravel()
+        mean_b = np.asarray(X_b.mean(axis=0)).ravel()
+        sq_a = X_a.multiply(X_a)
+        sq_b = X_b.multiply(X_b)
+        var_a = np.asarray(sq_a.mean(axis=0)).ravel() - mean_a**2
+        var_b = np.asarray(sq_b.mean(axis=0)).ravel() - mean_b**2
+        if na > 1: var_a *= na / (na - 1)
+        if nb > 1: var_b *= nb / (nb - 1)
+        del sq_a, sq_b
+    else:
+        X_a = np.asarray(X_a, dtype=np.float64)
+        X_b = np.asarray(X_b, dtype=np.float64)
+        mean_a = X_a.mean(axis=0)
+        mean_b = X_b.mean(axis=0)
+        var_a = X_a.var(axis=0, ddof=1) if na > 1 else np.zeros(n_all)
+        var_b = X_b.var(axis=0, ddof=1) if nb > 1 else np.zeros(n_all)
     pooled_sd = np.sqrt(((na - 1) * var_a + (nb - 1) * var_b) / max(na + nb - 2, 1))
     cohens_d_all = np.where(pooled_sd > 0, (mean_a - mean_b) / pooled_sd, 0.0)
 
@@ -558,11 +689,13 @@ def run_deg(group_a, group_b, test="wilcoxon"):
     clean.sort(key=lambda x: x["padj"])
     elapsed = time.time() - t0
     n_sig = sum(1 for g in clean if abs(g["log2fc"]) >= 0.5 and g["padj"] < 0.05)
-    print(f"  DEG: done in {elapsed:.1f}s — {len(clean):,} genes, {n_sig:,} significant")
+    n_filt_note = f" (filtered from {n_all_orig:,})" if n_kept < n_all_orig else ""
+    print(f"  DEG: done in {elapsed:.1f}s — {len(clean):,} genes{n_filt_note}, {n_sig:,} significant")
 
     return {
         "genes": clean, "test": method, "n_a": na, "n_b": nb,
-        "n_total_genes": n_all, "elapsed": round(elapsed, 1),
+        "n_total_genes": n_all, "n_total_genes_unfiltered": n_all_orig,
+        "elapsed": round(elapsed, 1),
         "note": "P-values from single-sample comparison — pseudoreplication caveat applies."
     }
 
@@ -674,7 +807,12 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def _serve_progress(self):
-        data = json.dumps(PROGRESS).encode("utf-8")
+        p = dict(PROGRESS)
+        p["csc_building"] = CSC_BUILDING
+        p["hvg_ready"] = len(HVG_NAMES) > 0
+        if len(HVG_NAMES) > 0:
+            p["hvg_genes"] = HVG_NAMES[:200]
+        data = json.dumps(p).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
@@ -807,7 +945,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
             _progress("Upload saved, starting processing...", 3)
             fast = self.headers.get("X-Fast-UMAP", "0") == "1"
             fast_sub = int(self.headers.get("X-Fast-UMAP-N", "50000"))
-            backed = self.headers.get("X-Backed", "auto")  # "auto", "on", "off"
+            backed = self.headers.get("X-Backed", "off")  # "auto", "on", "off"
 
             # Start processing in background thread
             def _bg():
@@ -865,8 +1003,8 @@ def main():
                         help="Use subsample-and-project for large datasets (>50k cells)")
     parser.add_argument("--fast-umap-n", type=int, default=50000,
                         help="Number of cells for UMAP subsample (default: 50000)")
-    parser.add_argument("--backed", type=str, default="auto", choices=["auto", "on", "off"],
-                        help="Backed mode: auto (detect), on (force disk), off (force RAM)")
+    parser.add_argument("--backed", type=str, default="off", choices=["auto", "on", "off"],
+                        help="Backed mode: auto (detect), on (force disk), off (force RAM, default)")
     args = parser.parse_args()
 
     dims = [int(d) for d in args.dims.split(",")]
