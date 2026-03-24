@@ -60,7 +60,14 @@
   .light #expr-bar{background:linear-gradient(to right,#f7fbff,#c6dbef,#6baed6,#2171b5,#08306b);}
   .elbl{display:flex;justify-content:space-between;font-size:9px;color:var(--text4);margin-top:3px;}
   #gene-sec,#expr-sec{display:none;}
-  input[type=range]{width:100%;accent-color:var(--accent);}
+  input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:2px;outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
+  input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
+  input[type=range]::-webkit-slider-runnable-track{background:transparent;}
+  input[type=range]::-moz-range-track{background:var(--border);height:4px;border-radius:2px;}
+  input[type=checkbox]{-webkit-appearance:none;appearance:none;width:14px;height:14px;border:1.5px solid var(--border2);border-radius:3px;background:var(--bg3);cursor:pointer;position:relative;flex-shrink:0;}
+  input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent);}
+  input[type=checkbox]:checked::after{content:"";position:absolute;left:3.5px;top:1px;width:4px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
   #tooltip{position:fixed;pointer-events:none;background:var(--bg2);color:var(--text);padding:4px 8px;border-radius:4px;font-size:10px;border:1px solid var(--border2);display:none;z-index:100;white-space:nowrap;max-width:300px;overflow:hidden;text-overflow:ellipsis;}
   #crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;opacity:0;transition:opacity 0.15s ease-out;z-index:50;color:#ffffff;}
   .light #crosshair{color:#333333;}
@@ -85,6 +92,7 @@
   .sg-item:hover{background:var(--bg-hover);}
   .sg-item.active{background:var(--bg-active);color:var(--text);}
   .sg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;cursor:pointer;box-sizing:border-box;}
+  .sg-num{font-size:8px;font-weight:700;flex-shrink:0;width:10px;text-align:center;opacity:0.7;font-variant-numeric:tabular-nums;}
   .sg-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;font:inherit;padding:0;min-width:0;cursor:pointer;}
   .sg-rename{flex:1;min-width:0;background:none;border:none;border-bottom:1px solid var(--text3);color:var(--text);font:inherit;padding:0;outline:none;}
   .sg-count{font-size:9px;color:var(--text4);flex-shrink:0;}
@@ -216,7 +224,7 @@
     <div id="upload-popover" style="display:none;margin-top:6px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
       <div id="upload-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest. Much faster for large datasets with near-identical quality.">
-        <input type="checkbox" id="fast-umap-toggle" style="accent-color:var(--accent);margin:0;cursor:pointer;">
+        <input type="checkbox" id="fast-umap-toggle" style="margin:0;">
         <span>QuickMap</span>
         <span style="color:var(--text4);font-size:8px;">(subsample-project UMAP)</span>
       </label>
@@ -228,7 +236,7 @@
         </div>
       </div>
       <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
-        <input type="checkbox" id="backed-toggle" style="accent-color:var(--accent);margin:0;cursor:pointer;">
+        <input type="checkbox" id="backed-toggle" style="margin:0;">
         <span>Disk-backed</span>
         <span style="color:var(--text4);font-size:8px;">(for huge datasets)</span>
       </label>
@@ -337,7 +345,7 @@
 <div id="main-col" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 <div id="cw">
   <canvas id="c"></canvas>
-  <div id="fps-box"><span id="fpsn" style="color:#4ade80">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
+  <div id="fps-box" style="display:none;"><span id="fpsn" style="color:#4ade80">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="loading">Connecting to server...</div>
   <button id="settings-btn" onclick="toggleSettings()" title="Settings">
@@ -358,6 +366,17 @@
         <option value="cursor">Cursor position</option>
         <option value="center">Screen center</option>
       </select>
+    </div>
+    <div class="s-row">
+      <span>UI scale</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="range" id="set-ui-scale" min="0.75" max="1.5" step="0.05" value="1" oninput="applyUIScale(this.value);saveSettings()" style="width:80px;">
+        <span id="ui-scale-label" style="font-size:9px;color:var(--text3);min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">100%</span>
+      </div>
+    </div>
+    <div class="s-row">
+      <span>FPS counter</span>
+      <input type="checkbox" id="set-fps" onchange="toggleFPS();saveSettings()" style="margin:0;">
     </div>
   </div>
   <svg id="crosshair" width="24" height="24" viewBox="0 0 24 24">
@@ -469,7 +488,7 @@
           <tr><td>Rename</td><td>Double-click the name</td></tr>
           <tr><td>Export subset</td><td>Click the save icon (downloads .h5ad)</td></tr>
         </table>
-        <p>Cells are assigned to the <em>active</em> group (highlighted row). Click a group row to make it active. Groups are non-overlapping: adding a cell to one group removes it from any other.</p>
+        <p>Cells are assigned to the <em>active</em> group (highlighted row). Click a group row to make it active, or press <span class="help-key">1</span>–<span class="help-key">9</span> to activate (and create if it doesn't exist). Groups are non-overlapping: adding a cell to one group removes it from any other.</p>
       </div>
     </div>
 
@@ -569,6 +588,7 @@
           <tr><td><span class="help-key">Shift</span>+dblclick (UMAP)</td><td>Toggle entire cell type</td></tr>
           <tr><td><span class="help-key">Shift</span>+click (Cell Types)</td><td>Select cell type into group</td></tr>
           <tr><td><span class="help-key">⌥ Opt</span>+click (legend dot)</td><td>Solo / unsolo</td></tr>
+          <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span></td><td>Undo</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">]</span></td><td>Redo</td></tr>
         </table>
@@ -1215,7 +1235,10 @@ function renderSelPanel(){
       ?"background:"+rgb+";"+(isActive?"box-shadow:0 0 4px "+rgb+";":"")
       :"background:transparent;border:1.5px solid "+rgb+";";
     var textColor=isActive?(vis?"var(--text)":"var(--text2)"):(vis?"var(--text2)":"var(--text4)");
+    var num=i+1;
+    var numColor=isActive?"var(--accent2)":"var(--text4)";
     return '<div class="sg-item'+(isActive?" active":"")+'" onclick="setActiveGroup('+g.id+')">'
+      +'<span class="sg-num" style="color:'+numColor+'" title="Press '+num+' to activate">'+num+'</span>'
       +'<div class="sg-dot" style="'+dotStyle+'" onclick="event.stopPropagation();toggleGroupVis('+g.id+',event)" title="'+(vis?"Hide":"Show")+' group (Opt-click: solo)"></div>'
       +'<span class="sg-name" style="color:'+textColor+'" ondblclick="startRenameGroup('+g.id+',event)">'+g.name.replace(/\x3c/g,"&lt;")+'</span>'
       +'<span class="sg-count" style="color:'+(vis?"var(--text4)":"var(--border2)")+'">'+g.cells.size.toLocaleString()+'</span>'
@@ -1772,10 +1795,13 @@ function setupCtrl(){
   document.addEventListener("keydown",function(e){
     if((e.metaKey||e.ctrlKey)&&e.key==="["){e.preventDefault();histUndo();}
     if((e.metaKey||e.ctrlKey)&&e.key==="]"){e.preventDefault();histRedo();}
-    /* Number keys 1-9 switch active group */
-    if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key>="1"&&e.key<="9"){
+    /* Number keys 1-9: create group if needed, then activate (skip if typing in input) */
+    if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key>="1"&&e.key<="9"
+       &&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"){
       var idx=parseInt(e.key)-1;
-      if(idx<selGroups.length){setActiveGroup(selGroups[idx].id);}
+      /* Create groups up to the requested index */
+      while(idx>=selGroups.length)addSelGroup();
+      setActiveGroup(selGroups[idx].id);
     }
     /* Escape clears active group or closes help */
     if(e.key==="Escape"){
@@ -2762,11 +2788,29 @@ function applyTheme(t){
   /* Update point cloud colors for theme */
   recolor();
 }
+function toggleFPS(){
+  var on=document.getElementById("set-fps").checked;
+  document.getElementById("fps-box").style.display=on?"block":"none";
+}
 function saveSettings(){
   zoomMode=document.getElementById("set-zoom-mode").value;
   var theme=document.getElementById("set-theme").value;
+  var uiScale=parseFloat(document.getElementById("set-ui-scale").value);
+  var showFps=document.getElementById("set-fps").checked;
   applyTheme(theme);
-  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme}));}catch(e){}
+  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps}));}catch(e){}
+}
+function applyUIScale(v){
+  var s=parseFloat(v);
+  document.getElementById("ui-scale-label").textContent=Math.round(s*100)+"%";
+  document.getElementById("sidebar").style.zoom=s;
+  document.getElementById("deg-panel").style.zoom=s;
+  document.getElementById("deg-drag").style.zoom=s;
+  /* Floating UI in canvas area */
+  var ids=["fps-box","hint","tooltip"];
+  for(var i=0;i<ids.length;i++){var el=document.getElementById(ids[i]);if(el)el.style.zoom=s;}
+  /* Trigger canvas resize since sidebar width changed */
+  syncCanvasSize();
 }
 function loadSettings(){
   try{
@@ -2777,6 +2821,14 @@ function loadSettings(){
       if(o.theme){
         document.getElementById("set-theme").value=o.theme;
         applyTheme(o.theme);
+      }
+      if(o.uiScale){
+        document.getElementById("set-ui-scale").value=o.uiScale;
+        applyUIScale(o.uiScale);
+      }
+      if(o.showFps){
+        document.getElementById("set-fps").checked=true;
+        toggleFPS();
       }
     }
     document.getElementById("set-zoom-mode").value=zoomMode;
