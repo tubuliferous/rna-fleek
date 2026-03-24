@@ -40,8 +40,6 @@ PROGRESS = {"status": "idle", "message": "", "pct": 0}  # for client polling
 PROCESSING_LOCK = threading.Lock()
 BACKED = False  # True if adata.X is on disk (backed mode)
 X_CSC = None  # CSC copy of expression matrix for fast column access
-X_CSC_HVG = None  # CSC copy of just HVG columns (built first, fast)
-HVG_LOCAL_MAP = {}  # gene_name -> column index in X_CSC_HVG
 HVG_NAMES = []  # ordered list of HVG names for the client
 GENE_INDEX = {}  # gene_name -> column index
 CSC_BUILDING = False  # True while background CSC build is running
@@ -72,7 +70,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     
     backed: "auto" (use file size vs RAM), "on" (force backed), "off" (force in-memory)
     """
-    global ADATA, UMAP_2D, UMAP_3D, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, X_CSC_HVG, HVG_LOCAL_MAP, HVG_NAMES, GENE_INDEX, CSC_BUILDING
+    global ADATA, UMAP_2D, UMAP_3D, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, HVG_NAMES, GENE_INDEX, CSC_BUILDING
 
     import scanpy as sc
     import scipy.sparse as sp
@@ -88,8 +86,6 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         CLUSTER_NAMES = None
         GENE_NAMES_LIST = None
         X_CSC = None
-        X_CSC_HVG = None
-        HVG_LOCAL_MAP = {}
         HVG_NAMES = []
         GENE_INDEX = {}
         CSC_BUILDING = False
@@ -347,37 +343,32 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     # Build fast lookup structures
     GENE_INDEX = {g: i for i, g in enumerate(ADATA.var_names)}
 
-    # Quick check: grab pre-annotated HVGs synchronously (instant, just reading a column)
-    # Variance-based fallback and all CSC builds happen in background
+    # Detect HVG names (instant if pre-annotated, fast subsample if not)
+    # Used for UI chips only — gene lookups use full CSC once built
     HVG_NAMES = []
     _has_hvg_col = "highly_variable" in ADATA.var.columns
     if _has_hvg_col:
         hvg_mask = ADATA.var["highly_variable"].values.astype(bool)
-        _hvg_col_indices = np.where(hvg_mask)[0]
-        HVG_NAMES = [str(ADATA.var_names[i]) for i in _hvg_col_indices]
+        HVG_NAMES = [str(ADATA.var_names[i]) for i in np.where(hvg_mask)[0]]
         print(f"  Found {len(HVG_NAMES):,} pre-annotated HVGs")
 
     if not BACKED and sp.issparse(ADATA.X):
         CSC_BUILDING = True
-        _pre_hvg_indices = _hvg_col_indices if _has_hvg_col else None
         def _build_gene_index():
-            global X_CSC_HVG, HVG_LOCAL_MAP, HVG_NAMES, X_CSC, CSC_BUILDING
-            import scipy.sparse as _sp
+            global HVG_NAMES, X_CSC, CSC_BUILDING
 
-            # Phase 0: compute HVGs if not pre-annotated
-            hvg_idx = _pre_hvg_indices
-            if hvg_idx is None:
+            # Compute HVGs by variance if not pre-annotated (subsample for speed)
+            if not _has_hvg_col:
                 PROGRESS["status"] = "csc"
                 PROGRESS["message"] = "Computing top variable genes..."
                 print("  Computing top variable genes...")
                 t0 = time.time()
+                import scipy.sparse as _sp
                 X = ADATA.X
-                # Subsample cells for speed — gene rankings are stable at 50k
                 n_sub = min(50000, X.shape[0])
                 if n_sub < X.shape[0]:
                     rng = np.random.default_rng(42)
-                    sub_idx = rng.choice(X.shape[0], n_sub, replace=False)
-                    X_sub = X[sub_idx]
+                    X_sub = X[rng.choice(X.shape[0], n_sub, replace=False)]
                 else:
                     X_sub = X
                 if _sp.issparse(X_sub):
@@ -392,29 +383,19 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 HVG_NAMES = [str(ADATA.var_names[i]) for i in hvg_idx]
                 print(f"  Computed top {n_hvg:,} variable genes ({time.time()-t0:.1f}s, {n_sub:,}-cell subsample)")
 
-            # Phase 1: Build small HVG CSC (fast)
+            # Build full CSC — single pass, no intermediate copies
             PROGRESS["status"] = "csc"
-            PROGRESS["message"] = f"Indexing {len(hvg_idx):,} top genes..."
-            print(f"  Building HVG CSC ({len(hvg_idx):,} genes)...")
+            PROGRESS["message"] = "Building gene index..."
+            print("  Building CSC column index...")
             t1 = time.time()
-            X_CSC_HVG = ADATA.X[:, hvg_idx].tocsc()
-            HVG_LOCAL_MAP = {HVG_NAMES[i]: i for i in range(len(HVG_NAMES))}
-            print(f"  HVG index ready ({time.time()-t1:.1f}s) — {len(HVG_NAMES):,} genes fast")
-
-            # Phase 2: Full CSC (slow)
-            PROGRESS["message"] = "Building full gene index..."
-            print("  Building full CSC column index...")
-            t2 = time.time()
             X_CSC = ADATA.X.tocsc()
             CSC_BUILDING = False
             PROGRESS["status"] = "idle"
             PROGRESS["message"] = ""
-            print(f"  Full CSC index ready ({time.time()-t2:.0f}s) — all gene lookups now fast")
+            print(f"  CSC index ready ({time.time()-t1:.0f}s) — all gene lookups now fast")
         threading.Thread(target=_build_gene_index, daemon=True).start()
     else:
         X_CSC = None
-        X_CSC_HVG = None
-        HVG_LOCAL_MAP = {}
         CSC_BUILDING = False
 
     # Record load settings for the client
@@ -500,10 +481,6 @@ def get_gene_expression(gene_name):
     if X_CSC is not None:
         # Fast path: full CSC column slice — O(nnz in column)
         col = X_CSC[:, idx].toarray().ravel().astype(np.float32)
-    elif gene_name in HVG_LOCAL_MAP and X_CSC_HVG is not None:
-        # Fast path: HVG CSC (available within seconds of load)
-        local_idx = HVG_LOCAL_MAP[gene_name]
-        col = X_CSC_HVG[:, local_idx].toarray().ravel().astype(np.float32)
     elif BACKED:
         # Backed mode: read in row batches
         n = ADATA.n_obs
@@ -879,24 +856,39 @@ class FleekHandler(SimpleHTTPRequestHandler):
             indices = req["indices"]
             name = req.get("name", "subset")
             fpath, fname = export_h5ad_subset(indices, name)
-            with open(fpath, "rb") as f:
-                data = f.read()
-            os.remove(fpath)
+            fsize = os.path.getsize(fpath)
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
             self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
-            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Content-Length", str(fsize))
             self.end_headers()
-            self.wfile.write(data)
+            # Stream in chunks — macOS sendall fails on buffers > ~2GB
+            CHUNK = 4 * 1024 * 1024  # 4MB
+            with open(fpath, "rb") as f:
+                while True:
+                    chunk = f.read(CHUNK)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+            os.remove(fpath)
         except Exception as e:
             import traceback
             traceback.print_exc()
+            # Clean up temp file if it exists
+            try:
+                if 'fpath' in locals() and os.path.exists(fpath):
+                    os.remove(fpath)
+            except OSError:
+                pass
             err = json.dumps({"error": str(e)}).encode("utf-8")
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(err)))
-            self.end_headers()
-            self.wfile.write(err)
+            try:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
+            except Exception:
+                pass  # headers may already be sent
 
     def _serve_load(self, req):
         """Load a new h5ad file from path (kept for compatibility)."""

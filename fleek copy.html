@@ -221,7 +221,7 @@
         <button class="vbtn on" id="vb3" onclick="setView('3d')">3D</button>
       </div>
       <div class="lbl" style="margin-top:6px;">Point Size</div>
-      <input type="range" min="0.02" max="2" step="0.02" value="0.4" oninput="setPtSz(this.value)">
+      <input type="range" min="0.1" max="6" step="0.1" value="1.5" oninput="setPtSz(this.value)">
       <div id="rot-sec" style="margin-top:8px;">
         <button class="btn on" id="b-auto" onclick="toggleAuto()">&#10227; Auto-Rotate</button>
       </div>
@@ -383,15 +383,14 @@ var D=null, mode="cluster", selGene="", geneExprCache={};
 var recentGenes=[]; /* most recently viewed genes, newest first */
 var hvgGenes=[]; /* highly variable genes from server */
 var MAX_RECENT=20;
-var renderer, cam3d, cam2d, scene, pts, pivotMarker;
+var renderer, cam3d, cam2d, scene, pts;
 var autoRotate=true, viewIs3d=true;
 var sph={theta:0.5,phi:1.0,radius:120};
-var basePtSz=1.5; /* slider value — animate() applies zoom scaling */
 var tgt3=new THREE.Vector3(0,0,0);
 var pan2={x:0,y:0}, zoom2=1, frustum2=60;
 var canvasW=1, canvasH=1; /* always up-to-date canvas CSS dims */
 var zoomMode="cursor"; /* "center" or "cursor" */
-var dragging=false, panning=false, dollying=false, prev={x:0,y:0};
+var dragging=false, panning=false, prev={x:0,y:0};
 var fpsF=0, fpsT=performance.now();
 var searchTimer=null;
 var visibleClusters={}; // cluster index -> true/false
@@ -433,7 +432,7 @@ function snapState(){
     viewIs3d:viewIs3d, mode:mode, selGene:selGene,
     visibleClusters:JSON.parse(JSON.stringify(visibleClusters)),
     autoRotate:autoRotate,
-    ptSize:basePtSz,
+    ptSize:pts?pts.material.size:1.5,
     selGroups:sg, activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
     groupVisible:JSON.parse(JSON.stringify(groupVisible))
   });
@@ -469,9 +468,8 @@ function applyHistEntry(snap){
   _navigating=true;
   if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){
-    var ps=Math.max(0.02,Math.min(2,s.ptSize));
-    document.querySelector('input[type=range]').value=ps;
-    if(pts){basePtSz=ps;var n=D?D.header.n_cells:10000;var base=n<50000?0.85:n<200000?0.7:0.55;pts.material.opacity=Math.max(0.15,Math.min(0.9,base-(ps-0.4)*0.3));}
+    document.querySelector('input[type=range]').value=s.ptSize;
+    if(pts){pts.material.size=s.ptSize;var n=D?D.header.n_cells:10000;var base=n<50000?0.85:n<200000?0.7:0.55;pts.material.opacity=Math.max(0.15,Math.min(0.9,base-(s.ptSize-1.5)*0.08));}
   }
   if(s.visibleClusters){
     visibleClusters={};
@@ -516,7 +514,7 @@ function saveState(){
     var s={
       viewIs3d:viewIs3d, mode:mode, selGene:selGene,
       visibleClusters:visibleClusters, autoRotate:autoRotate,
-      ptSize:basePtSz,
+      ptSize:pts?pts.material.size:1.5,
       sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
       tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
       pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
@@ -534,7 +532,7 @@ function saveCameraOnly(){
     var s={
       viewIs3d:viewIs3d, mode:mode, selGene:selGene,
       visibleClusters:visibleClusters, autoRotate:autoRotate,
-      ptSize:basePtSz,
+      ptSize:pts?pts.material.size:1.5,
       sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
       tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
       pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
@@ -557,10 +555,9 @@ function restoreState(preloaded){
   _restoring=true;
   if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){
-    var ps=Math.max(0.02,Math.min(2,s.ptSize));
     var slider=document.querySelector('input[type=range]');
-    slider.value=ps;
-    setPtSz(ps);
+    slider.value=s.ptSize;
+    setPtSz(s.ptSize);
   }
   if(s.visibleClusters){
     for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];
@@ -1044,20 +1041,10 @@ function initRenderer(){
   renderer.setSize(canvasW,canvasH);
   renderer.setClearColor(getComputedStyle(document.body).getPropertyValue("--canvas-bg").trim()||"#08080e",1);
   scene=new THREE.Scene();
-  cam3d=new THREE.PerspectiveCamera(45,canvasW/canvasH,0.1,10000);
+  cam3d=new THREE.PerspectiveCamera(45,canvasW/canvasH,0.1,2000);
   var a=canvasW/canvasH;
   cam2d=new THREE.OrthographicCamera(-frustum2*a,frustum2*a,frustum2,-frustum2,0.1,1000);
   cam2d.position.z=100;
-
-  /* 3D pivot indicator: small axis cross shown at orbit center during rotation */
-  var pivGeo=new THREE.BufferGeometry();
-  var s=0.75;
-  pivGeo.setAttribute("position",new THREE.Float32BufferAttribute([
-    -s,0,0, s,0,0,  0,-s,0, 0,s,0,  0,0,-s, 0,0,s
-  ],3));
-  pivotMarker=new THREE.LineSegments(pivGeo,new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.7,depthTest:true}));
-  pivotMarker.visible=false;
-  scene.add(pivotMarker);
 }
 function update3dCam(){
   cam3d.position.set(tgt3.x+sph.radius*Math.sin(sph.phi)*Math.cos(sph.theta),tgt3.y+sph.radius*Math.cos(sph.phi),tgt3.z+sph.radius*Math.sin(sph.phi)*Math.sin(sph.theta));
@@ -1105,13 +1092,12 @@ function buildPts(data){
   geo.setAttribute("position",new THREE.BufferAttribute(pos,3));
   geo.setAttribute("color",new THREE.BufferAttribute(col,3));
   if(!circleTexture)circleTexture=makeCircleTexture();
-  /* Auto-scale point size: world units for sizeAttenuation (≈3.3px per unit at default distance) */
-  var autoSz=n<5000?0.8:n<20000?0.55:n<50000?0.4:n<200000?0.25:n<500000?0.15:0.1;
+  /* Auto-scale point size: smaller points for more cells */
+  var autoSz=n<5000?2.5:n<20000?1.8:n<50000?1.2:n<200000?0.8:n<500000?0.5:0.3;
   var autoOpacity=n<50000?0.85:n<200000?0.7:0.55;
-  basePtSz=autoSz;
   var slider=document.querySelector('input[type=range]');
   slider.value=autoSz;
-  var mat=new THREE.PointsMaterial({size:autoSz,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:autoOpacity,depthWrite:true,map:circleTexture,alphaTest:0.05});
+  var mat=new THREE.PointsMaterial({size:autoSz,vertexColors:true,sizeAttenuation:false,transparent:true,opacity:autoOpacity,depthWrite:false,map:circleTexture,alphaTest:0.05});
   pts=new THREE.Points(geo,mat);
   scene.add(pts);
   var ad=data.availDims;
@@ -1185,26 +1171,13 @@ function recolor(){
 function animate(){
   requestAnimationFrame(animate);
   if(!renderer)return;
-  if(viewIs3d){if(autoRotate&&!dragging&&!panning&&!dollying&&!lassoActive&&!shiftHeld)sph.theta+=0.003;update3dCam();
-    /* Update pivot indicator position + scale to remain visible at any zoom */
-    if(pivotMarker&&pivotMarker.visible){pivotMarker.position.copy(tgt3);}
-    renderer.render(scene,cam3d);}
+  if(viewIs3d){if(autoRotate&&!dragging&&!panning&&!lassoActive&&!shiftHeld)sph.theta+=0.003;update3dCam();renderer.render(scene,cam3d);}
   else{update2dCam();renderer.render(scene,cam2d);}
-  /* Point size: 3D uses sizeAttenuation (distance-based), 2D uses manual zoom scaling */
-  if(pts){
-    if(viewIs3d){
-      pts.material.size=basePtSz;
-    }else{
-      /* basePtSz is world units; multiply up to get pixels for sizeAttenuation:false */
-      var zs=Math.pow(Math.max(0.1,zoom2),0.3);
-      pts.material.size=basePtSz*8*zs;
-    }
-  }
 
   /* Hover raycast — adaptive throttle: more cells = less frequent */
   hoverFrameSkip++;
   var hoverInterval=(!D)?4:D.header.n_cells<50000?4:D.header.n_cells<200000?8:15;
-  if(hoverFrameSkip>=hoverInterval&&mouseOnCanvas&&!dragging&&!panning&&!dollying&&!lassoActive&&pts&&D&&tooltipEl){
+  if(hoverFrameSkip>=hoverInterval&&mouseOnCanvas&&!dragging&&!panning&&!lassoActive&&pts&&D&&tooltipEl){
     hoverFrameSkip=0;
     raycaster.params.Points.threshold=pickThreshold();
     var cam=viewIs3d?cam3d:cam2d;
@@ -1250,7 +1223,6 @@ function setupCtrl(){
   var cv=document.getElementById("c");
   crosshairEl=document.getElementById("crosshair");
   cv.addEventListener("contextmenu",function(e){e.preventDefault();});
-  cv.addEventListener("auxclick",function(e){e.preventDefault();}); /* prevent middle-click paste */
 
   /* Track shift key for selection mode indicator */
   var crosshairLines=crosshairEl.querySelectorAll("line");
@@ -1289,19 +1261,12 @@ function setupCtrl(){
       e.preventDefault();
       return;
     }
-    if(viewIs3d){
-      if(e.button===1){dollying=true;e.preventDefault();} /* middle click */
-      else if(e.button===0&&e.altKey&&!shiftHeld){dollying=true;} /* option+click */
-      else if(e.button===0&&(e.ctrlKey||e.metaKey))panning=true;
-      else if(e.button===0)dragging=true;
-      else if(e.button===2)panning=true;
-    }
+    if(viewIs3d){if(e.button===0&&(e.ctrlKey||e.metaKey))panning=true;else if(e.button===0)dragging=true;else if(e.button===2)panning=true;}
     else{dragging=true;}
     prev={x:e.clientX,y:e.clientY};
-    /* Show pivot marker during 3D rotation, panning, or dollying */
-    if(viewIs3d&&(dragging||panning||dollying)&&pivotMarker){clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;}
-    /* Show crosshair during 2D interaction only */
-    if(!viewIs3d){clearTimeout(crosshairTimer);crosshairEl.classList.add("show");}
+    /* Show crosshair during any interaction */
+    clearTimeout(crosshairTimer);
+    crosshairEl.classList.add("show");
   });
 
   /* Shift+click/lasso selection on mouseup */
@@ -1365,37 +1330,35 @@ function setupCtrl(){
     var dx=e.clientX-prev.x,dy=e.clientY-prev.y;prev={x:e.clientX,y:e.clientY};
     if(viewIs3d){
       if(dragging){sph.theta-=dx*.005;sph.phi-=dy*.005;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
-      else if(dollying){
-        /* Move orbit center forward/backward along view direction */
-        var fwd=new THREE.Vector3();
-        cam3d.getWorldDirection(fwd);
-        var speed=Math.max(0.5,sph.radius*0.008);
-        tgt3.addScaledVector(fwd,-dy*speed);
-      }
       else if(panning){var ps=sph.radius*.001;var up=new THREE.Vector3(0,1,0);var cd=new THREE.Vector3().subVectors(cam3d.position,tgt3).normalize();var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();tgt3.addScaledVector(rt,-dx*ps);tgt3.addScaledVector(cu,dy*ps);}
     }else{if(dragging){var s=(frustum2*2)/(zoom2*canvasW);pan2.x-=dx*s;pan2.y+=dy*s;}}
   });
-  var pivotTimer=null;
   window.addEventListener("mouseup",function(){
-    dragging=false;panning=false;dollying=false;saveCameraOnly();
+    dragging=false;panning=false;saveCameraOnly();
     clearTimeout(crosshairTimer);
     crosshairTimer=setTimeout(function(){crosshairEl.classList.remove("show");},300);
-    /* Hide pivot marker after brief delay */
-    if(pivotMarker&&pivotMarker.visible){
-      clearTimeout(pivotTimer);
-      pivotTimer=setTimeout(function(){pivotMarker.visible=false;},400);
-    }
   });
   var wheelSaveTimer=null;
   cv.addEventListener("wheel",function(e){e.preventDefault();
     if(viewIs3d){
-      var factor=e.deltaY>0?1.015:1/1.015;
-      var newRadius=sph.radius*factor;
-      /* Ensure minimum step so zoom-out isn't stuck at small radii */
-      if(e.deltaY>0&&newRadius-sph.radius<0.3)newRadius=sph.radius+0.3;
-      sph.radius=Math.max(0.5,Math.min(5000,newRadius));
-      /* Show pivot during zoom */
-      if(pivotMarker){clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;pivotTimer=setTimeout(function(){pivotMarker.visible=false;},400);}
+      var factor=e.deltaY>0?1.03:1/1.03;
+      var newRadius=Math.max(5,Math.min(1000,sph.radius*factor));
+      if(zoomMode==="cursor"){
+        /* Ensure camera matrices are fresh */
+        update3dCam();
+        cam3d.updateMatrixWorld();
+        /* Cast ray from camera through cursor */
+        var rect=cv.getBoundingClientRect();
+        var ndcX=((e.clientX-rect.left)/rect.width)*2-1;
+        var ndcY=-((e.clientY-rect.top)/rect.height)*2+1;
+        var ndc3=new THREE.Vector3(ndcX,ndcY,0.5);
+        ndc3.unproject(cam3d);
+        var dir=ndc3.sub(cam3d.position).normalize();
+        /* Shift orbit target along cursor ray proportional to zoom delta */
+        var shift=(sph.radius-newRadius)*0.5;
+        tgt3.addScaledVector(dir,shift);
+      }
+      sph.radius=newRadius;
     }
     else{
       var f=e.deltaY<0?1.025:1/1.025;
@@ -1417,14 +1380,14 @@ function setupCtrl(){
     clearTimeout(wheelSaveTimer);wheelSaveTimer=setTimeout(saveCameraOnly,300);
   },{passive:false});
   var ltd=0;
-  cv.addEventListener("touchstart",function(e){e.preventDefault();if(e.touches.length===1){dragging=true;prev={x:e.touches[0].clientX,y:e.touches[0].clientY};if(!viewIs3d){clearTimeout(crosshairTimer);crosshairEl.classList.add("show");}}else if(e.touches.length===2){dragging=false;ltd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:false});
+  cv.addEventListener("touchstart",function(e){e.preventDefault();if(e.touches.length===1){dragging=true;prev={x:e.touches[0].clientX,y:e.touches[0].clientY};clearTimeout(crosshairTimer);crosshairEl.classList.add("show");}else if(e.touches.length===2){dragging=false;ltd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:false});
   cv.addEventListener("touchmove",function(e){e.preventDefault();
     if(e.touches.length===1&&dragging){var dx=e.touches[0].clientX-prev.x,dy=e.touches[0].clientY-prev.y;
       if(viewIs3d){sph.theta-=dx*.005;sph.phi-=dy*.005;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
       else{var s=(frustum2*2)/(zoom2*canvasW);pan2.x-=dx*s;pan2.y+=dy*s;}
       prev={x:e.touches[0].clientX,y:e.touches[0].clientY};
     }else if(e.touches.length===2){var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-      if(ltd>0){if(viewIs3d){var nr=sph.radius*(ltd/d);if(nr>sph.radius&&nr-sph.radius<0.3)nr=sph.radius+0.3;sph.radius=Math.max(0.5,Math.min(5000,nr));}else zoom2=Math.max(0.1,Math.min(200,zoom2*(d/ltd)));}ltd=d;}
+      if(ltd>0){if(viewIs3d)sph.radius=Math.max(5,Math.min(1000,sph.radius*(ltd/d)));else zoom2=Math.max(0.1,Math.min(200,zoom2*(d/ltd)));}ltd=d;}
   },{passive:false});
   cv.addEventListener("touchend",function(){dragging=false;ltd=0;saveCameraOnly();
     clearTimeout(crosshairTimer);
@@ -1494,9 +1457,8 @@ function setView(v){
   document.getElementById("vb3").className="vbtn"+(viewIs3d?" on":"");
   document.getElementById("rot-sec").style.display=viewIs3d?"block":"none";
   document.getElementById("view-badge").textContent=viewIs3d?"3D":"2D";
-  document.getElementById("hint").textContent=viewIs3d?"Left-drag rotate \u00b7 Ctrl+drag pan \u00b7 Opt+drag fly \u00b7 Scroll zoom":"Drag pan \u00b7 Scroll zoom";
+  document.getElementById("hint").textContent=viewIs3d?"Left-drag rotate \u00b7 Ctrl+drag pan \u00b7 Scroll zoom":"Drag pan \u00b7 Scroll zoom";
   if(D){var td=viewIs3d?3:2;if(D.embeddings[td])positionPts(D,td);}
-  if(pts){pts.material.sizeAttenuation=viewIs3d;pts.material.needsUpdate=true;}
   saveState();
 }
 
@@ -1586,11 +1548,12 @@ function pickGene(g){
 }
 function setPtSz(v){
   if(!pts)return;
-  basePtSz=parseFloat(v);
+  var sz=parseFloat(v);
+  pts.material.size=sz;
   /* Opacity: larger points slightly more transparent, but never below 0.15 */
   var n=D?D.header.n_cells:10000;
   var base=n<50000?0.85:n<200000?0.7:0.55;
-  pts.material.opacity=Math.max(0.15,Math.min(0.9,base-(basePtSz-0.4)*0.3));
+  pts.material.opacity=Math.max(0.15,Math.min(0.9,base-(sz-1.5)*0.08));
   saveState();
 }
 function toggleAuto(){autoRotate=!autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");saveState();}
@@ -1631,35 +1594,18 @@ function renderLeg(){
 }
 function toggleCluster(i,ev){
   if(ev&&ev.altKey){soloCluster(i);return;}
-  _preSoloVis=null;_soloIdx=null;
   visibleClusters[i]=visibleClusters[i]===false?true:false;
   renderLeg();recolor();saveState();
 }
-var _preSoloVis=null; /* snapshot of visibleClusters before solo */
-var _soloIdx=null;   /* which cluster is currently solo'd */
-
 function soloCluster(i){
-  if(_soloIdx===i&&_preSoloVis){
-    /* Second option-click on same cluster: restore previous visibility */
-    for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=_preSoloVis[k]!==false;
-    _preSoloVis=null;
-    _soloIdx=null;
-  }else{
-    /* Save current visibility, then solo */
-    _preSoloVis={};
-    for(var k=0;k<D.header.n_clusters;k++)_preSoloVis[k]=visibleClusters[k]!==false;
-    for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=(k===i);
-    _soloIdx=i;
-  }
+  for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=(k===i);
   renderLeg();recolor();saveState();
 }
 function showAllClusters(){
-  _preSoloVis=null;_soloIdx=null;
   for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=true;
   renderLeg();recolor();saveState();
 }
 function showNoneClusters(){
-  _preSoloVis=null;_soloIdx=null;
   for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=false;
   renderLeg();recolor();saveState();
 }
@@ -2119,11 +2065,6 @@ function exportGroup(id){
   var btn=event.target.closest(".icon-btn");
   if(!btn)return;
   btn.style.color="#6366f1";btn.style.opacity="0.5";
-  /* Add spinner next to button */
-  var spinner=document.createElement("span");
-  spinner.className="csc-spinner";
-  spinner.style.cssText="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-left:2px;";
-  btn.parentNode.insertBefore(spinner,btn.nextSibling);
   fetch("/api/export",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -2143,12 +2084,10 @@ function exportGroup(id){
     a.click();
     URL.revokeObjectURL(a.href);
     btn.style.color="";btn.style.opacity="";
-    if(spinner.parentNode)spinner.parentNode.removeChild(spinner);
   })
   .catch(function(err){
     alert("Export error: "+err.message);
     btn.style.color="";btn.style.opacity="";
-    if(spinner.parentNode)spinner.parentNode.removeChild(spinner);
   });
 }
 
