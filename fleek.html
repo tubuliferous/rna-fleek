@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RNA-FLEEK — Fast Lightweight Expression Exploration Kit</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;}
+  *{margin:0;padding:0;box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap');
   :root{
     --bg:#08080e;--bg2:#0c0c14;--bg3:#0a0a12;--bg-hover:#151825;--bg-active:#1e2240;
@@ -24,10 +24,17 @@
   body{background:var(--bg);color:var(--text);overflow:hidden;font-family:'JetBrains Mono','SF Mono',monospace;font-size:12px;}
   #app{display:flex;width:100vw;height:100vh;}
   #sidebar{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
-  #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex-shrink:1;}
-  #sidebar-lower{flex:1;display:flex;flex-direction:column;overflow:hidden;border-top:1px solid var(--border);min-height:120px;}
+  #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
+  #sidebar-lower{flex:0 0 auto;height:200px;display:flex;flex-direction:column;overflow:hidden;min-height:80px;}
   #sidebar-lower-hdr{padding:10px 14px 0 14px;flex-shrink:0;}
   #sidebar-lower-list{flex:1;overflow-y:auto;padding:0 14px 10px 14px;}
+  /* Snapped: everything scrolls together */
+  #sidebar.ct-snapped{overflow-y:auto;}
+  #sidebar.ct-snapped #sidebar-upper{overflow:visible;flex:none;min-height:0;}
+  #sidebar.ct-snapped #sidebar-lower{flex:none;height:auto!important;overflow:visible;min-height:0;}
+  #sidebar.ct-snapped #sidebar-lower-list{overflow:visible;}
+  #sidebar.ct-snapped #ct-drag{opacity:0.4;}
+  #sidebar.ct-snapped #ct-drag:hover{opacity:1;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;margin-top:6px;}
   .sec{padding:12px 14px;border-bottom:1px solid var(--border);}
   .col-hdr{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;}
@@ -44,10 +51,18 @@
   .gbtn.on{background:rgba(34,197,94,0.1);color:#22c55e;border-color:rgba(34,197,94,0.3);}
   #gsearch{width:100%;padding:6px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;}
   .li{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:10px;color:var(--text2);}
-  .leg-item{padding:3px 4px;border-radius:3px;margin:0 -4px;}
+  .leg-item{padding:3px 4px;border-radius:3px;margin:0 -4px;flex-wrap:wrap;gap:1px 6px;align-items:flex-start;}
+  .leg-row{display:flex;align-items:center;gap:6px;width:100%;min-width:0;}
   .leg-item:hover{background:#111520;}
   .light .leg-item:hover{background:rgba(0,0,0,0.04);}
   .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;box-sizing:border-box;}
+  .annot-pred{display:flex;align-items:center;gap:3px;margin-top:1px;padding-left:12px;width:100%;}
+  .annot-type{font-size:8px;color:var(--accent2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .annot-score{font-size:7px;color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;background:rgba(99,102,241,0.1);padding:0 3px;border-radius:2px;}
+  .annot-tag{font-size:7px;font-weight:700;padding:0 3px;border-radius:2px;background:rgba(52,211,153,0.15);color:#34d399;flex-shrink:0;}
+  .annot-tag-llm{background:rgba(196,181,253,0.15);color:#c4b5fd;}
+  .annot-tag{font-size:7px;font-weight:700;padding:0 3px;border-radius:2px;background:rgba(52,211,153,0.15);color:#34d399;flex-shrink:0;}
+  .annot-tag-llm{background:rgba(196,181,253,0.15);color:#c4b5fd;}
   .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex-shrink:1;}
   #cw{flex:1;position:relative;overflow:hidden;}
   #c{width:100%;height:100%;display:block;cursor:crosshair;}
@@ -59,7 +74,8 @@
   #expr-bar{height:12px;border-radius:3px;background:linear-gradient(to right,#120b1d,#27314f,#1e845b,#9ec826,#fde724);}
   .light #expr-bar{background:linear-gradient(to right,#f7fbff,#c6dbef,#6baed6,#2171b5,#08306b);}
   .elbl{display:flex;justify-content:space-between;font-size:9px;color:var(--text4);margin-top:3px;}
-  #gene-sec,#expr-sec{display:none;}
+  #gene-sec{display:none;}
+  #data-sec.drop-active{outline:2px dashed var(--accent);outline-offset:-2px;background:rgba(99,102,241,0.06);}
   input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:2px;outline:none;}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
   input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
@@ -68,7 +84,7 @@
   input[type=checkbox]{-webkit-appearance:none;appearance:none;width:14px;height:14px;border:1.5px solid var(--border2);border-radius:3px;background:var(--bg3);cursor:pointer;position:relative;flex-shrink:0;}
   input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent);}
   input[type=checkbox]:checked::after{content:"";position:absolute;left:3.5px;top:1px;width:4px;height:7px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
-  #tooltip{position:fixed;pointer-events:none;background:var(--bg2);color:var(--text);padding:4px 8px;border-radius:4px;font-size:10px;border:1px solid var(--border2);display:none;z-index:100;white-space:nowrap;max-width:300px;overflow:hidden;text-overflow:ellipsis;}
+  #tooltip{position:fixed;pointer-events:none;background:var(--bg2);color:var(--text);padding:4px 8px;border-radius:4px;font-size:10px;border:1px solid var(--border2);display:none;z-index:100;white-space:nowrap;max-width:350px;overflow:hidden;text-overflow:ellipsis;}
   #crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;opacity:0;transition:opacity 0.15s ease-out;z-index:50;color:#ffffff;}
   .light #crosshair{color:#333333;}
   #upload-status{font-size:9px;color:var(--accent);margin-top:4px;display:none;}
@@ -87,6 +103,12 @@
   .vbtn{display:inline-block;padding:4px 12px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;font-size:11px;background:transparent;color:var(--text2);font-family:inherit;transition:all 0.1s;margin-right:4px;}
   .vbtn:hover{border-color:#6366f1;color:#a5b4fc;}
   .vbtn.on{border-color:var(--accent);background:rgba(99,102,241,0.12);color:var(--accent2);}
+  /* Mini view buttons in header — hidden when expanded, shown when collapsed */
+  #view-mini-btns{display:none;align-items:center;gap:4px;margin-left:12px;margin-right:auto;}
+  #view-mini-btns .vbtn{padding:1px 6px;font-size:9px;margin-right:0;}
+  #view-reset-mini{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;padding:0 2px;line-height:1;}
+  #view-reset-mini:hover{color:var(--text2);}
+  .sec.collapsed #view-mini-btns{display:flex;}
   /* Selection groups */
   .sg-item{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:10px;color:var(--text2);transition:all 0.1s;user-select:none;margin-bottom:1px;}
   .sg-item:hover{background:var(--bg-hover);}
@@ -114,6 +136,10 @@
   #deg-drag:hover,#deg-drag.dragging{background:#4338ca;}
   #deg-drag::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30px;height:2px;border-radius:1px;background:var(--text4);}
   #deg-drag:hover::after,#deg-drag.dragging::after{background:#818cf8;}
+  #ct-drag{height:5px;cursor:ns-resize;position:relative;flex-shrink:0;border-top:1px solid var(--border);}
+  #ct-drag:hover,#ct-drag.dragging{background:var(--bg-hover);}
+  #ct-drag::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30px;height:2px;border-radius:1px;background:var(--border2);}
+  #ct-drag:hover::after,#ct-drag.dragging::after{background:var(--text4);}
   #deg-hdr{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
   #deg-hdr .lbl{margin:0;font-size:10px;}
   #deg-hdr select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 4px;outline:none;}
@@ -121,7 +147,7 @@
   #deg-hdr button:hover{border-color:var(--text3);color:var(--text2);}
   #deg-body{display:flex;flex:1;min-height:0;overflow:hidden;}
   #volcano-wrap{flex:1;position:relative;min-width:0;}
-  #volcano-cv{width:100%;height:100%;display:block;}
+  #volcano-cv{width:100%;height:100%;display:block;cursor:crosshair;}
   #deg-table-wrap{width:280px;display:flex;flex-direction:column;border-left:1px solid var(--border);font-size:10px;}
   #deg-table{width:100%;border-collapse:collapse;}
   #deg-table th{position:sticky;top:0;background:var(--bg2);padding:4px 6px;text-align:left;color:var(--text3);font-weight:600;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
@@ -131,8 +157,6 @@
   #deg-table tr.hl td{background:var(--bg-active);color:var(--text);}
   #deg-note{font-size:8px;color:var(--text4);padding:0 12px 4px;font-style:italic;}
   #deg-status{font-size:9px;color:var(--accent);}
-  #deg-progress{display:none;height:3px;background:var(--border);border-radius:2px;margin:0 12px;overflow:hidden;}
-  #deg-progress-bar{height:100%;background:linear-gradient(90deg,#4338ca,#6366f1,#818cf8);width:0%;border-radius:2px;transition:width 0.3s;animation:deg-pulse 1.5s ease-in-out infinite;}
   @keyframes deg-pulse{0%,100%{opacity:0.6;}50%{opacity:1;}}
   @keyframes btn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,0.4);}50%{box-shadow:0 0 0 6px rgba(99,102,241,0);}}
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -180,24 +204,23 @@
   #settings-popup .s-title{font-size:10px;color:var(--text2);font-weight:700;margin-bottom:8px;}
   #settings-popup .s-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:10px;color:var(--text2);}
   #settings-popup .s-row select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;}
-  /* DEG table scrollbar */
-  #deg-table-wrap ::-webkit-scrollbar{width:6px;}
-  #deg-table-wrap ::-webkit-scrollbar-track{background:var(--bg3);}
-  #deg-table-wrap ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
-  #deg-table-wrap ::-webkit-scrollbar-thumb:hover{background:var(--text4);}
+  /* Custom scrollbars everywhere */
+  ::-webkit-scrollbar{width:5px;height:5px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+  ::-webkit-scrollbar-thumb:hover{background:var(--border2);}
   /* Volcano tooltip */
   #volcano-tip{position:absolute;pointer-events:none;background:var(--bg2);color:var(--text);padding:6px 10px;border-radius:5px;font-size:10px;border:1px solid var(--border2);display:none;z-index:70;white-space:nowrap;line-height:1.5;}
 </style>
 </head>
 <body>
 <div id="app">
-<div id="sidebar">
+<div id="sidebar" class="ct-snapped">
   <div id="sidebar-upper">
   <!-- Header: always visible -->
   <div class="sec" style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:baseline;gap:8px;">
       <span style="font-weight:800;font-size:13px;cursor:pointer;" onclick="toggleHelp()" title="About & Help"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
-      <span id="view-badge" style="font-size:9px;color:var(--text4);">3D</span>
       <span style="font-size:7px;color:var(--text4);opacity:0.5;" title="Build version">v26</span>
     </div>
     <div style="display:flex;gap:2px;">
@@ -206,11 +229,11 @@
     </div>
   </div>
   <!-- Data: always visible -->
-  <div class="sec">
+  <div class="sec" id="data-sec">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div class="lbl" style="margin-bottom:0;">Data</div>
       <div style="display:flex;align-items:center;gap:6px;">
-        <button class="icon-btn" id="upload-btn" onclick="showUploadPopover()" title="Upload h5ad dataset"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg></button>
+        <button class="icon-btn" id="upload-btn" onclick="showUploadPopover()" title="Upload h5ad dataset (or drag &amp; drop)"><svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg></button>
         <input type="file" id="h5ad-upload" accept=".h5ad" style="display:none;" onchange="onFileSelected(this)">
       </div>
     </div>
@@ -247,11 +270,17 @@
     </div>
     <div id="upload-progress"><div id="upload-progress-bar"></div></div>
     <div id="upload-status"></div>
+    <button id="upload-stop-btn" onclick="abortUpload()" style="display:none;background:none;border:1px solid #f87171;border-radius:3px;color:#f87171;font-size:8px;font-family:inherit;padding:2px 6px;cursor:pointer;margin-top:4px;">Stop Upload</button>
   </div>
   <!-- View: 2D/3D toggle -->
   <div class="sec" id="view-sec" data-col="view">
     <div class="col-hdr" onclick="toggleSec('view')">
       <span class="lbl" style="margin-bottom:0;">View</span>
+      <div id="view-mini-btns" onclick="event.stopPropagation()">
+        <button class="vbtn" id="vb2m" onclick="setView('2d')">2D</button>
+        <button class="vbtn on" id="vb3m" onclick="setView('3d')">3D</button>
+        <button id="view-reset-mini" onclick="resetView()" title="Reset camera to default (R)">&#8634;</button>
+      </div>
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body" style="margin-top:8px;">
@@ -260,11 +289,15 @@
         <button class="vbtn on" id="vb3" onclick="setView('3d')">3D</button>
       </div>
       <div class="lbl" style="margin-top:6px;">Point Size</div>
-      <input type="range" min="0.02" max="0.6" step="0.02" value="0.4" oninput="setPtSz(this.value)">
+      <input type="range" min="0.02" max="0.6" step="0.01" value="0.4" oninput="setPtSz(this.value)">
+      <div class="lbl" style="margin-top:6px;">Point Opacity</div>
+      <input type="range" id="pt-opacity" min="0.05" max="1" step="0.05" value="0.7" oninput="setPtOpacity(this.value)">
+      <div class="lbl" style="margin-top:6px;">Background Dim</div>
+      <input type="range" id="bg-dim" min="0" max="100" step="5" value="0" oninput="setBgDim(this.value)" title="How much non-selected cells are faded when selections are visible">
       <div id="rot-sec" style="margin-top:8px;">
-        <button class="btn" id="b-auto" onclick="toggleAuto()">&#10227; Auto-Rotate</button>
+        <button class="btn" id="b-auto" onclick="toggleAuto()" title="Toggle auto-rotation">&#10227; Auto-Rotate</button>
       </div>
-      <button class="btn" onclick="resetView()" style="margin-top:2px;">&#8634; Reset View</button>
+      <button class="btn" onclick="resetView()" style="margin-top:2px;" title="Reset camera to default (R)">&#8634; Reset View</button>
     </div>
   </div>
   <!-- Selection Groups -->
@@ -276,11 +309,11 @@
     <div class="col-body" style="margin-top:8px;">
       <div style="font-size:9px;color:var(--text4);margin-bottom:6px;">shift+drag lasso · +opt deselect</div>
       <div id="sel-groups"></div>
-      <button class="sg-add-btn" onclick="addSelGroup()">+ new group</button>
+      <button class="sg-add-btn" onclick="addSelGroup()" title="Add selection group (or press 1-9)">+ new group</button>
       <div class="sg-toolbar">
         <button onclick="selAllVisible()" title="Select all visible cells into active group">sel visible</button>
         <button onclick="clearActiveGroup()" title="Clear active group (Esc)">clear</button>
-        <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility">hide all</button>
+        <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (H to hide/restore)">hide all</button>
         <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button>
       </div>
     </div>
@@ -292,14 +325,15 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body" style="margin-top:8px;">
-      <button class="btn on" id="bc" onclick="setMode('cluster')">&#9679; Cell Type / Cluster</button>
-      <button class="btn" id="bg" onclick="setMode('gene')">&#9679; Gene Expression</button>
+      <button class="btn on" id="bc" onclick="setMode('cluster')" title="Color by cell type (C)">&#9679; Cell Type / Cluster</button>
+      <button class="btn" id="bg" onclick="setMode('gene')" title="Color by gene expression (G)">&#9679; Gene Expression</button>
     </div>
   </div>
   <!-- Gene search -->
   <div class="sec" id="gene-sec" data-col="gene">
     <div class="col-hdr" onclick="toggleSec('gene')">
       <span class="lbl" style="margin-bottom:0;">Gene <span id="gene-loading" style="color:#6366f1;display:none;">loading...</span></span>
+      <span id="gene-collapsed-name" style="font-size:9px;color:#22c55e;margin-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;display:none;"></span>
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body" style="margin-top:8px;">
@@ -309,15 +343,17 @@
         <div class="hvg-label">Top Variable Genes</div>
         <div id="hvg-chips" class="hvg-wrap"></div>
       </div>
+      <!-- Expression legend (inside gene panel) -->
+      <div id="expr-legend" style="display:none;margin-top:8px;">
+        <div class="lbl" id="egnm">Expression</div>
+        <div id="expr-bar"></div>
+        <div class="elbl"><span>Low</span><span>High</span></div>
+      </div>
     </div>
   </div>
-  <!-- Expression legend -->
-  <div class="sec" id="expr-sec">
-    <div class="lbl" id="egnm">Expression</div>
-    <div id="expr-bar"></div>
-    <div class="elbl"><span>Low</span><span>High</span></div>
-  </div>
   </div><!-- end sidebar-upper -->
+
+  <div id="ct-drag" title="Drag to resize · Double-click to snap below Gene panel"></div>
 
   <!-- Cell Types: pinned bottom panel -->
   <div id="sidebar-lower">
@@ -330,10 +366,14 @@
         <div style="display:flex;align-items:center;gap:4px;">
           <button id="type-sort-btn" onclick="toggleTypeSort()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:9px;font-family:inherit;padding:0 2px;" title="Toggle sort: alphabetical / cell count">A→Z</button>
           <span style="color:var(--border2);">|</span>
-          <button onclick="showAllClusters()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:9px;font-family:inherit;padding:0 2px;">all</button>
+          <button onclick="showAllClusters()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:9px;font-family:inherit;padding:0 2px;" title="Show all cell types">all</button>
           <span style="color:var(--border2);">|</span>
-          <button onclick="showNoneClusters()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:9px;font-family:inherit;padding:0 2px;">none</button>
+          <button onclick="showNoneClusters()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:9px;font-family:inherit;padding:0 2px;" title="Hide all cell types">none</button>
         </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+        <button id="annotate-btn" onclick="runAnnotation()" style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.3);border-radius:3px;color:#34d399;cursor:pointer;font-size:8px;font-family:inherit;padding:2px 8px;" title="Infer cell types from marker gene database">Markers</button>
+        <button id="annotate-llm-btn" onclick="runAnnotationLLM()" style="background:rgba(196,181,253,0.06);border:1px solid rgba(196,181,253,0.3);border-radius:3px;color:#c4b5fd;cursor:pointer;font-size:8px;font-family:inherit;padding:2px 8px;" title="Infer cell types using Claude AI (start server with --api-key sk-ant-...)">Claude</button>
       </div>
       <input type="text" id="type-search" placeholder="Search cell types..." oninput="filterTypes()">
     </div>
@@ -370,13 +410,20 @@
     <div class="s-row">
       <span>UI scale</span>
       <div style="display:flex;align-items:center;gap:6px;">
-        <input type="range" id="set-ui-scale" min="0.75" max="1.5" step="0.05" value="1" oninput="applyUIScale(this.value);saveSettings()" style="width:80px;">
+        <input type="range" id="set-ui-scale" min="0.75" max="1.5" step="0.05" value="1" oninput="document.getElementById('ui-scale-label').textContent=Math.round(this.value*100)+'%'" onchange="applyUIScale(this.value);saveSettings()" style="width:80px;">
         <span id="ui-scale-label" style="font-size:9px;color:var(--text3);min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">100%</span>
       </div>
     </div>
     <div class="s-row">
       <span>FPS counter</span>
       <input type="checkbox" id="set-fps" onchange="toggleFPS();saveSettings()" style="margin:0;">
+    </div>
+    <div class="s-row">
+      <span>Selection highlight</span>
+      <select id="set-highlight" onchange="setHighlightMode(this.value);saveSettings()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;">
+        <option value="fill">Fill (replace color)</option>
+        <option value="ring" selected>Ring (show color through)</option>
+      </select>
     </div>
   </div>
   <svg id="crosshair" width="24" height="24" viewBox="0 0 24 24">
@@ -400,7 +447,7 @@
       <option value="wilcoxon">Wilcoxon</option>
       <option value="t-test">t-test</option>
     </select>
-    <button onclick="runDEG()" id="deg-run-btn">Run</button>
+    <button onclick="toggleDEG()" id="deg-run-btn">Run</button>
     <span id="deg-status"></span>
     <div style="flex:1;"></div>
     <select id="deg-yaxis" onchange="renderVolcano()" title="Volcano Y-axis" style="font-size:9px;">
@@ -410,7 +457,12 @@
     <button class="icon-btn" onclick="downloadDEG()" title="Download DEG table (TSV)"><svg viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
     <button class="deg-close" onclick="closeDEG()" title="Close">&times;</button>
   </div>
-  <div id="deg-progress"><div id="deg-progress-bar"></div></div>
+  <div id="deg-filter" style="display:flex;align-items:center;gap:6px;padding:3px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
+    <span>Show top</span>
+    <input type="range" id="volcano-pct" min="5" max="100" step="5" value="5" oninput="document.getElementById('volcano-pct-label').textContent=this.value+'%'" onchange="renderVolcano()" style="width:70px;">
+    <span id="volcano-pct-label" style="min-width:28px;font-variant-numeric:tabular-nums;">5%</span>
+    <span style="color:var(--text4);">by significance</span>
+  </div>
   <div id="deg-body">
     <div id="volcano-wrap"><canvas id="volcano-cv"></canvas><div id="volcano-tip"></div></div>
     <div id="deg-table-wrap">
@@ -464,7 +516,7 @@
           <tr><td>Pan</td><td><span class="help-key">Ctrl</span>+drag or right-drag</td><td>Drag</td></tr>
           <tr><td>Fly through</td><td><span class="help-key">⌥ Opt</span>+drag or middle-drag</td><td>—</td></tr>
           <tr><td>Zoom</td><td>Scroll wheel</td><td>Scroll wheel</td></tr>
-          <tr><td>Reset</td><td colspan="2">Reset View button in View panel</td></tr>
+          <tr><td>Reset</td><td colspan="2">Reset View button or <span class="help-key">R</span></td></tr>
         </table>
       </div>
     </div>
@@ -483,12 +535,17 @@
           <tr><td>Lasso deselect</td><td><span class="help-key">Shift</span>+<span class="help-key">⌥ Opt</span>+drag</td></tr>
           <tr><td>Single cell</td><td><span class="help-key">Shift</span>+click on UMAP</td></tr>
           <tr><td>Entire cell type</td><td><span class="help-key">Shift</span>+double-click on UMAP, or<br><span class="help-key">Shift</span>+click in Cell Types panel</td></tr>
-          <tr><td>Toggle visibility</td><td>Click the color dot</td></tr>
+          <tr><td>Activate group</td><td>Click group row, or <span class="help-key">1</span>–<span class="help-key">9</span> (creates if needed)</td></tr>
+          <tr><td>Toggle visibility</td><td>Click the color dot, or <span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td></tr>
+          <tr><td>Hide/restore all</td><td><span class="help-key">H</span> (press again to restore)</td></tr>
           <tr><td>Solo group</td><td><span class="help-key">⌥ Opt</span>+click the dot (click again to restore)</td></tr>
+          <tr><td>Clear active group</td><td><span class="help-key">Esc</span></td></tr>
           <tr><td>Rename</td><td>Double-click the name</td></tr>
           <tr><td>Export subset</td><td>Click the save icon (downloads .h5ad)</td></tr>
         </table>
-        <p>Cells are assigned to the <em>active</em> group (highlighted row). Click a group row to make it active, or press <span class="help-key">1</span>–<span class="help-key">9</span> to activate (and create if it doesn't exist). Groups are non-overlapping: adding a cell to one group removes it from any other.</p>
+        <p>Cells are assigned to the <em>active</em> group (highlighted row). Groups are non-overlapping: adding a cell to one group removes it from any other.</p>
+        <p><strong>Highlight modes</strong> (Settings): <em>Ring</em> (default) draws a colored ring around selected cells, preserving the underlying cluster/expression color. <em>Fill</em> replaces the cell color entirely with the group color and dims non-selected cells.</p>
+        <p><strong>Background Dim</strong> slider (View panel): controls how much non-selected cells are faded when selections are visible. Auto-sets on first highlight; adjustable afterward. Selected cells are never dimmed.</p>
       </div>
     </div>
 
@@ -518,7 +575,7 @@
         <span class="help-sec-title">Gene Expression</span>
       </div>
       <div class="help-sec-body">
-        <p>Switch to <strong>Gene Expression</strong> mode in the Color By section. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP.</p>
+        <p>Switch to <strong>Gene Expression</strong> mode in the Color By section or press <span class="help-key">G</span>. Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP.</p>
         <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a colorscale: <strong>Viridis</strong> (dark mode) or <strong>Blues sequential</strong> (light mode, where low expression fades into the white background).</p>
         <p><strong>Top Variable Genes</strong> — shown as clickable chips below search. These are either pre-annotated HVGs from the dataset (<code>adata.var['highly_variable']</code>) or the top 2,000 genes by variance, computed on a 50k-cell subsample in the background.</p>
         <p><strong>Gene index performance</strong> — on load, a CSC (compressed sparse column) index is built in the background for fast per-gene lookups. The spinner in the Data panel shows progress. Before the index completes, gene lookups use a slower row-scan fallback but still work.</p>
@@ -575,20 +632,30 @@
       </div>
       <div class="help-sec-body">
         <table class="help-table">
-          <tr><th>Input</th><th>Action</th></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Navigation</th></tr>
           <tr><td>Left-drag</td><td>3D rotate / 2D pan</td></tr>
           <tr><td><span class="help-key">Ctrl</span>/<span class="help-key">⌘</span>+drag</td><td>3D pan</td></tr>
           <tr><td>Right-drag</td><td>3D pan</td></tr>
           <tr><td><span class="help-key">⌥ Opt</span>+drag</td><td>3D fly through</td></tr>
           <tr><td>Middle-drag</td><td>3D fly through</td></tr>
           <tr><td>Scroll</td><td>Zoom in/out</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Selection</th></tr>
           <tr><td><span class="help-key">Shift</span>+drag</td><td>Lasso select</td></tr>
           <tr><td><span class="help-key">Shift</span>+<span class="help-key">⌥</span>+drag</td><td>Lasso deselect</td></tr>
           <tr><td><span class="help-key">Shift</span>+click (UMAP)</td><td>Toggle single cell</td></tr>
           <tr><td><span class="help-key">Shift</span>+dblclick (UMAP)</td><td>Toggle entire cell type</td></tr>
           <tr><td><span class="help-key">Shift</span>+click (Cell Types)</td><td>Select cell type into group</td></tr>
           <tr><td><span class="help-key">⌥ Opt</span>+click (legend dot)</td><td>Solo / unsolo</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Groups</th></tr>
           <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
+          <tr><td><span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
+          <tr><td><span class="help-key">H</span></td><td>Hide all group highlights (press again to restore)</td></tr>
+          <tr><td><span class="help-key">Esc</span></td><td>Clear active selection / close help</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Display</th></tr>
+          <tr><td><span class="help-key">C</span></td><td>Color by cell type / cluster</td></tr>
+          <tr><td><span class="help-key">G</span></td><td>Color by gene expression</td></tr>
+          <tr><td><span class="help-key">R</span></td><td>Reset view</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">General</th></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span></td><td>Undo</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">]</span></td><td>Redo</td></tr>
         </table>
@@ -635,12 +702,15 @@ function zoom2Fit(){return frustum2/(cloudBounds.radius*1.1);} /* zoom level tha
 function zoom2Min(){return frustum2/(cloudBounds.radius*2);} /* max zoom-out */
 var canvasW=1, canvasH=1; /* always up-to-date canvas CSS dims */
 var zoomMode="cursor"; /* "center" or "cursor" */
-var dragging=false, panning=false, dollying=false, prev={x:0,y:0};
+var currentUIScale=1; /* tracks CSS zoom for coordinate correction */
+var dragging=false, panning=false, dollying=false, prev={x:0,y:0}, _dragDist=0;
 var fpsF=0, fpsT=performance.now();
 var searchTimer=null;
 var visibleClusters={}; // cluster index -> true/false
 var clusterCounts=[]; // per-cluster cell counts
 var typeSortMode="alpha"; // "alpha" or "count"
+var markerAnnotations=null; // {cluster_id: [{predictions}]} from marker DB
+var llmAnnotations=null;    // {cluster_id: [{predictions}]} from Claude
 var raycaster=null, mouseNDC=new THREE.Vector2();
 var hoverTimer=null, tooltipEl=null, crosshairEl=null, crosshairTimer=null;
 var mouseScreenX=0, mouseScreenY=0, mouseOnCanvas=false;
@@ -679,7 +749,7 @@ function snapState(){
     viewIs3d:viewIs3d, mode:mode, selGene:selGene,
     visibleClusters:JSON.parse(JSON.stringify(visibleClusters)),
     autoRotate:autoRotate,
-    ptSize:basePtSz,
+    ptSize:basePtSz,ptOpacity:pts?pts.material.opacity:0.7,bgDim:bgDimPct,bgDimUser:bgDimUserSet,
     selGroups:sg, activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
     groupVisible:JSON.parse(JSON.stringify(groupVisible))
   });
@@ -717,8 +787,14 @@ function applyHistEntry(snap){
   if(s.ptSize!==undefined){
     var ps=Math.max(0.02,Math.min(0.6,s.ptSize));
     document.querySelector('input[type=range]').value=ps;
-    if(pts){basePtSz=ps;var n=D?D.header.n_cells:10000;var base=n<50000?0.85:n<200000?0.7:0.55;pts.material.opacity=Math.max(0.15,Math.min(0.9,base-(ps-0.4)*0.3));}
+    if(pts){basePtSz=ps;}
   }
+  if(s.ptOpacity!==undefined){
+    var op=Math.max(0.05,Math.min(1,s.ptOpacity));
+    document.getElementById("pt-opacity").value=op;
+    if(pts)pts.material.opacity=op;
+  }
+  if(s.bgDim!==undefined){bgDimPct=s.bgDim;bgDimUserSet=!!s.bgDimUser;document.getElementById("bg-dim").value=bgDimPct;}
   if(s.visibleClusters){
     visibleClusters={};
     for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];
@@ -762,7 +838,7 @@ function saveState(){
     var s={
       viewIs3d:viewIs3d, mode:mode, selGene:selGene,
       visibleClusters:visibleClusters, autoRotate:autoRotate,
-      ptSize:basePtSz,
+      ptSize:basePtSz,ptOpacity:pts?pts.material.opacity:0.7,bgDim:bgDimPct,bgDimUser:bgDimUserSet,
       sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
       tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
       pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
@@ -780,7 +856,7 @@ function saveCameraOnly(){
     var s={
       viewIs3d:viewIs3d, mode:mode, selGene:selGene,
       visibleClusters:visibleClusters, autoRotate:autoRotate,
-      ptSize:basePtSz,
+      ptSize:basePtSz,ptOpacity:pts?pts.material.opacity:0.7,bgDim:bgDimPct,bgDimUser:bgDimUserSet,
       sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
       tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
       pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
@@ -808,6 +884,12 @@ function restoreState(preloaded){
     slider.value=ps;
     setPtSz(ps);
   }
+  if(s.ptOpacity!==undefined){
+    var op=Math.max(0.05,Math.min(1,s.ptOpacity));
+    document.getElementById("pt-opacity").value=op;
+    if(pts)pts.material.opacity=op;
+  }
+  if(s.bgDim!==undefined){bgDimPct=s.bgDim;bgDimUserSet=!!s.bgDimUser;document.getElementById("bg-dim").value=bgDimPct;}
   if(s.visibleClusters){
     for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];
     renderLeg();
@@ -860,6 +942,29 @@ function initCollapsible(){
     var key=secs[i].getAttribute("data-col");
     if(_colState[key])secs[i].classList.add("collapsed");
   }
+  /* Drag-to-scroll on sidebar panels */
+  var scrollEls=document.querySelectorAll("#sidebar-upper,#sidebar-lower-list,#help-body,#glist,#hvg-section");
+  for(var i=0;i<scrollEls.length;i++)initDragScroll(scrollEls[i]);
+}
+function initDragScroll(el){
+  var ds={active:false,startY:0,scrollStart:0};
+  el.addEventListener("mousedown",function(e){
+    /* Only on empty space — skip buttons, inputs, links, selects */
+    var tag=e.target.tagName;
+    if(tag==="BUTTON"||tag==="INPUT"||tag==="SELECT"||tag==="A"||tag==="TEXTAREA")return;
+    if(e.target.closest("button,input,select,a,.sg-dot,.sg-del,.icon-btn,.leg-item,.gbtn,.hvg-chip"))return;
+    if(e.button!==0)return;
+    ds.active=true;ds.startY=e.clientY;ds.scrollStart=el.scrollTop;
+    el.style.cursor="grabbing";
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove",function(e){
+    if(!ds.active)return;
+    el.scrollTop=ds.scrollStart-(e.clientY-ds.startY);
+  });
+  window.addEventListener("mouseup",function(){
+    if(ds.active){ds.active=false;el.style.cursor="";}
+  });
 }
 function toggleSec(key){
   var el=document.querySelector("[data-col='"+key+"']");
@@ -867,6 +972,7 @@ function toggleSec(key){
   el.classList.toggle("collapsed");
   _colState[key]=el.classList.contains("collapsed")?1:0;
   try{sessionStorage.setItem("fleek_col",JSON.stringify(_colState));}catch(e){}
+  if(key==="gene")_updateGeneCollapsedName();
 }
 function cc(id){return P[id%P.length];}
 function ec(v){
@@ -1013,6 +1119,33 @@ function clearActiveGroup(){
   renderSelPanel();
   recolor();
   saveState();
+}
+
+var _preHideGroupVis=null; /* saved state before 'h' hide-all */
+
+function toggleSelVisH(){
+  if(selGroups.length===0)return;
+  /* Check if any groups are currently visible */
+  var anyVis=false;
+  for(var i=0;i<selGroups.length;i++){if(groupVisible[selGroups[i].id]!==false){anyVis=true;break;}}
+  if(anyVis){
+    /* Save current visibility, then hide all */
+    _preHideGroupVis={};
+    for(var i=0;i<selGroups.length;i++){_preHideGroupVis[selGroups[i].id]=groupVisible[selGroups[i].id]!==false;}
+    for(var i=0;i<selGroups.length;i++){groupVisible[selGroups[i].id]=false;}
+  }else if(_preHideGroupVis){
+    /* Restore saved visibility */
+    for(var i=0;i<selGroups.length;i++){
+      var gid=selGroups[i].id;
+      groupVisible[gid]=_preHideGroupVis[gid]!==false;
+    }
+    _preHideGroupVis=null;
+  }else{
+    /* No saved state — show all */
+    for(var i=0;i<selGroups.length;i++){groupVisible[selGroups[i].id]=true;}
+  }
+  renderSelPanel();
+  recolor();
 }
 
 function toggleSelVis(){
@@ -1238,8 +1371,8 @@ function renderSelPanel(){
     var num=i+1;
     var numColor=isActive?"var(--accent2)":"var(--text4)";
     return '<div class="sg-item'+(isActive?" active":"")+'" onclick="setActiveGroup('+g.id+')">'
-      +'<span class="sg-num" style="color:'+numColor+'" title="Press '+num+' to activate">'+num+'</span>'
-      +'<div class="sg-dot" style="'+dotStyle+'" onclick="event.stopPropagation();toggleGroupVis('+g.id+',event)" title="'+(vis?"Hide":"Show")+' group (Opt-click: solo)"></div>'
+      +'<span class="sg-num" style="color:'+numColor+'" title="'+num+': activate · ⌥'+num+': show/hide">'+num+'</span>'
+      +'<div class="sg-dot" style="'+dotStyle+'" onclick="event.stopPropagation();toggleGroupVis('+g.id+',event)" title="Click: '+(vis?"hide":"show")+' · ⌥-click: solo · ⌥'+num+': toggle"></div>'
       +'<span class="sg-name" style="color:'+textColor+'" ondblclick="startRenameGroup('+g.id+',event)">'+g.name.replace(/\x3c/g,"&lt;")+'</span>'
       +'<span class="sg-count" style="color:'+(vis?"var(--text4)":"var(--border2)")+'">'+g.cells.size.toLocaleString()+'</span>'
       +'<button class="icon-btn sg-save" onclick="event.stopPropagation();exportGroup('+g.id+')" title="Download h5ad subset"><svg viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>'
@@ -1284,12 +1417,17 @@ function parseInit(buf){
 
 /* ── Circle point texture ── */
 var circleTexture=null;
+var ringTexture=null;
+var ringPts=null; /* second point cloud for ring highlights */
+var highlightMode="ring"; /* "fill" or "ring" */
+var bgDimPct=0; /* 0-100: how much non-selected cells are dimmed */
+var bgDimUserSet=false; /* true once user manually adjusts the slider */
+
 function makeCircleTexture(){
   var sz=128;
   var c2=document.createElement("canvas");
   c2.width=sz;c2.height=sz;
   var ctx=c2.getContext("2d");
-  /* Radial gradient: solid center, soft antialiased edge */
   var r=sz/2;
   var grad=ctx.createRadialGradient(r,r,0,r,r,r);
   grad.addColorStop(0,"rgba(255,255,255,1)");
@@ -1303,17 +1441,41 @@ function makeCircleTexture(){
   return tex;
 }
 
+function makeRingTexture(){
+  var sz=128;
+  var c2=document.createElement("canvas");
+  c2.width=sz;c2.height=sz;
+  var ctx=c2.getContext("2d");
+  var r=sz/2;
+  /* Ring: transparent center, solid edge band */
+  var grad=ctx.createRadialGradient(r,r,0,r,r,r);
+  grad.addColorStop(0,"rgba(255,255,255,0)");
+  grad.addColorStop(0.55,"rgba(255,255,255,0)");
+  grad.addColorStop(0.65,"rgba(255,255,255,0.9)");
+  grad.addColorStop(0.8,"rgba(255,255,255,1)");
+  grad.addColorStop(0.9,"rgba(255,255,255,0.7)");
+  grad.addColorStop(1,"rgba(255,255,255,0)");
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,sz,sz);
+  var tex=new THREE.CanvasTexture(c2);
+  tex.needsUpdate=true;
+  return tex;
+}
+
 /* ── Three.js ── */
 function syncCanvasSize(){
   var cw=document.getElementById("cw");
-  canvasW=cw.clientWidth;canvasH=cw.clientHeight;
+  var rect=cw.getBoundingClientRect();
+  canvasW=Math.round(rect.width);canvasH=Math.round(rect.height);
+  if(canvasW<1||canvasH<1)return;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   renderer.setSize(canvasW,canvasH);
   cam3d.aspect=canvasW/canvasH;cam3d.updateProjectionMatrix();
 }
 function initRenderer(){
   var cw=document.getElementById("cw");
-  canvasW=cw.clientWidth;canvasH=cw.clientHeight;
+  var rect=cw.getBoundingClientRect();
+  canvasW=Math.round(rect.width);canvasH=Math.round(rect.height);
   var cv=document.getElementById("c");
   renderer=new THREE.WebGLRenderer({canvas:cv,antialias:false,powerPreference:"high-performance"});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
@@ -1393,11 +1555,20 @@ function positionPts(data,nD){
 
 function buildPts(data){
   if(pts){scene.remove(pts);pts.geometry.dispose();pts.material.dispose();}
+  if(ringPts){scene.remove(ringPts);ringPts.geometry.dispose();ringPts.material.dispose();ringPts=null;}
   D=data;
   hvgGenes=data.header.hvg_genes||[];
   visibleClusters={}; // reset visibility for new data
   selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
   degData=null;degCache={};
+  geneExprCache={}; /* free old gene expression arrays */
+  markerAnnotations=null;llmAnnotations=null;
+  selGene="";mode="cluster";
+  _preHideGroupVis=null;
+  bgDimPct=0;bgDimUserSet=false;
+  document.getElementById("bg-dim").value=0;
+  _history=[];_histIdx=-1;
+  try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_deg");}catch(e){}
   initCellGroupMap();
   var n=data.header.n_cells;
   var pos=new Float32Array(n*3),col=new Float32Array(n*3);
@@ -1407,14 +1578,28 @@ function buildPts(data){
   geo.setAttribute("color",new THREE.BufferAttribute(col,3));
   if(!circleTexture)circleTexture=makeCircleTexture();
   /* Auto-scale point size: world units for sizeAttenuation (≈3.3px per unit at default distance) */
-  var autoSz=n<5000?0.8:n<20000?0.55:n<50000?0.4:n<200000?0.25:n<500000?0.15:0.1;
+  var autoSz=n<5000?0.6:n<20000?0.5:n<50000?0.4:n<200000?0.25:n<500000?0.15:0.1;
   var autoOpacity=n<50000?0.85:n<200000?0.7:0.55;
   basePtSz=autoSz;
   var slider=document.querySelector('input[type=range]');
   slider.value=autoSz;
+  document.getElementById("pt-opacity").value=autoOpacity;
   var mat=new THREE.PointsMaterial({size:autoSz,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:autoOpacity,depthWrite:true,map:circleTexture,alphaTest:0.05});
   pts=new THREE.Points(geo,mat);
   scene.add(pts);
+  /* Ring highlight layer — same number of points, initially hidden */
+  if(!ringTexture)ringTexture=makeRingTexture();
+  var ringPos=new Float32Array(n*3);
+  var ringCol=new Float32Array(n*3);
+  for(var i=0;i<n*3;i++){ringPos[i]=EXILE;}
+  var ringGeo=new THREE.BufferGeometry();
+  ringGeo.setAttribute("position",new THREE.BufferAttribute(ringPos,3));
+  ringGeo.setAttribute("color",new THREE.BufferAttribute(ringCol,3));
+  var ringMat=new THREE.PointsMaterial({size:autoSz*1.8,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:0.85,depthWrite:false,depthTest:false,map:ringTexture,alphaTest:0.05});
+  ringPts=new THREE.Points(ringGeo,ringMat);
+  ringPts.renderOrder=1;
+  ringPts.visible=false;
+  scene.add(ringPts);
   var ad=data.availDims;
   var has3=ad.indexOf(3)>=0,has2=ad.indexOf(2)>=0;
   if(has2&&has3){document.getElementById("view-sec").style.display="block";setView("3d");}
@@ -1436,55 +1621,70 @@ function recolor(){
   var pos=pts.geometry.attributes.position.array;
   var BG=getBG();
   var hasAnyVisible=false;
+  var useRing=highlightMode==="ring";
   if(cellGroupMap){
     for(var gi=0;gi<selGroups.length;gi++){
       if(selGroups[gi].cells.size>0&&groupVisible[selGroups[gi].id]!==false){hasAnyVisible=true;break;}
     }
   }
   var isLight=document.body.classList.contains("light");
-  var dimFactor=hasAnyVisible?(isLight?0.17:0.45):1;
-  /* In light mode, fade toward BG instead of toward black */
-  var dimBias=hasAnyVisible?(1-dimFactor):0;
+  /* Auto-set dim amount on first highlight if user hasn't touched slider */
+  if(hasAnyVisible&&!bgDimUserSet&&bgDimPct===0){
+    bgDimPct=isLight?80:55;
+    document.getElementById("bg-dim").value=bgDimPct;
+  }
+  /* Compute dim: 0 = full color, 100 = fully faded to BG */
+  var doPct=hasAnyVisible?bgDimPct:0;
+  var dimFactor=1-doPct/100;
+  var dimBias=doPct/100;
 
-  if(mode==="cluster"){
-    for(var i=0;i<n;i++){
-      var cid=D.cluster_ids[i];
-      if(visibleClusters[cid]===false){
-        col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
-        pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
-        continue;
-      }
-      pos[i*3]=D._cachedPos[i*3];pos[i*3+1]=D._cachedPos[i*3+1];pos[i*3+2]=D._cachedPos[i*3+2];
-      var sg=cellGroupMap?cellGroupMap[i]:-1;
-      if(sg>=0&&sg<selGroups.length&&groupVisible[selGroups[sg].id]!==false){
-        var sc=selGroups[sg].color;
-        col[i*3]=sc[0];col[i*3+1]=sc[1];col[i*3+2]=sc[2];
-      }else{
-        var c=cc(cid);
-        col[i*3]=c[0]*dimFactor+BG[0]*dimBias;col[i*3+1]=c[1]*dimFactor+BG[1]*dimBias;col[i*3+2]=c[2]*dimFactor+BG[2]*dimBias;
-      }
+  /* Ring layer positions/colors */
+  var ringPos=ringPts?ringPts.geometry.attributes.position.array:null;
+  var ringCol=ringPts?ringPts.geometry.attributes.color.array:null;
+  var showRingLayer=useRing&&hasAnyVisible;
+
+  /* Determine color source: gene expression if available, else cluster */
+  var useGene=mode==="gene"&&selGene&&geneExprCache[selGene];
+  var ex=useGene?geneExprCache[selGene]:null;
+
+  for(var i=0;i<n;i++){
+    var cid=D.cluster_ids[i];
+    if(visibleClusters[cid]===false){
+      col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
+      pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
+      if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+      continue;
     }
-  }else if(mode==="gene"&&selGene&&geneExprCache[selGene]){
-    var ex=geneExprCache[selGene];
-    for(var i=0;i<n;i++){
-      if(visibleClusters[D.cluster_ids[i]]===false){
-        col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
-        pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
-        continue;
-      }
-      pos[i*3]=D._cachedPos[i*3];pos[i*3+1]=D._cachedPos[i*3+1];pos[i*3+2]=D._cachedPos[i*3+2];
-      var sg=cellGroupMap?cellGroupMap[i]:-1;
-      if(sg>=0&&sg<selGroups.length&&groupVisible[selGroups[sg].id]!==false){
+    pos[i*3]=D._cachedPos[i*3];pos[i*3+1]=D._cachedPos[i*3+1];pos[i*3+2]=D._cachedPos[i*3+2];
+    var sg=cellGroupMap?cellGroupMap[i]:-1;
+    var inGroup=sg>=0&&sg<selGroups.length&&groupVisible[selGroups[sg].id]!==false;
+    /* Base color from gene expression or cluster */
+    var c=useGene?ec(ex[i]):cc(cid);
+    if(inGroup&&!useRing){
+      var sc=selGroups[sg].color;
+      col[i*3]=sc[0];col[i*3+1]=sc[1];col[i*3+2]=sc[2];
+    }else if(inGroup&&useRing){
+      col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2];
+    }else{
+      col[i*3]=c[0]*dimFactor+BG[0]*dimBias;col[i*3+1]=c[1]*dimFactor+BG[1]*dimBias;col[i*3+2]=c[2]*dimFactor+BG[2]*dimBias;
+    }
+    if(ringPos){
+      if(inGroup&&useRing){
         var sc=selGroups[sg].color;
-        col[i*3]=sc[0];col[i*3+1]=sc[1];col[i*3+2]=sc[2];
+        ringPos[i*3]=D._cachedPos[i*3];ringPos[i*3+1]=D._cachedPos[i*3+1];ringPos[i*3+2]=D._cachedPos[i*3+2];
+        ringCol[i*3]=sc[0];ringCol[i*3+1]=sc[1];ringCol[i*3+2]=sc[2];
       }else{
-        var c=ec(ex[i]);
-        col[i*3]=c[0]*dimFactor+BG[0]*dimBias;col[i*3+1]=c[1]*dimFactor+BG[1]*dimBias;col[i*3+2]=c[2]*dimFactor+BG[2]*dimBias;
+        ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;
       }
     }
   }
   pts.geometry.attributes.color.needsUpdate=true;
   pts.geometry.attributes.position.needsUpdate=true;
+  if(ringPts){
+    ringPts.visible=showRingLayer;
+    ringPts.geometry.attributes.color.needsUpdate=true;
+    ringPts.geometry.attributes.position.needsUpdate=true;
+  }
 }
 
 /* ── Animation ── */
@@ -1511,10 +1711,12 @@ function animate(){
   if(pts){
     if(viewIs3d){
       pts.material.size=basePtSz;
+      if(ringPts)ringPts.material.size=basePtSz*1.8;
     }else{
       /* basePtSz is world units; multiply up to get pixels for sizeAttenuation:false */
       var zs=Math.pow(Math.max(0.1,zoom2),0.3);
       pts.material.size=basePtSz*8*zs;
+      if(ringPts)ringPts.material.size=basePtSz*8*zs*1.8;
     }
   }
 
@@ -1548,7 +1750,18 @@ function animate(){
           var gi=cellGroupMap[idx];
           if(gi<selGroups.length)text+=(" \u00b7 "+selGroups[gi].name);
         }
-        tooltipEl.innerHTML=dotHtml+text;
+        /* Annotation predictions */
+        var annotLines="";
+        if(markerAnnotations&&markerAnnotations[cid]&&markerAnnotations[cid].length>0){
+          var mp=markerAnnotations[cid][0];
+          annotLines+='<div style="font-size:8px;color:#34d399;margin-top:2px;">M: '+mp.cell_type+' ('+Math.round(mp.score*100)+'%)</div>';
+        }
+        if(llmAnnotations&&llmAnnotations[cid]&&llmAnnotations[cid].length>0){
+          var lp=llmAnnotations[cid][0];
+          annotLines+='<div style="font-size:8px;color:#c4b5fd;margin-top:1px;">AI: '+lp.cell_type+' ('+(lp.confidence||"")+')</div>';
+        }
+        tooltipEl.style.whiteSpace=annotLines?"normal":"nowrap";
+        tooltipEl.innerHTML=dotHtml+text+annotLines;
         tooltipEl.style.display="block";
         tooltipEl.style.left=(mouseScreenX+12)+"px";
         tooltipEl.style.top=(mouseScreenY-8)+"px";
@@ -1571,6 +1784,15 @@ function setupCtrl(){
 
   /* Track shift key for selection mode indicator */
   var crosshairLines=crosshairEl.querySelectorAll("line");
+  function _defaultHint(){return viewIs3d?"Left-drag rotate \u00b7 Ctrl+drag pan \u00b7 Opt+drag fly \u00b7 Scroll zoom":"Drag pan \u00b7 Scroll zoom";}
+  function _updateModHint(e){
+    var hint=document.getElementById("hint");
+    if(e.shiftKey&&e.altKey){hint.textContent="\u2296 Lasso deselect \u00b7 Shift+\u2325+drag";}
+    else if(e.shiftKey){hint.textContent="\u2295 Lasso select \u00b7 Shift+drag";}
+    else if(e.altKey&&viewIs3d){hint.textContent="\u2708 Fly through \u00b7 \u2325+drag";}
+    else if((e.ctrlKey||e.metaKey)&&viewIs3d){hint.textContent="\u21d4 Pan \u00b7 Ctrl+drag";}
+    else{hint.textContent=_defaultHint();}
+  }
   document.addEventListener("keydown",function(e){
     if(e.key==="Shift"&&!shiftHeld){
       shiftHeld=true;
@@ -1582,6 +1804,7 @@ function setupCtrl(){
         for(var i=0;i<crosshairLines.length;i++){crosshairLines[i].setAttribute("stroke",rgb);crosshairLines[i].setAttribute("stroke-opacity","0.8");}
       }
     }
+    _updateModHint(e);
   });
   document.addEventListener("keyup",function(e){
     if(e.key==="Shift"){
@@ -1590,6 +1813,12 @@ function setupCtrl(){
       cv.style.cursor="crosshair";
       for(var i=0;i<crosshairLines.length;i++){crosshairLines[i].setAttribute("stroke","currentColor");crosshairLines[i].setAttribute("stroke-opacity","0.4");}
     }
+    _updateModHint(e);
+  });
+  window.addEventListener("blur",function(){
+    shiftHeld=false;
+    for(var i=0;i<crosshairLines.length;i++){crosshairLines[i].setAttribute("stroke","currentColor");crosshairLines[i].setAttribute("stroke-opacity","0.4");}
+    document.getElementById("hint").textContent=_defaultHint();
   });
 
   /* Shift+click/drag = select cell or lasso, normal click = drag */
@@ -1613,11 +1842,10 @@ function setupCtrl(){
       else if(e.button===0&&(e.ctrlKey||e.metaKey))panning=true;
       else if(e.button===0)dragging=true;
       else if(e.button===2)panning=true;
+      _dragDist=0; /* track total movement before showing pivot */
     }
     else{dragging=true;}
     prev={x:e.clientX,y:e.clientY};
-    /* Show pivot marker during 3D rotation, panning, or dollying */
-    if(viewIs3d&&(dragging||panning||dollying)&&pivotMarker){clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;}
     /* Defer 2D crosshair until actual movement */
   });
 
@@ -1681,6 +1909,11 @@ function setupCtrl(){
     }
     var dx=e.clientX-prev.x,dy=e.clientY-prev.y;prev={x:e.clientX,y:e.clientY};
     if(viewIs3d){
+      /* Show pivot cross only after meaningful movement (>4px total) */
+      if(dragging||panning||dollying){_dragDist+=Math.abs(dx)+Math.abs(dy);}
+      if(_dragDist>4&&pivotMarker&&!pivotMarker.visible){
+        clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;
+      }
       if(dragging){sph.theta-=dx*.005;sph.phi-=dy*.005;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
       else if(dollying){
         /* Move orbit center forward/backward along view direction */
@@ -1694,7 +1927,7 @@ function setupCtrl(){
   });
   var pivotTimer=null;
   window.addEventListener("mouseup",function(){
-    dragging=false;panning=false;dollying=false;saveCameraOnly();
+    dragging=false;panning=false;dollying=false;_dragDist=0;saveCameraOnly();
     clearTimeout(crosshairTimer);
     crosshairTimer=setTimeout(function(){crosshairEl.classList.remove("show");},300);
     /* Hide pivot marker after brief delay */
@@ -1795,14 +2028,32 @@ function setupCtrl(){
   document.addEventListener("keydown",function(e){
     if((e.metaKey||e.ctrlKey)&&e.key==="["){e.preventDefault();histUndo();}
     if((e.metaKey||e.ctrlKey)&&e.key==="]"){e.preventDefault();histRedo();}
-    /* Number keys 1-9: create group if needed, then activate (skip if typing in input) */
-    if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key>="1"&&e.key<="9"
-       &&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="TEXTAREA"){
+    /* Skip letter/number shortcuts when typing in inputs */
+    var inInput=document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA";
+    /* Option+Number: toggle group visibility (use e.code because macOS remaps opt+digit) */
+    if(e.altKey&&!e.metaKey&&!e.ctrlKey&&e.code>="Digit1"&&e.code<="Digit9"&&!inInput){
+      e.preventDefault();
+      var idx=parseInt(e.code.charAt(5))-1;
+      if(idx<selGroups.length){
+        toggleGroupVis(selGroups[idx].id);
+      }
+      return;
+    }
+    /* Number keys 1-9: create group if needed, then activate */
+    if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key>="1"&&e.key<="9"&&!inInput){
       var idx=parseInt(e.key)-1;
-      /* Create groups up to the requested index */
       while(idx>=selGroups.length)addSelGroup();
       setActiveGroup(selGroups[idx].id);
     }
+    if(inInput)return; /* remaining shortcuts only outside inputs */
+    /* c = cluster color mode */
+    if(e.key==="c"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("cluster");}
+    /* g = gene expression color mode */
+    if(e.key==="g"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("gene");}
+    /* h = hide/restore all selection group highlights */
+    if(e.key==="h"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();}
+    /* r = reset view */
+    if(e.key==="r"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){resetView();}
     /* Escape clears active group or closes help */
     if(e.key==="Escape"){
       var help=document.getElementById("help-overlay");
@@ -1817,11 +2068,14 @@ function setView(v){
   viewIs3d=(v==="3d");
   document.getElementById("vb2").className="vbtn"+(viewIs3d?"":" on");
   document.getElementById("vb3").className="vbtn"+(viewIs3d?" on":"");
+  document.getElementById("vb2m").className="vbtn"+(viewIs3d?"":" on");
+  document.getElementById("vb3m").className="vbtn"+(viewIs3d?" on":"");
   document.getElementById("rot-sec").style.display=viewIs3d?"block":"none";
-  document.getElementById("view-badge").textContent=viewIs3d?"3D":"2D";
   document.getElementById("hint").textContent=viewIs3d?"Left-drag rotate \u00b7 Ctrl+drag pan \u00b7 Opt+drag fly \u00b7 Scroll zoom":"Drag pan \u00b7 Scroll zoom";
   if(D){var td=viewIs3d?3:2;if(D.embeddings[td])positionPts(D,td);}
   if(pts){pts.material.sizeAttenuation=viewIs3d;pts.material.needsUpdate=true;}
+  if(ringPts){ringPts.material.sizeAttenuation=viewIs3d;ringPts.material.needsUpdate=true;}
+  recolor();
   saveState();
 }
 
@@ -1890,8 +2144,9 @@ function setMode(m){
   mode=m;
   document.getElementById("bc").className="btn"+(m==="cluster"?" on":"");
   document.getElementById("bg").className="btn"+(m==="gene"?" on":"");
-  document.getElementById("gene-sec").style.display=m==="gene"?"block":"none";
-  document.getElementById("expr-sec").style.display=(m==="gene"&&selGene)?"block":"none";
+  /* Gene panel stays visible after data loads; only expression legend toggles */
+  document.getElementById("expr-legend").style.display=(m==="gene"&&selGene)?"block":"none";
+  _updateGeneCollapsedName();
   if(m==="gene")showRecentGenes();
   recolor();saveState();
 }
@@ -1905,17 +2160,36 @@ function pickGene(g){
   document.getElementById("bc").className="btn";
   document.getElementById("bg").className="btn on";
   document.getElementById("gene-sec").style.display="block";
-  document.getElementById("expr-sec").style.display="block";
+  document.getElementById("expr-legend").style.display="block";
+  _updateGeneCollapsedName();
   loadGene(g);
   saveState();
+}
+function _updateGeneCollapsedName(){
+  var el=document.getElementById("gene-collapsed-name");
+  var sec=document.getElementById("gene-sec");
+  if(selGene&&sec.classList.contains("collapsed")){
+    el.textContent=selGene;
+    el.style.display="inline";
+  }else{
+    el.style.display="none";
+  }
 }
 function setPtSz(v){
   if(!pts)return;
   basePtSz=parseFloat(v);
-  /* Opacity: larger points slightly more transparent, but never below 0.15 */
-  var n=D?D.header.n_cells:10000;
-  var base=n<50000?0.85:n<200000?0.7:0.55;
-  pts.material.opacity=Math.max(0.15,Math.min(0.9,base-(basePtSz-0.4)*0.3));
+  saveState();
+}
+function setPtOpacity(v){
+  if(!pts)return;
+  pts.material.opacity=parseFloat(v);
+  saveState();
+}
+function setBgDim(v){
+  bgDimPct=parseInt(v);
+  bgDimUserSet=true;
+  document.getElementById("bg-dim").value=bgDimPct;
+  recolor();
   saveState();
 }
 function toggleAuto(){autoRotate=!autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");saveState();}
@@ -1982,14 +2256,135 @@ function renderLeg(){
       ?"background:"+rgb+";"
       :"background:transparent;border:1.5px solid "+rgb+";";
     var textColor=vis?"var(--text2)":"var(--text4)";
+    /* Annotation predictions if available */
+    var annot="";
+    if(markerAnnotations&&markerAnnotations[i]&&markerAnnotations[i].length>0){
+      var top=markerAnnotations[i][0];
+      var pct=Math.round(top.score*100);
+      annot+='<div class="annot-pred annot-marker" title="Marker DB: '+_annotTooltip(markerAnnotations[i])+'">'
+        +'<span class="annot-tag">M</span>'
+        +'<span class="annot-type">'+top.cell_type+'</span>'
+        +'<span class="annot-score">'+pct+'%</span>'
+        +'</div>';
+    }
+    if(llmAnnotations&&llmAnnotations[i]&&llmAnnotations[i].length>0){
+      var top=llmAnnotations[i][0];
+      var conf=top.confidence||"";
+      var reason=top.reasoning||"";
+      annot+='<div class="annot-pred annot-llm" title="Claude: '+(reason?reason.replace(/"/g,"&quot;"):(conf+" confidence"))+'">'
+        +'<span class="annot-tag annot-tag-llm">AI</span>'
+        +'<span class="annot-type">'+top.cell_type+'</span>'
+        +'<span class="annot-score">'+(conf||"")+'</span>'
+        +'</div>';
+    }
     html.push('<div class="li leg-item" data-ci="'+i+'" onclick="toggleCluster('+i+',event)" style="cursor:pointer;user-select:none;" title="Click: toggle · Opt: solo · Shift: select">'
+      +'<div class="leg-row">'
       +'<div class="dot" style="'+dotStyle+'"></div>'
       +'<span class="nm" style="color:'+textColor+'">'+nm+'</span>'
       +'<span style="flex:1;"></span>'
-      +'<span style="font-size:8px;color:'+(vis?"var(--text4)":"var(--border2)")+';font-variant-numeric:tabular-nums;margin-left:4px;">'+cnt.toLocaleString()+'</span>'
+      +'<span style="font-size:8px;color:'+(vis?"var(--text4)":"var(--border2)")+';font-variant-numeric:tabular-nums;margin-left:4px;flex-shrink:0;">'+cnt.toLocaleString()+'</span>'
+      +'</div>'
+      +annot
       +'</div>');
   }
   document.getElementById("leg").innerHTML=html.join("");
+}
+
+function _annotTooltip(preds){
+  var lines=[];
+  var n=Math.min(5,preds.length);
+  for(var i=0;i<n;i++){
+    var p=preds[i];
+    var detail="";
+    if(p.reasoning){
+      detail=p.reasoning;
+    }else if(p.n_found){
+      detail=p.n_found+"/"+p.markers_total+" markers, p="+p.pval;
+    }
+    var conf=p.confidence?" ["+p.confidence+"]":"";
+    lines.push(Math.round(p.score*100)+"% "+p.cell_type+conf+(detail?" ("+detail+")":""));
+  }
+  return lines.join(" | ");
+}
+
+var _annotAbort=null;
+function runAnnotation(){
+  if(!D)return;
+  var btn=document.getElementById("annotate-btn");
+  if(_annotAbort){_annotAbort.abort();_annotAbort=null;btn.textContent="Markers";btn.style.color="#34d399";btn.style.borderColor="rgba(52,211,153,0.3)";return;}
+  _annotAbort=new AbortController();
+  btn.textContent="Stop";
+  btn.style.color="#f87171";btn.style.borderColor="#f87171";
+  fetch("/api/annotate",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({top_n:50,test:"wilcoxon"}),
+    signal:_annotAbort.signal
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    _annotAbort=null;
+    btn.textContent="Markers";btn.style.color="#34d399";btn.style.borderColor="rgba(52,211,153,0.3)";
+    if(data.error){
+      btn.title="Error: "+data.error;return;
+    }
+    /* Index results by cluster_id */
+    markerAnnotations={};
+    for(var i=0;i<data.results.length;i++){
+      var r=data.results[i];
+      markerAnnotations[r.cluster_id]=r.predictions;
+    }
+    btn.title=data.cached?"Marker annotations loaded from cache":"Annotated in "+data.elapsed+"s using "+(data.marker_db_size||"?")+" cell type signatures";
+    renderLeg();
+  })
+  .catch(function(err){
+    _annotAbort=null;
+    btn.textContent="Markers";btn.style.color="#34d399";btn.style.borderColor="rgba(52,211,153,0.3)";
+    if(err.name!=="AbortError")btn.title="Error: "+err.message;
+  });
+}
+
+/* ── Claude LLM annotation ── */
+var _llmAbort=null;
+function runAnnotationLLM(){
+  if(!D)return;
+  var btn=document.getElementById("annotate-llm-btn");
+  if(_llmAbort){_llmAbort.abort();_llmAbort=null;btn.textContent="Claude";btn.style.color="#c4b5fd";btn.style.borderColor="rgba(196,181,253,0.3)";return;}
+  _llmAbort=new AbortController();
+  btn.textContent="Stop";
+  btn.style.color="#f87171";btn.style.borderColor="#f87171";
+  fetch("/api/annotate-llm",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({top_n:30}),
+    signal:_llmAbort.signal
+  })
+  .then(function(r){return r.json();})
+  .then(function(data){
+    _llmAbort=null;
+    btn.textContent="Claude";btn.style.color="#c4b5fd";btn.style.borderColor="rgba(196,181,253,0.3)";
+    if(data.error){
+      if(data.error.indexOf("API key")>=0||data.error.indexOf("ANTHROPIC")>=0){
+        alert("No API key configured.\n\nStart the server with:\n  python fleek_server.py data.h5ad --api-key sk-ant-...\n\nOr set the env var:\n  export ANTHROPIC_API_KEY=sk-ant-...");
+      }else{
+        alert("Annotation error: "+data.error);
+      }
+      btn.title="Error: "+data.error;return;
+    }
+    llmAnnotations={};
+    for(var i=0;i<data.results.length;i++){
+      var r=data.results[i];
+      llmAnnotations[r.cluster_id]=r.predictions;
+    }
+    var tokInfo=data.tokens?(data.tokens.input+"+"+data.tokens.output+" tokens"):"";
+    btn.title=data.cached?"Claude annotations loaded from cache":"Annotated by "+(data.model||"Claude")+" in "+data.elapsed+"s"+(tokInfo?" \u00b7 "+tokInfo:"");
+    renderLeg();
+  })
+  .catch(function(err){
+    _llmAbort=null;
+    btn.textContent="Claude";btn.style.color="#c4b5fd";btn.style.borderColor="rgba(196,181,253,0.3)";
+    if(err.name!=="AbortError")btn.title="Error: "+err.message;
+  });
 }
 function toggleCluster(i,ev){
   if(ev&&ev.altKey){soloCluster(i);return;}
@@ -2037,26 +2432,76 @@ function hideL(){document.getElementById("loading").style.display="none";}
 
 /* Pick threshold: convert ~5 screen pixels to world units */
 function pickThreshold(){
-  var pickPx=5, t;
+  var pickPx=8, t;
   if(viewIs3d){
     var fovRad=cam3d.fov*Math.PI/180;
     t=2*sph.radius*Math.tan(fovRad/2)/canvasH*pickPx;
   }else{
     t=(frustum2*2)/(zoom2*canvasW)*pickPx;
   }
-  return Math.max(0.005,Math.min(0.4,t));
+  return Math.max(0.01,Math.min(0.8,t));
 }
 
 var _pendingFile=null;
+var _activeXhr=null;      /* active upload XHR */
+var _activePollTimer=null; /* active server-processing poll interval */
 
 function showUploadPopover(){
   document.getElementById("h5ad-upload").click();
+}
+
+function setupDragDrop(){
+  var ds=document.getElementById("data-sec");
+  if(!ds)return;
+  var _dragCount=0;
+  ds.addEventListener("dragenter",function(e){
+    e.preventDefault();
+    _dragCount++;
+    ds.classList.add("drop-active");
+  });
+  ds.addEventListener("dragover",function(e){
+    e.preventDefault();
+    e.dataTransfer.dropEffect="copy";
+  });
+  ds.addEventListener("dragleave",function(e){
+    _dragCount--;
+    if(_dragCount<=0){_dragCount=0;ds.classList.remove("drop-active");}
+  });
+  ds.addEventListener("drop",function(e){
+    e.preventDefault();
+    _dragCount=0;
+    ds.classList.remove("drop-active");
+    var files=e.dataTransfer.files;
+    if(!files||files.length===0)return;
+    var file=files[0];
+    if(!file.name.endsWith(".h5ad")){
+      var st=document.getElementById("upload-status");
+      st.textContent="Only .h5ad files supported";
+      st.style.display="block";
+      setTimeout(function(){st.textContent="";},3000);
+      return;
+    }
+    if(_activeXhr||_activePollTimer)abortUpload();
+    _pendingFile=file;
+    var pop=document.getElementById("upload-popover");
+    document.getElementById("upload-file-name").textContent=file.name+" ("+(file.size/(1024*1024)).toFixed(1)+" MB)";
+    document.getElementById("fast-umap-toggle").checked=false;
+    document.getElementById("fast-umap-opts").style.display="none";
+    document.getElementById("fast-umap-n").value=50000;
+    updateFastLabel();
+    document.getElementById("backed-toggle").checked=false;
+    pop.style.display="block";
+    var goBtn=document.getElementById("upload-go-btn");
+    goBtn.style.animation="btn-pulse 1.5s ease-in-out infinite";
+  });
 }
 
 function onFileSelected(input){
   var file=input.files[0];
   if(!file)return;
   if(!file.name.endsWith(".h5ad")){alert("Please select an .h5ad file");input.value="";return;}
+  /* If an upload is already in progress, abort it first */
+  if(_activeXhr||_activePollTimer)abortUpload();
   _pendingFile=file;
   /* Show popover with file name and load options */
   var pop=document.getElementById("upload-popover");
@@ -2080,8 +2525,22 @@ function cancelUpload(){
   document.getElementById("upload-go-btn").style.animation="";
 }
 
+function abortUpload(){
+  if(_activeXhr){_activeXhr.abort();_activeXhr=null;}
+  if(_activePollTimer){clearInterval(_activePollTimer);_activePollTimer=null;}
+  _pendingFile=null;
+  var status=document.getElementById("upload-status");
+  var progress=document.getElementById("upload-progress");
+  var stopBtn=document.getElementById("upload-stop-btn");
+  status.textContent="Upload cancelled";
+  stopBtn.style.display="none";
+  setTimeout(function(){progress.style.display="none";status.textContent="";},2000);
+}
+
 function confirmUpload(){
   if(!_pendingFile)return;
+  /* Abort any in-progress upload */
+  if(_activeXhr||_activePollTimer)abortUpload();
   var file=_pendingFile;
   _pendingFile=null;
   document.getElementById("upload-popover").style.display="none";
@@ -2089,14 +2548,17 @@ function confirmUpload(){
   var progress=document.getElementById("upload-progress");
   var progressBar=document.getElementById("upload-progress-bar");
   var status=document.getElementById("upload-status");
+  var stopBtn=document.getElementById("upload-stop-btn");
 
   progress.style.display="block";
   progressBar.style.width="0%";
   status.style.display="block";
   status.textContent="Uploading "+file.name+" ("+(file.size/(1024*1024)).toFixed(1)+" MB)...";
+  stopBtn.style.display="inline-block";
   document.getElementById("load-badges").style.display="none";
 
   var xhr=new XMLHttpRequest();
+  _activeXhr=xhr;
   xhr.open("POST","/api/upload",true);
   xhr.setRequestHeader("X-Filename",file.name);
   var fastUmap=document.getElementById("fast-umap-toggle").checked?"1":"0";
@@ -2116,22 +2578,31 @@ function confirmUpload(){
   };
 
   xhr.onload=function(){
+    _activeXhr=null;
     try{
       var data=JSON.parse(xhr.responseText);
       if(data.error){
         status.textContent="Error: "+data.error;
+        stopBtn.style.display="none";
         setTimeout(function(){progress.style.display="none";},3000);
         return;
       }
       pollProgress();
     }catch(e){
       status.textContent="Error: "+e.message;
+      stopBtn.style.display="none";
     }
   };
 
   xhr.onerror=function(){
+    _activeXhr=null;
     status.textContent="Upload failed — network error";
+    stopBtn.style.display="none";
     setTimeout(function(){progress.style.display="none";},3000);
+  };
+
+  xhr.onabort=function(){
+    _activeXhr=null;
   };
 
   xhr.send(file);
@@ -2176,9 +2647,10 @@ function pollProgress(){
   var progress=document.getElementById("upload-progress");
   var progressBar=document.getElementById("upload-progress-bar");
   var status=document.getElementById("upload-status");
+  var stopBtn=document.getElementById("upload-stop-btn");
   var startTime=Date.now();
 
-  var timer=setInterval(function(){
+  _activePollTimer=setInterval(function(){
     fetch("/api/progress")
       .then(function(r){return r.json();})
       .then(function(p){
@@ -2189,15 +2661,17 @@ function pollProgress(){
         status.textContent=p.message+" ("+elapsed+"s)";
 
         if(p.status==="done"){
-          clearInterval(timer);
+          clearInterval(_activePollTimer);_activePollTimer=null;
           progressBar.style.width="100%";
           status.textContent="Done! Loading visualizer...";
+          stopBtn.style.display="none";
           sessionStorage.removeItem("fleek_state");
           sessionStorage.removeItem("fleek_deg");
           setTimeout(function(){location.reload();},500);
         }else if(p.status==="error"){
-          clearInterval(timer);
+          clearInterval(_activePollTimer);_activePollTimer=null;
           status.textContent="Error: "+p.message;
+          stopBtn.style.display="none";
           setTimeout(function(){progress.style.display="none";},5000);
         }
       })
@@ -2216,6 +2690,20 @@ var degPanelH=280;
 var degSelHash=""; /* hash of groups at last DEG run, for stale detection */
 var degOpen=false;
 var degCache={}; /* key: testType+"_"+selHash → {data, grpA, grpB} */
+var vZoom={x:1,y:1}, vPan={x:0,y:0}; /* volcano zoom (multiplicative) and pan (data-space offset) */
+var _vBounds={maxFC:1,maxY:2}; /* updated each render, used by clamp */
+function clampVPan(){
+  /* Clamp pan so visible range stays within data bounds */
+  var visFC=_vBounds.maxFC/vZoom.x;
+  var visY=_vBounds.maxY/vZoom.y;
+  /* X: center can shift at most so the edge touches the data boundary */
+  var maxPanX=Math.max(0,_vBounds.maxFC-visFC);
+  vPan.x=Math.max(-maxPanX,Math.min(maxPanX,vPan.x));
+  /* Y: bottom stays at 0 minimum, top doesn't exceed maxY */
+  var maxPanY=Math.max(0,_vBounds.maxY-visY);
+  vPan.y=Math.max(0,Math.min(maxPanY,vPan.y));
+}
+var vDragging=false, vPrev={x:0,y:0};
 
 function _rgb(c){return "rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")";}
 function _rgba(c,a){return "rgba("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+","+a+")";}
@@ -2316,8 +2804,21 @@ function _showDEGResult(data,grpA,grpB){
   document.getElementById("deg-search").value="";
   degSort={col:"padj",asc:true};
   degHlGene=null;
+  vZoom={x:1,y:1};vPan={x:0,y:0};
+  /* Auto-expand panel if too small for a usable volcano */
+  var panel=document.getElementById("deg-panel");
+  if(degPanelH<320){degPanelH=320;panel.style.height=degPanelH+"px";}
   renderDEGTable();
-  renderVolcano();
+  syncCanvasSize();
+  /* Wait for panel layout to settle before rendering volcano */
+  var wrap=document.getElementById("volcano-wrap");
+  var _vRO=new ResizeObserver(function(){
+    _vRO.disconnect();
+    renderVolcano();
+  });
+  _vRO.observe(wrap);
+  /* Fallback in case ResizeObserver doesn't fire (already at size) */
+  setTimeout(renderVolcano,150);
 }
 
 function _clearDEGDisplay(){
@@ -2339,6 +2840,23 @@ function onDEGTestChange(){
   }else{
     _clearDEGDisplay();
   }
+}
+
+var _degAbort=null; /* AbortController for running DEG */
+var _degRunning=false;
+
+function toggleDEG(){
+  if(_degRunning){stopDEG();return;}
+  runDEG();
+}
+
+function stopDEG(){
+  if(_degAbort){_degAbort.abort();_degAbort=null;}
+  _degRunning=false;
+  var btn=document.getElementById("deg-run-btn");
+  btn.textContent="Run";
+  btn.style.color="";btn.style.borderColor="";
+  document.getElementById("deg-status").textContent="Cancelled";
 }
 
 function runDEG(){
@@ -2364,20 +2882,17 @@ function runDEG(){
 
   var test=document.getElementById("deg-test").value;
   var status=document.getElementById("deg-status");
-  var progress=document.getElementById("deg-progress");
-  var progressBar=document.getElementById("deg-progress-bar");
-  document.getElementById("deg-run-btn").disabled=true;
 
-  var nCells=grpA.cells.size+grpB.cells.size;
-  var estSec=test==="wilcoxon"?Math.max(5,nCells*0.0005*60):Math.max(3,nCells*0.0002*60);
+  /* Switch button to Stop */
+  _degRunning=true;
+  _degAbort=new AbortController();
+  var btn=document.getElementById("deg-run-btn");
+  btn.textContent="Stop";
+  btn.style.color="#f87171";btn.style.borderColor="#f87171";
 
-  progress.style.display="block";
-  progressBar.style.width="0%";
   var startTime=Date.now();
   var progressTimer=setInterval(function(){
     var elapsed=(Date.now()-startTime)/1000;
-    var pct=Math.min(95,elapsed/estSec*100);
-    progressBar.style.width=pct+"%";
     status.textContent="Running "+test+"... "+elapsed.toFixed(0)+"s";
   },500);
 
@@ -2388,24 +2903,28 @@ function runDEG(){
       group_a:Array.from(grpA.cells),
       group_b:Array.from(grpB.cells),
       test:test
-    })
+    }),
+    signal:_degAbort.signal
   })
   .then(function(r){return r.json();})
   .then(function(data){
     clearInterval(progressTimer);
-    progressBar.style.width="100%";
-    setTimeout(function(){progress.style.display="none";},600);
-    if(data.error){status.textContent="Error: "+data.error;document.getElementById("deg-run-btn").disabled=false;return;}
+    _degRunning=false;_degAbort=null;
+    btn.textContent="Run";btn.style.color="";btn.style.borderColor="";
+    if(data.error){status.textContent="Error: "+data.error;return;}
     /* Cache the result */
     degCache[cacheKey]={data:data,grpA:savedGrpA,grpB:savedGrpB};
     _showDEGResult(data,savedGrpA,savedGrpB);
-    document.getElementById("deg-run-btn").disabled=false;
   })
   .catch(function(err){
     clearInterval(progressTimer);
-    progress.style.display="none";
-    status.textContent="Error: "+err.message;
-    document.getElementById("deg-run-btn").disabled=false;
+    _degRunning=false;_degAbort=null;
+    btn.textContent="Run";btn.style.color="";btn.style.borderColor="";
+    if(err.name==="AbortError"){
+      status.textContent="Cancelled";
+    }else{
+      status.textContent="Error: "+err.message;
+    }
   });
 }
 
@@ -2434,7 +2953,7 @@ function renderDEGTable(){
     var sig=Math.abs(g.log2fc)>=FC_THRESH&&g.padj<PADJ_THRESH;
     var fcCol=g.log2fc>0?colA:colB;
     var hl=degHlGene===g.gene?" hl":"";
-    return '<tr class="'+hl+'" onclick="degClickGene(\''+g.gene+'\')" onmouseenter="degHoverGene(\''+g.gene+'\')" onmouseleave="degHoverGene(null)">'
+    return '<tr class="'+hl+'" data-gene="'+g.gene+'" onclick="degClickGene(\''+g.gene+'\')" onmouseenter="degHoverGene(\''+g.gene+'\')" onmouseleave="degHoverGene(null)">'
       +'<td style="color:'+(sig?"var(--text)":"var(--text3)")+'">'+g.gene+'</td>'
       +'<td style="color:'+fcCol+'">'+g.log2fc.toFixed(2)+'</td>'
       +'<td>'+g.cohens_d.toFixed(2)+'</td>'
@@ -2444,20 +2963,18 @@ function renderDEGTable(){
 }
 
 function degClickGene(gene){
+  /* Clear previous highlight */
+  var prev=document.querySelector("#deg-tbody tr.hl");
+  if(prev)prev.className="";
+  /* Set new highlight */
   degHlGene=gene;
-  renderDEGTable();
+  var row=document.querySelector('#deg-tbody tr[data-gene="'+gene+'"]');
+  if(row){
+    row.className="hl";
+    row.scrollIntoView({block:"center",behavior:"smooth"});
+  }
   renderVolcano();
   pickGene(gene);
-  /* Scroll table to gene */
-  setTimeout(function(){
-    var rows=document.querySelectorAll("#deg-tbody tr");
-    for(var i=0;i<rows.length;i++){
-      if(rows[i].children[0].textContent===gene){
-        rows[i].scrollIntoView({block:"center",behavior:"smooth"});
-        break;
-      }
-    }
-  },50);
 }
 
 function degHoverGene(gene){
@@ -2522,6 +3039,18 @@ function exportGroup(id){
 }
 
 /* ── Volcano Plot ── */
+function _niceTicks(min,max,count){
+  var range=max-min;if(range<=0)return[min];
+  var step=range/count;
+  var mag=Math.pow(10,Math.floor(Math.log10(step)));
+  var norm=step/mag;
+  if(norm<1.5)step=mag;else if(norm<3.5)step=2*mag;else if(norm<7.5)step=5*mag;else step=10*mag;
+  var ticks=[];
+  var start=Math.ceil(min/step)*step;
+  for(var v=start;v<=max+step*0.01;v+=step)ticks.push(Math.round(v*1e6)/1e6);
+  return ticks;
+}
+
 function renderVolcano(){
   if(!degData||!degData.genes.length)return;
   var cv=document.getElementById("volcano-cv");
@@ -2551,17 +3080,41 @@ function renderVolcano(){
   }
 
   var maxFC=0, maxY=0;
+  /* Collect values for percentile-based bounds */
+  var allFC=[], allY=[];
   for(var i=0;i<genes.length;i++){
     var afc=Math.abs(genes[i].log2fc);
-    if(afc>maxFC)maxFC=afc;
+    allFC.push(afc);
     var yv=getY(genes[i]);
+    allY.push(yv);
+    if(afc>maxFC)maxFC=afc;
     if(yv>maxY)maxY=yv;
   }
+  /* Use 99th percentile for default view so outliers don't waste space */
+  allFC.sort(function(a,b){return a-b;});
+  allY.sort(function(a,b){return a-b;});
   maxFC=Math.max(maxFC*1.1,1);
   maxY=Math.max(maxY*1.05, yMode==="cohens_d"?0.5:2);
 
-  function toX(fc){return pad.left+(fc+maxFC)/(2*maxFC)*pw;}
-  function toY(yv){return pad.top+ph-yv/maxY*ph;}
+  /* Visibility cutoff from slider: show top N% by y-axis metric */
+  var showPct=parseInt(document.getElementById("volcano-pct").value)||5;
+  var cutoffIdx=Math.max(0,Math.floor(allY.length*(1-showPct/100)));
+  var yCutoff=allY[cutoffIdx]||0;
+
+  /* Store base ranges for zoom calculations (full extent so nothing is cut off) */
+  var baseFC=maxFC, baseY=maxY;
+  _vBounds.maxFC=maxFC;_vBounds.maxY=maxY;
+  clampVPan();
+
+  /* Apply zoom and pan: visible range = base / zoom, offset by pan */
+  var visFC=baseFC/vZoom.x;
+  var visY=baseY/vZoom.y;
+  var centerFC=vPan.x;
+  var yBottom=vPan.y;
+  var yTop=yBottom+visY;
+
+  function toX(fc){return pad.left+((fc-centerFC)+visFC)/(2*visFC)*pw;}
+  function toY(yv){return pad.top+ph-(yv-yBottom)/visY*ph;}
 
   var canvasBg=getComputedStyle(document.body).getPropertyValue("--canvas-bg").trim()||"#08080e";
   var cBorder=getComputedStyle(document.body).getPropertyValue("--border").trim()||"#2c3045";
@@ -2589,24 +3142,37 @@ function renderVolcano(){
   ctx.beginPath();ctx.moveTo(toX(FC_THRESH),pad.top);ctx.lineTo(toX(FC_THRESH),pad.top+ph);ctx.stroke();
   ctx.setLineDash([]);
 
-  /* Points */
+  /* Points — batch by category for performance */
+  var pathNS=new Path2D(); /* non-significant */
+  var pathSigA=new Path2D(); /* significant, group A direction */
+  var pathSigB=new Path2D(); /* significant, group B direction */
+  var hlGene=null; /* deferred highlight */
   for(var i=0;i<genes.length;i++){
     var g=genes[i];
-    var yv=getY(g);
-    var x=toX(g.log2fc), y=toY(yv);
-    var sig=Math.abs(g.log2fc)>=FC_THRESH&&g.padj<PADJ_THRESH;
     var isHl=degHlGene===g.gene;
-
-    if(isHl){
-      ctx.fillStyle="#fbbf24";
-      ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);ctx.fill();
-    }else if(sig){
-      ctx.fillStyle=g.log2fc>0?_rgba(colA,0.7):_rgba(colB,0.7);
-      ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();
+    if(!isHl&&yMode==="padj"&&g.padj>=1)continue;
+    var yv=getY(g);
+    if(!isHl&&yv<yCutoff)continue;
+    var x=toX(g.log2fc), y=toY(yv);
+    if(!isHl&&(x<pad.left-4||x>pad.left+pw+4||y<pad.top-4||y>pad.top+ph+4))continue;
+    if(isHl){hlGene={x:x,y:y};continue;}
+    var sig=Math.abs(g.log2fc)>=FC_THRESH&&g.padj<PADJ_THRESH;
+    if(sig){
+      var p=g.log2fc>0?pathSigA:pathSigB;
+      p.moveTo(x+2.5,y);p.arc(x,y,2.5,0,Math.PI*2);
     }else{
-      ctx.fillStyle=document.body.classList.contains("light")?"rgba(160,165,180,0.35)":"rgba(62,66,80,0.4)";
-      ctx.beginPath();ctx.arc(x,y,1.5,0,Math.PI*2);ctx.fill();
+      pathNS.moveTo(x+1.5,y);pathNS.arc(x,y,1.5,0,Math.PI*2);
     }
+  }
+  /* Draw batched paths */
+  ctx.fillStyle=document.body.classList.contains("light")?"rgba(160,165,180,0.35)":"rgba(62,66,80,0.4)";
+  ctx.fill(pathNS);
+  ctx.fillStyle=_rgba(colA,0.7);ctx.fill(pathSigA);
+  ctx.fillStyle=_rgba(colB,0.7);ctx.fill(pathSigB);
+  /* Highlighted gene on top */
+  if(hlGene){
+    ctx.fillStyle="#fbbf24";
+    ctx.beginPath();ctx.arc(hlGene.x,hlGene.y,4,0,Math.PI*2);ctx.fill();
   }
 
   /* Axes labels */
@@ -2624,14 +3190,18 @@ function renderVolcano(){
   /* Tick labels */
   ctx.fillStyle=cText4;ctx.font="8px Inter,system-ui,sans-serif";
   ctx.textAlign="center";
-  var fcTicks=[-maxFC,-maxFC/2,0,maxFC/2,maxFC];
+  var fcMin=centerFC-visFC, fcMax=centerFC+visFC;
+  var fcTicks=_niceTicks(fcMin,fcMax,5);
   for(var i=0;i<fcTicks.length;i++){
-    ctx.fillText(fcTicks[i].toFixed(1),toX(fcTicks[i]),pad.top+ph+12);
+    var tx=toX(fcTicks[i]);
+    if(tx>=pad.left-5&&tx<=pad.left+pw+5)ctx.fillText(fcTicks[i].toFixed(1),tx,pad.top+ph+12);
   }
   ctx.textAlign="right";
-  var yTicks=[0,maxY/4,maxY/2,maxY*3/4,maxY];
+  var yMin=yBottom, yMax=yTop;
+  var yTicks=_niceTicks(Math.max(0,yMin),yMax,5);
   for(var i=0;i<yTicks.length;i++){
-    ctx.fillText(yMode==="padj"?yTicks[i].toFixed(0):yTicks[i].toFixed(1),pad.left-4,toY(yTicks[i])+3);
+    var ty=toY(yTicks[i]);
+    if(ty>=pad.top-5&&ty<=pad.top+ph+5)ctx.fillText(yMode==="padj"?yTicks[i].toFixed(0):yTicks[i].toFixed(1),pad.left-4,ty+3);
   }
 
   /* Legend */
@@ -2645,7 +3215,11 @@ function renderVolcano(){
   ctx.fillStyle=cText2;
   ctx.fillText("\u2191 in "+nameB,pad.left+30+wA,legY+3);
 
-  cv._vLayout={pad:pad,pw:pw,ph:ph,maxFC:maxFC,maxY:maxY,toX:toX,toY:toY,w:w,h:h,getY:getY};
+  cv._vLayout={pad:pad,pw:pw,ph:ph,maxFC:maxFC,maxY:maxY,toX:toX,toY:toY,w:w,h:h,getY:getY,yCutoff:yCutoff,yMode:yMode,
+    baseFC:baseFC,baseY:baseY,visFC:visFC,visY:visY,centerFC:centerFC,yBottom:yBottom,yTop:yTop,
+    fromX:function(px){return (px-pad.left)/pw*(2*visFC)-visFC+centerFC;},
+    fromY:function(py){return (pad.top+ph-py)/ph*visY+yBottom;}
+  };
 }
 
 /* Volcano hover */
@@ -2668,13 +3242,32 @@ function setupVolcanoHover(){
   cv.addEventListener("mousemove",function(e){
     if(!degData||!cv._vLayout)return;
     var rect=cv.getBoundingClientRect();
-    var mx=e.clientX-rect.left, my=e.clientY-rect.top;
+    var z=currentUIScale;
+    var mx=(e.clientX-rect.left)/z, my=(e.clientY-rect.top)/z;
+
+    /* Panning */
+    if(vDragging){
+      var dx=(e.clientX-vPrev.x)/z, dy=(e.clientY-vPrev.y)/z;
+      vPrev={x:e.clientX,y:e.clientY};
+      var L=cv._vLayout;
+      /* Convert pixel delta to data-space delta */
+      vPan.x-=dx/L.pw*(2*L.visFC);
+      vPan.y+=dy/L.ph*L.visY;
+      clampVPan();
+      tip.style.display="none";
+      renderVolcano();
+      return;
+    }
+
+    /* Hover */
     var genes=degData.genes;
     var L=cv._vLayout;
     var best=null, bestG=null, bestD=100;
     for(var i=0;i<genes.length;i++){
       var g=genes[i];
+      if(L.yMode==="padj"&&g.padj>=1)continue;
       var yv=L.getY(g);
+      if(yv<L.yCutoff)continue;
       var x=L.toX(g.log2fc), y=L.toY(yv);
       var d=Math.sqrt((mx-x)*(mx-x)+(my-y)*(my-y));
       if(d<bestD){bestD=d;best=g.gene;bestG=g;}
@@ -2692,42 +3285,92 @@ function setupVolcanoHover(){
           +' \u00b7 <span style="color:var(--text2)">d '+bestG.cohens_d.toFixed(2)+'</span>'
           +' \u00b7 padj '+bestG.padj.toExponential(1);
         /* Highlight table row */
-        var rows=document.querySelectorAll("#deg-tbody tr");
-        for(var i=0;i<rows.length;i++){rows[i].className=rows[i].children[0].textContent===best?"hl":"";}
+        var prevHl=document.querySelector("#deg-tbody tr.hl");
+        if(prevHl)prevHl.className="";
+        var newHl=document.querySelector('#deg-tbody tr[data-gene="'+best+'"]');
+        if(newHl)newHl.className="hl";
       }
       /* Always reposition tooltip (handles cursor movement near edges) */
-      _posTip(tip,mx,my,rect.width,rect.height);
+      _posTip(tip,mx,my,rect.width/z,rect.height/z);
     }else if(degHlGene){
       degHlGene=null;
       renderVolcano();
       tip.style.display="none";
-      var rows=document.querySelectorAll("#deg-tbody tr");
-      for(var i=0;i<rows.length;i++){rows[i].className="";}
+      var prevHl=document.querySelector("#deg-tbody tr.hl");
+      if(prevHl)prevHl.className="";
     }
   });
 
   cv.addEventListener("mouseleave",function(){
+    vDragging=false;
     if(degHlGene){
       degHlGene=null;
       renderVolcano();
       tip.style.display="none";
-      var rows=document.querySelectorAll("#deg-tbody tr");
-      for(var i=0;i<rows.length;i++){rows[i].className="";}
+      var prevHl=document.querySelector("#deg-tbody tr.hl");
+      if(prevHl)prevHl.className="";
+    }
+  });
+
+  var vClickStart={x:0,y:0};
+
+  cv.addEventListener("mousedown",function(e){
+    if(e.button===0){
+      vDragging=true;
+      vPrev={x:e.clientX,y:e.clientY};
+      vClickStart={x:e.clientX,y:e.clientY};
+      cv.style.cursor="grab";
+    }
+  });
+
+  window.addEventListener("mouseup",function(e){
+    if(vDragging){
+      vDragging=false;
+      cv.style.cursor="";
     }
   });
 
   cv.addEventListener("click",function(e){
+    /* Suppress click if user dragged more than 4px */
+    var dist=Math.abs(e.clientX-vClickStart.x)+Math.abs(e.clientY-vClickStart.y);
+    if(dist>4)return;
     if(degHlGene){
       degClickGene(degHlGene);
-      /* Scroll table to the clicked gene */
-      var rows=document.querySelectorAll("#deg-tbody tr");
-      for(var i=0;i<rows.length;i++){
-        if(rows[i].children[0].textContent===degHlGene){
-          rows[i].scrollIntoView({block:"center",behavior:"smooth"});
-          break;
-        }
-      }
     }
+  });
+
+  /* Scroll to zoom volcano */
+  cv.addEventListener("wheel",function(e){
+    e.preventDefault();e.stopPropagation();
+    if(!degData||!cv._vLayout)return;
+    var L=cv._vLayout;
+    var rect=cv.getBoundingClientRect();
+    var z=currentUIScale;
+    var mx=(e.clientX-rect.left)/z, my=(e.clientY-rect.top)/z;
+    var factor=e.deltaY<0?1.08:1/1.08;
+
+    if(zoomMode==="cursor"){
+      /* Zoom toward cursor position in data space */
+      var dataX=L.fromX(mx), dataY=L.fromY(my);
+      var oldZx=vZoom.x, oldZy=vZoom.y;
+      vZoom.x=Math.max(0.5,Math.min(100,vZoom.x*factor));
+      vZoom.y=Math.max(0.5,Math.min(100,vZoom.y*factor));
+      /* Shift pan so data point under cursor stays in place */
+      vPan.x+=(dataX-vPan.x)*(1-oldZx/vZoom.x);
+      vPan.y+=(dataY-vPan.y)*(1-oldZy/vZoom.y);
+      clampVPan();
+    }else{
+      vZoom.x=Math.max(0.5,Math.min(100,vZoom.x*factor));
+      vZoom.y=Math.max(0.5,Math.min(100,vZoom.y*factor));
+    }
+    renderVolcano();
+  },{passive:false});
+
+  /* Double-click to reset volcano zoom/pan */
+  cv.addEventListener("dblclick",function(e){
+    e.preventDefault();
+    vZoom={x:1,y:1};vPan={x:0,y:0};
+    renderVolcano();
   });
 }
 
@@ -2767,6 +3410,93 @@ function setupDegResize(){
   });
 }
 
+function setupCtResize(){
+  var drag=document.getElementById("ct-drag");
+  var lower=document.getElementById("sidebar-lower");
+  var upper=document.getElementById("sidebar-upper");
+  var sidebar=document.getElementById("sidebar");
+  var startY=0, startH=0, isDragging=false;
+  var _isSnapped=true; /* start snapped */
+  var _preSnapH=200;
+  var SNAP_DIST=15;
+
+  function _geneSnapH(){
+    var geneSec=document.getElementById("gene-sec");
+    if(!geneSec||geneSec.style.display==="none")return 0;
+    var geneBottom=geneSec.getBoundingClientRect().bottom;
+    var sidebarBottom=sidebar.getBoundingClientRect().bottom;
+    var dragH=drag.offsetHeight||5;
+    return Math.max(80, sidebarBottom - geneBottom - dragH);
+  }
+
+  function snapOn(){
+    if(_isSnapped)return;
+    _isSnapped=true;
+    sidebar.classList.add("ct-snapped");
+  }
+
+  function snapOff(h){
+    _isSnapped=false;
+    sidebar.classList.remove("ct-snapped");
+    lower.style.flex="none";
+    lower.style.height=(h||_preSnapH)+"px";
+  }
+
+  drag.addEventListener("mousedown",function(e){
+    e.preventDefault();
+    isDragging=true;
+    startY=e.clientY;
+    /* If snapped, calculate what the fixed height would be right now */
+    if(_isSnapped){
+      var snapH=_geneSnapH();
+      _preSnapH=snapH||200;
+      snapOff(_preSnapH);
+      startH=_preSnapH;
+    }else{
+      startH=lower.offsetHeight;
+    }
+    drag.classList.add("dragging");
+    document.body.style.cursor="ns-resize";
+    document.body.style.userSelect="none";
+  });
+
+  drag.addEventListener("dblclick",function(e){
+    e.preventDefault();
+    if(_isSnapped){
+      snapOff(_preSnapH);
+    }else{
+      _preSnapH=lower.offsetHeight;
+      snapOn();
+    }
+  });
+
+  window.addEventListener("mousemove",function(e){
+    if(!isDragging)return;
+    var dy=startY-e.clientY;
+    var newH=Math.max(80,Math.min(sidebar.clientHeight-150,startH+dy));
+    var snapH=_geneSnapH();
+    if(snapH&&Math.abs(newH-snapH)<SNAP_DIST){
+      newH=snapH;
+    }
+    lower.style.flex="none";
+    lower.style.height=newH+"px";
+  });
+
+  window.addEventListener("mouseup",function(){
+    if(!isDragging)return;
+    isDragging=false;
+    startY=0;startH=0;
+    drag.classList.remove("dragging");
+    document.body.style.cursor="";
+    document.body.style.userSelect="";
+    /* Snap if released near snap point */
+    var snapH=_geneSnapH();
+    if(snapH&&Math.abs(lower.offsetHeight-snapH)<SNAP_DIST){
+      snapOn();
+    }
+  });
+}
+
 /* ── Settings ── */
 function toggleSettings(){
   var el=document.getElementById("settings-popup");
@@ -2792,25 +3522,31 @@ function toggleFPS(){
   var on=document.getElementById("set-fps").checked;
   document.getElementById("fps-box").style.display=on?"block":"none";
 }
+function setHighlightMode(m){
+  highlightMode=m;
+  recolor();
+}
 function saveSettings(){
   zoomMode=document.getElementById("set-zoom-mode").value;
   var theme=document.getElementById("set-theme").value;
   var uiScale=parseFloat(document.getElementById("set-ui-scale").value);
   var showFps=document.getElementById("set-fps").checked;
+  var hlMode=document.getElementById("set-highlight").value;
   applyTheme(theme);
-  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps}));}catch(e){}
+  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode}));}catch(e){}
 }
 function applyUIScale(v){
   var s=parseFloat(v);
+  currentUIScale=s;
   document.getElementById("ui-scale-label").textContent=Math.round(s*100)+"%";
   document.getElementById("sidebar").style.zoom=s;
   document.getElementById("deg-panel").style.zoom=s;
   document.getElementById("deg-drag").style.zoom=s;
-  /* Floating UI in canvas area */
-  var ids=["fps-box","hint","tooltip"];
-  for(var i=0;i<ids.length;i++){var el=document.getElementById(ids[i]);if(el)el.style.zoom=s;}
-  /* Trigger canvas resize since sidebar width changed */
-  syncCanvasSize();
+  /* Scale floating UI via transform (not zoom) to avoid affecting canvas coords */
+  var ids=["fps-box","hint"];
+  for(var i=0;i<ids.length;i++){var el=document.getElementById(ids[i]);if(el){el.style.transformOrigin="top right";el.style.transform="scale("+s+")";}}
+  /* Defer canvas resize to after browser reflow */
+  requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
 }
 function loadSettings(){
   try{
@@ -2830,6 +3566,10 @@ function loadSettings(){
         document.getElementById("set-fps").checked=true;
         toggleFPS();
       }
+      if(o.highlightMode){
+        highlightMode=o.highlightMode;
+        document.getElementById("set-highlight").value=o.highlightMode;
+      }
     }
     document.getElementById("set-zoom-mode").value=zoomMode;
   }catch(e){}
@@ -2846,8 +3586,9 @@ function loadSettings(){
 /* ── Boot: fetch from server ── */
 document.addEventListener("DOMContentLoaded",function(){
   try{var rg=sessionStorage.getItem("fleek_recent_genes");if(rg)recentGenes=JSON.parse(rg);}catch(e){}
-  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();loadSettings();animate();
+  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupCtResize();setupDragDrop();loadSettings();animate();
   showL("Connecting to server...");
+  var _loadT0=Date.now();
   fetch("/api/init")
     .then(function(r){
       if(!r.ok)throw new Error("Server error "+r.status);
@@ -2875,9 +3616,28 @@ document.addEventListener("DOMContentLoaded",function(){
         var saved=loadState();
         _restoring=true; /* suppress saves during setup */
         buildPts(data);buildLeg();renderSelPanel();
-        document.getElementById("info").textContent=data.header.n_cells.toLocaleString()+" cells \u00b7 "+data.header.n_clusters+" types \u00b7 "+(data.header.total_genes||"?").toLocaleString()+" genes";
+        /* Load cached annotations if included in init payload */
+        if(data.header.cached_markers){
+          markerAnnotations={};
+          for(var ai=0;ai<data.header.cached_markers.length;ai++){
+            var ar=data.header.cached_markers[ai];
+            markerAnnotations[ar.cluster_id]=ar.predictions;
+          }
+        }
+        if(data.header.cached_llm){
+          llmAnnotations={};
+          for(var ai=0;ai<data.header.cached_llm.length;ai++){
+            var ar=data.header.cached_llm[ai];
+            llmAnnotations[ar.cluster_id]=ar.predictions;
+          }
+        }
+        if(markerAnnotations||llmAnnotations)renderLeg();
+        var _loadElapsed=((Date.now()-_loadT0)/1000);
+        var _infoBase=data.header.n_cells.toLocaleString()+" cells \u00b7 "+data.header.n_clusters+" types \u00b7 "+(data.header.total_genes||"?").toLocaleString()+" genes";
+        document.getElementById("info").textContent=_infoBase+" \u00b7 loaded in "+_loadElapsed.toFixed(1)+"s";
         showLoadBadges(data.header.load_settings);
         showRecentGenes();
+        document.getElementById("gene-sec").style.display="block";
         _restoring=false;
         if(saved){
           introAnim=null; /* skip intro when restoring state */
@@ -2890,25 +3650,50 @@ document.addEventListener("DOMContentLoaded",function(){
           updateHistBtn();
         }
         hideL();
-        /* Poll for CSC background index build status + HVG availability */
+        /* Show CSC spinner immediately — server starts building right after init.
+           Keep visible until we get multiple consecutive "done" responses,
+           because the GIL can block progress polls during heavy C-level work. */
+        var cscEl=document.getElementById("csc-status");
+        cscEl.style.display="block";
+        cscEl.innerHTML='<span class="csc-spinner" style="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:4px;"></span>Building gene index\u2026';
+        /* Poll for CSC build completion + HVG availability */
+        var _cscDoneCount=0;
+        var _cscStart=Date.now();
         (function pollCSC(){
           fetch("/api/progress").then(function(r){return r.json();}).then(function(p){
-            var el=document.getElementById("csc-status");
-            /* Pick up HVGs if we don't have them yet */
             if(p.hvg_genes&&p.hvg_genes.length>0&&hvgGenes.length===0){
               hvgGenes=p.hvg_genes;
               if(mode==="gene")renderHVGChips();
             }
             if(p.csc_building){
-              el.style.display="block";
+              _cscDoneCount=0;
               var msg="Building gene index";
               if(p.message)msg=p.message;
-              el.innerHTML='<span class="csc-spinner" style="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:4px;"></span>'+msg;
+              cscEl.innerHTML='<span class="csc-spinner" style="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:4px;"></span>'+msg;
               setTimeout(pollCSC,2000);
             }else{
-              el.style.display="none";
+              _cscDoneCount++;
+              if(_cscDoneCount>=2||(Date.now()-_cscStart)>10000){
+                cscEl.style.display="none";
+                /* Update info with total time including indexing */
+                var _totalElapsed=((Date.now()-_loadT0)/1000);
+                var idxTime=parseFloat(p.csc_time)||0;
+                var timeStr="loaded in "+_totalElapsed.toFixed(1)+"s";
+                if(idxTime>=1)timeStr+=" (index: "+idxTime.toFixed(1)+"s"+(p.csc_cached?", cached":"")+")";
+                document.getElementById("info").textContent=_infoBase+" \u00b7 "+timeStr;
+                /* Add CSC cached badge if loaded from cache */
+                if(p.csc_cached){
+                  var bel=document.getElementById("load-badges");
+                  if(bel&&bel.innerHTML.indexOf("Gene index")<0){
+                    bel.innerHTML+='<span class="load-badge cached" title="Gene index loaded from cache">Gene index cached</span>';
+                    bel.style.display="flex";
+                  }
+                }
+              }else{
+                setTimeout(pollCSC,1500);
+              }
             }
-          }).catch(function(){});
+          }).catch(function(){setTimeout(pollCSC,2000);});
         })();
         /* Restore DEG state if it was saved before zoom reload */
         try{
@@ -2934,7 +3719,10 @@ document.addEventListener("DOMContentLoaded",function(){
               document.getElementById("deg-status").textContent=degData.genes.length.toLocaleString()+" genes \u00b7 "+nSig.toLocaleString()+" significant \u00b7 "+degData.elapsed+"s";
               document.getElementById("deg-note").textContent=degData.note||"";
               renderDEGTable();
-              setTimeout(renderVolcano,100);
+              var _vwrap=document.getElementById("volcano-wrap");
+              var _vro2=new ResizeObserver(function(){_vro2.disconnect();renderVolcano();});
+              _vro2.observe(_vwrap);
+              setTimeout(renderVolcano,200);
               markDEGStale();
             }
           }
