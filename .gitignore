@@ -1,0 +1,46 @@
+# Datasets
+datasets/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.so
+.venv/
+venv/
+env/
+
+# FLEEK cache files (large, dataset-specific)
+*.fleek_cache.npz
+*.csc_cache.npz
+*.annot_markers.json
+*.annot_llm.json
+*.annot_lineage.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
