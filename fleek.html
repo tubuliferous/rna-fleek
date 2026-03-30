@@ -276,7 +276,7 @@
   #slice-body .slice-empty-toggle:hover{opacity:1;color:var(--text3);}
   #slice-body .slice-vals{display:flex;flex-wrap:wrap;gap:3px 4px;padding-left:2px;}
   /* Unified pill toggle — used for slice values AND load options */
-  .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:8.5px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;}
+  .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:8.5px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
   .fleek-option:hover{border-color:var(--text3);color:var(--text3);}
   .fleek-option.active{background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.4);}
   .fleek-option.active:hover{background:rgba(52,211,153,0.2);}
@@ -5144,7 +5144,7 @@ function buildSlicePanel(){
       pill.className="fleek-option active"+(isEmpty?" empty-slice":"");
       pill.setAttribute("data-col",col);
       pill.setAttribute("data-idx",j);
-      pill.title="Click to toggle \u2022 Alt+click to solo";
+      pill.title=cat+" \u2022 Click to toggle \u2022 Alt+click to solo";
       pill.textContent=cat;
       var cspan=document.createElement("span");
       cspan.className="sv-count";
