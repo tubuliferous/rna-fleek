@@ -5111,6 +5111,33 @@ function buildSlicePanel(){
         if(e.target.checked){sliceFilter[c].add(idx);}else{sliceFilter[c].delete(idx);}
         applySlice();
       });
+      /* Alt+click: solo this value within its column (toggle solo on/off) */
+      row.addEventListener("click",function(e){
+        if(!e.altKey)return;
+        e.preventDefault();
+        var c=this.getAttribute("data-col");
+        var soloIdx=parseInt(this.getAttribute("data-idx"));
+        var cats2=D&&D.header&&D.header.obs_categories||{};
+        var n=cats2[c]?cats2[c].categories.length:0;
+        var alreadySolo=sliceFilter[c]&&sliceFilter[c].size===1&&sliceFilter[c].has(soloIdx);
+        if(alreadySolo){
+          /* un-solo: restore all values in column */
+          var s=new Set();for(var k=0;k<n;k++)s.add(k);
+          sliceFilter[c]=s;
+        }else{
+          sliceFilter[c]=new Set([soloIdx]);
+        }
+        /* sync checkboxes in this column */
+        var colDiv=document.querySelector('#slice-body .slice-col[data-col="'+c+'"]');
+        if(colDiv){
+          var cbs=colDiv.querySelectorAll('input[type="checkbox"]');
+          for(var ci=0;ci<cbs.length;ci++){
+            cbs[ci].checked=sliceFilter[c].has(parseInt(cbs[ci].getAttribute("data-idx")));
+          }
+        }
+        applySlice();
+      });
+      row.title="Click to toggle \u2022 Alt+click to solo";
       row.appendChild(cb);
       var span=document.createElement("span");
       span.textContent=cat;

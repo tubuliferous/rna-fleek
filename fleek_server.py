@@ -1962,7 +1962,11 @@ def run_deg(group_a, group_b, test="wilcoxon"):
 
 
 def export_h5ad_subset(cell_indices, group_name):
-    """Export a subset of cells as h5ad, return file path."""
+    """Export a subset of cells as h5ad, return file path.
+
+    Embeddings from the full dataset are sliced and stored in obsm so the
+    subset loads instantly without recomputing UMAP / PaCMAP / PCA.
+    """
     import tempfile
     sub = ADATA[cell_indices]
     if BACKED:
@@ -1972,6 +1976,33 @@ def export_h5ad_subset(cell_indices, group_name):
             sub = sub.copy()
     else:
         sub = sub.copy()
+
+    # ── Embed sliced embeddings so the subset loads without recomputing ──
+    idx = np.asarray(cell_indices)
+
+    # UMAP: store 3D if available (obsm fallback uses [:, :2] / [:, :3])
+    if UMAP_3D is not None and UMAP_3D.shape[0] == len(CLUSTER_IDS or []):
+        sub.obsm["X_umap"] = UMAP_3D[idx]
+    elif UMAP_2D is not None and UMAP_2D.shape[0] == len(CLUSTER_IDS or []):
+        sub.obsm["X_umap"] = UMAP_2D[idx]
+
+    # PaCMAP: same strategy
+    if PACMAP_3D is not None and PACMAP_3D.shape[0] == len(CLUSTER_IDS or []):
+        sub.obsm["X_pacmap"] = PACMAP_3D[idx]
+    elif PACMAP_2D is not None and PACMAP_2D.shape[0] == len(CLUSTER_IDS or []):
+        sub.obsm["X_pacmap"] = PACMAP_2D[idx]
+
+    # PCA: adata.obsm["X_pca"] is already preserved by copy() if it was set,
+    # but if it only lived in the cache (not obsm), add it now.
+    if "X_pca" not in sub.obsm:
+        if PCA_3D is not None and PCA_3D.shape[0] == len(CLUSTER_IDS or []):
+            sub.obsm["X_pca"] = PCA_3D[idx]
+        elif PCA_2D is not None and PCA_2D.shape[0] == len(CLUSTER_IDS or []):
+            sub.obsm["X_pca"] = PCA_2D[idx]
+
+    n_emb = sum(k in sub.obsm for k in ("X_umap", "X_pacmap", "X_pca"))
+    print(f"  Export: {len(cell_indices)} cells, {n_emb} embeddings embedded in obsm")
+
     safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in group_name)
     fname = f"subset_{safe_name}_{len(cell_indices)}cells.h5ad"
     fpath = os.path.join(tempfile.gettempdir(), fname)
