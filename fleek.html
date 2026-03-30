@@ -67,7 +67,7 @@
   #c:active{cursor:grabbing;}
   #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
-  #hint{position:absolute;bottom:12px;left:12px;background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;}
+  #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;}
   #loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);padding:20px 32px;border-radius:8px;border:1px solid var(--border);color:var(--accent2);font-weight:600;display:none;pointer-events:none;}
   #expr-bar{height:12px;border-radius:3px;background:linear-gradient(to right,#120b1d,#27314f,#1e845b,#9ec826,#fde724);}
   .light #expr-bar{background:linear-gradient(to right,#f7fbff,#c6dbef,#6baed6,#2171b5,#08306b);}
@@ -89,11 +89,11 @@
   #upload-status{font-size:9px;color:var(--accent);margin-top:4px;display:none;}
   #upload-progress{height:3px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden;display:none;}
   #upload-progress-bar{height:100%;background:linear-gradient(90deg,#4338ca,#6366f1);width:0%;border-radius:2px;transition:width 0.2s;}
-  .load-badge{display:inline-flex;align-items:center;gap:0;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:600;letter-spacing:0.02em;}
-  .load-badge .badge-x{width:0;overflow:hidden;cursor:pointer;font-weight:400;font-size:10px;line-height:1;padding:0;border-radius:2px;opacity:0.5;transition:width 0.15s,opacity 0.15s;order:-1;}
-  .load-badge:hover .badge-x{width:12px;opacity:0.6;padding:0 1px;margin-right:2px;}
-  .load-badge .badge-x:hover{opacity:1;}
-  .light .load-badge .badge-x:hover{opacity:1;}
+  .load-badge{display:inline-flex;align-items:center;gap:0;font-size:8px;padding:1px 5px 1px 5px;border-radius:3px;font-weight:600;letter-spacing:0.02em;position:relative;}
+  .load-badge .badge-x{position:absolute;left:0;top:0;bottom:0;width:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:400;font-size:10px;line-height:1;border-radius:3px 0 0 3px;opacity:0;pointer-events:none;transition:opacity 0.12s;background:inherit;}
+  .load-badge:hover .badge-x{opacity:0.85;pointer-events:auto;}
+  .load-badge .badge-x:hover{opacity:1;background:rgba(255,60,60,0.25);}
+  .light .load-badge .badge-x:hover{opacity:1;background:rgba(255,60,60,0.2);}
   .browse-entry{display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:pointer;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border);}
   .browse-entry:last-child{border-bottom:none;}
   .browse-entry:hover{background:var(--bg3);}
@@ -547,6 +547,13 @@
       <select id="set-highlight" onchange="setHighlightMode(this.value);saveSettings()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;">
         <option value="fill">Fill (replace color)</option>
         <option value="ring" selected>Ring (show color through)</option>
+      </select>
+    </div>
+    <div class="s-row">
+      <span>Cache location</span>
+      <select id="set-cache-mode" onchange="setCacheMode(this.value)" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;">
+        <option value="dataset">With dataset</option>
+        <option value="server">Server directory</option>
       </select>
     </div>
   </div>
@@ -2945,6 +2952,7 @@ function _gvVirtualRender(){
   if(!scroll||!vp)return;
   var scrollTop=scroll.scrollTop;
   var viewH=scroll.clientHeight;
+  if(viewH<=0)viewH=200; /* fallback if not yet laid out */
   var start=Math.max(0,Math.floor(scrollTop/_gvRowH)-_gvBuffer);
   var end=Math.min(_allGeneVar.length,Math.ceil((scrollTop+viewH)/_gvRowH)+_gvBuffer);
   /* Skip re-render if same range */
@@ -3128,6 +3136,9 @@ function toggleTypeSort(){
   var btn=document.getElementById("type-sort-btn");
   if(btn)btn.textContent=typeSortMode==="alpha"?"A→Z":"#↓";
   renderLeg();
+  /* Defer to next frame so spacer layout is computed */
+  requestAnimationFrame(function(){_legLastS=-1;_legLastE=-1;_legVirtualRender();});
+  if(lineageView)_renderLineageTree();
 }
 function _updateAnnotBtns(){
   var mb=document.getElementById("annotate-btn");
@@ -3278,6 +3289,8 @@ function _legVirtualRender(){
   if(!scroll||!vp)return;
   var scrollTop=scroll.scrollTop;
   var viewH=scroll.clientHeight;
+  /* If container not yet laid out (e.g. just un-hidden), use fallback height */
+  if(viewH<=0)viewH=280;
   /* Binary search for first visible row */
   var lo=0,hi=_legIndices.length-1;
   while(lo<hi){var mid=(lo+hi)>>1;if(_legRowY[mid]+_legRowH[mid]<scrollTop)lo=mid+1;else hi=mid;}
@@ -3454,6 +3467,9 @@ function toggleLineageView(){
     document.getElementById("lineage-tree").style.display="none";
     document.getElementById("leg-scroll").style.display="";
     _setLinBtn(null,"flat");
+    /* Defer virtual render to next frame so clientHeight is computed */
+    _legLastS=-1;_legLastE=-1;
+    requestAnimationFrame(function(){_legVirtualRender();});
     return;
   }
   /* Switch to tree view — fetch if not loaded */
@@ -3667,11 +3683,25 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
 
   html+='</div>'; /* end lin-row */
 
-  /* Children */
+  /* Children — sorted by current sort mode */
   if(hasChildren&&!collapsed){
     html+='<div class="lin-children">';
-    for(var i=0;i<node.children.length;i++){
-      html+=_renderNode(node.children[i],path+"."+i,searchQ,subtreeMatchFn);
+    /* Sort children: by cell count (desc) or name (alpha) */
+    var childOrder=[];
+    for(var i=0;i<node.children.length;i++)childOrder.push(i);
+    if(typeSortMode==="count"){
+      childOrder.sort(function(a,b){
+        function _countN(n){var t=0;var ids=n.cluster_ids||[];for(var k=0;k<ids.length;k++)t+=(clusterCounts[ids[k]]||0);if(n.children)for(var k=0;k<n.children.length;k++)t+=_countN(n.children[k]);return t;}
+        return _countN(node.children[b])-_countN(node.children[a]);
+      });
+    }else{
+      childOrder.sort(function(a,b){
+        return node.children[a].name.localeCompare(node.children[b].name);
+      });
+    }
+    for(var ci=0;ci<childOrder.length;ci++){
+      var idx=childOrder[ci];
+      html+=_renderNode(node.children[idx],path+"."+idx,searchQ,subtreeMatchFn);
     }
     html+='</div>';
   }
@@ -4580,7 +4610,7 @@ function unloadDataset(){
     document.getElementById("leg-scroll").style.display="";
     _setLinBtn(null,"flat");
     _history=[];_histIdx=-1;
-    try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_deg");}catch(e){}
+    try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_deg");sessionStorage.removeItem("fleek_infoText");}catch(e){}
     renderSelPanel();
     renderLeg();
   }).catch(function(err){
@@ -4689,6 +4719,11 @@ var _lastLoadSettings=null;
 var _loadT0=0; /* wall-clock start time for load timing */
 function showLoadBadges(ls){
   _lastLoadSettings=ls;
+  /* Sync cache mode dropdown from server */
+  if(ls&&ls.cache_mode){
+    var cm=document.getElementById("set-cache-mode");
+    if(cm)cm.value=ls.cache_mode;
+  }
   var el=document.getElementById("load-badges");
   if(!el)return;
   var badges=[];
@@ -5574,6 +5609,18 @@ function setHighlightMode(m){
   highlightMode=m;
   recolor();
 }
+function setCacheMode(mode){
+  fetch("/api/cache-settings",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({mode:mode})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      var el=document.getElementById("set-cache-mode");
+      if(el)el.value=d.cache_mode;
+    }
+  }).catch(function(){});
+}
 function saveSettings(){
   zoomMode=document.getElementById("set-zoom-mode").value;
   var theme=document.getElementById("set-theme").value;
@@ -5591,7 +5638,7 @@ function applyUIScale(v){
   document.getElementById("deg-panel").style.zoom=s;
   document.getElementById("deg-drag").style.zoom=s;
   /* Scale floating UI via transform (not zoom) to avoid affecting canvas coords */
-  var ids=["fps-box","hint"];
+  var ids=["fps-box"];
   for(var i=0;i<ids.length;i++){var el=document.getElementById(ids[i]);if(el){el.style.transformOrigin="top right";el.style.transform="scale("+s+")";}}
   /* Defer canvas resize to after browser reflow */
   requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
@@ -5807,9 +5854,13 @@ document.addEventListener("DOMContentLoaded",function(){
         var _infoBase=data.header.n_cells.toLocaleString()+" cells \u00b7 "+data.header.n_clusters+" types \u00b7 "+(data.header.total_genes||"?").toLocaleString()+" genes";
         if(_loadT0>0){
           var _loadElapsed=((Date.now()-_loadT0)/1000);
-          document.getElementById("info").textContent=_infoBase+" \u00b7 "+_loadElapsed.toFixed(1)+"s";
+          var _infoFull=_infoBase+" \u00b7 "+_loadElapsed.toFixed(1)+"s";
+          document.getElementById("info").textContent=_infoFull;
+          try{sessionStorage.setItem("fleek_infoText",_infoFull);}catch(e){}
         }else{
-          document.getElementById("info").textContent=_infoBase;
+          /* Restore from session if available (survives page refresh) */
+          var _saved=null;try{_saved=sessionStorage.getItem("fleek_infoText");}catch(e){}
+          document.getElementById("info").textContent=_saved||_infoBase;
         }
         /* Show loaded file name and top Claude annotations if available */
         var lfEl=document.getElementById("loaded-file");

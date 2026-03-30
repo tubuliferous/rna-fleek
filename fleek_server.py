@@ -69,6 +69,70 @@ LOAD_SETTINGS = {}  # Sent to client so it knows what options were active
 LOADED_PATH = ""    # path to currently loaded h5ad, for annotation caching
 MARKER_DB = None    # {cell_type: [genes]} — loaded from file or built-in
 
+# ── Cache location management ──
+# CACHE_MODE: "dataset" = store caches alongside .h5ad file (default)
+#             "server"  = store caches in a server-local directory
+# Falls back to server dir when dataset directory is not writable.
+# Reads check both locations (dataset dir first, then server dir).
+CACHE_MODE = "dataset"
+CACHE_DIR = None  # Path object, set at startup (defaults to ~/.fleek_cache)
+
+def _init_cache_dir():
+    """Initialize the server-side cache directory."""
+    global CACHE_DIR
+    if CACHE_DIR is None:
+        CACHE_DIR = Path.home() / ".fleek_cache"
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+def _dataset_cache_path(suffix):
+    """Cache path alongside the dataset file."""
+    if not LOADED_PATH:
+        return None
+    return Path(LOADED_PATH).with_suffix(suffix)
+
+def _server_cache_path(suffix):
+    """Cache path in the server cache directory, namespaced by dataset."""
+    if not LOADED_PATH or CACHE_DIR is None:
+        return None
+    ds_name = Path(LOADED_PATH).stem
+    return CACHE_DIR / f"{ds_name}{suffix}"
+
+def _is_writable(path):
+    """Check if we can write to the directory containing path."""
+    try:
+        d = path.parent
+        if not d.exists():
+            return False
+        test = d / f".fleek_write_test_{os.getpid()}"
+        test.touch()
+        test.unlink()
+        return True
+    except (OSError, PermissionError):
+        return False
+
+def _cache_read_path(suffix):
+    """Find an existing cache file. Checks dataset dir first, then server dir.
+    Returns (path, writable) or (None, False) if no cache exists."""
+    dp = _dataset_cache_path(suffix)
+    if dp and dp.exists():
+        return dp, _is_writable(dp)
+    sp = _server_cache_path(suffix)
+    if sp and sp.exists():
+        return sp, True
+    return None, False
+
+def _cache_write_path(suffix):
+    """Determine where to write a new cache file.
+    In 'dataset' mode, tries dataset dir first, falls back to server dir.
+    In 'server' mode, always uses server dir."""
+    _init_cache_dir()
+    if CACHE_MODE == "dataset":
+        dp = _dataset_cache_path(suffix)
+        if dp and _is_writable(dp):
+            return dp
+        print(f"  Cache: dataset dir not writable, using server cache dir")
+    return _server_cache_path(suffix)
+
 # ── Built-in compact marker set for common human cell types ──
 _BUILTIN_MARKERS = {
     "T cell": ["CD3D","CD3E","CD3G","CD2","TRAC","CD28"],
@@ -170,8 +234,8 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
         load_marker_db()
     
     # Check annotation cache
-    cache_path = Path(LOADED_PATH).with_suffix(".annot_markers.json") if LOADED_PATH else None
-    if cache_path and cache_path.exists():
+    cache_path, _cw = _cache_read_path(".annot_markers.json")
+    if cache_path:
         try:
             with open(cache_path) as f:
                 cached_annot = json.load(f)
@@ -258,9 +322,10 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
     
     if cache_path:
         try:
-            with open(cache_path, "w") as f:
+            wp = _cache_write_path(".annot_markers.json")
+            with open(wp, "w") as f:
                 json.dump(result, f, separators=(",", ":"))
-            print(f"  Marker annotation cached to {cache_path}")
+            print(f"  Marker annotation cached to {wp}")
         except Exception as e:
             print(f"  Marker annotation cache save failed: {e}")
     
@@ -434,8 +499,8 @@ def annotate_clusters_llm(top_n=30, test="wilcoxon", tissue_hint=""):
         return {"error": "No dataset loaded"}
 
     # Check cache
-    cache_path = Path(LOADED_PATH).with_suffix(".annot_llm.json") if LOADED_PATH else None
-    if cache_path and cache_path.exists():
+    cache_path, _cw = _cache_read_path(".annot_llm.json")
+    if cache_path:
         try:
             with open(cache_path) as f:
                 cached = json.load(f)
@@ -611,9 +676,10 @@ Respond with ONLY the JSON array. No markdown fences. No other text."""
     # Save cache
     if cache_path:
         try:
-            with open(cache_path, "w") as f:
+            wp = _cache_write_path(".annot_llm.json")
+            with open(wp, "w") as f:
                 json.dump(result, f, separators=(",", ":"))
-            print(f"  LLM annotation cached to {cache_path}")
+            print(f"  LLM annotation cached to {wp}")
         except Exception as e:
             print(f"  LLM annotation cache save failed: {e}")
 
@@ -734,19 +800,31 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     _progress(f"Working with {N_CELLS:,} cells", 15)
 
     # Load fleek cache (UMAP, PCA, leiden, PaCMAP — all in one file)
-    cache_path = Path(h5ad_path).with_suffix(".fleek_cache.npz")
-    old_cache = Path(h5ad_path).with_suffix(".umap_cache.npz")
-    if not cache_path.exists() and old_cache.exists():
-        print(f"  Migrating old cache {old_cache.name} → {cache_path.name}")
-        old_cache.rename(cache_path)
+    _init_cache_dir()
+    _cr, _cr_writable = _cache_read_path(".fleek_cache.npz")
+    cache_read = _cr  # may be None
+    old_cache = _dataset_cache_path(".umap_cache.npz")
+    # Migrate old cache if needed
+    if not cache_read and old_cache and old_cache.exists():
+        target = _cache_write_path(".fleek_cache.npz")
+        try:
+            old_cache.rename(target)
+            print(f"  Migrated old cache {old_cache.name} → {target.name}")
+            cache_read = target
+            _cr_writable = True
+        except (OSError, PermissionError):
+            import shutil
+            shutil.copy2(str(old_cache), str(target))
+            cache_read = target
+            _cr_writable = True
     cached = {}
     _cache_time = 0.0  # accumulate time spent loading caches
     _CACHE_SKIP_VALIDATE = {"leiden_names"}  # byte arrays, not cell-indexed
-    if cache_path.exists():
+    if cache_read and cache_read.exists():
         _progress("Checking cache...", 20)
         _ct0 = time.time()
         try:
-            cached = dict(np.load(cache_path, allow_pickle=False))
+            cached = dict(np.load(cache_read, allow_pickle=False))
             for k in list(cached.keys()):
                 if k in _CACHE_SKIP_VALIDATE:
                     continue
@@ -978,7 +1056,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             cached["pca_3d"] = pca_arr[:, :3].copy()
             cached["pca_full"] = pca_arr.copy()
         _progress("Saving UMAP cache...", 95)
-        np.savez(cache_path, **cached)
+        np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
 
     ADATA = adata
 
@@ -1007,7 +1085,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         cached["pca_3d"] = PCA_3D
         cached["pca_full"] = pca_arr.copy()
         try:
-            np.savez(cache_path, **cached)
+            np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
         except Exception:
             pass
     else:
@@ -1027,7 +1105,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 cached["pca_3d"] = PCA_3D
                 cached["pca_full"] = pca_arr.copy()
                 try:
-                    np.savez(cache_path, **cached)
+                    np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
                 except Exception:
                     pass
                 print(f"  PCA computed in background ({pca_arr.shape[1]} components)")
@@ -1155,7 +1233,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 cached[f"pacmap_2d{_pm_suffix}"] = PACMAP_2D
                 cached[f"pacmap_3d{_pm_suffix}"] = PACMAP_3D
                 try:
-                    np.savez(cache_path, **cached)
+                    np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
                     print(f"  PaCMAP cached")
                 except Exception:
                     pass
@@ -1201,7 +1279,8 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
 
     if not BACKED and sp.issparse(ADATA.X):
         CSC_BUILDING = True
-        csc_cache_path = Path(h5ad_path).with_suffix(".csc_cache.npz")
+        _csc_cr, _ = _cache_read_path(".csc_cache.npz")
+        csc_cache_path = _csc_cr if _csc_cr else _cache_write_path(".csc_cache.npz")
         def _build_gene_index():
             global HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, X_CSC, CSC_BUILDING, CSC_CACHED, CSC_TIME
             _csc_t0 = time.time()
@@ -1387,10 +1466,11 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 X_CSC = ADATA.X.tocsc()
                 elapsed = time.time() - t1
                 print(f"  CSC index ready ({elapsed:.0f}s) — all gene lookups now fast")
-                # Save to cache
+                # Save to cache (use write path, may differ from read path)
                 try:
-                    _sp.save_npz(str(csc_cache_path), X_CSC, compressed=False)
-                    cache_mb = os.path.getsize(str(csc_cache_path)) / 1e6
+                    csc_wp = _cache_write_path(".csc_cache.npz")
+                    _sp.save_npz(str(csc_wp), X_CSC, compressed=False)
+                    cache_mb = os.path.getsize(str(csc_wp)) / 1e6
                     print(f"  CSC cache saved ({cache_mb:.0f} MB)")
                 except Exception as e:
                     print(f"  CSC cache save failed ({e}) — will rebuild next time")
@@ -1421,10 +1501,13 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
     LOAD_SETTINGS["csc_cached"] = CSC_CACHED
     LOAD_SETTINGS["load_time"] = round(load_elapsed, 1)
     LOAD_SETTINGS["cache_time"] = round(_cache_time, 2)
+    LOAD_SETTINGS["cache_mode"] = CACHE_MODE
+    LOAD_SETTINGS["cache_dir"] = str(CACHE_DIR) if CACHE_DIR else ""
     # Check annotation caches
     for key, suffix in [("annot_markers_cached", ".annot_markers.json"), ("annot_llm_cached", ".annot_llm.json"), ("annot_lineage_cached", ".annot_lineage.json")]:
-        ap = Path(h5ad_path).with_suffix(suffix)
-        LOAD_SETTINGS[key] = ap.exists()
+        ap, _ = _cache_read_path(suffix)
+        ap_exists = ap is not None
+        LOAD_SETTINGS[key] = ap_exists
 
     # Load marker database for cell type annotation
     load_marker_db()
@@ -1597,8 +1680,8 @@ def build_init_payload():
     # Include cached annotations if available
     for annot_key, suffix in [("cached_markers", ".annot_markers.json"), ("cached_llm", ".annot_llm.json")]:
         if LOADED_PATH:
-            ap = Path(LOADED_PATH).with_suffix(suffix)
-            if ap.exists():
+            ap, _ = _cache_read_path(suffix)
+            if ap:
                 try:
                     with open(ap) as f:
                         cached = json.load(f)
@@ -1609,8 +1692,8 @@ def build_init_payload():
 
     # Include cached lineage tree if available
     if LOADED_PATH:
-        lp = Path(LOADED_PATH).with_suffix(".annot_lineage.json")
-        if lp.exists():
+        lp, _ = _cache_read_path(".annot_lineage.json")
+        if lp:
             try:
                 with open(lp) as f:
                     lcached = json.load(f)
@@ -1848,6 +1931,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_lineage(req)
         elif path == "/api/clear-cache":
             self._serve_clear_cache(req)
+        elif path == "/api/cache-settings":
+            self._serve_cache_settings(req)
         else:
             self.send_error(404)
 
@@ -2317,12 +2402,18 @@ class FleekHandler(SimpleHTTPRequestHandler):
             }
             if cache_type not in suffix_map:
                 raise ValueError(f"Unknown cache type: {cache_type}")
-            cache_path = Path(LOADED_PATH).with_suffix(suffix_map[cache_type])
+            # Check both dataset and server cache locations, delete both
+            dp = _dataset_cache_path(suffix_map[cache_type])
+            sp = _server_cache_path(suffix_map[cache_type])
             deleted = False
-            if cache_path.exists():
-                cache_path.unlink()
-                deleted = True
-                print(f"  Deleted cache: {cache_path.name}")
+            for cp in [dp, sp]:
+                if cp and cp.exists():
+                    try:
+                        cp.unlink()
+                        deleted = True
+                        print(f"  Deleted cache: {cp}")
+                    except (OSError, PermissionError):
+                        print(f"  Cannot delete read-only cache: {cp}")
             # Update LOAD_SETTINGS
             settings_map = {
                 "fleek": ["umap_cached", "pca_cached", "pacmap_cached", "leiden_cached"],
@@ -2348,6 +2439,40 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(err)
 
+    def _serve_cache_settings(self, req):
+        """Get or set cache location mode."""
+        try:
+            global CACHE_MODE, CACHE_DIR
+            new_mode = req.get("mode")
+            new_dir = req.get("dir")
+            if new_mode and new_mode in ("dataset", "server"):
+                CACHE_MODE = new_mode
+                LOAD_SETTINGS["cache_mode"] = CACHE_MODE
+                print(f"  Cache mode set to: {CACHE_MODE}")
+            if new_dir:
+                CACHE_DIR = Path(new_dir)
+                _init_cache_dir()
+                LOAD_SETTINGS["cache_dir"] = str(CACHE_DIR)
+                print(f"  Cache dir set to: {CACHE_DIR}")
+            result = {
+                "ok": True,
+                "cache_mode": CACHE_MODE,
+                "cache_dir": str(CACHE_DIR) if CACHE_DIR else "",
+            }
+            data = json.dumps(result).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            err = json.dumps({"error": str(e)}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(err)))
+            self.end_headers()
+            self.wfile.write(err)
+
     def _serve_lineage(self, req):
         """Construct a developmental lineage tree for the current cell types using Claude."""
         try:
@@ -2357,8 +2482,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 raise ValueError("No dataset loaded")
 
             # Check cache
-            cache_path = Path(LOADED_PATH).with_suffix(".annot_lineage.json") if LOADED_PATH else None
-            if cache_path and cache_path.exists():
+            cache_path, _cw = _cache_read_path(".annot_lineage.json")
+            if cache_path:
                 try:
                     with open(cache_path) as f:
                         cached = json.load(f)
@@ -2382,8 +2507,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
 
             # Load Claude annotations for inline context
             llm_preds = {}  # cluster_id -> predicted cell type
-            llm_cache_path = Path(LOADED_PATH).with_suffix(".annot_llm.json") if LOADED_PATH else None
-            if llm_cache_path and llm_cache_path.exists():
+            llm_cache_path, _ = _cache_read_path(".annot_llm.json")
+            if llm_cache_path:
                 try:
                     with open(llm_cache_path) as f:
                         llm_data = json.load(f)
@@ -2519,16 +2644,17 @@ Every non-empty cluster_id listed above must appear exactly once in the tree. Em
                 print(f"  Warning: lineage tree missing cluster_ids: {missing}")
 
             # Cache
-            if cache_path:
+            wp = _cache_write_path(".annot_lineage.json")
+            if wp:
                 try:
                     cache_obj = {
                         "cluster_names": CLUSTER_NAMES,
                         "n_cells": N_CELLS,
                         "tree": tree
                     }
-                    with open(cache_path, "w") as f:
+                    with open(wp, "w") as f:
                         json.dump(cache_obj, f)
-                    print(f"  Lineage cached to {cache_path.name}")
+                    print(f"  Lineage cached to {wp.name}")
                 except Exception as e:
                     print(f"  Lineage cache write failed: {e}")
 
@@ -2654,13 +2780,13 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 # Save to cache with method-specific keys
                 if LOADED_PATH:
                     _pm_sfx = "_quick" if PACMAP_SETTINGS.get("fast", True) else "_full"
-                    cache_path = Path(LOADED_PATH).with_suffix(".fleek_cache.npz")
+                    cache_path = _cache_write_path(".fleek_cache.npz")
                     if cache_path.exists():
                         try:
-                            cached = dict(np.load(cache_path, allow_pickle=False))
+                            cached = dict(np.load(cache_read, allow_pickle=False))
                             cached[f"pacmap_2d{_pm_sfx}"] = PACMAP_2D
                             cached[f"pacmap_3d{_pm_sfx}"] = PACMAP_3D
-                            np.savez(cache_path, **cached)
+                            np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
                             print(f"  PaCMAP cached ({_pm_sfx.strip('_')})")
                         except Exception:
                             pass
@@ -2808,6 +2934,10 @@ def main():
                         help="Backed mode: auto (detect), on (force disk), off (force RAM, default)")
     parser.add_argument("--api-key", type=str, default="",
                         help="Anthropic API key for Claude cell type annotation (or set ANTHROPIC_API_KEY)")
+    parser.add_argument("--cache-mode", type=str, default="dataset", choices=["dataset", "server"],
+                        help="Where to store caches: 'dataset' (alongside h5ad, default) or 'server' (~/.fleek_cache)")
+    parser.add_argument("--cache-dir", type=str, default=None,
+                        help="Custom server cache directory (default: ~/.fleek_cache)")
     parser.add_argument("--no-browser", action="store_true",
                         help="Don't auto-open browser (useful for remote/SSH sessions)")
     args = parser.parse_args()
@@ -2815,6 +2945,12 @@ def main():
     if args.api_key:
         global ANTHROPIC_API_KEY
         ANTHROPIC_API_KEY = args.api_key
+
+    global CACHE_MODE, CACHE_DIR
+    CACHE_MODE = args.cache_mode
+    if args.cache_dir:
+        CACHE_DIR = Path(args.cache_dir)
+    _init_cache_dir()
 
     dims = [int(d) for d in args.dims.split(",")]
 
