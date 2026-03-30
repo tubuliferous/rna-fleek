@@ -44,6 +44,8 @@ PACMAP_3D = None
 PACMAP_COMPUTING = False
 CLUSTER_IDS = None
 CLUSTER_NAMES = None
+CLUSTER_COL = None    # obs column name used for clustering
+CLUSTER_COLORS = []   # hex color per cluster, matching client palette
 GENE_NAMES_LIST = None
 N_CELLS = 0
 HTML_DIR = None
@@ -77,6 +79,18 @@ OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes":
 # Reads check both locations (dataset dir first, then server dir).
 CACHE_MODE = "dataset"
 CACHE_DIR = None  # Path object, set at startup (defaults to ~/.fleek_cache)
+
+# Matches the JS palette P[] in fleek.html exactly — used to bake colors into exports
+_FLEEK_PALETTE = [
+    (.91,.30,.24),(.20,.60,.86),(.15,.68,.38),(.95,.61,.16),(.56,.27,.68),
+    (.90,.49,.67),(.10,.74,.61),(.93,.84,.19),(.40,.40,.40),(1.,.42,.42),
+    (.36,.42,.75),(.30,.82,.22),(.80,.47,.20),(.60,.35,.71),(.16,.50,.73),
+    (.85,.17,.36),(.47,.75,.86),(.72,.67,.28),(.55,.22,.32),(.22,.70,.50),
+    (.78,.56,.73),(.60,.80,.42),(.35,.30,.55),(.95,.72,.55),
+]
+def _palette_hex(idx):
+    r, g, b = _FLEEK_PALETTE[idx % len(_FLEEK_PALETTE)]
+    return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
 def _init_cache_dir():
     """Initialize the server-side cache directory."""
@@ -789,7 +803,7 @@ def _reset_all():
     PCA_2D = None; PCA_3D = None
     PACMAP_2D = None; PACMAP_3D = None
     PACMAP_COMPUTING = False
-    CLUSTER_IDS = None; CLUSTER_NAMES = None
+    CLUSTER_IDS = None; CLUSTER_NAMES = None; CLUSTER_COL = None; CLUSTER_COLORS = []
     OBS_COLS.clear()
     GENE_NAMES_LIST = None; N_CELLS = 0
     BACKED = False; X_CSC = None
@@ -809,7 +823,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     
     backed: "auto" (use file size vs RAM), "on" (force backed), "off" (force in-memory)
     """
-    global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D, PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, CSC_CACHED, CSC_TIME, LOADED_PATH, ABORT_REQUESTED
+    global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D, PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, CLUSTER_COL, CLUSTER_COLORS, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, CSC_CACHED, CSC_TIME, LOADED_PATH, ABORT_REQUESTED
 
     import scanpy as sc
     import scipy.sparse as sp
@@ -943,6 +957,24 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         cached["leiden_ids"] = CLUSTER_IDS
         cached["leiden_names"] = np.frombuffer(_json.dumps(CLUSTER_NAMES).encode("utf-8"), dtype=np.uint8)
         need_save = True
+
+    # ── Cluster colors ──────────────────────────────────────────────────────
+    # Priority: uns["{col}_colors"] (Scanpy standard) > fleek_palette fallback
+    CLUSTER_COL = _cluster_col_used
+    _uns_colors = []
+    if _cluster_col_used and _cluster_col_used in adata.uns.get("__colors__", {}):
+        pass  # placeholder; real lookup below
+    if _cluster_col_used:
+        _uns_colors = adata.uns.get(f"{_cluster_col_used}_colors", [])
+    # Also check "fleek_colors" written by our own export
+    if not _uns_colors:
+        _uns_colors = adata.uns.get("fleek_colors", [])
+    if isinstance(_uns_colors, np.ndarray):
+        _uns_colors = _uns_colors.tolist()
+    if len(_uns_colors) == len(CLUSTER_NAMES):
+        CLUSTER_COLORS = [str(c) for c in _uns_colors]
+    else:
+        CLUSTER_COLORS = [_palette_hex(i) for i in range(len(CLUSTER_NAMES))]
 
     # Detect slice-able obs metadata columns
     OBS_COLS = _detect_obs_cols(adata, clustering_col=_cluster_col_used)
@@ -1776,6 +1808,7 @@ def build_init_payload():
         "gene_names": GENE_NAMES_LIST[:500],  # send first 500 for search
         "total_genes": len(GENE_NAMES_LIST),
         "cluster_names": CLUSTER_NAMES,
+        "cluster_colors": CLUSTER_COLORS,
         "metadata_columns": {},
         "obs_categories": {col: {"categories": v["categories"], "counts": v["counts"]}
                            for col, v in OBS_COLS.items()},
@@ -2002,6 +2035,15 @@ def export_h5ad_subset(cell_indices, group_name):
             sub.obsm["X_pca"] = PCA_3D[idx]
         elif PCA_2D is not None and PCA_2D.shape[0] == _nc:
             sub.obsm["X_pca"] = PCA_2D[idx]
+
+    # ── Bake colors into the subset ─────────────────────────────────────────
+    # Store current CLUSTER_COLORS in uns so the subset always loads with
+    # identical colors to the full dataset (Scanpy-compatible key).
+    if CLUSTER_COL and CLUSTER_COLORS:
+        sub.uns[f"{CLUSTER_COL}_colors"] = CLUSTER_COLORS
+        # Also store under the generic "fleek_colors" key as fallback when
+        # the subset is loaded with a different detected column name
+        sub.uns["fleek_colors"] = CLUSTER_COLORS
 
     n_emb = sum(k in sub.obsm for k in ("X_umap", "X_pacmap", "X_pca"))
     print(f"  Export: {len(cell_indices)} cells, {n_emb} embeddings in obsm")
