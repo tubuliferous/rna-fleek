@@ -470,7 +470,7 @@
       <button class="sg-add-btn" onclick="addSelGroup()" title="Add selection group (or press 1-9)">+ new group</button>
       <div class="sg-toolbar">
         <button onclick="selAllVisible()" title="Select all visible cells into active group">sel visible</button>
-        <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)" title="Clear visible cells from active group (Esc)&#10;Hold ⌥ to clear ALL cells including hidden/sliced (⌥Esc)">Clear Visible</button>
+        <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)">Clear Visible</button>
         <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (H to hide/restore)">hide all</button>
         <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button>
       </div>
@@ -776,7 +776,8 @@
           <tr><td>Toggle visibility</td><td>Click the color dot, or <span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td></tr>
           <tr><td>Hide/restore all</td><td><span class="help-key">H</span> (press again to restore previously visible)</td></tr>
           <tr><td>Solo group</td><td><span class="help-key">⌥ Opt</span>+click the dot (click again to restore)</td></tr>
-          <tr><td>Clear active group</td><td><span class="help-key">Esc</span></td></tr>
+          <tr><td>Clear visible cells</td><td><span class="help-key">Esc</span></td></tr>
+          <tr><td>Clear ALL cells</td><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td></tr>
           <tr><td>Rename</td><td>Double-click the name</td></tr>
           <tr><td>Export subset</td><td>Click the save icon (downloads .h5ad)</td></tr>
         </table>
@@ -999,7 +1000,8 @@
           <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
           <tr><td><span class="help-key">H</span></td><td>Hide all group highlights (press again to restore)</td></tr>
-          <tr><td><span class="help-key">Esc</span></td><td>Clear active selection / close help</td></tr>
+          <tr><td><span class="help-key">Esc</span></td><td>Clear visible cells in active group / close help</td></tr>
+          <tr><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td><td>Clear ALL cells in active group</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Display</th></tr>
           <tr><td><span class="help-key">C</span></td><td>Color by cell type / cluster</td></tr>
           <tr><td><span class="help-key">G</span></td><td>Color by gene expression</td></tr>
@@ -5280,7 +5282,7 @@ function buildSlicePanel(){
       pill.className="fleek-option active"+(isEmpty?" empty-slice":"");
       pill.setAttribute("data-col",col);
       pill.setAttribute("data-idx",j);
-      pill.title=cat+" \u2022 Click to toggle \u2022 Alt+click to solo";
+      pill.title=cat+" \u2022 Click to toggle \u2022 "+_ALT+"+click to solo";
       var nspan=document.createElement("span");
       nspan.className="sv-name";
       nspan.textContent=cat;
@@ -6405,6 +6407,8 @@ function _patchOS(){
   /* Set OS-specific button titles */
   document.getElementById("hist-back").title="Undo ("+_MOD+"+[)";
   document.getElementById("hist-fwd").title="Redo ("+_MOD+"+])";
+  var _clrBtn=document.getElementById("sel-clear-btn");
+  if(_clrBtn)_clrBtn.title="Clear visible cells from active group (Esc)\nHold "+_ALT+" to clear ALL cells including hidden/sliced ("+_ALT+"+Esc)";
   /* Patch help panel text for current OS */
   var help=document.getElementById("help-overlay");
   if(!help)return;
