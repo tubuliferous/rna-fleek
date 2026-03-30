@@ -276,14 +276,15 @@
   #slice-body .slice-empty-toggle:hover{opacity:1;color:var(--text3);}
   #slice-body .slice-vals{display:flex;flex-wrap:wrap;gap:3px 4px;padding-left:2px;}
   /* Unified pill toggle — used for slice values AND load options */
-  .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:8.5px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;max-width:100%;overflow:hidden;text-overflow:ellipsis;}
+  .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:8.5px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;max-width:100%;}
+  .fleek-option .sv-name{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto;}
   .fleek-option:hover{border-color:var(--text3);color:var(--text3);}
   .fleek-option.active{background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.4);}
   .fleek-option.active:hover{background:rgba(52,211,153,0.2);}
   .fleek-option input[type=checkbox]{display:none;}
   .fleek-option:has(input:checked){background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.4);}
   .fleek-option:has(input:checked):hover{background:rgba(52,211,153,0.2);}
-  .fleek-option .sv-count{opacity:0.6;font-size:8px;}
+  .fleek-option .sv-count{opacity:0.6;font-size:8px;flex-shrink:0;}
   #slice-footer{font-size:9px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;}
   #slice-footer .sf-count{color:#34d399;font-weight:600;}
 
@@ -5145,7 +5146,10 @@ function buildSlicePanel(){
       pill.setAttribute("data-col",col);
       pill.setAttribute("data-idx",j);
       pill.title=cat+" \u2022 Click to toggle \u2022 Alt+click to solo";
-      pill.textContent=cat;
+      var nspan=document.createElement("span");
+      nspan.className="sv-name";
+      nspan.textContent=cat;
+      pill.appendChild(nspan);
       var cspan=document.createElement("span");
       cspan.className="sv-count";
       cspan.textContent="("+cnt.toLocaleString()+")";
