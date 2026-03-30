@@ -1854,11 +1854,11 @@ function renderSelPanel(){
     var textColor=isActive?(vis?"var(--text)":"var(--text2)"):(vis?"var(--text2)":"var(--text4)");
     var num=i+1;
     var numColor=isActive?"var(--accent2)":"var(--text4)";
-    /* Count hidden cells (in hidden clusters) */
+    /* Count hidden cells (in hidden clusters or sliced out) */
     var nHidden=0;
     if(D&&g.cells.size>0){
       g.cells.forEach(function(ci){
-        if(visibleClusters[D.cluster_ids[ci]]===false)nHidden++;
+        if(visibleClusters[D.cluster_ids[ci]]===false||(sliceMask&&!sliceMask[ci]))nHidden++;
       });
     }
     var nVisible=g.cells.size-nHidden;
@@ -1870,11 +1870,11 @@ function renderSelPanel(){
       countHtml='<span style="color:'+(vis?"var(--text4)":"var(--border2)")+'" title="'+g.cells.size.toLocaleString()+' selected cells (all visible)">'+eyeIcon+' '+g.cells.size.toLocaleString()+'</span>';
     }else if(nVisible===0){
       /* All hidden */
-      countHtml='<span style="color:var(--text4);opacity:0.5;" title="'+nHidden.toLocaleString()+' selected cells (all in hidden clusters)">'+eyeOffIcon+' '+nHidden.toLocaleString()+'</span>';
+      countHtml='<span style="color:var(--text4);opacity:0.5;" title="'+nHidden.toLocaleString()+' selected cells (all hidden or sliced out)">'+eyeOffIcon+' '+nHidden.toLocaleString()+'</span>';
     }else{
       /* Mixed visible/hidden */
       countHtml='<span style="color:'+(vis?"var(--text4)":"var(--border2)")+'" title="'+nVisible.toLocaleString()+' visible">'+eyeIcon+' '+nVisible.toLocaleString()+'</span>'
-        +'<span style="color:var(--text4);opacity:0.5;margin-left:3px;" title="'+nHidden.toLocaleString()+' in hidden clusters">'+eyeOffIcon+' '+nHidden.toLocaleString()+'</span>';
+        +'<span style="color:var(--text4);opacity:0.5;margin-left:3px;" title="'+nHidden.toLocaleString()+' hidden or sliced out">'+eyeOffIcon+' '+nHidden.toLocaleString()+'</span>';
     }
     return '<div class="sg-item'+(isActive?" active":"")+'" onclick="setActiveGroup('+g.id+')">'
       +'<span class="sg-num" style="color:'+numColor+'" title="'+num+': activate · '+_ALT+num+': show/hide">'+num+'</span>'
@@ -5348,6 +5348,7 @@ function applySlice(){
     }
   }
   recolor();
+  if(selGroups.length>0)renderSelPanel();
   _syncSlicePills();
   _updateSliceUI();
   _saveSliceState();
@@ -5366,6 +5367,7 @@ function resetSlice(){
   sliceMask=null;
   _syncSlicePills();
   recolor();
+  if(selGroups.length>0)renderSelPanel();
   _updateSliceUI();
   _saveSliceState();
 }
