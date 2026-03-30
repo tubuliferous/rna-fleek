@@ -2045,7 +2045,9 @@ function buildPts(data){
   bgDimPct=0;_hadSelection=false;
   document.getElementById("bg-dim").value=100;
   _history=[];_histIdx=-1;
-  try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_deg");}catch(e){}
+  try{sessionStorage.removeItem("fleek_state");}catch(e){}
+  /* Note: fleek_deg is NOT cleared here — same-dataset refreshes should restore DEG results.
+     New-file loads clear it explicitly (line 4650) before triggering the reload. */
   initCellGroupMap();
   var n=data.header.n_cells;
   var pos=new Float32Array(n*3),col=new Float32Array(n*3);
@@ -5389,8 +5391,8 @@ function renderVolcano(){
     if(!isHl&&yv<yCutoff)continue;
     var x=toX(g.log2fc), y=toY(yv);
     if(!isHl&&(x<pad.left-4||x>pad.left+pw+4||y<pad.top-4||y>pad.top+ph+4))continue;
-    if(isHl){hlGene={x:x,y:y};continue;}
-    _volcanoPts.push({x:x,y:y,g:g});
+    _volcanoPts.push({x:x,y:y,g:g}); /* include highlighted gene so hover hit-test can find it */
+    if(isHl){hlGene={x:x,y:y};continue;} /* drawn on top separately, skip batch paths */
     var sig=Math.abs(g.log2fc)>=FC_THRESH&&g.padj<PADJ_THRESH;
     if(sig){
       var p=g.log2fc>0?pathSigA:pathSigB;
