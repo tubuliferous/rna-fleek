@@ -311,64 +311,69 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         if "fleek_cluster" not in adata.obs.columns:
             adata.obs["fleek_cluster"] = [CLUSTER_NAMES[cid] for cid in CLUSTER_IDS]
 
-        # Normalize if raw counts
-        if sp.issparse(adata.X):
-            sample = adata.X[:min(1000, adata.n_obs)].toarray()
-        else:
-            sample = np.asarray(adata.X[:min(1000, adata.n_obs)])
-        is_raw = np.allclose(sample, sample.astype(int)) and sample.max() > 20
-
-        if is_raw:
-            ANNOT_STATUS["step"] = "Normalizing raw counts..."
-            ANNOT_STATUS["pct"] = 10
-            print("  Data appears to be raw counts — normalizing for DEG...")
-            adata_work = adata.copy() if not BACKED else adata
-            if not BACKED:
-                sc.pp.normalize_total(adata_work, target_sum=1e4)
-                sc.pp.log1p(adata_work)
-        else:
-            adata_work = adata
-
-        # Filter out clusters with too few cells (including empty clusters with 0 cells)
-        cluster_counts = Counter(adata_work.obs["fleek_cluster"])
-        # Explicitly include clusters with 0 cells (not in Counter)
+        # Identify valid/small clusters BEFORE any copying
+        cluster_counts = Counter(adata.obs["fleek_cluster"])
         for cname in CLUSTER_NAMES:
             if cname not in cluster_counts:
                 cluster_counts[cname] = 0
         valid_clusters = {c for c, n in cluster_counts.items() if n >= 5}
         small_clusters = {c for c, n in cluster_counts.items() if n < 5}
+        n_empty = sum(1 for c, n in cluster_counts.items() if n == 0)
         if small_clusters:
-            print(f"  Skipping {len(small_clusters)} clusters with <5 cells ({sum(1 for c,n in cluster_counts.items() if n==0)} empty)")
-
-        mask = adata_work.obs["fleek_cluster"].isin(valid_clusters)
-        adata_deg = adata_work[mask].copy()
+            print(f"  Skipping {len(small_clusters)} clusters with <5 cells ({n_empty} empty)")
 
         if len(valid_clusters) < 2:
             print(f"  Only {len(valid_clusters)} valid cluster(s) — need ≥2 for DEG, returning empty")
             return {cname: [] for cname in CLUSTER_NAMES}, small_clusters
 
-        # Subsample for speed on large datasets
-        n_deg = adata_deg.n_obs
-        if n_deg > DEG_MAX_CELLS:
-            ANNOT_STATUS["step"] = f"Subsampling {DEG_MAX_CELLS:,} / {n_deg:,} cells..."
-            ANNOT_STATUS["pct"] = 12
-            # Stratified subsample preserving cluster proportions
+        # SUBSAMPLE FIRST — before any copy or normalization.
+        # On a 1.6M-cell dataset, copying the full adata for normalization
+        # doubles memory usage and can trigger an OOM kill. By subsampling
+        # to DEG_MAX_CELLS first (on indices only, no copy), we only ever
+        # copy the small subset.
+        valid_mask = adata.obs["fleek_cluster"].isin(valid_clusters).values
+        valid_idx = np.where(valid_mask)[0]
+        n_valid_cells = len(valid_idx)
+
+        if n_valid_cells > DEG_MAX_CELLS:
+            ANNOT_STATUS["step"] = f"Subsampling {DEG_MAX_CELLS:,} / {n_valid_cells:,} cells..."
+            ANNOT_STATUS["pct"] = 8
             rng = np.random.default_rng(42)
-            deg_clusters = adata_deg.obs["fleek_cluster"].values
+            deg_clusters = adata.obs["fleek_cluster"].values[valid_idx]
             unique_clusters = np.unique(deg_clusters)
-            cluster_indices = {c: np.where(deg_clusters == c)[0] for c in unique_clusters}
-            # Allocate proportionally with minimum 5 per cluster
-            total_avail = sum(len(v) for v in cluster_indices.values())
-            sub_idx = []
+            cluster_local_idx = {c: np.where(deg_clusters == c)[0] for c in unique_clusters}
+            total_avail = len(valid_idx)
+            sub_local = []
             for c in unique_clusters:
-                ci = cluster_indices[c]
+                ci = cluster_local_idx[c]
                 n_alloc = max(5, int(len(ci) / total_avail * DEG_MAX_CELLS))
                 n_alloc = min(n_alloc, len(ci))
-                sub_idx.extend(rng.choice(ci, n_alloc, replace=False).tolist())
-            sub_idx = sorted(sub_idx)
-            adata_deg = adata_deg[sub_idx].copy()
-            print(f"  Subsampled {n_deg:,} → {adata_deg.n_obs:,} cells for DEG (stratified)")
-        
+                sub_local.extend(rng.choice(ci, n_alloc, replace=False).tolist())
+            sub_local = sorted(sub_local)
+            use_idx = valid_idx[sub_local]
+            print(f"  Subsampled {n_valid_cells:,} → {len(use_idx):,} cells for DEG (stratified)")
+        else:
+            use_idx = valid_idx
+
+        # Copy only the subsample — never the full dataset
+        ANNOT_STATUS["step"] = f"Preparing {len(use_idx):,} cells for DEG..."
+        ANNOT_STATUS["pct"] = 10
+        adata_deg = adata[use_idx].copy()
+
+        # Normalize if raw counts (on the small copy only)
+        if sp.issparse(adata_deg.X):
+            sample = adata_deg.X[:min(1000, adata_deg.n_obs)].toarray()
+        else:
+            sample = np.asarray(adata_deg.X[:min(1000, adata_deg.n_obs)])
+        is_raw = np.allclose(sample, sample.astype(int)) and sample.max() > 20
+
+        if is_raw:
+            ANNOT_STATUS["step"] = "Normalizing raw counts..."
+            ANNOT_STATUS["pct"] = 12
+            print("  Data appears to be raw counts — normalizing subset for DEG...")
+            sc.pp.normalize_total(adata_deg, target_sum=1e4)
+            sc.pp.log1p(adata_deg)
+
         n_valid = len(valid_clusters)
         ANNOT_STATUS["step"] = f"Running DEG ({n_valid} clusters, {adata_deg.n_obs:,} cells)..."
         ANNOT_STATUS["pct"] = 15
@@ -400,10 +405,8 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
             except (KeyError, IndexError):
                 result[cname] = []
 
-        if adata_deg is not adata_work and adata_deg is not adata:
+        if adata_deg is not adata:
             del adata_deg
-        if adata_work is not adata:
-            del adata_work
 
         elapsed_deg = time.time() - t_deg
         print(f"  Shared DEG complete ({elapsed_deg:.1f}s) — cached for reuse")

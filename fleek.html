@@ -2862,7 +2862,7 @@ function renderHVGChips(){
 
   /* Render ranked list — fetch full data if not loaded */
   if(_allGeneVar){
-    var listHasContent=listEl.querySelector("[id^='gvar-']");
+    var listHasContent=document.getElementById("gv-spacer");
     if(listHasContent){
       _updateGeneVarHighlight();
     }else{
