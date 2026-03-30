@@ -968,8 +968,12 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     dims_needed = []
     umap_suffix = "_quick" if use_fast else "_full"
     umap_from_cache = True
+    # Pre-existing obsm UMAP (e.g. exported subset or pre-processed h5ad)
+    _obsm_umap = adata.obsm.get("X_umap")
+    if _obsm_umap is not None and _obsm_umap.shape[0] != N_CELLS:
+        _obsm_umap = None  # stale / wrong size — ignore
     for nd in n_dims_list:
-        # Check method-specific key first, then legacy key as fallback
+        # Check method-specific key first, then legacy key, then obsm
         cache_key = f"umap_{nd}d{umap_suffix}"
         legacy_key = f"umap_{nd}d"
         if cache_key in cached:
@@ -984,6 +988,16 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 UMAP_2D = cached[legacy_key].astype(np.float32)
             else:
                 UMAP_3D = cached[legacy_key].astype(np.float32)
+        elif _obsm_umap is not None and _obsm_umap.shape[1] >= nd:
+            # Use pre-existing UMAP from obsm (e.g. subset exported from full dataset)
+            umap_arr = _obsm_umap[:, :nd].astype(np.float32)
+            if nd == 2:
+                UMAP_2D = umap_arr
+            else:
+                UMAP_3D = umap_arr
+            cached[f"umap_{nd}d_full"] = umap_arr  # cache so next load is instant
+            need_save = True
+            _progress(f"Loaded {nd}D UMAP from obsm (pre-existing)", 25)
         else:
             dims_needed.append(nd)
             umap_from_cache = False
