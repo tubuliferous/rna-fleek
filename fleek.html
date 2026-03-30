@@ -5509,7 +5509,7 @@ function setupVolcanoHover(){
 
     /* Hover — search pre-built visible-point cache (pixel coords, no re-filtering) */
     var mx=_volcanoMx, my=_volcanoMy;
-    var best=null, bestG=null, bestD=100;
+    var best=null, bestG=null, bestD=Infinity;
     for(var i=0;i<_volcanoPts.length;i++){
       var pt=_volcanoPts[i];
       var dx2=mx-pt.x, dy2=my-pt.y;
