@@ -1940,6 +1940,9 @@ function makeCircleTexture(light){
     ctx.arc(r,r,r*0.82,0,Math.PI*2);
     ctx.fill();
     var tex=new THREE.CanvasTexture(c2);
+    tex.generateMipmaps=false;
+    tex.minFilter=THREE.NearestFilter;
+    tex.magFilter=THREE.NearestFilter;
     tex.needsUpdate=true;
     return tex;
   }else{
