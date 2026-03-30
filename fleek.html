@@ -5000,7 +5000,7 @@ function closeDEG(){
   document.getElementById("deg-drag").style.display="none";
   document.getElementById("deg-open-btn").textContent="DEG";
   document.getElementById("deg-stale").style.display="none";
-  try{sessionStorage.removeItem("fleek_deg");}catch(e){}
+  _saveDEGState(); /* saves open:false so data survives refresh but panel stays closed */
   syncCanvasSize();
 }
 
@@ -5009,6 +5009,18 @@ function _degCacheKey(){
   var idB=document.getElementById("deg-grpB").value;
   var test=document.getElementById("deg-test").value;
   return test+"|"+idA+"|"+idB+"|"+_selHash();
+}
+
+function _saveDEGState(){
+  if(!degData)return;
+  try{
+    sessionStorage.setItem("fleek_deg",JSON.stringify({
+      data:degData,grpA:degGrpA,grpB:degGrpB,selHash:degSelHash,
+      open:degOpen,panelH:degPanelH,
+      yaxis:document.getElementById("deg-yaxis").value,
+      sort:degSort
+    }));
+  }catch(e){}
 }
 
 function _showDEGResult(data,grpA,grpB){
@@ -5039,6 +5051,7 @@ function _showDEGResult(data,grpA,grpB){
   _vRO.observe(wrap);
   /* Fallback in case ResizeObserver doesn't fire (already at size) */
   setTimeout(renderVolcano,150);
+  _saveDEGState();
 }
 
 function _clearDEGDisplay(){
@@ -5483,48 +5496,43 @@ function setupVolcanoHover(){
       return;
     }
 
-    /* Hover — throttle to one rAF tick so hit-testing never runs more than 60×/s.
-       The rAF reads _volcanoMx/My so it always uses the position at fire time,
-       not the (potentially stale) position from when the rAF was scheduled. */
-    if(_volcanoHoverRaf)return;
-    _volcanoHoverRaf=requestAnimationFrame(function(){
-      _volcanoHoverRaf=0;
-      var mx=_volcanoMx, my=_volcanoMy;
-      /* Search only the pre-built visible-point cache */
-      var best=null, bestG=null, bestD=100;
-      for(var i=0;i<_volcanoPts.length;i++){
-        var pt=_volcanoPts[i];
-        var d=Math.sqrt((mx-pt.x)*(mx-pt.x)+(my-pt.y)*(my-pt.y));
-        if(d<bestD){bestD=d;best=pt.g.gene;bestG=pt.g;}
-      }
-      if(bestD<12){
-        if(best!==degHlGene){
-          degHlGene=best;
-          renderVolcano();
-          /* Update tooltip content */
-          var colA=degGrpA?_rgb(degGrpA.color):"#f87171";
-          var colB=degGrpB?_rgb(degGrpB.color):"#60a5fa";
-          var fcCol=bestG.log2fc>0?colA:colB;
-          tip.innerHTML='<div style="font-weight:700;color:var(--text);margin-bottom:2px;">'+best+'</div>'
-            +'<span style="color:'+fcCol+'">log\u2082FC '+bestG.log2fc.toFixed(2)+'</span>'
-            +' \u00b7 <span style="color:var(--text2)">d '+bestG.cohens_d.toFixed(2)+'</span>'
-            +' \u00b7 padj '+bestG.padj.toExponential(1);
-          /* Highlight table row */
-          var prevHl=document.querySelector("#deg-tbody tr.hl");
-          if(prevHl)prevHl.className="";
-          var newHl=document.querySelector('#deg-tbody tr[data-gene="'+best+'"]');
-          if(newHl)newHl.className="hl";
-        }
-        /* Always reposition tooltip (handles cursor movement near edges) */
-        _posTip(tip,mx,my,rect.width/z,rect.height/z);
-      }else if(degHlGene){
-        degHlGene=null;
+    /* Hover — search pre-built visible-point cache (pixel coords, no re-filtering) */
+    var mx=_volcanoMx, my=_volcanoMy;
+    var best=null, bestG=null, bestD=100;
+    for(var i=0;i<_volcanoPts.length;i++){
+      var pt=_volcanoPts[i];
+      var dx2=mx-pt.x, dy2=my-pt.y;
+      var d=dx2*dx2+dy2*dy2; /* squared distance, defer sqrt */
+      if(d<bestD){bestD=d;best=pt.g.gene;bestG=pt.g;}
+    }
+    var inRange=bestD<144; /* 12px radius → 144 squared */
+    if(inRange){
+      if(best!==degHlGene){
+        degHlGene=best;
         renderVolcano();
-        tip.style.display="none";
+        /* Update tooltip content */
+        var colA=degGrpA?_rgb(degGrpA.color):"#f87171";
+        var colB=degGrpB?_rgb(degGrpB.color):"#60a5fa";
+        var fcCol=bestG.log2fc>0?colA:colB;
+        tip.innerHTML='<div style="font-weight:700;color:var(--text);margin-bottom:2px;">'+best+'</div>'
+          +'<span style="color:'+fcCol+'">log\u2082FC '+bestG.log2fc.toFixed(2)+'</span>'
+          +' \u00b7 <span style="color:var(--text2)">d '+bestG.cohens_d.toFixed(2)+'</span>'
+          +' \u00b7 padj '+bestG.padj.toExponential(1);
+        /* Highlight table row */
         var prevHl=document.querySelector("#deg-tbody tr.hl");
         if(prevHl)prevHl.className="";
+        var newHl=document.querySelector('#deg-tbody tr[data-gene="'+best+'"]');
+        if(newHl)newHl.className="hl";
       }
-    });
+      /* Always reposition tooltip (handles cursor movement near edges) */
+      _posTip(tip,mx,my,rect.width/z,rect.height/z);
+    }else if(degHlGene){
+      degHlGene=null;
+      renderVolcano();
+      tip.style.display="none";
+      var prevHl=document.querySelector("#deg-tbody tr.hl");
+      if(prevHl)prevHl.className="";
+    }
   });
 
   cv.addEventListener("mouseleave",function(){
@@ -6080,11 +6088,10 @@ document.addEventListener("DOMContentLoaded",function(){
             }
           }).catch(function(){setTimeout(pollCSC,2000);});
         })();
-        /* Restore DEG state if it was saved before zoom reload */
+        /* Restore DEG state across refreshes (and zoom reloads) */
         try{
           var degSaved=sessionStorage.getItem("fleek_deg");
           if(degSaved){
-            sessionStorage.removeItem("fleek_deg");
             var ds=JSON.parse(degSaved);
             degData=ds.data;
             degGrpA=ds.grpA;
@@ -6092,17 +6099,17 @@ document.addEventListener("DOMContentLoaded",function(){
             degSelHash=ds.selHash;
             degSort=ds.sort||{col:"padj",asc:true};
             degPanelH=ds.panelH||280;
+            /* Always restore status/note so it's ready if panel is opened */
+            var nSig=0;
+            for(var si=0;si<degData.genes.length;si++){if(Math.abs(degData.genes[si].log2fc)>=FC_THRESH&&degData.genes[si].padj<PADJ_THRESH)nSig++;}
+            document.getElementById("deg-status").textContent=degData.genes.length.toLocaleString()+" genes \u00b7 "+nSig.toLocaleString()+" significant \u00b7 "+degData.elapsed+"s";
+            document.getElementById("deg-note").textContent=degData.note||"";
             if(ds.open){
               degOpen=false; /* openDEG will toggle it on */
               openDEG();
               /* Restore y-axis mode */
               var ysel=document.getElementById("deg-yaxis");
               if(ysel&&ds.yaxis)ysel.value=ds.yaxis;
-              /* Restore results */
-              var nSig=0;
-              for(var si=0;si<degData.genes.length;si++){if(Math.abs(degData.genes[si].log2fc)>=FC_THRESH&&degData.genes[si].padj<PADJ_THRESH)nSig++;}
-              document.getElementById("deg-status").textContent=degData.genes.length.toLocaleString()+" genes \u00b7 "+nSig.toLocaleString()+" significant \u00b7 "+degData.elapsed+"s";
-              document.getElementById("deg-note").textContent=degData.note||"";
               renderDEGTable();
               var _vwrap=document.getElementById("volcano-wrap");
               var _vro2=new ResizeObserver(function(){_vro2.disconnect();renderVolcano();});
