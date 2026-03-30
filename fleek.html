@@ -568,9 +568,9 @@
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:#4ade80">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
-  <div id="hist-btns" style="position:absolute;top:8px;right:44px;display:flex;gap:2px;z-index:15;">
-    <button id="hist-back" onclick="histUndo()" style="background:rgba(0,0,0,0.3);border:none;border-radius:4px;font-size:13px;color:var(--text4);cursor:default;font-family:inherit;padding:3px 7px;line-height:1;backdrop-filter:blur(4px);">&#9664;</button>
-    <button id="hist-fwd" onclick="histRedo()" style="background:rgba(0,0,0,0.3);border:none;border-radius:4px;font-size:13px;color:var(--text4);cursor:default;font-family:inherit;padding:3px 7px;line-height:1;backdrop-filter:blur(4px);">&#9654;</button>
+  <div id="hist-btns" style="position:absolute;top:8px;right:44px;display:flex;gap:1px;z-index:15;">
+    <button id="hist-back" onclick="histUndo()" style="background:rgba(0,0,0,0.25);border:none;border-radius:4px 0 0 4px;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.35)'" onmouseleave="this.style.background='rgba(0,0,0,0.25)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
+    <button id="hist-fwd" onclick="histRedo()" style="background:rgba(0,0,0,0.25);border:none;border-radius:0 4px 4px 0;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.35)'" onmouseleave="this.style.background='rgba(0,0,0,0.25)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="no-key-banner">
@@ -1213,6 +1213,9 @@ var _navigating=false; /* true when stepping through history */
 function snapState(){
   /* Capture current state including camera position */
   var sg=selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:Array.from(g.cells)};});
+  /* Capture slice filter state */
+  var sf=null;
+  if(sliceFilter){sf={};for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
   return JSON.stringify({
     viewIs3d:viewIs3d, embMethod:embMethod, mode:mode, selGene:selGene,
     visibleClusters:JSON.parse(JSON.stringify(visibleClusters)),
@@ -1222,7 +1225,8 @@ function snapState(){
     tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
     pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
     selGroups:sg, activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
-    groupVisible:JSON.parse(JSON.stringify(groupVisible))
+    groupVisible:JSON.parse(JSON.stringify(groupVisible)),
+    sliceFilter:sf
   });
 }
 
@@ -1280,6 +1284,15 @@ function applyHistEntry(snap){
     rebuildCellGroupMap();
     renderSelPanel();
   }
+  /* Restore slice filter */
+  if(s.sliceFilter){
+    sliceFilter={};
+    for(var col in s.sliceFilter)sliceFilter[col]=new Set(s.sliceFilter[col]);
+    _syncSlicePills();
+    applySlice();
+  }else if(sliceMask){
+    resetSlice();
+  }
   if(s.embMethod&&D&&D.embeddings[s.embMethod])setEmbMethod(s.embMethod);
   if(s.viewIs3d!==undefined)setView(s.viewIs3d?"3d":"2d");
   /* Restore camera AFTER setView/setEmbMethod which reset it */
@@ -1300,8 +1313,9 @@ function applyHistEntry(snap){
 function updateHistBtn(){
   var ub=document.getElementById("hist-back");
   var uf=document.getElementById("hist-fwd");
-  if(ub)ub.style.color=_histIdx>0?"var(--text2)":"var(--text4)";
-  if(uf)uf.style.color=_histIdx<_history.length-1?"var(--text2)":"var(--text4)";
+  var canUndo=_histIdx>0,canRedo=_histIdx<_history.length-1;
+  if(ub){ub.style.color=canUndo?"var(--text2)":"var(--text4)";ub.style.opacity=canUndo?"1":"0.35";}
+  if(uf){uf.style.color=canRedo?"var(--text2)":"var(--text4)";uf.style.opacity=canRedo?"1":"0.35";}
   if(ub)ub.style.cursor=_histIdx>0?"pointer":"default";
   if(uf)uf.style.cursor=_histIdx<_history.length-1?"pointer":"default";
 }
