@@ -470,7 +470,7 @@
       <button class="sg-add-btn" onclick="addSelGroup()" title="Add selection group (or press 1-9)">+ new group</button>
       <div class="sg-toolbar">
         <button onclick="selAllVisible()" title="Select all visible cells into active group">sel visible</button>
-        <button onclick="clearActiveGroup()" title="Clear active group (Esc)">clear</button>
+        <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)" title="Clear visible cells from active group (Esc)&#10;Hold ⌥ to clear ALL cells including hidden/sliced (⌥Esc)">Clear Visible</button>
         <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (H to hide/restore)">hide all</button>
         <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button>
       </div>
@@ -1598,15 +1598,39 @@ function selAllVisible(){
   saveState();
 }
 
-function clearActiveGroup(){
+function clearActiveGroup(allCells){
   var ag=getActiveGroup();
   if(!ag)return;
-  ag.cells.forEach(function(ci){cellGroupMap[ci]=-1;});
-  ag.cells.clear();
+  if(allCells){
+    /* Clear ALL cells from active group */
+    ag.cells.forEach(function(ci){cellGroupMap[ci]=-1;});
+    ag.cells.clear();
+  }else{
+    /* Clear only VISIBLE cells (not hidden by cluster visibility or slice) */
+    var toRemove=[];
+    ag.cells.forEach(function(ci){
+      var hidden=visibleClusters[D.cluster_ids[ci]]===false||(sliceMask&&!sliceMask[ci]);
+      if(!hidden)toRemove.push(ci);
+    });
+    for(var i=0;i<toRemove.length;i++){
+      ag.cells.delete(toRemove[i]);
+      cellGroupMap[toRemove[i]]=-1;
+    }
+  }
   renderSelPanel();
   recolor();
   saveState();
 }
+
+/* Update Clear button label based on Alt key state */
+function _updateClearBtn(e){
+  var btn=document.getElementById("sel-clear-btn");
+  if(!btn)return;
+  btn.textContent=e&&e.altKey?"Clear All":"Clear Visible";
+}
+/* Listen for Alt key changes while hovering the clear button */
+document.addEventListener("keydown",function(e){if(e.key==="Alt"){_updateClearBtn(e);}});
+document.addEventListener("keyup",function(e){if(e.key==="Alt"){_updateClearBtn(e);}});
 
 var _preHideGroupVis=null; /* saved state before 'h' hide-all */
 
@@ -2742,7 +2766,7 @@ function setupCtrl(){
       if(conf&&conf.style.display==="flex"){_confirmResolve(false);return;}
       var help=document.getElementById("help-overlay");
       if(help.style.display==="block"){help.style.display="none";return;}
-      clearActiveGroup();
+      clearActiveGroup(e.altKey);
       return;
     }
     /* Skip letter/number shortcuts when typing in inputs */
