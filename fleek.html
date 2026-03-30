@@ -264,8 +264,12 @@
   #settings-popup .s-toggle input:checked+.s-slider:before{transform:translateX(12px);background:#fff;}
   /* Slice panel */
   #slice-body .slice-col{margin-bottom:6px;}
-  #slice-body .slice-col-hdr{display:flex;align-items:center;justify-content:space-between;font-size:9px;color:var(--text2);font-weight:600;margin-bottom:2px;cursor:pointer;user-select:none;}
-  #slice-body .slice-col-hdr .slice-badge{font-size:8px;color:#f59e0b;font-weight:400;margin-left:4px;}
+  #slice-body .slice-col-hdr{display:flex;align-items:center;font-size:9px;color:var(--text2);font-weight:600;margin-bottom:2px;cursor:pointer;user-select:none;gap:3px;}
+  #slice-body .slice-col-hdr .slice-caret{font-size:7px;color:var(--text4);transition:transform 0.15s;display:inline-block;}
+  #slice-body .slice-col-hdr .slice-counts{font-size:8px;color:var(--text4);font-weight:400;margin-left:auto;}
+  #slice-body .slice-col-hdr .slice-badge{font-size:8px;color:#f59e0b;font-weight:400;margin-left:2px;}
+  #slice-body .slice-col.collapsed .slice-vals{display:none;}
+  #slice-body .slice-col.collapsed .slice-caret{transform:rotate(-90deg);}
   #slice-body .slice-vals{display:flex;flex-wrap:wrap;gap:3px 4px;padding-left:2px;}
   /* Unified pill toggle — used for slice values AND load options */
   .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:8.5px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;}
@@ -5114,12 +5118,14 @@ function buildSlicePanel(){
   for(var i=0;i<cols.length;i++){
     var col=cols[i];
     var info=cats[col];
+    var nCats=info.categories.length;
     var div=document.createElement("div");
-    div.className="slice-col";
+    div.className="slice-col"+(nCats>6?" collapsed":"");
     div.setAttribute("data-col",col);
     var hdr=document.createElement("div");
     hdr.className="slice-col-hdr";
-    hdr.innerHTML='<span>'+col+'<\/span><span class="slice-badge" id="slbadge-'+col+'"><\/span>';
+    hdr.innerHTML='<span class="slice-caret">\u25BE<\/span><span>'+col+'<\/span><span class="slice-counts" id="slcounts-'+col+'">'+nCats+'/'+nCats+'<\/span><span class="slice-badge" id="slbadge-'+col+'"><\/span>';
+    hdr.addEventListener("click",function(){this.parentNode.classList.toggle("collapsed");});
     div.appendChild(hdr);
     var vals=document.createElement("div");
     vals.className="slice-vals";
@@ -5230,14 +5236,15 @@ function _updateSliceUI(){
   var resetBtn=document.getElementById("slice-reset-btn");
   if(badge)badge.style.display=active?"":"none";
   if(resetBtn)resetBtn.style.display=active?"":"none";
-  /* Per-column badges */
+  /* Per-column counts and badges */
   var cats=D&&D.header&&D.header.obs_categories||{};
   for(var col in cats){
-    var el=document.getElementById("slbadge-"+col);
-    if(!el)continue;
     var total=cats[col].categories.length;
     var sel=sliceFilter[col]?sliceFilter[col].size:total;
-    el.textContent=sel<total?"["+sel+"/"+total+"]":"";
+    var countsEl=document.getElementById("slcounts-"+col);
+    if(countsEl)countsEl.textContent=sel+"/"+total;
+    var el=document.getElementById("slbadge-"+col);
+    if(el)el.textContent=sel<total?"\u2022":"";
   }
   /* Footer count */
   var n=D?D.header.n_cells:0;
