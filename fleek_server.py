@@ -1218,6 +1218,22 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         PACMAP_3D = cached["pacmap_3d"].astype(np.float32)
         PACMAP_COMPUTING = False
         print(f"  PaCMAP loaded from cache (legacy)")
+    elif "X_pacmap" in adata.obsm and adata.obsm["X_pacmap"].shape[0] == N_CELLS:
+        # Pre-existing PaCMAP from obsm (e.g. exported subset)
+        _obsm_pm = adata.obsm["X_pacmap"].astype(np.float32)
+        if _obsm_pm.shape[1] >= 2:
+            PACMAP_2D = _obsm_pm[:, :2]
+        if _obsm_pm.shape[1] >= 3:
+            PACMAP_3D = _obsm_pm[:, :3]
+        elif PACMAP_2D is not None:
+            PACMAP_3D = np.pad(PACMAP_2D, ((0, 0), (0, 1)))  # pad with zeros if only 2D available
+        PACMAP_COMPUTING = False
+        if PACMAP_2D is not None:
+            cached["pacmap_2d_full"] = PACMAP_2D
+        if PACMAP_3D is not None:
+            cached["pacmap_3d_full"] = PACMAP_3D
+        need_save = True
+        print(f"  PaCMAP loaded from obsm (pre-existing)")
     elif "X_pca" in adata.obsm:
         def _bg_pacmap_subprocess():
             global PACMAP_2D, PACMAP_3D, PACMAP_COMPUTING
