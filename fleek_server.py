@@ -2396,10 +2396,18 @@ class FleekHandler(SimpleHTTPRequestHandler):
                     pass
 
             for i, name in enumerate(CLUSTER_NAMES):
-                entry = f"  Cluster {i}: \"{name}\" ({counts.get(i, 0):,} cells)"
+                n_cells = counts.get(i, 0)
+                if n_cells == 0:
+                    continue  # Skip empty clusters — no cells, no lineage
+                entry = f"  Cluster {i}: \"{name}\" ({n_cells:,} cells)"
                 if i in llm_preds and llm_preds[i]:
                     entry += f" — Claude predicted: \"{llm_preds[i]}\""
                 cluster_info.append(entry)
+
+            n_in_lineage = len(cluster_info)
+            n_skipped = len(CLUSTER_NAMES) - n_in_lineage
+            if n_skipped > 0:
+                print(f"  Lineage: using {n_in_lineage} non-empty clusters (skipping {n_skipped} empty)")
 
             llm_context = ""
             if llm_preds:
@@ -2446,13 +2454,13 @@ Return ONLY a JSON object with this structure (no markdown, no explanation):
 
 "present" means the cell type exists as a cluster in the dataset (true) or is an inferred developmental intermediate (false).
 "cluster_ids" is an array of cluster indices that map to this node (empty for inferred nodes).
-Every cluster_id from 0 to {len(CLUSTER_NAMES)-1} must appear exactly once in the tree."""
+Every non-empty cluster_id listed above must appear exactly once in the tree. Empty clusters (0 cells) have been excluded."""
 
-            print(f"  Requesting lineage tree from Claude ({len(CLUSTER_NAMES)} cell types)...")
+            print(f"  Requesting lineage tree from Claude ({n_in_lineage} cell types)...")
             import urllib.request, urllib.error
             request_body = json.dumps({
                 "model": "claude-sonnet-4-20250514",
-                "max_tokens": 8192,
+                "max_tokens": 16384,
                 "messages": [{"role": "user", "content": prompt}]
             }).encode("utf-8")
 
@@ -2468,14 +2476,18 @@ Every cluster_id from 0 to {len(CLUSTER_NAMES)-1} must appear exactly once in th
             )
 
             try:
-                with urllib.request.urlopen(api_req, timeout=120) as resp:
+                with urllib.request.urlopen(api_req, timeout=300) as resp:
                     resp_data = json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as e:
                 body = e.read().decode("utf-8", errors="replace")
                 raise ValueError(f"Claude API error {e.code}: {body[:200]}")
 
             usage = resp_data.get("usage", {})
-            print(f"  Lineage response: {usage.get('input_tokens', 0)} in, {usage.get('output_tokens', 0)} out tokens")
+            stop = resp_data.get("stop_reason", "")
+            print(f"  Lineage response: {usage.get('input_tokens', 0)} in, {usage.get('output_tokens', 0)} out tokens (stop: {stop})")
+
+            if stop == "max_tokens":
+                raise ValueError(f"Lineage response truncated at {usage.get('output_tokens', 0)} tokens — tree too large for {n_in_lineage} cell types. Try loading a smaller subset.")
 
             # Parse response
             text = ""
@@ -2501,7 +2513,7 @@ Every cluster_id from 0 to {len(CLUSTER_NAMES)-1} must appear exactly once in th
                     ids |= _collect_ids(ch)
                 return ids
             found_ids = _collect_ids(tree)
-            expected_ids = set(range(len(CLUSTER_NAMES)))
+            expected_ids = {i for i, name in enumerate(CLUSTER_NAMES) if counts.get(i, 0) > 0}
             missing = expected_ids - found_ids
             if missing:
                 print(f"  Warning: lineage tree missing cluster_ids: {missing}")
