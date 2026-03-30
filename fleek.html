@@ -1932,11 +1932,16 @@ function makeCircleTexture(light){
   var r=sz/2;
   var grad=ctx.createRadialGradient(r,r,0,r,r,r);
   if(light){
-    /* Light mode: hard-edged circle, no fringe — prevents gray halo at distance */
-    grad.addColorStop(0,"rgba(255,255,255,1)");
-    grad.addColorStop(0.82,"rgba(255,255,255,1)");
-    grad.addColorStop(0.88,"rgba(255,255,255,0)");
-    grad.addColorStop(1,"rgba(255,255,255,0)");
+    /* Light mode: solid filled circle, no gradient at all.
+       Canvas arc gives a binary alpha boundary — no semi-transparent
+       fringe pixels to accumulate into gray when zoomed out. */
+    ctx.fillStyle="#fff";
+    ctx.beginPath();
+    ctx.arc(r,r,r*0.82,0,Math.PI*2);
+    ctx.fill();
+    var tex=new THREE.CanvasTexture(c2);
+    tex.needsUpdate=true;
+    return tex;
   }else{
     /* Dark mode: softer glow edge */
     grad.addColorStop(0,"rgba(255,255,255,1)");
@@ -2114,7 +2119,7 @@ function buildPts(data){
   document.getElementById("pt-size").value=autoSlider;
   document.getElementById("pt-opacity").value=autoOpacity;
   var _isLight=document.body.classList.contains("light");
-  var mat=new THREE.PointsMaterial({size:1,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:autoOpacity,depthWrite:!_isLight,map:circleTexture,alphaTest:_isLight?0.5:0.05});
+  var mat=new THREE.PointsMaterial({size:1,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:autoOpacity,depthWrite:true,map:circleTexture,alphaTest:_isLight?0.5:0.05});
   pts=new THREE.Points(geo,mat);
   scene.add(pts);
   /* Ring highlight layer — same number of points, initially hidden */
@@ -5918,7 +5923,7 @@ function applyTheme(t){
     circleTexture=makeCircleTexture(t==="light");
     pts.material.map=circleTexture;
     pts.material.alphaTest=t==="light"?0.5:0.05;
-    pts.material.depthWrite=t!=="light";
+    pts.material.depthWrite=true;
     pts.material.needsUpdate=true;
   }
   /* Update point cloud colors for theme */
