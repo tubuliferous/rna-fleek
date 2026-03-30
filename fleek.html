@@ -310,8 +310,6 @@
       <span style="font-weight:800;font-size:13px;cursor:pointer;" onclick="toggleHelp()" title="About & Help"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
     </div>
     <div style="display:flex;gap:2px;align-items:center;">
-      <button id="hist-back" onclick="histUndo()" style="background:none;border:none;font-size:16px;color:var(--text4);cursor:default;font-family:inherit;padding:2px 5px;line-height:1;">&#9664;</button>
-      <button id="hist-fwd" onclick="histRedo()" style="background:none;border:none;font-size:16px;color:var(--text4);cursor:default;font-family:inherit;padding:2px 5px;line-height:1;">&#9654;</button>
       <button onclick="toggleSidebar()" title="Hide sidebar (\)" style="background:none;border:none;color:var(--text4);cursor:pointer;font-size:20px;font-family:inherit;padding:2px 6px;line-height:1;opacity:0.4;margin-left:2px;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">&laquo;</button>
     </div>
   </div>
@@ -570,6 +568,10 @@
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:#4ade80">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
+  <div id="hist-btns" style="position:absolute;top:8px;right:44px;display:flex;gap:2px;z-index:15;">
+    <button id="hist-back" onclick="histUndo()" style="background:rgba(0,0,0,0.3);border:none;border-radius:4px;font-size:13px;color:var(--text4);cursor:default;font-family:inherit;padding:3px 7px;line-height:1;backdrop-filter:blur(4px);">&#9664;</button>
+    <button id="hist-fwd" onclick="histRedo()" style="background:rgba(0,0,0,0.3);border:none;border-radius:4px;font-size:13px;color:var(--text4);cursor:default;font-family:inherit;padding:3px 7px;line-height:1;backdrop-filter:blur(4px);">&#9654;</button>
+  </div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="no-key-banner">
     <span>No Claude API key configured</span>
@@ -617,6 +619,10 @@
     <div class="s-row">
       <span>Hint bar</span>
       <label class="s-toggle"><input type="checkbox" id="set-hint" onchange="toggleHintBar();saveSettings()" checked><span class="s-slider"></span></label>
+    </div>
+    <div class="s-row">
+      <span>Undo/Redo buttons</span>
+      <label class="s-toggle"><input type="checkbox" id="set-hist-btns" onchange="toggleHistBtns();saveSettings()" checked><span class="s-slider"></span></label>
     </div>
     <div class="s-row s-key-row">
       <span>Claude API key</span>
@@ -6197,6 +6203,10 @@ function toggleHintBar(){
   var on=document.getElementById("set-hint").checked;
   document.getElementById("hint").style.display=on?"block":"none";
 }
+function toggleHistBtns(){
+  var on=document.getElementById("set-hist-btns").checked;
+  document.getElementById("hist-btns").style.display=on?"flex":"none";
+}
 function openSettingsToKey(){
   document.getElementById("no-key-banner").style.display="none";
   var popup=document.getElementById("settings-popup");
@@ -6258,8 +6268,9 @@ function saveSettings(){
   var showFps=document.getElementById("set-fps").checked;
   var hlMode=document.getElementById("set-highlight").value;
   var showHint=document.getElementById("set-hint").checked;
+  var showHistBtns=document.getElementById("set-hist-btns").checked;
   applyTheme(theme);
-  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint}));}catch(e){}
+  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns}));}catch(e){}
 }
 function applyUIScale(v){
   var s=parseFloat(v);
@@ -6269,7 +6280,7 @@ function applyUIScale(v){
   document.getElementById("deg-panel").style.zoom=s;
   document.getElementById("deg-drag").style.zoom=s;
   /* Scale floating UI via transform (not zoom) to avoid affecting canvas coords */
-  var ids=["fps-box"];
+  var ids=["fps-box","hist-btns"];
   for(var i=0;i<ids.length;i++){var el=document.getElementById(ids[i]);if(el){el.style.transformOrigin="top right";el.style.transform="scale("+s+")";}}
   /* Defer canvas resize to after browser reflow */
   requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
@@ -6299,6 +6310,10 @@ function loadSettings(){
       if(o.showHint===false){
         document.getElementById("set-hint").checked=false;
         toggleHintBar();
+      }
+      if(o.showHistBtns===false){
+        document.getElementById("set-hist-btns").checked=false;
+        toggleHistBtns();
       }
     }
     document.getElementById("set-zoom-mode").value=zoomMode;
