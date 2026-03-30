@@ -4921,6 +4921,8 @@ function clampVPan(){
   vPan.y=Math.max(0,Math.min(maxPanY,vPan.y));
 }
 var vDragging=false, vPrev={x:0,y:0};
+var _volcanoPts=[]; /* cached rendered points [{x,y,g}] rebuilt each renderVolcano() */
+var _volcanoHoverRaf=0; /* rAF handle for throttled hover */
 
 function _rgb(c){return "rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")";}
 function _rgba(c,a){return "rgba("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+","+a+")";}
@@ -5364,6 +5366,7 @@ function renderVolcano(){
   var pathSigA=new Path2D(); /* significant, group A direction */
   var pathSigB=new Path2D(); /* significant, group B direction */
   var hlGene=null; /* deferred highlight */
+  _volcanoPts=[];
   for(var i=0;i<genes.length;i++){
     var g=genes[i];
     var isHl=degHlGene===g.gene;
@@ -5373,6 +5376,7 @@ function renderVolcano(){
     var x=toX(g.log2fc), y=toY(yv);
     if(!isHl&&(x<pad.left-4||x>pad.left+pw+4||y<pad.top-4||y>pad.top+ph+4))continue;
     if(isHl){hlGene={x:x,y:y};continue;}
+    _volcanoPts.push({x:x,y:y,g:g});
     var sig=Math.abs(g.log2fc)>=FC_THRESH&&g.padj<PADJ_THRESH;
     if(sig){
       var p=g.log2fc>0?pathSigA:pathSigB;
@@ -5462,7 +5466,7 @@ function setupVolcanoHover(){
     var z=currentUIScale;
     var mx=(e.clientX-rect.left)/z, my=(e.clientY-rect.top)/z;
 
-    /* Panning */
+    /* Panning — run immediately (needs tight loop for smooth feel) */
     if(vDragging){
       var dx=(e.clientX-vPrev.x)/z, dy=(e.clientY-vPrev.y)/z;
       vPrev={x:e.clientX,y:e.clientY};
@@ -5476,46 +5480,45 @@ function setupVolcanoHover(){
       return;
     }
 
-    /* Hover */
-    var genes=degData.genes;
-    var L=cv._vLayout;
-    var best=null, bestG=null, bestD=100;
-    for(var i=0;i<genes.length;i++){
-      var g=genes[i];
-      if(L.yMode==="padj"&&g.padj>=1)continue;
-      var yv=L.getY(g);
-      if(yv<L.yCutoff)continue;
-      var x=L.toX(g.log2fc), y=L.toY(yv);
-      var d=Math.sqrt((mx-x)*(mx-x)+(my-y)*(my-y));
-      if(d<bestD){bestD=d;best=g.gene;bestG=g;}
-    }
-    if(bestD<12){
-      if(best!==degHlGene){
-        degHlGene=best;
+    /* Hover — throttle to one rAF tick so hit-testing never runs more than 60×/s */
+    if(_volcanoHoverRaf)return;
+    _volcanoHoverRaf=requestAnimationFrame(function(){
+      _volcanoHoverRaf=0;
+      /* Search only the pre-built visible-point cache */
+      var best=null, bestG=null, bestD=100;
+      for(var i=0;i<_volcanoPts.length;i++){
+        var pt=_volcanoPts[i];
+        var d=Math.sqrt((mx-pt.x)*(mx-pt.x)+(my-pt.y)*(my-pt.y));
+        if(d<bestD){bestD=d;best=pt.g.gene;bestG=pt.g;}
+      }
+      if(bestD<12){
+        if(best!==degHlGene){
+          degHlGene=best;
+          renderVolcano();
+          /* Update tooltip content */
+          var colA=degGrpA?_rgb(degGrpA.color):"#f87171";
+          var colB=degGrpB?_rgb(degGrpB.color):"#60a5fa";
+          var fcCol=bestG.log2fc>0?colA:colB;
+          tip.innerHTML='<div style="font-weight:700;color:var(--text);margin-bottom:2px;">'+best+'</div>'
+            +'<span style="color:'+fcCol+'">log\u2082FC '+bestG.log2fc.toFixed(2)+'</span>'
+            +' \u00b7 <span style="color:var(--text2)">d '+bestG.cohens_d.toFixed(2)+'</span>'
+            +' \u00b7 padj '+bestG.padj.toExponential(1);
+          /* Highlight table row */
+          var prevHl=document.querySelector("#deg-tbody tr.hl");
+          if(prevHl)prevHl.className="";
+          var newHl=document.querySelector('#deg-tbody tr[data-gene="'+best+'"]');
+          if(newHl)newHl.className="hl";
+        }
+        /* Always reposition tooltip (handles cursor movement near edges) */
+        _posTip(tip,mx,my,rect.width/z,rect.height/z);
+      }else if(degHlGene){
+        degHlGene=null;
         renderVolcano();
-        /* Update tooltip content */
-        var colA=degGrpA?_rgb(degGrpA.color):"#f87171";
-        var colB=degGrpB?_rgb(degGrpB.color):"#60a5fa";
-        var fcCol=bestG.log2fc>0?colA:colB;
-        tip.innerHTML='<div style="font-weight:700;color:var(--text);margin-bottom:2px;">'+best+'</div>'
-          +'<span style="color:'+fcCol+'">log\u2082FC '+bestG.log2fc.toFixed(2)+'</span>'
-          +' \u00b7 <span style="color:var(--text2)">d '+bestG.cohens_d.toFixed(2)+'</span>'
-          +' \u00b7 padj '+bestG.padj.toExponential(1);
-        /* Highlight table row */
+        tip.style.display="none";
         var prevHl=document.querySelector("#deg-tbody tr.hl");
         if(prevHl)prevHl.className="";
-        var newHl=document.querySelector('#deg-tbody tr[data-gene="'+best+'"]');
-        if(newHl)newHl.className="hl";
       }
-      /* Always reposition tooltip (handles cursor movement near edges) */
-      _posTip(tip,mx,my,rect.width/z,rect.height/z);
-    }else if(degHlGene){
-      degHlGene=null;
-      renderVolcano();
-      tip.style.display="none";
-      var prevHl=document.querySelector("#deg-tbody tr.hl");
-      if(prevHl)prevHl.className="";
-    }
+    });
   });
 
   cv.addEventListener("mouseleave",function(){
