@@ -1133,6 +1133,7 @@ var autoRotate=false, viewIs3d=true;
 var embMethod="umap"; /* "umap", "pca", etc. */
 var introAnim=null; /* {startTime, startTheta, startRadius, endRadius, duration} or null */
 var _homeCamera=null; /* saved post-intro camera state for resetView() */
+var _homeCameras={}; /* per-embedding home cameras, keyed by method name */
 var sph={theta:0.5,phi:1.0,radius:120};
 var basePtSz=50; /* 1-100 normalized slider value — animate() converts to actual size */
 var tgt3=new THREE.Vector3(0,0,0);
@@ -2073,6 +2074,20 @@ function update2dCam(){
   cam2d.updateProjectionMatrix();
 }
 
+function _computeHomeCamera(){
+  var _r=cloudBounds.radius;
+  var _fovRad=cam3d.fov*Math.PI/180;
+  var _vH=_fovRad/2;
+  var _hH=Math.atan(Math.tan(_vH)*(canvasW/canvasH));
+  var _halfA=Math.min(_vH,_hH);
+  var fullR=_r/Math.sin(_halfA)*1.05;
+  var _a=canvasW/canvasH;
+  var _zV=frustum2/(_r*1.05);
+  var _zH=frustum2*_a/(_r*1.05);
+  return{theta:0.3+Math.PI,phi:1.0,radius:fullR,
+    tgt:{x:cloudBounds.center.x,y:cloudBounds.center.y,z:cloudBounds.center.z},
+    pan2:{x:cloudBounds.center.x,y:cloudBounds.center.y},zoom2:Math.min(_zV,_zH)};
+}
 function positionPts(data,nD){
   if(!pts)return;
   var emb=data.embeddings[embMethod];
@@ -2100,6 +2115,8 @@ function positionPts(data,nD){
   }
   cloudBounds.center.set(0,0,0);
   cloudBounds.radius=Math.sqrt(maxDist2)+0.5;
+  /* Compute and store per-embedding home camera from new bounds */
+  _homeCameras[embMethod]=_computeHomeCamera();
   /* Cache positions so recolor can exile/restore hidden cells */
   if(!data._cachedPos)data._cachedPos=new Float32Array(pos.length);
   data._cachedPos.set(pos);
@@ -2215,6 +2232,7 @@ function buildPts(data){
   /* Remember the "home" camera state (post-intro position) for resetView() */
   _homeCamera={theta:0.3+Math.PI,phi:1.0,radius:fullR,tgt:{x:cloudBounds.center.x,y:cloudBounds.center.y,z:cloudBounds.center.z},
     pan2:{x:cloudBounds.center.x,y:cloudBounds.center.y},zoom2:Math.min(_zV,_zH)};
+  _homeCameras={};_homeCameras["umap"]=_homeCamera;
   /* Start intro orbit animation (overridden if state is restored) */
   introAnim={startTime:performance.now(),startTheta:0.3,startRadius:introR,endRadius:fullR,duration:2800};
 }
@@ -3218,12 +3236,12 @@ function helpJump(id){
   body.scrollTop=sec.offsetTop-body.offsetTop;
 }
 function resetView(){
+  var hc=_homeCameras[embMethod]||_homeCamera;
   if(viewIs3d){
-    if(_homeCamera){
-      sph={theta:_homeCamera.theta,phi:_homeCamera.phi,radius:_homeCamera.radius};
-      tgt3.set(_homeCamera.tgt.x,_homeCamera.tgt.y,_homeCamera.tgt.z);
+    if(hc){
+      sph={theta:hc.theta,phi:hc.phi,radius:hc.radius};
+      tgt3.set(hc.tgt.x,hc.tgt.y,hc.tgt.z);
     }else{
-      /* Fallback: fit bounding sphere */
       var r=cloudBounds.radius;
       var fovRad=cam3d.fov*Math.PI/180;
       var vHalf=fovRad/2;
@@ -3233,9 +3251,9 @@ function resetView(){
       sph={theta:0.5,phi:1.0,radius:fitDist};tgt3.copy(cloudBounds.center);
     }
   }else{
-    if(_homeCamera){
-      zoom2=_homeCamera.zoom2;
-      pan2={x:_homeCamera.pan2.x,y:_homeCamera.pan2.y};
+    if(hc){
+      zoom2=hc.zoom2;
+      pan2={x:hc.pan2.x,y:hc.pan2.y};
     }else{
       var r=cloudBounds.radius;
       var a=canvasW/canvasH;
