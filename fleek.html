@@ -266,11 +266,16 @@
   #slice-body .slice-col{margin-bottom:6px;}
   #slice-body .slice-col-hdr{display:flex;align-items:center;justify-content:space-between;font-size:9px;color:var(--text2);font-weight:600;margin-bottom:2px;cursor:pointer;user-select:none;}
   #slice-body .slice-col-hdr .slice-badge{font-size:8px;color:#f59e0b;font-weight:400;margin-left:4px;}
-  #slice-body .slice-vals{display:flex;flex-wrap:wrap;gap:2px 6px;padding-left:2px;}
-  #slice-body .slice-val{display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text2);cursor:pointer;white-space:nowrap;}
-  #slice-body .slice-val input{margin:0;cursor:pointer;accent-color:#f59e0b;width:11px;height:11px;}
-  #slice-body .slice-val .sv-count{font-size:8px;color:var(--text4);}
-  #slice-body .slice-val.excluded{color:var(--text4);}
+  #slice-body .slice-vals{display:flex;flex-wrap:wrap;gap:3px 4px;padding-left:2px;}
+  /* Unified pill toggle — used for slice values AND load options */
+  .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:8.5px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;}
+  .fleek-option:hover{border-color:var(--text3);color:var(--text3);}
+  .fleek-option.active{background:rgba(245,158,11,0.12);color:#f59e0b;border-color:rgba(245,158,11,0.4);}
+  .fleek-option.active:hover{background:rgba(245,158,11,0.2);}
+  .fleek-option input[type=checkbox]{display:none;}
+  .fleek-option:has(input:checked){background:rgba(245,158,11,0.12);color:#f59e0b;border-color:rgba(245,158,11,0.4);}
+  .fleek-option:has(input:checked):hover{background:rgba(245,158,11,0.2);}
+  .fleek-option .sv-count{opacity:0.6;font-size:8px;}
   #slice-footer{font-size:9px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;}
   #slice-footer .sf-count{color:#f59e0b;font-weight:600;}
 
@@ -329,10 +334,9 @@
       <!-- Upload popover: shown after file selection, hidden after load -->
       <div id="upload-popover" style="display:none;margin-top:6px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
         <div id="upload-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
-          <input type="checkbox" id="fast-umap-toggle" checked style="margin:0;">
-          <span>QuickMap (UMAP)</span>
-          <span style="color:var(--text4);font-size:8px;">(subsample &amp; project)</span>
+        <label class="fleek-option" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
+          <input type="checkbox" id="fast-umap-toggle" checked>
+          QuickMap (UMAP)
         </label>
         <div id="fast-umap-opts" style="margin:4px 0 0 16px;">
           <div style="display:flex;align-items:center;gap:6px;">
@@ -341,15 +345,13 @@
             <span id="fast-umap-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
           </div>
         </div>
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
-          <input type="checkbox" id="fast-pacmap-toggle" checked style="margin:0;">
-          <span>QuickMap (PaCMAP)</span>
-          <span style="color:var(--text4);font-size:8px;">(subsample &amp; project)</span>
+        <label class="fleek-option" style="margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
+          <input type="checkbox" id="fast-pacmap-toggle" checked>
+          QuickMap (PaCMAP)
         </label>
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10–20× faster.">
-          <input type="checkbox" id="fast-deg-toggle" checked style="margin:0;">
-          <span>QuickDEG</span>
-          <span style="color:var(--text4);font-size:8px;">(subsample for annotation)</span>
+        <label class="fleek-option" style="margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10–20× faster.">
+          <input type="checkbox" id="fast-deg-toggle" checked>
+          QuickDEG
         </label>
         <div id="fast-deg-opts" style="margin:4px 0 0 16px;">
           <div style="display:flex;align-items:center;gap:6px;">
@@ -358,10 +360,9 @@
             <span id="fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
           </div>
         </div>
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
-          <input type="checkbox" id="backed-toggle" style="margin:0;">
-          <span>Disk-backed</span>
-          <span style="color:var(--text4);font-size:8px;">(for huge datasets)</span>
+        <label class="fleek-option" style="margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
+          <input type="checkbox" id="backed-toggle">
+          Disk-backed
         </label>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn" id="upload-go-btn" onclick="confirmUpload()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
@@ -390,22 +391,20 @@
         <div id="browse-columns" style="display:flex;overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:4px;background:var(--bg2);height:220px;scroll-snap-type:x proximity;cursor:grab;"></div>
         <div id="browse-selected" style="display:none;margin-top:6px;">
           <div id="browse-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project UMAP for large datasets.">
-            <input type="checkbox" id="browse-fast-umap" checked style="margin:0;">
-            <span>QuickMap (UMAP)</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Subsample-and-project PaCMAP for large datasets.">
-            <input type="checkbox" id="browse-fast-pacmap" checked style="margin:0;">
-            <span>QuickMap (PaCMAP)</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Subsample cells for annotation DEG.">
-            <input type="checkbox" id="browse-fast-deg" checked style="margin:0;">
-            <span>QuickDEG</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Keep expression matrix on disk.">
-            <input type="checkbox" id="browse-backed" style="margin:0;">
-            <span>Disk-backed</span>
-          </label>
+          <div style="display:flex;flex-wrap:wrap;gap:3px 4px;margin-bottom:4px;">
+            <label class="fleek-option" title="Subsample-and-project UMAP for large datasets.">
+              <input type="checkbox" id="browse-fast-umap" checked>QuickMap (UMAP)
+            </label>
+            <label class="fleek-option" title="Subsample-and-project PaCMAP for large datasets.">
+              <input type="checkbox" id="browse-fast-pacmap" checked>QuickMap (PaCMAP)
+            </label>
+            <label class="fleek-option" title="Subsample cells for annotation DEG.">
+              <input type="checkbox" id="browse-fast-deg" checked>QuickDEG
+            </label>
+            <label class="fleek-option" title="Keep expression matrix on disk.">
+              <input type="checkbox" id="browse-backed">Disk-backed
+            </label>
+          </div>
           <div style="display:flex;gap:6px;margin-top:6px;">
             <button class="btn" id="browse-load-btn" onclick="loadBrowsedFile()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
             <button class="btn" onclick="closeBrowser()" style="color:var(--text4);">Cancel</button>
@@ -1544,6 +1543,7 @@ function selToggleCellType(clusterIdx){
   var inGroup=0, total=0;
   for(var i=0;i<D.header.n_cells;i++){
     if(D.cluster_ids[i]===clusterIdx){
+      if(sliceMask&&!sliceMask[i])continue;
       total++;
       if(ag.cells.has(i))inGroup++;
     }
@@ -1551,6 +1551,7 @@ function selToggleCellType(clusterIdx){
   var adding=(inGroup<total/2);
   for(var i=0;i<D.header.n_cells;i++){
     if(D.cluster_ids[i]===clusterIdx){
+      if(sliceMask&&!sliceMask[i])continue;
       if(adding){
         for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(i);}
         ag.cells.add(i);
@@ -1571,7 +1572,7 @@ function selAllVisible(){
   if(!ag||!D)return;
   var agi=getActiveGroupIndex();
   for(var i=0;i<D.header.n_cells;i++){
-    if(visibleClusters[D.cluster_ids[i]]!==false){
+    if(visibleClusters[D.cluster_ids[i]]!==false&&!(sliceMask&&!sliceMask[i])){
       for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(i);}
       ag.cells.add(i);
       cellGroupMap[i]=agi;
@@ -1717,8 +1718,9 @@ function lassoSelect(){
   var count=0;
 
   for(var i=0;i<n;i++){
-    /* Skip hidden clusters */
+    /* Skip hidden or slice-excluded cells */
     if(visibleClusters[D.cluster_ids[i]]===false)continue;
+    if(sliceMask&&!sliceMask[i])continue;
 
     /* Project to screen */
     v.set(pos[i*3],pos[i*3+1],pos[i*3+2]);
@@ -5101,63 +5103,54 @@ function buildSlicePanel(){
     for(var j=0;j<info.categories.length;j++){
       var cat=info.categories[j];
       var cnt=info.counts[j]||0;
-      var row=document.createElement("label");
-      row.className="slice-val";
-      row.setAttribute("data-col",col);
-      row.setAttribute("data-idx",j);
-      var cb=document.createElement("input");
-      cb.type="checkbox";
-      cb.checked=true;
-      cb.setAttribute("data-col",col);
-      cb.setAttribute("data-idx",j);
-      cb.addEventListener("change",function(e){
-        var c=e.target.getAttribute("data-col");
-        var idx=parseInt(e.target.getAttribute("data-idx"));
-        if(e.target.checked){sliceFilter[c].add(idx);}else{sliceFilter[c].delete(idx);}
-        applySlice();
-      });
-      /* Alt+click: solo this value within its column (toggle solo on/off) */
-      row.addEventListener("click",function(e){
-        if(!e.altKey)return;
-        e.preventDefault();
-        var c=this.getAttribute("data-col");
-        var soloIdx=parseInt(this.getAttribute("data-idx"));
-        var cats2=D&&D.header&&D.header.obs_categories||{};
-        var n=cats2[c]?cats2[c].categories.length:0;
-        var alreadySolo=sliceFilter[c]&&sliceFilter[c].size===1&&sliceFilter[c].has(soloIdx);
-        if(alreadySolo){
-          /* un-solo: restore all values in column */
-          var s=new Set();for(var k=0;k<n;k++)s.add(k);
-          sliceFilter[c]=s;
-        }else{
-          sliceFilter[c]=new Set([soloIdx]);
-        }
-        /* sync checkboxes in this column */
-        var colDiv=document.querySelector('#slice-body .slice-col[data-col="'+c+'"]');
-        if(colDiv){
-          var cbs=colDiv.querySelectorAll('input[type="checkbox"]');
-          for(var ci=0;ci<cbs.length;ci++){
-            cbs[ci].checked=sliceFilter[c].has(parseInt(cbs[ci].getAttribute("data-idx")));
-          }
-        }
-        applySlice();
-      });
-      row.title="Click to toggle \u2022 Alt+click to solo";
-      row.appendChild(cb);
-      var span=document.createElement("span");
-      span.textContent=cat;
-      row.appendChild(span);
+      var pill=document.createElement("span");
+      pill.className="fleek-option active";
+      pill.setAttribute("data-col",col);
+      pill.setAttribute("data-idx",j);
+      pill.title="Click to toggle \u2022 Alt+click to solo";
+      pill.textContent=cat;
       var cspan=document.createElement("span");
       cspan.className="sv-count";
       cspan.textContent="("+cnt.toLocaleString()+")";
-      row.appendChild(cspan);
-      vals.appendChild(row);
+      pill.appendChild(cspan);
+      pill.addEventListener("click",function(e){
+        var c=this.getAttribute("data-col");
+        var idx=parseInt(this.getAttribute("data-idx"));
+        if(e.altKey){
+          /* Solo: only this value active in column, or restore all if already solo */
+          var cats2=D&&D.header&&D.header.obs_categories||{};
+          var n=cats2[c]?cats2[c].categories.length:0;
+          var alreadySolo=sliceFilter[c]&&sliceFilter[c].size===1&&sliceFilter[c].has(idx);
+          if(alreadySolo){var s=new Set();for(var k=0;k<n;k++)s.add(k);sliceFilter[c]=s;}
+          else{sliceFilter[c]=new Set([idx]);}
+        }else{
+          /* Toggle this value */
+          if(sliceFilter[c].has(idx)){sliceFilter[c].delete(idx);}
+          else{sliceFilter[c].add(idx);}
+        }
+        _syncSlicePills(c);
+        applySlice();
+      });
+      vals.appendChild(pill);
     }
     div.appendChild(vals);
     body.appendChild(div);
   }
   if(footer)body.appendChild(footer);
   _updateSliceUI();
+}
+
+function _syncSlicePills(onlyCol){
+  /* Update .active class on all slice pills to match sliceFilter state */
+  var body=document.getElementById("slice-body");
+  if(!body)return;
+  var pills=body.querySelectorAll(".fleek-option[data-col]");
+  for(var i=0;i<pills.length;i++){
+    var c=pills[i].getAttribute("data-col");
+    if(onlyCol&&c!==onlyCol)continue;
+    var idx=parseInt(pills[i].getAttribute("data-idx"));
+    pills[i].classList.toggle("active",!sliceFilter[c]||sliceFilter[c].has(idx));
+  }
 }
 
 function applySlice(){
@@ -5186,6 +5179,7 @@ function applySlice(){
     }
   }
   recolor();
+  _syncSlicePills();
   _updateSliceUI();
   _saveSliceState();
 }
@@ -5201,9 +5195,7 @@ function resetSlice(){
     for(var j=0;j<n;j++)sliceFilter[col].add(j);
   }
   sliceMask=null;
-  /* Reset checkboxes */
-  var cbs=document.querySelectorAll("#slice-body input[type=checkbox]");
-  for(var i=0;i<cbs.length;i++)cbs[i].checked=true;
+  _syncSlicePills();
   recolor();
   _updateSliceUI();
   _saveSliceState();
@@ -5253,14 +5245,9 @@ function _restoreSliceState(){
     for(var col in state){
       if(!cats[col]||!sliceFilter[col])continue;
       sliceFilter[col]=new Set(state[col]);
-      /* Sync checkboxes */
-      var cbs=document.querySelectorAll('#slice-body input[data-col="'+col+'"]');
-      for(var i=0;i<cbs.length;i++){
-        var idx=parseInt(cbs[i].getAttribute("data-idx"));
-        cbs[i].checked=sliceFilter[col].has(idx);
-      }
       if(sliceFilter[col].size<cats[col].categories.length)changed=true;
     }
+    _syncSlicePills();
     if(changed)applySlice();else _updateSliceUI();
   }catch(e){}
 }
