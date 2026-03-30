@@ -336,7 +336,24 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
 
 # ── LLM-based cell type annotation ──
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+def _load_api_key():
+    """Load Anthropic API key from env var or ~/.fleek.env file.
+    Env var takes priority. ~/.fleek.env should be chmod 600."""
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if key:
+        return key
+    env_path = Path.home() / ".fleek.env"
+    if env_path.exists():
+        try:
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("ANTHROPIC_API_KEY=") and not line.startswith("#"):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+    return ""
+
+ANTHROPIC_API_KEY = _load_api_key()
 
 # ── Shared DEG cache (used by both marker and LLM annotation) ──
 _DEG_CACHE = {"key": None, "cluster_genes": None, "small_clusters": None}
@@ -493,7 +510,7 @@ def annotate_clusters_llm(top_n=30, test="wilcoxon", tissue_hint=""):
     import urllib.error
 
     if not ANTHROPIC_API_KEY:
-        return {"error": "No API key. Set ANTHROPIC_API_KEY environment variable or pass --api-key."}
+        return {"error": "No API key. Set ANTHROPIC_API_KEY env var or add it to ~/.fleek.env."}
 
     if ADATA is None:
         return {"error": "No dataset loaded"}
@@ -1895,6 +1912,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_embedding(params.get("method", [""])[0])
         elif path == "/api/browse":
             self._serve_browse(params.get("path", [""])[0])
+        elif path == "/api/key-status":
+            self._serve_key_status()
         elif path == "/api/complete":
             self._serve_complete(params.get("partial", [""])[0])
         elif path == "/api/gene-var":
@@ -1933,6 +1952,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_clear_cache(req)
         elif path == "/api/cache-settings":
             self._serve_cache_settings(req)
+        elif path == "/api/set-key":
+            self._serve_set_key(req)
         else:
             self.send_error(404)
 
@@ -2367,7 +2388,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
         """Run cell type annotation using Claude LLM."""
         try:
             if not ANTHROPIC_API_KEY:
-                raise ValueError("No API key configured. Start server with --api-key sk-ant-... or set ANTHROPIC_API_KEY env var.")
+                raise ValueError("No API key configured. Set ANTHROPIC_API_KEY env var or add it to ~/.fleek.env.")
             top_n = req.get("top_n", 30)
             tissue = req.get("tissue", "")
             result = annotate_clusters_llm(top_n=top_n, tissue_hint=tissue)
@@ -2473,11 +2494,50 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(err)
 
+    def _serve_key_status(self):
+        """Return whether an API key is currently loaded (never the key itself)."""
+        result = json.dumps({"has_key": bool(ANTHROPIC_API_KEY)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
+    def _serve_set_key(self, req):
+        """Save a new Anthropic API key to ~/.fleek.env and reload it in memory."""
+        global ANTHROPIC_API_KEY
+        try:
+            key = req.get("key", "").strip()
+            if not key:
+                raise ValueError("Key is empty.")
+            if not key.startswith("sk-ant-"):
+                raise ValueError("Key doesn't look like an Anthropic key (expected sk-ant-...).")
+            env_path = Path.home() / ".fleek.env"
+            # Preserve any other lines in the file
+            lines = []
+            if env_path.exists():
+                for line in env_path.read_text().splitlines():
+                    if not line.strip().startswith("ANTHROPIC_API_KEY="):
+                        lines.append(line)
+            lines.append(f"ANTHROPIC_API_KEY={key}")
+            env_path.write_text("\n".join(lines) + "\n")
+            env_path.chmod(0o600)
+            ANTHROPIC_API_KEY = key
+            print("  Claude API key updated via settings UI.")
+            result = json.dumps({"ok": True}).encode("utf-8")
+        except Exception as e:
+            result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
     def _serve_lineage(self, req):
         """Construct a developmental lineage tree for the current cell types using Claude."""
         try:
             if not ANTHROPIC_API_KEY:
-                raise ValueError("No API key configured. Start server with --api-key sk-ant-... or set ANTHROPIC_API_KEY env var.")
+                raise ValueError("No API key configured. Set ANTHROPIC_API_KEY env var or add it to ~/.fleek.env.")
             if ADATA is None or CLUSTER_NAMES is None:
                 raise ValueError("No dataset loaded")
 
@@ -2932,8 +2992,6 @@ def main():
                         help="Number of cells for UMAP subsample (default: 50000)")
     parser.add_argument("--backed", type=str, default="off", choices=["auto", "on", "off"],
                         help="Backed mode: auto (detect), on (force disk), off (force RAM, default)")
-    parser.add_argument("--api-key", type=str, default="",
-                        help="Anthropic API key for Claude cell type annotation (or set ANTHROPIC_API_KEY)")
     parser.add_argument("--cache-mode", type=str, default="dataset", choices=["dataset", "server"],
                         help="Where to store caches: 'dataset' (alongside h5ad, default) or 'server' (~/.fleek_cache)")
     parser.add_argument("--cache-dir", type=str, default=None,
@@ -2941,10 +2999,6 @@ def main():
     parser.add_argument("--no-browser", action="store_true",
                         help="Don't auto-open browser (useful for remote/SSH sessions)")
     args = parser.parse_args()
-
-    if args.api_key:
-        global ANTHROPIC_API_KEY
-        ANTHROPIC_API_KEY = args.api_key
 
     global CACHE_MODE, CACHE_DIR
     CACHE_MODE = args.cache_mode
@@ -2967,6 +3021,8 @@ def main():
         print(f"  {N_CELLS:,} cells · {len(CLUSTER_NAMES)} types · {len(GENE_NAMES_LIST):,} genes")
     else:
         print(f"  No dataset loaded — upload via browser")
+    key_status = "loaded" if ANTHROPIC_API_KEY else "not set (Claude annotation disabled)"
+    print(f"  Claude API key: {key_status}")
     print(f"{'='*50}\n")
 
     # Try to open browser (skip if --no-browser, or if running over SSH)
