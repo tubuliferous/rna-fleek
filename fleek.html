@@ -1436,8 +1436,8 @@ function cc(id){
 }
 function ec(v){
   if(document.body.classList.contains("light")){
-    /* Blues sequential: near-white → navy (light mode) */
-    if(v<.01)return[.97,.98,1];
+    /* Blues sequential: white → navy (light mode) */
+    if(v<.01)return[1,1,1];
     if(v<.25){var t=v/.25;return[.97-t*.19,.98-t*.12,1-.06*t];}
     if(v<.5){var t=(v-.25)/.25;return[.78-t*.36,.86-t*.18,.94-t*.10];}
     if(v<.75){var t=(v-.5)/.25;return[.42-t*.29,.68-t*.24,.84-t*.13];}
@@ -1924,17 +1924,26 @@ var highlightMode="ring"; /* "fill" or "ring" */
 var bgDimPct=0; /* 0-100: how much non-selected cells are dimmed */
 var _hadSelection=false; /* tracks whether selections existed last recolor */
 
-function makeCircleTexture(){
+function makeCircleTexture(light){
   var sz=128;
   var c2=document.createElement("canvas");
   c2.width=sz;c2.height=sz;
   var ctx=c2.getContext("2d");
   var r=sz/2;
   var grad=ctx.createRadialGradient(r,r,0,r,r,r);
-  grad.addColorStop(0,"rgba(255,255,255,1)");
-  grad.addColorStop(0.7,"rgba(255,255,255,1)");
-  grad.addColorStop(0.9,"rgba(255,255,255,0.6)");
-  grad.addColorStop(1,"rgba(255,255,255,0)");
+  if(light){
+    /* Light mode: sharp edge, minimal fringe so zero-expression cells stay clean */
+    grad.addColorStop(0,"rgba(255,255,255,1)");
+    grad.addColorStop(0.75,"rgba(255,255,255,1)");
+    grad.addColorStop(0.92,"rgba(255,255,255,0.4)");
+    grad.addColorStop(1,"rgba(255,255,255,0)");
+  }else{
+    /* Dark mode: softer glow edge */
+    grad.addColorStop(0,"rgba(255,255,255,1)");
+    grad.addColorStop(0.7,"rgba(255,255,255,1)");
+    grad.addColorStop(0.9,"rgba(255,255,255,0.6)");
+    grad.addColorStop(1,"rgba(255,255,255,0)");
+  }
   ctx.fillStyle=grad;
   ctx.fillRect(0,0,sz,sz);
   var tex=new THREE.CanvasTexture(c2);
@@ -2096,7 +2105,7 @@ function buildPts(data){
   var geo=new THREE.BufferGeometry();
   geo.setAttribute("position",new THREE.BufferAttribute(pos,3));
   geo.setAttribute("color",new THREE.BufferAttribute(col,3));
-  if(!circleTexture)circleTexture=makeCircleTexture();
+  circleTexture=makeCircleTexture(document.body.classList.contains("light"));
   /* Auto-scale point size: slider 1-100, actual size computed per-frame in animate().
      Default position depends on cell count — fewer cells = bigger points. */
   var autoSlider=n<5000?70:n<20000?55:n<50000?45:n<200000?35:n<500000?25:18;
@@ -5903,6 +5912,12 @@ function applyTheme(t){
   if(degData)setTimeout(renderVolcano,50);
   /* Update pivot cross color */
   if(pivotMarker)pivotMarker.material.color.set(t==="light"?0x333333:0xffffff);
+  /* Regenerate circle texture for theme (light = sharper edge, less halo) */
+  if(pts){
+    circleTexture=makeCircleTexture(t==="light");
+    pts.material.map=circleTexture;
+    pts.material.needsUpdate=true;
+  }
   /* Update point cloud colors for theme */
   recolor();
 }
