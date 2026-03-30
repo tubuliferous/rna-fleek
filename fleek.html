@@ -2114,7 +2114,7 @@ function buildPts(data){
   document.getElementById("pt-size").value=autoSlider;
   document.getElementById("pt-opacity").value=autoOpacity;
   var _isLight=document.body.classList.contains("light");
-  var mat=new THREE.PointsMaterial({size:1,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:autoOpacity,depthWrite:true,map:circleTexture,alphaTest:_isLight?0.5:0.05});
+  var mat=new THREE.PointsMaterial({size:1,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:autoOpacity,depthWrite:!_isLight,map:circleTexture,alphaTest:_isLight?0.5:0.05});
   pts=new THREE.Points(geo,mat);
   scene.add(pts);
   /* Ring highlight layer — same number of points, initially hidden */
@@ -5918,6 +5918,7 @@ function applyTheme(t){
     circleTexture=makeCircleTexture(t==="light");
     pts.material.map=circleTexture;
     pts.material.alphaTest=t==="light"?0.5:0.05;
+    pts.material.depthWrite=t!=="light";
     pts.material.needsUpdate=true;
   }
   /* Update point cloud colors for theme */
