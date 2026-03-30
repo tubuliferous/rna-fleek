@@ -1,0 +1,167 @@
+# RNA-FLEEK: Fast Lightweight Expression Exploration Kit
+
+## Project Overview
+
+RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool. It consists of:
+
+- **`fleek.html`** — Single-file frontend (~6000 lines). Three.js WebGL renderer for 2D/3D point clouds of cells. All JS is inline inside `<script>` tags. No build system, no framework.
+- **`fleek_server.py`** — Python HTTP server (~3000 lines). Loads h5ad files, computes embeddings (UMAP/PCA/PaCMAP), DEG, clustering, serves binary data to the client.
+- **Utility scripts**: `download_census.py`, `preprocess_census.py`, `download_markers.py`
+- **GitHub repo**: `tubuliferous/rna-fleek`
+
+## Architecture
+
+### Frontend (`fleek.html`)
+- Single HTML file with inline CSS (`<style>`) and JS (`<script>`)
+- Three.js r128 from CDN for WebGL rendering
+- Binary protocol (SCRN format) for initial data transfer
+- Virtual scrolling for gene variability list and cell type list
+- Session state persistence via `sessionStorage`
+- All UI in a left sidebar; canvas fills remaining space
+
+### Server (`fleek_server.py`)
+- stdlib `http.server` with `ThreadingMixIn` — no Flask/FastAPI
+- Loads h5ad via anndata/scanpy
+- Binary SCRN format for init payload (header JSON + float32/int32 arrays)
+- Background threads for CSC index building, gene variability scoring
+- API endpoints return JSON (annotations, search, DEG) or binary (init, gene expression, embeddings)
+
+### API Endpoints
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/init` | GET | Initial binary payload (cells, clusters, embeddings) |
+| `/api/gene` | POST | Gene expression values (float32 binary) |
+| `/api/search` | POST | Gene name search |
+| `/api/gene-var` | POST | Gene variability ranked list |
+| `/api/load` | POST | Load a new h5ad file |
+| `/api/annotate` | POST | Marker DB cell type annotation |
+| `/api/annotate-llm` | POST | Claude AI cell type annotation |
+| `/api/lineage` | POST | Developmental lineage tree via Claude |
+| `/api/embedding` | POST | Fetch specific embedding |
+| `/api/compute-embedding` | POST | Trigger UMAP/PaCMAP computation |
+| `/api/export` | POST | Export h5ad subset |
+| `/api/browse` | POST | File browser for server filesystem |
+| `/api/clear-cache` | POST | Delete specific cache file |
+| `/api/cache-settings` | POST | Get/set cache location mode |
+| `/api/progress` | GET | Polling for load/compute progress |
+| `/api/abort` | POST | Cancel in-progress operation |
+| `/api/unload` | POST | Free dataset from memory |
+
+## Critical Conventions
+
+### SVG in `<script>` blocks
+**ALL closing HTML tags inside `<script>` must be escaped.** The HTML parser sees `</` followed by a letter as a potential end tag, which prematurely terminates the script block — silently breaking all JS that follows (Three.js controls, rendering, highlights, everything).
+
+```javascript
+// WRONG — breaks the script parser:
+var icon = '<svg ...></svg>';
+
+// CORRECT:
+var icon = '<svg ...><\/svg>';
+```
+
+This applies to `</svg>`, `</button>`, `</div>`, `</span>`, etc. After any edit that adds HTML strings inside JS, verify with:
+```bash
+python3 -c "
+import re
+with open('fleek.html') as f: c=f.read()
+s=c.find('<script>')+8; e=c.find('</script>',s)
+print(len(re.findall(r'(?<!\\\\)</(svg|button|div|span)', c[s:e])), 'unescaped tags')
+"
+```
+
+### Virtual Scrolling Pattern
+Both the gene variability list and cell type list use virtual scrolling:
+- A **spacer div** sets total height (`height: rowCount * rowHeight`)
+- A **viewport div** (position:absolute inside spacer) contains only visible rows
+- **onscroll handler** calculates visible range and re-renders only those rows
+- **Range caching** (`_lastStart`/`_lastEnd`) skips re-render if range unchanged
+- **clientHeight=0 fallback**: When container is just un-hidden, `clientHeight` may be 0. Use a fallback value (280px for cell types, 200px for genes)
+
+Gene list: fixed 18px row height, simple `floor(scrollTop/rowH)` math.
+Cell type list: variable heights (24px base + 16px per annotation line), pre-computed cumulative Y positions, binary search for visible range.
+
+### Cache System
+Two modes controlled by `CACHE_MODE` global:
+- **"dataset"**: Caches stored alongside .h5ad file (default)
+- **"server"**: Caches stored in `~/.fleek_cache/` (or `--cache-dir`)
+
+Always use the helper functions:
+- `_cache_read_path(suffix)` — returns `(path, writable)` or `(None, False)`. Checks dataset dir first, then server dir.
+- `_cache_write_path(suffix)` — returns best writable path. In dataset mode, tries dataset dir, falls back to server dir if not writable.
+- **Never** use `Path(LOADED_PATH).with_suffix(suffix)` directly.
+
+Cache suffixes:
+- `.fleek_cache.npz` — UMAP, PCA, PaCMAP, Leiden (numpy arrays)
+- `.csc_cache.npz` — Sparse column index for fast gene lookup
+- `.annot_markers.json` — Marker DB annotations
+- `.annot_llm.json` — Claude annotations
+- `.annot_lineage.json` — Developmental lineage tree
+
+### Memory Safety (Large Datasets)
+The DEG computation path must **subsample BEFORE copying**. On a 1.6M × 61K dataset, copying the full adata for normalization doubles memory and triggers OOM kill. The pattern is:
+1. Compute valid/small clusters on indices only (no copy)
+2. Build stratified subsample on indices only (~50k cells)
+3. `adata[use_idx].copy()` — copy only the small subset
+4. Normalize in-place on the small copy
+5. Run DEG on the small copy
+
+### Lineage Tree
+- Empty clusters (0 cells) are **excluded** from the lineage prompt — sending hundreds of empty clusters wastes tokens and can cause truncation
+- `max_tokens` is 16384, timeout is 300s
+- Check `stop_reason == "max_tokens"` for truncation detection
+- Lineage validation only checks non-empty cluster_ids
+
+### Cell Type List Interactions
+Both flat list and lineage tree should have consistent modifier key behavior:
+- **Click**: Toggle visibility
+- **Alt+click**: Solo/unsolo (saves & restores previous visibility state)
+- **Shift+click**: Select cells into active group
+- **Alt+Shift+click**: Select only this node's direct clusters (lineage only)
+
+In lineage view:
+- **Caret (▸/▾) click**: Collapse/expand branch (NOT the name)
+- **Name/dot click**: Toggle visibility (same behavior)
+- Children sort by current `typeSortMode` (alpha or count)
+
+### UI Conventions
+- Empty clusters: hidden behind collapsed "▸ N empty clusters" toggle
+- Selection group badges: eye icon + visible count, slashed-eye + hidden count
+- Cache badges: grouped under "techniques" (dashed border, non-deletable) and "caches" (solid border, deletable with × on hover)
+- Hint bar: centered bottom of canvas (`left:50%; transform:translateX(-50%)`)
+- Load time: persisted in `sessionStorage` as `fleek_infoText`, survives page refresh
+- Double-click on cell: center + zoom to 35% of cloud radius (fixed distance every time)
+
+### Gene Variability
+Two-stage locally standardized trend residual:
+1. **Stage 1**: Fit polynomial to log(mean) vs log(Fano) trend
+2. **Stage 2**: Fit scatter envelope |residual| vs expression to get local sigma
+3. **Score**: z = raw_residual / max(local_sigma, 0.1)
+
+Red-flagged genes: bitmask (bit 0: no expression, bit 1: low mean, bit 2: high mean, bit 3: low fraction)
+
+## Testing
+
+```bash
+# Start server
+python fleek_server.py path/to/data.h5ad --port 8080 --api-key sk-ant-...
+
+# With options
+python fleek_server.py data.h5ad --host 0.0.0.0 --port 8080 --cache-mode server --no-browser
+
+# Quick validation
+python3 -c "import ast; ast.parse(open('fleek_server.py').read()); print('Server syntax OK')"
+```
+
+After editing `fleek.html`, always verify:
+1. Script tags balanced: `grep -c '<script' fleek.html` should equal `grep -c '</script>' fleek.html`
+2. No unescaped closing tags in script (see SVG section above)
+3. Server syntax: `python3 -c "import ast; ast.parse(open('fleek_server.py').read())"`
+
+## Pending Features / Known Issues
+- Gene Ontology tagging system (download_go.py, gene-to-GO mappings, search integration)
+- Gene set analysis (GSEA/pathway scoring)
+- PLY export for Blender
+- Tissue hint input for Claude annotation
+- README needs updating with all new features
+- Git commit needed for latest changes
