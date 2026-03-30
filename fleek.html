@@ -1420,7 +1420,7 @@ function initDragScroll(el){
     /* Only on empty space — skip buttons, inputs, links, selects */
     var tag=e.target.tagName;
     if(tag==="BUTTON"||tag==="INPUT"||tag==="SELECT"||tag==="A"||tag==="TEXTAREA")return;
-    if(e.target.closest("button,input,select,a,.sg-dot,.sg-del,.icon-btn,.leg-item,.gbtn"))return;
+    if(e.target.closest("button,input,select,a,.sg-dot,.sg-del,.icon-btn,.leg-item,.gbtn,#gv-viewport,[onclick]"))return;
     if(e.button!==0)return;
     ds.active=true;ds.startY=e.clientY;ds.scrollStart=el.scrollTop;
     el.style.cursor="grabbing";
@@ -3213,7 +3213,13 @@ function toggleSidebar(){
 }
 function setPtOpacity(v){
   if(!pts)return;
-  pts.material.opacity=parseFloat(v);
+  var op=parseFloat(v);
+  pts.material.opacity=op;
+  /* In light mode, alphaTest must stay below opacity or cells vanish */
+  if(document.body.classList.contains("light")){
+    pts.material.alphaTest=Math.min(0.5,op*0.5);
+    pts.material.needsUpdate=true;
+  }
   saveState();
 }
 function setBgDim(v){
