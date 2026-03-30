@@ -2480,6 +2480,7 @@ function setupCtrl(){
       else if(e.button===0)dragging=true;
       else if(e.button===2)panning=true;
       _dragDist=0; /* track total movement before showing pivot */
+      if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
     }
     else{dragging=true;}
     prev={x:e.clientX,y:e.clientY};
@@ -2573,6 +2574,7 @@ function setupCtrl(){
   var wheelSaveTimer=null;
   cv.addEventListener("wheel",function(e){e.preventDefault();
     introAnim=null;
+    if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
     /* Scale zoom speed with scroll magnitude (acceleration) */
     var absD=Math.min(Math.abs(e.deltaY),150);
     var speed=1+0.002*absD; /* 1.01 at tiny scroll, 1.3 at fast flick */
