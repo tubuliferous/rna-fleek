@@ -4129,6 +4129,7 @@ var _browseNavigation=false;
 var _browseColumns=[]; /* [{path, entries, selectedIdx},...] */
 var _browseDblPath=""; /* path of last-clicked file for double-click detection */
 var _browseDblTime=0;
+var _browsePollTimer=null; /* interval ID for live directory refresh */
 
 function openBrowser(){
   _ensureDataExpanded();
@@ -4138,12 +4139,55 @@ function openBrowser(){
   pop.style.display="block";
   _browseColumns=[];
   _browseGoTo("");
+  _browsePollStart();
 }
 
 function closeBrowser(){
   document.getElementById("browse-popover").style.display="none";
   document.getElementById("browse-selected").style.display="none";
   _browseSelectedPath="";
+  _browsePollStop();
+}
+
+function _browsePollStart(){
+  _browsePollStop();
+  _browsePollTimer=setInterval(_browsePollRefresh,3000);
+}
+function _browsePollStop(){
+  if(_browsePollTimer){clearInterval(_browsePollTimer);_browsePollTimer=null;}
+}
+function _browsePollRefresh(){
+  /* Silently re-fetch all visible columns; re-render only if entries changed */
+  if(!_browseColumns.length)return;
+  var pending=_browseColumns.length;
+  for(var ci=0;ci<_browseColumns.length;ci++){
+    (function(idx){
+      var col=_browseColumns[idx];
+      fetch("/api/browse?path="+encodeURIComponent(col.path))
+      .then(function(r){return r.json();})
+      .then(function(data){
+        if(data.error)return;
+        /* Compare entry names to detect changes */
+        var oldNames=col.entries.map(function(e){return e.name+"|"+e.type;}).join("\n");
+        var newNames=data.entries.map(function(e){return e.name+"|"+e.type;}).join("\n");
+        if(oldNames!==newNames){
+          col.entries=data.entries;
+          /* Preserve selectedIdx if the selected entry still exists */
+          if(col.selectedIdx>=0){
+            var selPath=null;
+            if(col.selectedIdx<_browseColumns.length-1&&_browseColumns[idx+1])selPath=_browseColumns[idx+1].path;
+            col.selectedIdx=-1;
+            if(selPath){
+              for(var i=0;i<data.entries.length;i++){
+                if(data.entries[i].path===selPath){col.selectedIdx=i;break;}
+              }
+            }
+          }
+          _renderAllColumns();
+        }
+      }).catch(function(){});
+    })(ci);
+  }
 }
 
 function _browseGoTo(path){
