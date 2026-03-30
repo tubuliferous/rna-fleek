@@ -2442,7 +2442,11 @@ class FleekHandler(SimpleHTTPRequestHandler):
         if not q:
             matches = []
         else:
-            matches = [g for g in GENE_NAMES_LIST if q in g.upper()][:50]
+            # Exact matches first, then prefix, then substring
+            exact = [g for g in GENE_NAMES_LIST if g.upper() == q]
+            prefix = [g for g in GENE_NAMES_LIST if g.upper().startswith(q) and g.upper() != q]
+            substr = [g for g in GENE_NAMES_LIST if q in g.upper() and not g.upper().startswith(q)]
+            matches = (exact + prefix + substr)[:50]
         data = json.dumps(matches).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")

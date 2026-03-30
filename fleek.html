@@ -2970,7 +2970,18 @@ function loadGene(name){
       recolor();
       showRecentGenes();
     })
-    .catch(function(err){document.getElementById("gene-loading").style.display="none";console.error(err);});
+    .catch(function(err){
+      document.getElementById("gene-loading").style.display="none";
+      console.error(err);
+      /* Gene not found — revert to cluster mode so view doesn't stay blank */
+      if(selGene===name&&!geneExprCache[name]){
+        selGene=null;mode="cluster";
+        document.getElementById("bc").className="btn on";
+        document.getElementById("bg").className="btn";
+        document.getElementById("expr-legend").style.display="none";
+        recolor();
+      }
+    });
 }
 
 function searchGenes(){
@@ -3174,9 +3185,13 @@ function pickGene(g){
   mode="gene";
   document.getElementById("bc").className="btn";
   document.getElementById("bg").className="btn on";
-  document.getElementById("gene-sec").style.display="block";
+  /* Expand gene section if collapsed */
+  var gsec=document.getElementById("gene-sec");
+  if(gsec&&gsec.classList.contains("collapsed"))gsec.classList.remove("collapsed");
   document.getElementById("expr-legend").style.display="block";
   _updateGeneCollapsedName();
+  /* If already cached, recolor immediately before loadGene */
+  if(geneExprCache[g])recolor();
   loadGene(g);
   saveState();
 }
