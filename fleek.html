@@ -5077,8 +5077,9 @@ function buildSlicePanel(){
     sliceFilter[col]=s;
   }
   sliceMask=null;
-  /* Build HTML */
+  /* Build HTML — detach footer first so innerHTML="" doesn't destroy it */
   var footer=document.getElementById("slice-footer");
+  if(footer&&footer.parentNode)footer.parentNode.removeChild(footer);
   body.innerHTML="";
   for(var i=0;i<cols.length;i++){
     var col=cols[i];
@@ -5121,9 +5122,9 @@ function buildSlicePanel(){
       vals.appendChild(row);
     }
     div.appendChild(vals);
-    body.insertBefore(div,footer);
+    body.appendChild(div);
   }
-  body.appendChild(footer);
+  if(footer)body.appendChild(footer);
   _updateSliceUI();
 }
 
