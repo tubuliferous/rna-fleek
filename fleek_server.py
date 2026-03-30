@@ -1978,26 +1978,29 @@ def export_h5ad_subset(cell_indices, group_name):
         sub = sub.copy()
 
     # ── Embed sliced embeddings so the subset loads without recomputing ──
+    # N_CELLS is the size of the currently loaded dataset; all global embedding
+    # arrays must match it, so we use it as the sanity check.
     idx = np.asarray(cell_indices)
+    _nc = N_CELLS  # capture once
 
-    # UMAP: store 3D if available (obsm fallback uses [:, :2] / [:, :3])
-    if UMAP_3D is not None and UMAP_3D.shape[0] == len(CLUSTER_IDS or []):
+    # UMAP: store 3D if available (obsm fallback slices [:, :2] / [:, :3])
+    if UMAP_3D is not None and UMAP_3D.shape[0] == _nc:
         sub.obsm["X_umap"] = UMAP_3D[idx]
-    elif UMAP_2D is not None and UMAP_2D.shape[0] == len(CLUSTER_IDS or []):
+    elif UMAP_2D is not None and UMAP_2D.shape[0] == _nc:
         sub.obsm["X_umap"] = UMAP_2D[idx]
 
     # PaCMAP: same strategy
-    if PACMAP_3D is not None and PACMAP_3D.shape[0] == len(CLUSTER_IDS or []):
+    if PACMAP_3D is not None and PACMAP_3D.shape[0] == _nc:
         sub.obsm["X_pacmap"] = PACMAP_3D[idx]
-    elif PACMAP_2D is not None and PACMAP_2D.shape[0] == len(CLUSTER_IDS or []):
+    elif PACMAP_2D is not None and PACMAP_2D.shape[0] == _nc:
         sub.obsm["X_pacmap"] = PACMAP_2D[idx]
 
     # PCA: adata.obsm["X_pca"] is already preserved by copy() if it was set,
     # but if it only lived in the cache (not obsm), add it now.
     if "X_pca" not in sub.obsm:
-        if PCA_3D is not None and PCA_3D.shape[0] == len(CLUSTER_IDS or []):
+        if PCA_3D is not None and PCA_3D.shape[0] == _nc:
             sub.obsm["X_pca"] = PCA_3D[idx]
-        elif PCA_2D is not None and PCA_2D.shape[0] == len(CLUSTER_IDS or []):
+        elif PCA_2D is not None and PCA_2D.shape[0] == _nc:
             sub.obsm["X_pca"] = PCA_2D[idx]
 
     n_emb = sum(k in sub.obsm for k in ("X_umap", "X_pacmap", "X_pca"))
