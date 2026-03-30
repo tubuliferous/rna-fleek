@@ -967,10 +967,13 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     if _cluster_col_used:
         _uns_colors = adata.uns.get(f"{_cluster_col_used}_colors", [])
     # Also check "fleek_colors" written by our own export
-    if not _uns_colors:
+    _uns_colors_raw = _uns_colors if not isinstance(_uns_colors, np.ndarray) else _uns_colors.tolist()
+    if not _uns_colors_raw:
         _uns_colors = adata.uns.get("fleek_colors", [])
     if isinstance(_uns_colors, np.ndarray):
         _uns_colors = _uns_colors.tolist()
+    elif not isinstance(_uns_colors, list):
+        _uns_colors = list(_uns_colors) if _uns_colors else []
     if len(_uns_colors) == len(CLUSTER_NAMES):
         CLUSTER_COLORS = [str(c) for c in _uns_colors]
     else:
