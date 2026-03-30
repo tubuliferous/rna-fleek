@@ -1935,14 +1935,19 @@ function makeCircleTexture(light){
     /* Light mode: solid filled circle, no gradient at all.
        Canvas arc gives a binary alpha boundary — no semi-transparent
        fringe pixels to accumulate into gray when zoomed out. */
-    ctx.fillStyle="#fff";
-    ctx.beginPath();
-    ctx.arc(r,r,r*0.82,0,Math.PI*2);
-    ctx.fill();
+    /* Solid core with a subtle soft edge — visible only when zoomed in.
+       NearestFilter on minification (zoomed out) samples the binary core,
+       LinearFilter on magnification (zoomed in) interpolates the edge. */
+    grad.addColorStop(0,"rgba(255,255,255,1)");
+    grad.addColorStop(0.72,"rgba(255,255,255,1)");
+    grad.addColorStop(0.88,"rgba(255,255,255,0.3)");
+    grad.addColorStop(1,"rgba(255,255,255,0)");
+    ctx.fillStyle=grad;
+    ctx.fillRect(0,0,sz,sz);
     var tex=new THREE.CanvasTexture(c2);
     tex.generateMipmaps=false;
     tex.minFilter=THREE.NearestFilter;
-    tex.magFilter=THREE.NearestFilter;
+    tex.magFilter=THREE.LinearFilter;
     tex.needsUpdate=true;
     return tex;
   }else{
