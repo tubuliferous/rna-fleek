@@ -926,8 +926,8 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         import json as _json
         CLUSTER_NAMES = _json.loads(cached["leiden_names"].tobytes().decode("utf-8"))
         print(f"  Leiden clusters loaded from cache ({len(CLUSTER_NAMES)} clusters)")
-    else:
-        # Run leiden clustering
+    elif _cluster_col_used is None:
+        # Run leiden clustering — only when no obs column or cached result was found
         print("  No cell_type or leiden found, computing clusters...")
         _progress("Computing clusters (PCA + neighbors + leiden)...", 15)
         if "neighbors" not in adata.uns or "connectivities" not in adata.obsp:
