@@ -60,6 +60,7 @@ HVG_NAMES = []  # ordered list of HVG names for the client
 HVG_VAR = {}    # gene_name -> variance (for tooltip/list display)
 ALL_GENE_VAR = None  # numpy array of variance for all genes (computed in background)
 ALL_GENE_VAR_METRIC = "dispersions_norm"  # metric name for client display
+GENE_CUTOFF_FLAG = None  # int8 bitmask: 1=not expressed, 2=low mean, 4=high mean, 8=low fraction
 GENE_INDEX = {}  # gene_name -> column index
 CSC_BUILDING = False  # True while background CSC build is running
 CSC_CACHED = False    # True if CSC was loaded from cache
@@ -328,15 +329,23 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         else:
             adata_work = adata
 
-        # Filter out clusters with too few cells
+        # Filter out clusters with too few cells (including empty clusters with 0 cells)
         cluster_counts = Counter(adata_work.obs["fleek_cluster"])
+        # Explicitly include clusters with 0 cells (not in Counter)
+        for cname in CLUSTER_NAMES:
+            if cname not in cluster_counts:
+                cluster_counts[cname] = 0
         valid_clusters = {c for c, n in cluster_counts.items() if n >= 5}
         small_clusters = {c for c, n in cluster_counts.items() if n < 5}
         if small_clusters:
-            print(f"  Skipping {len(small_clusters)} clusters with <5 cells")
+            print(f"  Skipping {len(small_clusters)} clusters with <5 cells ({sum(1 for c,n in cluster_counts.items() if n==0)} empty)")
 
         mask = adata_work.obs["fleek_cluster"].isin(valid_clusters)
         adata_deg = adata_work[mask].copy()
+
+        if len(valid_clusters) < 2:
+            print(f"  Only {len(valid_clusters)} valid cluster(s) — need ≥2 for DEG, returning empty")
+            return {cname: [] for cname in CLUSTER_NAMES}, small_clusters
 
         # Subsample for speed on large datasets
         n_deg = adata_deg.n_obs
@@ -639,7 +648,7 @@ def _reset_all():
     """Free all data globals and reclaim memory."""
     global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D
     global PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST
-    global N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_INDEX, CSC_BUILDING
+    global N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING
     global CSC_CACHED, CSC_TIME, LOADED_PATH, LOAD_SETTINGS, ABORT_REQUESTED
     ADATA = None
     UMAP_2D = None; UMAP_3D = None
@@ -649,7 +658,7 @@ def _reset_all():
     CLUSTER_IDS = None; CLUSTER_NAMES = None
     GENE_NAMES_LIST = None; N_CELLS = 0
     BACKED = False; X_CSC = None
-    HVG_NAMES = []; HVG_VAR = {}; ALL_GENE_VAR = None; GENE_INDEX = {}
+    HVG_NAMES = []; HVG_VAR = {}; ALL_GENE_VAR = None; GENE_CUTOFF_FLAG = None; GENE_INDEX = {}
     CSC_BUILDING = False; CSC_CACHED = False; CSC_TIME = 0
     LOADED_PATH = ""; LOAD_SETTINGS.clear()
     ABORT_REQUESTED = False
@@ -665,7 +674,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     
     backed: "auto" (use file size vs RAM), "on" (force backed), "off" (force in-memory)
     """
-    global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D, PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_INDEX, CSC_BUILDING, CSC_CACHED, CSC_TIME, LOADED_PATH, ABORT_REQUESTED
+    global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D, PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, CSC_CACHED, CSC_TIME, LOADED_PATH, ABORT_REQUESTED
 
     import scanpy as sc
     import scipy.sparse as sp
@@ -1166,6 +1175,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
     HVG_VAR = {}
     ALL_GENE_VAR = None
     ALL_GENE_VAR_METRIC = "dispersions_norm"
+    GENE_CUTOFF_FLAG = None
     _has_hvg_col = "highly_variable" in ADATA.var.columns
     if _has_hvg_col:
         hvg_mask = ADATA.var["highly_variable"].values.astype(bool)
@@ -1190,71 +1200,163 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
         CSC_BUILDING = True
         csc_cache_path = Path(h5ad_path).with_suffix(".csc_cache.npz")
         def _build_gene_index():
-            global HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, X_CSC, CSC_BUILDING, CSC_CACHED, CSC_TIME
+            global HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, X_CSC, CSC_BUILDING, CSC_CACHED, CSC_TIME
             _csc_t0 = time.time()
 
-            # Compute HVGs using dispersions_norm (matching scanpy's method)
+            # ── Gene Variability: Locally Standardized Trend Residual ──
+            #
+            # Goal: Rank genes by biological variability, corrected for both
+            # the mean-variance trend AND the expression-dependent noise level.
+            #
+            # PROBLEM 1 (mean-variance dependence): In scRNA-seq, variance
+            # scales with mean expression. Housekeeping genes (ACTB, Malat1,
+            # ribosomal proteins) dominate raw variance rankings simply because
+            # they're highly expressed, not because they're biologically
+            # informative.
+            #
+            # PROBLEM 2 (heteroscedastic residuals): Even after correcting for
+            # the mean-variance trend, the *scatter* around the trend is not
+            # uniform — it's much wider at low expression than at moderate
+            # expression. A gene expressed in 2/50,000 cells can produce a raw
+            # residual of +2.0 from pure Poisson noise, while a residual of
+            # +2.0 at moderate expression would be genuinely remarkable. Simple
+            # trend residuals therefore remain biased toward barely-detected genes.
+            #
+            # Common approaches and their limitations:
+            #   - Raw variance: biased toward highly expressed genes
+            #   - Coefficient of variation (CV = σ/μ): biased toward barely-
+            #     detected genes (one stochastic count → enormous CV)
+            #   - Binned z-score (scanpy's dispersions_norm): discretizes the
+            #     smooth mean-variance curve into 20 bins and z-scores within
+            #     each. Requires arbitrary cutoffs (min_mean, max_mean, min_frac)
+            #     to exclude noisy genes — ad hoc and can silently discard signal
+            #   - Simple polynomial residual: corrects the trend but not the
+            #     heteroscedastic scatter — low-expression noise still inflates
+            #     rankings for barely-detected genes
+            #
+            # OUR APPROACH: Two-stage polynomial fitting with local standardization.
+            #
+            # Stage 1 — Trend correction:
+            #   1. Compute per-gene mean (μ) and variance (σ²) across cells
+            #   2. Compute Fano factor: F = σ²/μ for each gene with μ > 0
+            #   3. Transform to log-log space: log₁₀(μ) vs log₁₀(F)
+            #   4. Fit a degree-3 polynomial: log₁₀(F̂) = p₁(log₁₀(μ))
+            #   5. Raw residual r = log₁₀(F) − log₁₀(F̂)
+            #
+            # Stage 2 — Local standardization:
+            #   6. Fit a degree-3 polynomial to |r| vs log₁₀(μ) to estimate
+            #      the local scatter envelope: σ̂(μ) = p₂(log₁₀(μ))
+            #   7. Final score z = r / max(σ̂, floor)
+            #      where floor = 0.1 prevents division by near-zero scatter
+            #      at expression levels where genes sit tightly on the trend
+            #
+            # WHY THIS WORKS:
+            #   - No arbitrary cutoffs: every expressed gene gets a z-score
+            #   - Housekeeping genes: high variance fully explained by trend → z ≈ 0
+            #   - Barely-detected genes: large raw residual, but divided by the
+            #     equally large local scatter → z ≈ 0 (noise, not signal)
+            #   - True markers: high residual at moderate expression where scatter
+            #     is tight → z >> 0 (signal stands out from noise)
+            #   - Adapts to any normalization (raw counts, log1p, SCTransform)
+            #   - Two np.polyfit calls on ~15k genes: <2ms total
+            #
             if not _has_hvg_col:
-                print("  Computing gene variability (dispersions_norm)...")
+                print("  Computing gene variability (locally standardized trend residual)...")
                 t0 = time.time()
                 import scipy.sparse as _sp
                 X = ADATA.X
                 n_sub = min(50000, X.shape[0])
                 if n_sub < X.shape[0]:
                     rng = np.random.default_rng(42)
-                    X_sub = X[rng.choice(X.shape[0], n_sub, replace=False)]
+                    idx_sub = rng.choice(X.shape[0], n_sub, replace=False)
+                    X_sub = X[idx_sub]
                 else:
                     X_sub = X
-                # Compute mean and variance per gene
+
+                # Step 1: Compute per-gene mean, variance, and detection rate
                 if _sp.issparse(X_sub):
                     mean = np.asarray(X_sub.mean(axis=0)).ravel()
                     sq_mean = np.asarray(X_sub.multiply(X_sub).mean(axis=0)).ravel()
                     var = sq_mean - mean ** 2
+                    n_expressing = np.asarray((X_sub > 0).sum(axis=0)).ravel()
                 else:
-                    mean = np.mean(np.asarray(X_sub), axis=0)
-                    var = np.var(np.asarray(X_sub), axis=0)
+                    X_dense = np.asarray(X_sub)
+                    mean = np.mean(X_dense, axis=0)
+                    var = np.var(X_dense, axis=0)
+                    n_expressing = np.sum(X_dense > 0, axis=0)
                 del X_sub
 
-                # Compute dispersion (Fano factor = variance / mean)
                 mean = mean.astype(np.float64)
                 var = var.astype(np.float64)
-                disp = np.full_like(mean, np.nan)
+
+                # Step 2: Fano factor (F = variance / mean) for expressed genes
+                fano = np.zeros_like(mean)
                 pos = mean > 0
-                disp[pos] = var[pos] / mean[pos]
+                fano[pos] = var[pos] / mean[pos]
 
-                # Bin genes by mean expression, z-score dispersion within each bin
-                # (replicates scanpy.pp.highly_variable_genes Seurat method)
-                n_bins = 20
-                pos_idx = np.where(pos & np.isfinite(disp))[0]
-                if len(pos_idx) > 0:
-                    # Bin by mean expression percentiles
-                    mean_pos = mean[pos_idx]
-                    bin_edges = np.percentile(mean_pos, np.linspace(0, 100, n_bins + 1))
-                    bin_edges[0] = -np.inf
-                    bin_edges[-1] = np.inf
-                    bin_idx = np.digitize(mean_pos, bin_edges) - 1
-                    bin_idx = np.clip(bin_idx, 0, n_bins - 1)
+                # Step 3: Log-log transform for trend fitting
+                fit_mask = pos & (fano > 0)
+                log_mean = np.full_like(mean, np.nan)
+                log_fano = np.full_like(mean, np.nan)
+                log_mean[fit_mask] = np.log10(mean[fit_mask])
+                log_fano[fit_mask] = np.log10(fano[fit_mask])
 
-                    disp_norm = np.full(len(mean), 0.0)
-                    for b in range(n_bins):
-                        mask = bin_idx == b
-                        if mask.sum() < 2:
-                            continue
-                        d = disp[pos_idx[mask]]
-                        d_mean = np.mean(d)
-                        d_std = np.std(d)
-                        if d_std > 0:
-                            disp_norm[pos_idx[mask]] = (d - d_mean) / d_std
+                fit_idx = np.where(fit_mask)[0]
+                scores = np.zeros(len(mean), dtype=np.float64)
 
-                    ALL_GENE_VAR = disp_norm.astype(np.float32)
-                else:
-                    ALL_GENE_VAR = np.zeros(len(mean), dtype=np.float32)
+                if len(fit_idx) > 10:
+                    # Step 4: Fit degree-3 polynomial to the mean-Fano trend
+                    coeffs_trend = np.polyfit(log_mean[fit_idx], log_fano[fit_idx], deg=3)
+                    predicted = np.polyval(coeffs_trend, log_mean[fit_idx])
 
-                n_hvg = min(2000, len(ALL_GENE_VAR))
+                    # Step 5: Raw residuals
+                    raw_residuals = log_fano[fit_idx] - predicted
+
+                    # Step 6: Fit degree-3 polynomial to |residual| vs log₁₀(μ)
+                    # This estimates the local scatter envelope — how much
+                    # residual noise is *expected* at each expression level.
+                    # At low expression, scatter is wide (Poisson noise);
+                    # at moderate expression, scatter is tight (signal stands out)
+                    abs_resid = np.abs(raw_residuals)
+                    coeffs_scatter = np.polyfit(log_mean[fit_idx], abs_resid, deg=3)
+                    local_sigma = np.polyval(coeffs_scatter, log_mean[fit_idx])
+
+                    # Step 7: Locally standardized z-score
+                    # z = raw_residual / local_σ
+                    # Floor of 0.1 prevents division by near-zero at expression
+                    # levels where genes happen to sit tightly on the trend
+                    local_sigma = np.maximum(local_sigma, 0.1)
+                    scores[fit_idx] = raw_residuals / local_sigma
+
+                ALL_GENE_VAR = scores.astype(np.float32)
+                ALL_GENE_VAR_METRIC = "trend_residual"
+
+                # Compute which genes WOULD have been excluded by traditional
+                # scanpy-style cutoffs (min_mean, max_mean, min_frac).
+                # Flagged red in the UI so the researcher can evaluate whether
+                # the locally standardized scores handle them correctly.
+                # Stored as a bitmask so the UI can show specific reasons:
+                #   bit 0 (1) = not expressed (mean == 0)
+                #   bit 1 (2) = low mean (0 < mean < 0.0125)
+                #   bit 2 (4) = high mean (mean > adaptive max)
+                #   bit 3 (8) = low fraction (< 0.5% of cells expressing)
+                frac_expr = n_expressing / n_sub
+                mean_95 = np.percentile(mean[pos], 95) if pos.sum() > 0 else 3.0
+                _max_mean = max(3.0, mean_95)
+                flags = np.zeros(len(mean), dtype=np.int8)
+                flags[~pos] |= 1                            # not expressed
+                flags[pos & (mean < 0.0125)] |= 2           # low mean
+                flags[pos & (mean > _max_mean)] |= 4        # high mean
+                flags[frac_expr < 0.005] |= 8               # low fraction
+                GENE_CUTOFF_FLAG = flags
+                n_flagged = int((flags > 0).sum())
+
+                n_hvg = min(2000, int(pos.sum()))
                 hvg_idx = np.argsort(ALL_GENE_VAR)[-n_hvg:][::-1]
                 HVG_NAMES = [str(ADATA.var_names[i]) for i in hvg_idx]
                 HVG_VAR = {str(ADATA.var_names[i]): float(ALL_GENE_VAR[i]) for i in hvg_idx}
-                print(f"  Computed dispersions_norm for {len(ALL_GENE_VAR):,} genes, top {n_hvg:,} HVGs ({time.time()-t0:.1f}s, {n_sub:,}-cell subsample)")
+                n_scored = int(fit_mask.sum())
+                print(f"  Scored {n_scored:,}/{len(mean):,} genes by locally standardized trend residual, {n_flagged:,} flagged by cutoffs ({time.time()-t0:.1f}s, {n_sub:,}-cell subsample)")
 
             # Try loading CSC from cache
             import scipy.sparse as _sp
@@ -1975,17 +2077,22 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def _serve_gene_var(self):
-        """Return all genes sorted by variability (descending)."""
+        """Return all genes sorted by variability (descending).
+        Each gene entry: [name, score, cutoff_flag_bitmask]
+        cutoff_flag bitmask: 1=not expressed, 2=low mean, 4=high mean, 8=low fraction
+        0 = passes all traditional cutoffs.
+        """
         try:
             if ALL_GENE_VAR is None or GENE_NAMES_LIST is None:
                 result = {"genes": [], "metric": "dispersions_norm"}
             else:
-                # Sort all genes by variability descending
                 order = np.argsort(ALL_GENE_VAR)[::-1]
+                has_flags = GENE_CUTOFF_FLAG is not None
                 genes = []
                 for i in order:
                     v = float(ALL_GENE_VAR[i])
-                    genes.append([str(GENE_NAMES_LIST[i]), round(v, 4)])
+                    flag = int(GENE_CUTOFF_FLAG[i]) if has_flags else 0
+                    genes.append([str(GENE_NAMES_LIST[i]), round(v, 4), flag])
                 result = {"genes": genes, "metric": ALL_GENE_VAR_METRIC, "total": len(GENE_NAMES_LIST)}
             data = json.dumps(result, separators=(",", ":")).encode("utf-8")
             self.send_response(200)
