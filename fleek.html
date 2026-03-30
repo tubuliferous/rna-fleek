@@ -283,8 +283,6 @@
   .fleek-option.active{background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.4);}
   .fleek-option.active:hover{background:rgba(52,211,153,0.2);}
   .fleek-option input[type=checkbox]{display:none;}
-  .fleek-option:has(input:checked){background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.4);}
-  .fleek-option:has(input:checked):hover{background:rgba(52,211,153,0.2);}
   .fleek-option .sv-count{opacity:0.6;font-size:8px;flex-shrink:0;}
   #slice-footer{font-size:9px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;}
   #slice-footer .sf-count{color:#34d399;font-weight:600;}
@@ -344,9 +342,9 @@
       <!-- Upload popover: shown after file selection, hidden after load -->
       <div id="upload-popover" style="display:none;margin-top:6px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
         <div id="upload-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
-        <label class="fleek-option" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
-          <input type="checkbox" id="fast-umap-toggle" checked>
-          QuickMap (UMAP)
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
+          <input type="checkbox" id="fast-umap-toggle" checked style="margin:0;">
+          <span>QuickMap (UMAP)</span>
         </label>
         <div id="fast-umap-opts" style="margin:4px 0 0 16px;">
           <div style="display:flex;align-items:center;gap:6px;">
@@ -355,13 +353,13 @@
             <span id="fast-umap-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
           </div>
         </div>
-        <label class="fleek-option" style="margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
-          <input type="checkbox" id="fast-pacmap-toggle" checked>
-          QuickMap (PaCMAP)
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
+          <input type="checkbox" id="fast-pacmap-toggle" checked style="margin:0;">
+          <span>QuickMap (PaCMAP)</span>
         </label>
-        <label class="fleek-option" style="margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10–20× faster.">
-          <input type="checkbox" id="fast-deg-toggle" checked>
-          QuickDEG
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10–20× faster.">
+          <input type="checkbox" id="fast-deg-toggle" checked style="margin:0;">
+          <span>QuickDEG</span>
         </label>
         <div id="fast-deg-opts" style="margin:4px 0 0 16px;">
           <div style="display:flex;align-items:center;gap:6px;">
@@ -370,9 +368,9 @@
             <span id="fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
           </div>
         </div>
-        <label class="fleek-option" style="margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
-          <input type="checkbox" id="backed-toggle">
-          Disk-backed
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
+          <input type="checkbox" id="backed-toggle" style="margin:0;">
+          <span>Disk-backed</span>
         </label>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn" id="upload-go-btn" onclick="confirmUpload()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
@@ -401,20 +399,22 @@
         <div id="browse-columns" style="display:flex;overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:4px;background:var(--bg2);height:220px;scroll-snap-type:x proximity;cursor:grab;"></div>
         <div id="browse-selected" style="display:none;margin-top:6px;">
           <div id="browse-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
-          <div style="display:flex;flex-wrap:wrap;gap:3px 4px;margin-bottom:4px;">
-            <label class="fleek-option" title="Subsample-and-project UMAP for large datasets.">
-              <input type="checkbox" id="browse-fast-umap" checked>QuickMap (UMAP)
-            </label>
-            <label class="fleek-option" title="Subsample-and-project PaCMAP for large datasets.">
-              <input type="checkbox" id="browse-fast-pacmap" checked>QuickMap (PaCMAP)
-            </label>
-            <label class="fleek-option" title="Subsample cells for annotation DEG.">
-              <input type="checkbox" id="browse-fast-deg" checked>QuickDEG
-            </label>
-            <label class="fleek-option" title="Keep expression matrix on disk.">
-              <input type="checkbox" id="browse-backed">Disk-backed
-            </label>
-          </div>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project UMAP for large datasets.">
+            <input type="checkbox" id="browse-fast-umap" checked style="margin:0;">
+            <span>QuickMap (UMAP)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Subsample-and-project PaCMAP for large datasets.">
+            <input type="checkbox" id="browse-fast-pacmap" checked style="margin:0;">
+            <span>QuickMap (PaCMAP)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Subsample cells for annotation DEG.">
+            <input type="checkbox" id="browse-fast-deg" checked style="margin:0;">
+            <span>QuickDEG</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Keep expression matrix on disk.">
+            <input type="checkbox" id="browse-backed" style="margin:0;">
+            <span>Disk-backed</span>
+          </label>
           <div style="display:flex;gap:6px;margin-top:6px;">
             <button class="btn" id="browse-load-btn" onclick="loadBrowsedFile()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
             <button class="btn" onclick="closeBrowser()" style="color:var(--text4);">Cancel</button>
