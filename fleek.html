@@ -4923,6 +4923,7 @@ function clampVPan(){
 var vDragging=false, vPrev={x:0,y:0};
 var _volcanoPts=[]; /* cached rendered points [{x,y,g}] rebuilt each renderVolcano() */
 var _volcanoHoverRaf=0; /* rAF handle for throttled hover */
+var _volcanoMx=0,_volcanoMy=0; /* latest mouse position — updated every event, read by rAF */
 
 function _rgb(c){return "rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")";}
 function _rgba(c,a){return "rgba("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+","+a+")";}
@@ -5464,7 +5465,9 @@ function setupVolcanoHover(){
     if(!degData||!cv._vLayout)return;
     var rect=cv.getBoundingClientRect();
     var z=currentUIScale;
-    var mx=(e.clientX-rect.left)/z, my=(e.clientY-rect.top)/z;
+    /* Always update shared coords so the rAF callback uses the freshest position */
+    _volcanoMx=(e.clientX-rect.left)/z;
+    _volcanoMy=(e.clientY-rect.top)/z;
 
     /* Panning — run immediately (needs tight loop for smooth feel) */
     if(vDragging){
@@ -5480,10 +5483,13 @@ function setupVolcanoHover(){
       return;
     }
 
-    /* Hover — throttle to one rAF tick so hit-testing never runs more than 60×/s */
+    /* Hover — throttle to one rAF tick so hit-testing never runs more than 60×/s.
+       The rAF reads _volcanoMx/My so it always uses the position at fire time,
+       not the (potentially stale) position from when the rAF was scheduled. */
     if(_volcanoHoverRaf)return;
     _volcanoHoverRaf=requestAnimationFrame(function(){
       _volcanoHoverRaf=0;
+      var mx=_volcanoMx, my=_volcanoMy;
       /* Search only the pre-built visible-point cache */
       var best=null, bestG=null, bestD=100;
       for(var i=0;i<_volcanoPts.length;i++){
