@@ -29,6 +29,7 @@
   #sidebar-toggle.show{opacity:0.7;pointer-events:auto;}
   #sidebar-toggle.show:hover{opacity:1;}
   #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
+  #glist,#hvg-scroll,#leg-scroll{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:10px;font-family:inherit;outline:none;margin-top:4px;}
   .sec{padding:10px 14px;border-bottom:1px solid var(--border);}
   .col-hdr{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;}
@@ -3142,6 +3143,8 @@ function _updateGeneVarHighlight(){
   _gvLastStart=-1;_gvLastEnd=-1; /* force re-render */
   _gvVirtualRender();
   _scrollToSelectedGene(document.getElementById("hvg-list"));
+  /* Re-render after scroll settles (scroll may not have triggered onscroll yet) */
+  setTimeout(function(){_gvLastStart=-1;_gvLastEnd=-1;_gvVirtualRender();},50);
 }
 
 function _fetchAllGeneVar(){
