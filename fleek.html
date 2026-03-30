@@ -524,6 +524,9 @@
       <div id="slice-footer">
         <span id="slice-cell-count" class="sf-count"></span>
         <span id="slice-total-count" style="color:var(--text4);"></span>
+        <span style="flex:1;"></span>
+        <span id="slice-empty-global" style="font-size:7.5px;color:var(--text4);cursor:pointer;opacity:0.7;user-select:none;" onclick="toggleAllEmptySlices()" title="Show/hide empty values (0 cells) in all categories">+empty</span>
+        <button id="slice-save-btn" onclick="exportSlice()" style="background:none;border:1px solid var(--border);border-radius:3px;color:var(--text3);font-size:8px;font-family:inherit;cursor:pointer;padding:1px 6px;white-space:nowrap;" title="Save currently visible cells as h5ad subset">Save slice</button>
       </div>
     </div>
   </div>
@@ -5293,6 +5296,73 @@ function _updateSliceUI(){
   var totalEl=document.getElementById("slice-total-count");
   if(countEl)countEl.textContent=included.toLocaleString()+" cells";
   if(totalEl)totalEl.textContent="of "+n.toLocaleString()+" total";
+}
+
+var _sliceShowEmpty=false;
+function toggleAllEmptySlices(){
+  _sliceShowEmpty=!_sliceShowEmpty;
+  var allVals=document.querySelectorAll("#slice-body .slice-vals");
+  for(var i=0;i<allVals.length;i++){
+    if(_sliceShowEmpty)allVals[i].classList.remove("hide-empty");
+    else allVals[i].classList.add("hide-empty");
+  }
+  /* Update per-column toggles to match */
+  var togs=document.querySelectorAll("#slice-body .slice-empty-toggle");
+  for(var i=0;i<togs.length;i++){
+    var ne=parseInt(togs[i].getAttribute("data-n"));
+    togs[i].textContent=_sliceShowEmpty?("\u2212"+ne+" empty"):("+"+ne+" empty");
+  }
+  var gl=document.getElementById("slice-empty-global");
+  if(gl)gl.textContent=_sliceShowEmpty?"\u2212empty":"+empty";
+}
+
+function exportSlice(){
+  if(!D||!sliceMask)return;
+  var indices=[];
+  for(var i=0;i<sliceMask.length;i++){
+    if(sliceMask[i]&&visibleClusters[D.cluster_ids[i]]!==false)indices.push(i);
+  }
+  if(indices.length===0){alert("No visible cells in current slice.");return;}
+  /* Build a name from the active slice filters */
+  var cats=D&&D.header&&D.header.obs_categories||{};
+  var parts=[];
+  for(var col in cats){
+    var total=cats[col].categories.length;
+    var sel=sliceFilter[col]?sliceFilter[col].size:total;
+    if(sel<total){
+      var names=[];
+      sliceFilter[col].forEach(function(idx){if(cats[col].categories[idx])names.push(cats[col].categories[idx]);});
+      parts.push(col+"="+names.join("+"));
+    }
+  }
+  var name=parts.length>0?parts.join("_"):"slice";
+  var btn=document.getElementById("slice-save-btn");
+  var origText=btn.textContent;
+  btn.textContent="Saving\u2026";btn.disabled=true;
+  fetch("/api/export",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({indices:indices,name:name})
+  })
+  .then(function(r){
+    if(!r.ok)throw new Error("Export failed");
+    var cd=r.headers.get("Content-Disposition")||"";
+    var fname=cd.match(/filename="?([^"]+)"?/);
+    fname=fname?fname[1]:"slice.h5ad";
+    return r.blob().then(function(b){return{blob:b,fname:fname};});
+  })
+  .then(function(obj){
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(obj.blob);
+    a.download=obj.fname;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    btn.textContent=origText;btn.disabled=false;
+  })
+  .catch(function(err){
+    alert("Export error: "+err.message);
+    btn.textContent=origText;btn.disabled=false;
+  });
 }
 
 function _saveSliceState(){
