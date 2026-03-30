@@ -68,6 +68,7 @@ CSC_TIME = 0          # seconds taken to build/load CSC index
 LOAD_SETTINGS = {}  # Sent to client so it knows what options were active
 LOADED_PATH = ""    # path to currently loaded h5ad, for annotation caching
 MARKER_DB = None    # {cell_type: [genes]} — loaded from file or built-in
+OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
 
 # ── Cache location management ──
 # CACHE_MODE: "dataset" = store caches alongside .h5ad file (default)
@@ -333,6 +334,53 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
 
 
 
+
+# ── Obs metadata column detection ──
+
+# Priority list for the clustering column — first match wins
+_CELL_TYPE_COL_NAMES = [
+    "cell_type", "cell_type_subsets", "cell_type_major", "celltype",
+    "CellType", "louvain", "leiden",
+]
+
+# Columns that are already used for clustering — exclude from slice UI
+_OBS_EXCLUDE = set(_CELL_TYPE_COL_NAMES) | {
+    "fleek_cluster", "n_genes", "n_genes_by_counts", "total_counts",
+    "total_counts_mt", "pct_counts_mt", "log1p_total_counts",
+    "log1p_n_genes_by_counts", "n_counts", "n_cells",
+}
+
+def _detect_obs_cols(adata, clustering_col=None):
+    """Return dict of categorical obs columns suitable for slice filtering.
+    Excludes the active clustering column and known non-informative columns."""
+    exclude = _OBS_EXCLUDE.copy()
+    if clustering_col:
+        exclude.add(clustering_col)
+    result = {}
+    for col in adata.obs.columns:
+        if col in exclude or col.startswith("_"):
+            continue
+        try:
+            series = adata.obs[col]
+            cat = series.astype("category")
+            cats = cat.cat.categories
+            n_unique = len(cats)
+            if n_unique < 2 or n_unique > 500:
+                continue
+            # Skip purely numeric columns with many unique values
+            import pandas as pd
+            if pd.api.types.is_float_dtype(series) and n_unique > 50:
+                continue
+            codes = cat.cat.codes.to_numpy().astype(np.int16)
+            counts = np.bincount(codes[codes >= 0], minlength=n_unique).tolist()
+            result[col] = {
+                "categories": [str(c) for c in cats],
+                "counts": counts,
+                "codes": codes,
+            }
+        except Exception:
+            pass
+    return result
 
 # ── LLM-based cell type annotation ──
 
@@ -734,7 +782,7 @@ def _reset_all():
     """Free all data globals and reclaim memory."""
     global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D
     global PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST
-    global N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING
+    global N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, OBS_COLS
     global CSC_CACHED, CSC_TIME, LOADED_PATH, LOAD_SETTINGS, ABORT_REQUESTED
     ADATA = None
     UMAP_2D = None; UMAP_3D = None
@@ -742,6 +790,7 @@ def _reset_all():
     PACMAP_2D = None; PACMAP_3D = None
     PACMAP_COMPUTING = False
     CLUSTER_IDS = None; CLUSTER_NAMES = None
+    OBS_COLS.clear()
     GENE_NAMES_LIST = None; N_CELLS = 0
     BACKED = False; X_CSC = None
     HVG_NAMES = []; HVG_VAR = {}; ALL_GENE_VAR = None; GENE_CUTOFF_FLAG = None; GENE_INDEX = {}
@@ -858,16 +907,20 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     need_save = False
     neighbors_built = False
 
-    # Cluster IDs from cell_type or leiden
-    if "cell_type" in adata.obs.columns:
-        cats = adata.obs["cell_type"].astype("category")
-        CLUSTER_IDS = cats.cat.codes.to_numpy().astype(np.int32)
-        CLUSTER_NAMES = cats.cat.categories.tolist()
-    elif "leiden" in adata.obs.columns:
-        cats = adata.obs["leiden"].astype("category")
-        CLUSTER_IDS = cats.cat.codes.to_numpy().astype(np.int32)
-        CLUSTER_NAMES = [f"Cluster {c}" for c in cats.cat.categories]
-    elif "leiden_ids" in cached and "leiden_names" in cached:
+    # Cluster IDs — try priority list of known column names, then cache, then compute
+    global OBS_COLS
+    _cluster_col_used = None
+    for _cname in _CELL_TYPE_COL_NAMES:
+        if _cname in adata.obs.columns:
+            cats = adata.obs[_cname].astype("category")
+            CLUSTER_IDS = cats.cat.codes.to_numpy().astype(np.int32)
+            CLUSTER_NAMES = cats.cat.categories.tolist()
+            if _cname in ("leiden", "louvain"):
+                CLUSTER_NAMES = [f"Cluster {c}" for c in cats.cat.categories]
+            _cluster_col_used = _cname
+            print(f"  Cell types from obs column: '{_cname}' ({len(CLUSTER_NAMES)} types)")
+            break
+    if _cluster_col_used is None and "leiden_ids" in cached and "leiden_names" in cached:
         # Load cached leiden results
         CLUSTER_IDS = cached["leiden_ids"].astype(np.int32)
         import json as _json
@@ -884,11 +937,17 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         cats = adata.obs["leiden"].astype("category")
         CLUSTER_IDS = cats.cat.codes.to_numpy().astype(np.int32)
         CLUSTER_NAMES = [f"Cluster {c}" for c in cats.cat.categories]
+        _cluster_col_used = "leiden"
         # Cache leiden results
         import json as _json
         cached["leiden_ids"] = CLUSTER_IDS
         cached["leiden_names"] = np.frombuffer(_json.dumps(CLUSTER_NAMES).encode("utf-8"), dtype=np.uint8)
         need_save = True
+
+    # Detect slice-able obs metadata columns
+    OBS_COLS = _detect_obs_cols(adata, clustering_col=_cluster_col_used)
+    if OBS_COLS:
+        print(f"  Obs slice columns: {', '.join(OBS_COLS.keys())}")
 
     # Gene names (use var index, or feature_name if available)
     if "feature_name" in adata.var.columns:
@@ -1688,6 +1747,8 @@ def build_init_payload():
         "total_genes": len(GENE_NAMES_LIST),
         "cluster_names": CLUSTER_NAMES,
         "metadata_columns": {},
+        "obs_categories": {col: {"categories": v["categories"], "counts": v["counts"]}
+                           for col, v in OBS_COLS.items()},
         "load_settings": dict(LOAD_SETTINGS),
         "loaded_path": LOADED_PATH,
         "hvg_genes": HVG_NAMES[:200],  # top HVGs for quick-access UI
@@ -1743,6 +1804,10 @@ def build_init_payload():
                     buf.write(arr[:, d].astype(np.float32).tobytes())
 
     buf.write(CLUSTER_IDS.tobytes())
+
+    # Write obs column codes (Int16, one array per column, in obs_categories order)
+    for col in OBS_COLS:
+        buf.write(OBS_COLS[col]["codes"].tobytes())
 
     return buf.getvalue()
 

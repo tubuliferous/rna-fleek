@@ -262,6 +262,18 @@
   #settings-popup .s-toggle .s-slider:before{content:"";position:absolute;width:10px;height:10px;left:2px;top:2px;background:var(--text4);border-radius:50%;transition:transform 0.15s,background 0.15s;}
   #settings-popup .s-toggle input:checked+.s-slider{background:#3b82f6;border-color:#3b82f6;}
   #settings-popup .s-toggle input:checked+.s-slider:before{transform:translateX(12px);background:#fff;}
+  /* Slice panel */
+  #slice-body .slice-col{margin-bottom:6px;}
+  #slice-body .slice-col-hdr{display:flex;align-items:center;justify-content:space-between;font-size:9px;color:var(--text2);font-weight:600;margin-bottom:2px;cursor:pointer;user-select:none;}
+  #slice-body .slice-col-hdr .slice-badge{font-size:8px;color:#f59e0b;font-weight:400;margin-left:4px;}
+  #slice-body .slice-vals{display:flex;flex-wrap:wrap;gap:2px 6px;padding-left:2px;}
+  #slice-body .slice-val{display:flex;align-items:center;gap:3px;font-size:9px;color:var(--text2);cursor:pointer;white-space:nowrap;}
+  #slice-body .slice-val input{margin:0;cursor:pointer;accent-color:#f59e0b;width:11px;height:11px;}
+  #slice-body .slice-val .sv-count{font-size:8px;color:var(--text4);}
+  #slice-body .slice-val.excluded{color:var(--text4);}
+  #slice-footer{font-size:9px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;}
+  #slice-footer .sf-count{color:#f59e0b;font-weight:600;}
+
   /* Custom scrollbar overlay — macOS hides native scrollbars, so we draw our own */
   .scroll-host{position:relative;}
   .scroll-thumb{position:absolute;right:1px;width:6px;border-radius:3px;background:var(--border);opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:5;min-height:20px;}
@@ -487,6 +499,23 @@
         <div class="lbl" id="egnm">Expression</div>
         <div id="expr-bar"></div>
         <div class="elbl"><span>Low</span><span>High</span></div>
+      </div>
+    </div>
+  </div>
+  <!-- Slice: metadata filter panel (hidden until dataset has obs columns) -->
+  <div class="sec" id="slice-sec" data-col="slice" style="display:none;">
+    <div class="col-hdr" onclick="toggleSec('slice')">
+      <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:0;">
+        <span class="lbl" style="margin-bottom:0;">Slice</span>
+        <span id="slice-active-badge" style="font-size:8px;color:#f59e0b;display:none;">&#9679; active</span>
+      </div>
+      <button id="slice-reset-btn" onclick="event.stopPropagation();resetSlice()" style="display:none;background:none;border:none;color:var(--text4);font-size:9px;font-family:inherit;cursor:pointer;padding:0 4px;">reset</button>
+      <span class="col-chev">&#9660;</span>
+    </div>
+    <div class="col-body" id="slice-body">
+      <div id="slice-footer">
+        <span id="slice-cell-count" class="sf-count"></span>
+        <span id="slice-total-count" style="color:var(--text4);"></span>
       </div>
     </div>
   </div>
@@ -1852,6 +1881,7 @@ function renderSelPanel(){
 /* ── Parse server response (same SCRN format) ── */
 function copyF32(buf,off,n){var dst=new Float32Array(n);var src=new Uint8Array(buf,off,n*4);new Uint8Array(dst.buffer).set(src);return dst;}
 function copyI32(buf,off,n){var dst=new Int32Array(n);var src=new Uint8Array(buf,off,n*4);new Uint8Array(dst.buffer).set(src);return dst;}
+function copyI16(buf,off,n){var dst=new Int16Array(n);var src=new Uint8Array(buf,off,n*2);new Uint8Array(dst.buffer).set(src);return dst;}
 function parseInit(buf){
   var dv=new DataView(buf);
   var magic=String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3));
@@ -1872,7 +1902,11 @@ function parseInit(buf){
     }
   }
   var cluster_ids=copyI32(buf,off,n);off+=n*4;
-  return{header:h,embeddings:embeddings,embManifest:embManifest,availDims:availDims,cluster_ids:cluster_ids};
+  /* Read obs column codes (Int16 per column, in obs_categories order) */
+  var obs_codes={};
+  var obs_cats=h.obs_categories||{};
+  for(var _oc in obs_cats){obs_codes[_oc]=copyI16(buf,off,n);off+=n*2;}
+  return{header:h,embeddings:embeddings,embManifest:embManifest,availDims:availDims,cluster_ids:cluster_ids,obs_codes:obs_codes};
 }
 
 /* ── Circle point texture ── */
@@ -2045,7 +2079,7 @@ function buildPts(data){
   bgDimPct=0;_hadSelection=false;
   document.getElementById("bg-dim").value=100;
   _history=[];_histIdx=-1;
-  try{sessionStorage.removeItem("fleek_state");}catch(e){}
+  try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_slice");}catch(e){}
   /* Note: fleek_deg is NOT cleared here — same-dataset refreshes should restore DEG results.
      New-file loads clear it explicitly (line 4650) before triggering the reload. */
   initCellGroupMap();
@@ -2188,7 +2222,7 @@ function recolor(){
 
   for(var i=0;i<n;i++){
     var cid=D.cluster_ids[i];
-    if(visibleClusters[cid]===false){
+    if(visibleClusters[cid]===false||(sliceMask&&!sliceMask[i])){
       col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
       pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
       if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
@@ -4649,7 +4683,7 @@ function unloadDataset(){
     document.getElementById("leg-scroll").style.display="";
     _setLinBtn(null,"flat");
     _history=[];_histIdx=-1;
-    try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_deg");sessionStorage.removeItem("fleek_infoText");}catch(e){}
+    try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_deg");sessionStorage.removeItem("fleek_slice");sessionStorage.removeItem("fleek_infoText");}catch(e){}
     renderSelPanel();
     renderLeg();
   }).catch(function(err){
@@ -4922,6 +4956,9 @@ function clampVPan(){
   var maxPanY=Math.max(0,_vBounds.maxY-visY);
   vPan.y=Math.max(0,Math.min(maxPanY,vPan.y));
 }
+/* ── Slice state ── */
+var sliceFilter={};   /* {col: Set of included category indices} — all = no filter */
+var sliceMask=null;   /* null = no filter active; else Uint8Array[n_cells] 1=included */
 var vDragging=false, vPrev={x:0,y:0};
 var _volcanoPts=[]; /* cached rendered points [{x,y,g}] rebuilt each renderVolcano() */
 var _volcanoHoverRaf=0; /* rAF handle for throttled hover */
@@ -5020,6 +5057,179 @@ function _degCacheKey(){
   var idB=document.getElementById("deg-grpB").value;
   var test=document.getElementById("deg-test").value;
   return test+"|"+idA+"|"+idB+"|"+_selHash();
+}
+
+/* ── Slice functions ── */
+function buildSlicePanel(){
+  var cats=D&&D.header&&D.header.obs_categories||{};
+  var sec=document.getElementById("slice-sec");
+  var body=document.getElementById("slice-body");
+  var cols=Object.keys(cats);
+  if(!cols.length){sec.style.display="none";return;}
+  sec.style.display="";
+  /* initialise filter state: all selected */
+  sliceFilter={};
+  for(var i=0;i<cols.length;i++){
+    var col=cols[i];
+    var n=cats[col].categories.length;
+    var s=new Set();
+    for(var j=0;j<n;j++)s.add(j);
+    sliceFilter[col]=s;
+  }
+  sliceMask=null;
+  /* Build HTML */
+  var footer=document.getElementById("slice-footer");
+  body.innerHTML="";
+  for(var i=0;i<cols.length;i++){
+    var col=cols[i];
+    var info=cats[col];
+    var div=document.createElement("div");
+    div.className="slice-col";
+    div.setAttribute("data-col",col);
+    var hdr=document.createElement("div");
+    hdr.className="slice-col-hdr";
+    hdr.innerHTML='<span>'+col+'<\/span><span class="slice-badge" id="slbadge-'+col+'"><\/span>';
+    div.appendChild(hdr);
+    var vals=document.createElement("div");
+    vals.className="slice-vals";
+    for(var j=0;j<info.categories.length;j++){
+      var cat=info.categories[j];
+      var cnt=info.counts[j]||0;
+      var row=document.createElement("label");
+      row.className="slice-val";
+      row.setAttribute("data-col",col);
+      row.setAttribute("data-idx",j);
+      var cb=document.createElement("input");
+      cb.type="checkbox";
+      cb.checked=true;
+      cb.setAttribute("data-col",col);
+      cb.setAttribute("data-idx",j);
+      cb.addEventListener("change",function(e){
+        var c=e.target.getAttribute("data-col");
+        var idx=parseInt(e.target.getAttribute("data-idx"));
+        if(e.target.checked){sliceFilter[c].add(idx);}else{sliceFilter[c].delete(idx);}
+        applySlice();
+      });
+      row.appendChild(cb);
+      var span=document.createElement("span");
+      span.textContent=cat;
+      row.appendChild(span);
+      var cspan=document.createElement("span");
+      cspan.className="sv-count";
+      cspan.textContent="("+cnt.toLocaleString()+")";
+      row.appendChild(cspan);
+      vals.appendChild(row);
+    }
+    div.appendChild(vals);
+    body.insertBefore(div,footer);
+  }
+  body.appendChild(footer);
+  _updateSliceUI();
+}
+
+function applySlice(){
+  if(!D)return;
+  var cats=D.header.obs_categories||{};
+  var cols=Object.keys(cats);
+  var hasFilter=false;
+  for(var i=0;i<cols.length;i++){
+    var col=cols[i];
+    if(sliceFilter[col]&&sliceFilter[col].size<cats[col].categories.length){hasFilter=true;break;}
+  }
+  if(!hasFilter){
+    sliceMask=null;
+  }else{
+    var n=D.header.n_cells;
+    sliceMask=new Uint8Array(n);
+    for(var i=0;i<n;i++){
+      var ok=1;
+      for(var ci=0;ci<cols.length;ci++){
+        var col=cols[ci];
+        var code=D.obs_codes[col]?D.obs_codes[col][i]:-1;
+        if(code<0)continue; /* NaN/missing: always include */
+        if(!sliceFilter[col].has(code)){ok=0;break;}
+      }
+      sliceMask[i]=ok;
+    }
+  }
+  recolor();
+  _updateSliceUI();
+  _saveSliceState();
+}
+
+function resetSlice(){
+  if(!D)return;
+  var cats=D.header.obs_categories||{};
+  var cols=Object.keys(cats);
+  for(var i=0;i<cols.length;i++){
+    var col=cols[i];
+    var n=cats[col].categories.length;
+    sliceFilter[col]=new Set();
+    for(var j=0;j<n;j++)sliceFilter[col].add(j);
+  }
+  sliceMask=null;
+  /* Reset checkboxes */
+  var cbs=document.querySelectorAll("#slice-body input[type=checkbox]");
+  for(var i=0;i<cbs.length;i++)cbs[i].checked=true;
+  recolor();
+  _updateSliceUI();
+  _saveSliceState();
+}
+
+function _updateSliceUI(){
+  var active=sliceMask!==null;
+  var badge=document.getElementById("slice-active-badge");
+  var resetBtn=document.getElementById("slice-reset-btn");
+  if(badge)badge.style.display=active?"":"none";
+  if(resetBtn)resetBtn.style.display=active?"":"none";
+  /* Per-column badges */
+  var cats=D&&D.header&&D.header.obs_categories||{};
+  for(var col in cats){
+    var el=document.getElementById("slbadge-"+col);
+    if(!el)continue;
+    var total=cats[col].categories.length;
+    var sel=sliceFilter[col]?sliceFilter[col].size:total;
+    el.textContent=sel<total?"["+sel+"/"+total+"]":"";
+  }
+  /* Footer count */
+  var n=D?D.header.n_cells:0;
+  var included=n;
+  if(sliceMask){included=0;for(var i=0;i<sliceMask.length;i++)included+=sliceMask[i];}
+  var countEl=document.getElementById("slice-cell-count");
+  var totalEl=document.getElementById("slice-total-count");
+  if(countEl)countEl.textContent=included.toLocaleString()+" cells";
+  if(totalEl)totalEl.textContent=active?"of "+n.toLocaleString()+" total":"";
+}
+
+function _saveSliceState(){
+  if(!D)return;
+  try{
+    var state={};
+    for(var col in sliceFilter)state[col]=Array.from(sliceFilter[col]);
+    sessionStorage.setItem("fleek_slice",JSON.stringify(state));
+  }catch(e){}
+}
+
+function _restoreSliceState(){
+  try{
+    var saved=sessionStorage.getItem("fleek_slice");
+    if(!saved)return;
+    var state=JSON.parse(saved);
+    var cats=D&&D.header&&D.header.obs_categories||{};
+    var changed=false;
+    for(var col in state){
+      if(!cats[col]||!sliceFilter[col])continue;
+      sliceFilter[col]=new Set(state[col]);
+      /* Sync checkboxes */
+      var cbs=document.querySelectorAll('#slice-body input[data-col="'+col+'"]');
+      for(var i=0;i<cbs.length;i++){
+        var idx=parseInt(cbs[i].getAttribute("data-idx"));
+        cbs[i].checked=sliceFilter[col].has(idx);
+      }
+      if(sliceFilter[col].size<cats[col].categories.length)changed=true;
+    }
+    if(changed)applySlice();else _updateSliceUI();
+  }catch(e){}
 }
 
 function _saveDEGState(){
@@ -5954,7 +6164,7 @@ document.addEventListener("DOMContentLoaded",function(){
         /* Grab saved state BEFORE buildPts/buildLeg overwrite it */
         var saved=loadState();
         _restoring=true; /* suppress saves during setup */
-        buildPts(data);buildLeg();renderSelPanel();
+        buildPts(data);buildLeg();renderSelPanel();buildSlicePanel();
         /* Load cached annotations if included in init payload */
         if(data.header.cached_markers){
           markerAnnotations={};
@@ -6130,6 +6340,8 @@ document.addEventListener("DOMContentLoaded",function(){
             }
           }
         }catch(e){console.warn("DEG restore failed:",e);}
+        /* Restore slice filter if saved */
+        _restoreSliceState();
       },50);
     })
     .catch(function(err){
