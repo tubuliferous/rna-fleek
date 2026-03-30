@@ -2132,8 +2132,14 @@ function buildPts(data){
   selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
   degData=null;degCache={};
   geneExprCache={}; /* free old gene expression arrays */
-  recentGenes=[];selGene=null;
-  try{sessionStorage.removeItem("fleek_recent_genes");}catch(e){}
+  /* Clear recent genes only when switching to a different dataset */
+  var _newPath=data.header.loaded_path||"";
+  var _prevPath="";try{_prevPath=sessionStorage.getItem("fleek_dataset_path")||"";}catch(e){}
+  if(_newPath!==_prevPath){
+    recentGenes=[];selGene=null;
+    try{sessionStorage.removeItem("fleek_recent_genes");}catch(e){}
+  }
+  try{sessionStorage.setItem("fleek_dataset_path",_newPath);}catch(e){}
   markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
   selGene="";mode="cluster";
   _preHideGroupVis=null;
