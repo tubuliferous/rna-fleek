@@ -2132,6 +2132,8 @@ function buildPts(data){
   selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
   degData=null;degCache={};
   geneExprCache={}; /* free old gene expression arrays */
+  recentGenes=[];selGene=null;
+  try{sessionStorage.removeItem("fleek_recent_genes");}catch(e){}
   markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
   selGene="";mode="cluster";
   _preHideGroupVis=null;
