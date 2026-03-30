@@ -5398,6 +5398,7 @@ function applySlice(){
   _syncSlicePills();
   _updateSliceUI();
   _saveSliceState();
+  saveState();
 }
 
 function resetSlice(){
@@ -5416,6 +5417,7 @@ function resetSlice(){
   if(selGroups.length>0)renderSelPanel();
   _updateSliceUI();
   _saveSliceState();
+  saveState();
 }
 
 function _updateSliceUI(){
