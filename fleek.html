@@ -4994,6 +4994,15 @@ function openDEG(){
   }
   if(filled.length>=2)selB.selectedIndex=1;
   syncCanvasSize();
+  /* If results already exist (e.g. restored from sessionStorage), render them */
+  if(degData){
+    renderDEGTable();
+    var _wrap=document.getElementById("volcano-wrap");
+    var _ro=new ResizeObserver(function(){_ro.disconnect();renderVolcano();});
+    _ro.observe(_wrap);
+    setTimeout(renderVolcano,150);
+    markDEGStale();
+  }
 }
 
 function closeDEG(){
