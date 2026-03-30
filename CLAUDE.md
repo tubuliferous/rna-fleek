@@ -164,4 +164,12 @@ After editing `fleek.html`, always verify:
 - PLY export for Blender
 - Tissue hint input for Claude annotation
 - README needs updating with all new features
-- Git commit needed for latest changes
+
+### Slice-specific embeddings (Phase 3)
+Slice panel (Phase 2) is implemented: obs metadata columns shown as checkboxes, cells outside the filter are exiled client-side, DEG naturally respects the slice. Phase 3 is not yet built:
+
+- **Slice-specific UMAP/PaCMAP**: When a filter is active, compute a new embedding on just the matching cells. Cache keyed by canonical slice string (e.g. `organ=D|timepoint=D8`). Cache files alongside the h5ad as `.fleek_cache_slice_<hash>.npz`.
+- **Comparability constraint**: Naive per-slice UMAPs are in different coordinate spaces and cannot be directly compared. The global embedding with visual masking (current behaviour) IS comparable. Slice-specific embeddings are for revealing internal structure of a single condition, not for cross-slice positional comparison.
+- **Server endpoint**: `/api/slice-embed` — accepts slice definition + method, subsets adata, computes embedding, caches, streams progress.
+- **Client**: "Re-embed this slice" button in Slice panel (only when filter is active); progress indicator; load-badge showing which embedding is active (global vs slice-specific).
+- **Leiden re-clustering**: Optionally re-cluster the slice subset after re-embedding to find condition-specific clusters.
