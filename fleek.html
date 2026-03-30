@@ -1132,6 +1132,7 @@ var cloudBounds={center:new THREE.Vector3(),radius:50}; /* bounding sphere of po
 var autoRotate=false, viewIs3d=true;
 var embMethod="umap"; /* "umap", "pca", etc. */
 var introAnim=null; /* {startTime, startTheta, startRadius, endRadius, duration} or null */
+var _homeCamera=null; /* saved post-intro camera state for resetView() */
 var sph={theta:0.5,phi:1.0,radius:120};
 var basePtSz=50; /* 1-100 normalized slider value — animate() converts to actual size */
 var tgt3=new THREE.Vector3(0,0,0);
@@ -2204,13 +2205,15 @@ function buildPts(data){
   var _hH=Math.atan(Math.tan(_vH)*(canvasW/canvasH));
   var _halfA=Math.min(_vH,_hH);
   var fullR=_r/Math.sin(_halfA)*1.05;
-  var introR=fullR*0.45;
+  var introR=fullR*0.8;
   /* 2D fit: account for aspect ratio */
   var _a=canvasW/canvasH;
   var _zV=frustum2/(_r*1.05);
   var _zH=frustum2*_a/(_r*1.05);
   sph={theta:0.3,phi:1.0,radius:introR};tgt3.copy(cloudBounds.center);
   pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};zoom2=Math.min(_zV,_zH);
+  /* Remember the "home" camera state (post-intro position) for resetView() */
+  _homeCamera={theta:0.3+Math.PI,phi:1.0,radius:fullR,tgt:{x:cloudBounds.center.x,y:cloudBounds.center.y,z:cloudBounds.center.z}};
   /* Start intro orbit animation (overridden if state is restored) */
   introAnim={startTime:performance.now(),startTheta:0.3,startRadius:introR,endRadius:fullR,duration:2800};
 }
@@ -3215,15 +3218,19 @@ function helpJump(id){
 }
 function resetView(){
   if(viewIs3d){
-    /* Fit bounding sphere in perspective camera with 5% margin.
-       Distance = radius / sin(half_fov), accounting for aspect ratio. */
-    var r=cloudBounds.radius;
-    var fovRad=cam3d.fov*Math.PI/180;
-    var vHalf=fovRad/2;
-    var hHalf=Math.atan(Math.tan(vHalf)*(canvasW/canvasH));
-    var halfAngle=Math.min(vHalf,hHalf); /* constraining axis */
-    var fitDist=r/Math.sin(halfAngle)*1.05; /* 5% margin */
-    sph={theta:0.5,phi:1.0,radius:fitDist};tgt3.copy(cloudBounds.center);
+    if(_homeCamera){
+      sph={theta:_homeCamera.theta,phi:_homeCamera.phi,radius:_homeCamera.radius};
+      tgt3.set(_homeCamera.tgt.x,_homeCamera.tgt.y,_homeCamera.tgt.z);
+    }else{
+      /* Fallback: fit bounding sphere */
+      var r=cloudBounds.radius;
+      var fovRad=cam3d.fov*Math.PI/180;
+      var vHalf=fovRad/2;
+      var hHalf=Math.atan(Math.tan(vHalf)*(canvasW/canvasH));
+      var halfAngle=Math.min(vHalf,hHalf);
+      var fitDist=r/Math.sin(halfAngle)*1.05;
+      sph={theta:0.5,phi:1.0,radius:fitDist};tgt3.copy(cloudBounds.center);
+    }
   }else{
     /* Fit bounding sphere in ortho camera with 5% margin, accounting for aspect. */
     var r=cloudBounds.radius;
