@@ -2004,13 +2004,51 @@ def export_h5ad_subset(cell_indices, group_name):
             sub.obsm["X_pca"] = PCA_2D[idx]
 
     n_emb = sum(k in sub.obsm for k in ("X_umap", "X_pacmap", "X_pca"))
-    print(f"  Export: {len(cell_indices)} cells, {n_emb} embeddings embedded in obsm")
+    print(f"  Export: {len(cell_indices)} cells, {n_emb} embeddings in obsm")
 
     safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in group_name)
     fname = f"subset_{safe_name}_{len(cell_indices)}cells.h5ad"
     fpath = os.path.join(tempfile.gettempdir(), fname)
     sub.write_h5ad(fpath)
     print(f"  Export: {len(cell_indices)} cells -> {fpath}")
+
+    # ── Pre-write cache to server cache dir ──────────────────────────────────
+    # The exported h5ad lands wherever the user saves it (unknown to the server),
+    # so we can't write a .fleek_cache.npz next to it at download time.
+    # Instead, we pre-write to ~/.fleek_cache/ keyed by the subset filename.
+    # When the subset is loaded from any location, _cache_read_path falls back
+    # to the server cache dir and finds it instantly — no recomputation needed.
+    try:
+        _init_cache_dir()
+        if CACHE_DIR is not None:
+            stem = fname[:-5]  # strip ".h5ad"
+            server_cache = CACHE_DIR / f"{stem}.fleek_cache.npz"
+            subset_cache = {}
+            # UMAP — use legacy keys so they're found regardless of quick/full suffix
+            if UMAP_3D is not None and UMAP_3D.shape[0] == _nc:
+                subset_cache["umap_2d"] = UMAP_3D[idx, :2]
+                subset_cache["umap_3d"] = UMAP_3D[idx]
+            elif UMAP_2D is not None and UMAP_2D.shape[0] == _nc:
+                subset_cache["umap_2d"] = UMAP_2D[idx]
+            # PaCMAP
+            if PACMAP_3D is not None and PACMAP_3D.shape[0] == _nc:
+                subset_cache["pacmap_2d"] = PACMAP_3D[idx, :2]
+                subset_cache["pacmap_3d"] = PACMAP_3D[idx]
+            elif PACMAP_2D is not None and PACMAP_2D.shape[0] == _nc:
+                subset_cache["pacmap_2d"] = PACMAP_2D[idx]
+            # PCA — prefer the full-dimensional version from obsm if available
+            pca_src = sub.obsm.get("X_pca")
+            if pca_src is not None:
+                pca_src = pca_src.astype(np.float32)
+                subset_cache["pca_full"] = pca_src
+                subset_cache["pca_2d"] = pca_src[:, :2]
+                subset_cache["pca_3d"] = pca_src[:, :3] if pca_src.shape[1] >= 3 else pca_src
+            if subset_cache:
+                np.savez(server_cache, **subset_cache)
+                print(f"  Export: pre-wrote cache ({', '.join(subset_cache)}) -> {server_cache}")
+    except Exception as e:
+        print(f"  Export: cache pre-write failed (non-fatal): {e}")
+
     return fpath, fname
 
 
