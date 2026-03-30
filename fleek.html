@@ -1932,10 +1932,10 @@ function makeCircleTexture(light){
   var r=sz/2;
   var grad=ctx.createRadialGradient(r,r,0,r,r,r);
   if(light){
-    /* Light mode: sharp edge, minimal fringe so zero-expression cells stay clean */
+    /* Light mode: hard-edged circle, no fringe — prevents gray halo at distance */
     grad.addColorStop(0,"rgba(255,255,255,1)");
-    grad.addColorStop(0.75,"rgba(255,255,255,1)");
-    grad.addColorStop(0.92,"rgba(255,255,255,0.4)");
+    grad.addColorStop(0.82,"rgba(255,255,255,1)");
+    grad.addColorStop(0.88,"rgba(255,255,255,0)");
     grad.addColorStop(1,"rgba(255,255,255,0)");
   }else{
     /* Dark mode: softer glow edge */
