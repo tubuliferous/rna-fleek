@@ -1192,25 +1192,6 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
 
     ADATA = adata
 
-    # ── Extract embedded annotation caches from subset uns ──
-    # Subsets exported by FLEEK embed annotation JSON in uns so they carry over
-    for _annot_key, _annot_suffix in [
-        ("fleek_annot_markers_json", ".annot_markers.json"),
-        ("fleek_annot_llm_json", ".annot_llm.json"),
-        ("fleek_annot_lineage_json", ".annot_lineage.json"),
-    ]:
-        _annot_data = adata.uns.get(_annot_key)
-        if _annot_data and isinstance(_annot_data, str):
-            _existing, _ = _cache_read_path(_annot_suffix)
-            if not _existing:
-                try:
-                    wp = _cache_write_path(_annot_suffix)
-                    with open(wp, "w") as f:
-                        f.write(_annot_data)
-                    print(f"  Extracted embedded annotation: {_annot_suffix} -> {wp}")
-                except Exception:
-                    pass
-
     # ── Extract PCA coordinates ──
     # Priority: cache > obsm > compute
     if "pca_full" in cached:
@@ -2093,14 +2074,8 @@ def export_h5ad_subset(cell_indices, group_name):
         color_map = {CLUSTER_NAMES[i]: CLUSTER_COLORS[i] for i in range(len(CLUSTER_NAMES)) if i < len(CLUSTER_COLORS)}
         sub.uns["fleek_color_map"] = color_map
 
-    # Copy annotation caches so the subset loads with annotations
-    for suffix in [".annot_markers.json", ".annot_llm.json", ".annot_lineage.json"]:
-        ap, _ = _cache_read_path(suffix)
-        if ap:
-            try:
-                sub.uns[f"fleek{suffix.replace('.', '_')}"] = Path(ap).read_text()
-            except Exception:
-                pass
+    # Annotations are pre-written to the server cache dir (see below),
+    # not embedded in uns (strings don't survive h5ad round-trip reliably)
 
     n_emb = sum(k in sub.obsm for k in ("X_umap", "X_pacmap", "X_pca"))
     print(f"  Export: {len(cell_indices)} cells, {n_emb} embeddings in obsm")
@@ -2145,6 +2120,17 @@ def export_h5ad_subset(cell_indices, group_name):
             if subset_cache:
                 np.savez(server_cache, **subset_cache)
                 print(f"  Export: pre-wrote cache ({', '.join(subset_cache)}) -> {server_cache}")
+            # Pre-write annotation caches for the subset
+            for _annot_suffix in [".annot_markers.json", ".annot_llm.json", ".annot_lineage.json"]:
+                _annot_src, _ = _cache_read_path(_annot_suffix)
+                if _annot_src:
+                    try:
+                        _annot_dst = CACHE_DIR / f"{stem}{_annot_suffix}"
+                        import shutil
+                        shutil.copy2(str(_annot_src), str(_annot_dst))
+                        print(f"  Export: copied {_annot_suffix} -> {_annot_dst.name}")
+                    except Exception:
+                        pass
     except Exception as e:
         print(f"  Export: cache pre-write failed (non-fatal): {e}")
 

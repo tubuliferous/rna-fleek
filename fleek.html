@@ -69,7 +69,8 @@
   #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
   #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;}
-  #action-flash{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;pointer-events:none;opacity:0;transition:opacity 0.2s,transform 0.2s;}
+  #action-flash{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;pointer-events:none;opacity:0;transition:opacity 0.2s,transform 0.2s;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
+  .light #action-flash{box-shadow:0 4px 16px rgba(0,0,0,0.08);}
   #action-flash.show{display:block;opacity:1;transform:translate(-50%,-50%) scale(1);}
   #action-flash .af-label{font-size:13px;font-weight:600;letter-spacing:0.3px;color:var(--text);}
   #action-flash .af-key{display:inline-block;font-size:9px;font-weight:500;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:8px;vertical-align:1px;}
