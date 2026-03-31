@@ -2372,23 +2372,23 @@ function recolor(){
   }
   var isLight=document.body.classList.contains("light");
   /* Auto-dim state machine:
-     Transition no-selection → has-selection: auto-bump dim (slider moves left)
-     Transition has-selection → no-selection: auto-reset dim (slider moves right)
-     While selections exist: slider works normally, no auto-overriding */
-  if(hasAnySelection&&!_hadSelection){
-    /* Just gained selections — auto-set a visible dim */
+     Transition no-visible-selection → has-visible-selection: auto-bump dim
+     Transition has-visible-selection → none visible: auto-reset dim
+     "All hidden" is treated the same as "no selections" for dimming. */
+  if(hasAnyVisible&&!_hadSelection){
+    /* Just gained visible selections — auto-set a visible dim */
     bgDimPct=isLight?80:55;
     document.getElementById("bg-dim").value=100-bgDimPct;
   }
-  if(!hasAnySelection&&_hadSelection){
-    /* Just lost all selections — reset to full brightness */
+  if(!hasAnyVisible&&_hadSelection){
+    /* Just lost all visible selections — reset to full brightness */
     bgDimPct=0;
     document.getElementById("bg-dim").value=100;
   }
-  _hadSelection=hasAnySelection;
-  /* Dim applies to all cells when selections exist. Slider always works. */
-  var dimFactor=1-bgDimPct/100;
-  var dimBias=bgDimPct/100;
+  _hadSelection=hasAnyVisible;
+  /* Dim applies only when visible selections exist. */
+  var dimFactor=hasAnyVisible?(1-bgDimPct/100):1;
+  var dimBias=hasAnyVisible?(bgDimPct/100):0;
 
   /* Ring layer positions/colors */
   var ringPos=ringPts?ringPts.geometry.attributes.position.array:null;
