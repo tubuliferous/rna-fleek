@@ -5418,6 +5418,8 @@ function markDEGStale(){
   var cur=_degGroupHash();
   var el=document.getElementById("deg-stale");
   if(el)el.style.display=(cur&&degSelHash&&cur!==degSelHash)?"inline":"none";
+  /* Refresh history to update stale annotations */
+  _updateDEGHistory();
 }
 
 function openDEG(){
@@ -6089,6 +6091,15 @@ function onDEGTestChange(){
   }
 }
 
+function _isDEGEntryStale(c){
+  if(!c.grpAId&&c.grpAId!==0)return false; /* old entry without tracking */
+  for(var i=0;i<selGroups.length;i++){
+    if(selGroups[i].id===c.grpAId&&selGroups[i].cells.size!==c.grpASize)return true;
+    if(selGroups[i].id===c.grpBId&&selGroups[i].cells.size!==c.grpBSize)return true;
+  }
+  return false;
+}
+
 function _updateDEGHistory(){
   var sel=document.getElementById("deg-history");
   if(!sel)return;
@@ -6103,9 +6114,10 @@ function _updateDEGHistory(){
     var aName=c.grpA?c.grpA.name:"A";
     var bName=c.grpB?c.grpB.name:"B";
     var nGenes=c.data?c.data.genes.length:0;
+    var stale=_isDEGEntryStale(c);
     var opt=document.createElement("option");
     opt.value=k;
-    opt.textContent=aName+" vs "+bName+" ("+label+", "+nGenes+" genes)";
+    opt.textContent=(stale?"\u26a0 ":"")+aName+" vs "+bName+" ("+label+", "+nGenes+" genes)"+(stale?" [stale]":"");
     sel.appendChild(opt);
   }
 }
@@ -6189,7 +6201,11 @@ function runDEG(){
     btn.textContent="Run";btn.style.color="";btn.style.borderColor="";
     if(data.error){status.textContent="Error: "+data.error;return;}
     /* Cache the result */
-    degCache[cacheKey]={data:data,grpA:savedGrpA,grpB:savedGrpB};
+    /* Store group IDs so we can check staleness per cache entry */
+    degCache[cacheKey]={data:data,grpA:savedGrpA,grpB:savedGrpB,
+      grpAId:parseInt(document.getElementById("deg-grpA").value),
+      grpBId:parseInt(document.getElementById("deg-grpB").value),
+      grpASize:grpA.cells.size,grpBSize:grpB.cells.size};
     _showDEGResult(data,savedGrpA,savedGrpB);
     _updateDEGHistory();
     _sessionAutoSave();
