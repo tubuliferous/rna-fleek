@@ -5367,12 +5367,27 @@ function _rgb(c){return "rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")
 function _rgba(c,a){return "rgba("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+","+a+")";}
 
 function _selHash(){
-  /* Simple hash of group membership for stale detection */
+  /* Hash of ALL group membership (used as cache key) */
   var parts=[];
   for(var i=0;i<selGroups.length;i++){
     parts.push(selGroups[i].id+":"+selGroups[i].cells.size);
   }
   return parts.join(",");
+}
+function _degGroupHash(){
+  /* Hash of only the two groups in the current DEG analysis */
+  if(!degData||!degGrpA||!degGrpB)return "";
+  var idA=null,idB=null;
+  var selA=document.getElementById("deg-grpA");
+  var selB=document.getElementById("deg-grpB");
+  if(selA)idA=parseInt(selA.value);
+  if(selB)idB=parseInt(selB.value);
+  var sA="",sB="";
+  for(var i=0;i<selGroups.length;i++){
+    if(selGroups[i].id===idA)sA=selGroups[i].id+":"+selGroups[i].cells.size;
+    if(selGroups[i].id===idB)sB=selGroups[i].id+":"+selGroups[i].cells.size;
+  }
+  return sA+"|"+sB;
 }
 
 function markDEGStale(){
@@ -5398,11 +5413,11 @@ function markDEGStale(){
   if(prevA&&selA.querySelector('option[value="'+prevA+'"]'))selA.value=prevA;
   if(prevB&&selB.querySelector('option[value="'+prevB+'"]'))selB.value=prevB;
   else if(filled.length>=2)selB.selectedIndex=1;
-  /* Show stale badge if groups changed since last DEG run */
+  /* Show stale badge only if the two groups in the DEG analysis changed */
   if(!degData)return;
-  var cur=_selHash();
+  var cur=_degGroupHash();
   var el=document.getElementById("deg-stale");
-  if(el)el.style.display=(cur!==degSelHash)?"inline":"none";
+  if(el)el.style.display=(cur&&degSelHash&&cur!==degSelHash)?"inline":"none";
 }
 
 function openDEG(){
@@ -6025,7 +6040,8 @@ function _showDEGResult(data,grpA,grpB){
   degData=data;
   degGrpA=grpA;
   degGrpB=grpB;
-  degSelHash=_selHash();
+  /* Use a short timeout so dropdown values are set before hashing */
+  setTimeout(function(){degSelHash=_degGroupHash();},0);
   document.getElementById("deg-stale").style.display="none";
   var nSig=0;
   for(var i=0;i<data.genes.length;i++){if(Math.abs(data.genes[i].log2fc)>=FC_THRESH&&data.genes[i].padj<PADJ_THRESH)nSig++;}
