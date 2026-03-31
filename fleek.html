@@ -69,6 +69,10 @@
   #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
   #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;}
+  #action-flash{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;pointer-events:none;opacity:0;transition:opacity 0.2s,transform 0.2s;}
+  #action-flash.show{display:block;opacity:1;transform:translate(-50%,-50%) scale(1);}
+  #action-flash .af-label{font-size:13px;font-weight:600;letter-spacing:0.3px;color:var(--text);}
+  #action-flash .af-key{display:inline-block;font-size:9px;font-weight:500;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:8px;vertical-align:1px;}
   #loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);padding:20px 32px;border-radius:8px;border:1px solid var(--border);color:var(--accent2);font-weight:600;display:none;pointer-events:none;}
   #expr-bar{height:12px;border-radius:3px;background:linear-gradient(to right,#120b1d,#27314f,#1e845b,#9ec826,#fde724);}
   .light #expr-bar{background:linear-gradient(to right,#f7fbff,#c6dbef,#6baed6,#2171b5,#08306b);}
@@ -599,10 +603,7 @@
     <button id="hist-fwd" onclick="histRedo()" style="background:rgba(0,0,0,0.25);border:none;border-radius:0 4px 4px 0;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.35)'" onmouseleave="this.style.background='rgba(0,0,0,0.25)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
   <div id="hint">Drag pan · Scroll zoom</div>
-  <div id="action-flash" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;pointer-events:none;font-size:16px;font-weight:600;color:var(--text2);background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);padding:8px 20px;border-radius:8px;opacity:0;transition:opacity 0.15s;white-space:nowrap;">
-    <span id="action-flash-text"></span>
-    <span id="action-flash-key" style="font-size:11px;color:var(--text4);margin-left:8px;font-weight:400;"></span>
-  </div>
+  <div id="action-flash"></div>
   <div id="no-key-banner">
     <span>No Claude API key configured</span>
     <button onclick="openSettingsToKey()">Set in Settings &rarr;</button>
@@ -6943,14 +6944,11 @@ function _flashAction(text,key){
   if(!document.getElementById("set-flash").checked)return;
   var el=document.getElementById("action-flash");
   if(!el)return;
-  document.getElementById("action-flash-text").textContent=text;
-  document.getElementById("action-flash-key").textContent=key||"";
-  el.style.display="block";
-  el.style.opacity="1";
+  el.innerHTML='<span class="af-label">'+text+'<\/span>'+(key?'<span class="af-key">'+key+'<\/span>':'');
+  el.classList.add("show");
   clearTimeout(_flashTimer);
   _flashTimer=setTimeout(function(){
-    el.style.opacity="0";
-    setTimeout(function(){el.style.display="none";},200);
+    el.classList.remove("show");
   },700);
 }
 
