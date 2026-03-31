@@ -125,15 +125,20 @@ def _is_writable(path):
     except (OSError, PermissionError):
         return False
 
-def _cache_read_path(suffix):
+def _cache_read_path(suffix, scan_all=False):
     """Find an existing cache file. Checks dataset dir first, then server dir.
-    Returns (path, writable) or (None, False) if no cache exists."""
+    Returns (path, writable) or (None, False) if no cache exists.
+    If scan_all=True and no exact match, scan CACHE_DIR for any file with this suffix."""
     dp = _dataset_cache_path(suffix)
     if dp and dp.exists():
         return dp, _is_writable(dp)
     sp = _server_cache_path(suffix)
     if sp and sp.exists():
         return sp, True
+    # Scan server cache dir for any matching file (e.g. parent dataset's annotations)
+    if scan_all and CACHE_DIR and CACHE_DIR.exists():
+        for f in sorted(CACHE_DIR.glob(f"*{suffix}"), key=lambda p: p.stat().st_mtime, reverse=True):
+            return f, True
     return None, False
 
 def _cache_write_path(suffix):
@@ -1861,7 +1866,7 @@ def build_init_payload():
 
     for annot_key, suffix in [("cached_markers", ".annot_markers.json"), ("cached_llm", ".annot_llm.json")]:
         if LOADED_PATH:
-            ap, _ = _cache_read_path(suffix)
+            ap, _ = _cache_read_path(suffix, scan_all=True)
             if ap:
                 try:
                     with open(ap) as f:
@@ -1873,7 +1878,7 @@ def build_init_payload():
 
     # Include cached lineage tree if available
     if LOADED_PATH:
-        lp, _ = _cache_read_path(".annot_lineage.json")
+        lp, _ = _cache_read_path(".annot_lineage.json", scan_all=True)
         if lp:
             try:
                 with open(lp) as f:
