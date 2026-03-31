@@ -3038,6 +3038,9 @@ Return ONLY a JSON object with this structure (no markdown, no explanation):
 "cluster_ids" is an array of cluster indices that map to this node (empty for inferred nodes).
 Every non-empty cluster_id listed above must appear exactly once in the tree. Empty clusters (0 cells) have been excluded."""
 
+            print(f"  Lineage: llm_preds = {llm_preds}")
+            for _ci in cluster_info:
+                print(f"  Lineage prompt: {_ci}")
             print(f"  Requesting lineage tree from Claude ({n_in_lineage} cell types)...")
             import urllib.request, urllib.error
             request_body = json.dumps({
