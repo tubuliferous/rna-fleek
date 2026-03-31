@@ -1173,6 +1173,7 @@ var cloudBounds={center:new THREE.Vector3(),radius:50}; /* bounding sphere of po
 var autoRotate=false, viewIs3d=true;
 var embMethod="umap"; /* "umap", "pca", etc. */
 var introAnim=null; /* {startTime, startTheta, startRadius, endRadius, duration} or null */
+var _flyAnim=null; /* fly-to animation state */
 var _homeCamera=null; /* saved post-intro camera state for resetView() */
 var _homeCameras={}; /* per-embedding home cameras, keyed by method name */
 var sph={theta:0.5,phi:1.0,radius:120};
@@ -2472,11 +2473,27 @@ function recolor(){
 }
 
 /* ── Animation ── */
+function _tickFly(){
+  if(!_flyAnim)return;
+  var t=Math.min(1,(performance.now()-_flyAnim.t0)/_flyAnim.dur);
+  var ease=1-Math.pow(1-t,3);
+  if(_flyAnim.mode==="3d"){
+    tgt3.x=_flyAnim.fromTgt.x+(_flyAnim.toTgt.x-_flyAnim.fromTgt.x)*ease;
+    tgt3.y=_flyAnim.fromTgt.y+(_flyAnim.toTgt.y-_flyAnim.fromTgt.y)*ease;
+    tgt3.z=_flyAnim.fromTgt.z+(_flyAnim.toTgt.z-_flyAnim.fromTgt.z)*ease;
+    sph.radius=_flyAnim.fromR+(_flyAnim.toR-_flyAnim.fromR)*ease;
+  }else{
+    pan2.x=_flyAnim.fromPan.x+(_flyAnim.toPan.x-_flyAnim.fromPan.x)*ease;
+    pan2.y=_flyAnim.fromPan.y+(_flyAnim.toPan.y-_flyAnim.fromPan.y)*ease;
+    zoom2=_flyAnim.fromZoom+(_flyAnim.toZoom-_flyAnim.fromZoom)*ease;
+  }
+  if(t>=1){_flyAnim=null;saveCameraOnly();}
+}
 function animate(){
   requestAnimationFrame(animate);
   if(!renderer)return;
   syncCanvasSize(); /* keep canvas dims + camera in sync with layout */
-  if(typeof _tickFly==="function")_tickFly(); /* fly-to animation */
+  if(_flyAnim)_tickFly(); /* fly-to animation */
   if(viewIs3d){
     /* Intro orbit animation */
     if(introAnim){
@@ -2791,7 +2808,7 @@ function setupCtrl(){
   });
 
   /* ── Fly-to animation for double-click ── */
-  var _flyAnim=null;
+  _flyAnim=null;
   function _flyTo3d(target,radius,dur){
     _flyAnim={
       t0:performance.now(),dur:dur,
@@ -2812,23 +2829,6 @@ function setupCtrl(){
     clearTimeout(crosshairTimer);crosshairEl.classList.add("show");
     crosshairTimer=setTimeout(function(){crosshairEl.classList.remove("show");},dur+400);
   }
-  function _tickFly(){
-    if(!_flyAnim)return;
-    var t=Math.min(1,(performance.now()-_flyAnim.t0)/_flyAnim.dur);
-    var ease=1-Math.pow(1-t,3); /* ease-out cubic */
-    if(_flyAnim.mode==="3d"){
-      tgt3.x=_flyAnim.fromTgt.x+(_flyAnim.toTgt.x-_flyAnim.fromTgt.x)*ease;
-      tgt3.y=_flyAnim.fromTgt.y+(_flyAnim.toTgt.y-_flyAnim.fromTgt.y)*ease;
-      tgt3.z=_flyAnim.fromTgt.z+(_flyAnim.toTgt.z-_flyAnim.fromTgt.z)*ease;
-      sph.radius=_flyAnim.fromR+(_flyAnim.toR-_flyAnim.fromR)*ease;
-    }else{
-      pan2.x=_flyAnim.fromPan.x+(_flyAnim.toPan.x-_flyAnim.fromPan.x)*ease;
-      pan2.y=_flyAnim.fromPan.y+(_flyAnim.toPan.y-_flyAnim.fromPan.y)*ease;
-      zoom2=_flyAnim.fromZoom+(_flyAnim.toZoom-_flyAnim.fromZoom)*ease;
-    }
-    if(t>=1){_flyAnim=null;saveCameraOnly();}
-  }
-
   /* Double-click on a cell point: center navcross and zoom to neighborhood.
      Smart minimum distance: the camera won't zoom closer than a default floor
      (15% of cloud radius). BUT if you're already closer than that floor when
@@ -5743,7 +5743,7 @@ var _sessionName="_auto";
 var _sessionAutoTimer=null;
 var _sessionLoading=false;
 
-function _buildSessionState(){
+function _buildSessionState(full){
   var state=JSON.parse(snapState());
   state.recentGenes=recentGenes;
   state._history=_history;
@@ -5752,7 +5752,8 @@ function _buildSessionState(){
   if(degData){
     state._deg={data:degData,grpA:degGrpA,grpB:degGrpB,
       selHash:degSelHash,open:degOpen,panelH:degPanelH,
-      sort:degSort,cache:degCache};
+      sort:degSort};
+    if(full)state._deg.cache=degCache;
   }
   return state;
 }
@@ -5894,7 +5895,7 @@ function saveSessionAs(){
     if(!name||!name.trim())return;
     name=name.trim();
     if(name==="_auto"){alert("Name '_auto' is reserved for auto-save.");return;}
-    var state=_buildSessionState();
+    var state=_buildSessionState(true);
     fetch("/api/session-save",{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({name:name,state:state})
