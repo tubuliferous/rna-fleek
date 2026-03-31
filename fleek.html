@@ -637,6 +637,7 @@
       <div class="s-key-input-wrap">
         <input type="password" id="set-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
         <button class="s-key-save" onclick="saveApiKey()">Save</button>
+        <button class="s-key-save" onclick="clearApiKey()" style="background:#f87171;" title="Remove API key from server and ~/.fleek.env">Clear</button>
       </div>
       <span class="s-key-status" id="api-key-status"></span>
     </div>
@@ -6340,6 +6341,21 @@ function saveApiKey(){
       setTimeout(function(){status.textContent="";},3000);
     }else{
       status.textContent=d.error||"Error saving key.";status.style.color="#f87171";
+    }
+  }).catch(function(){status.textContent="Server error.";status.style.color="#f87171";});
+}
+function clearApiKey(){
+  var status=document.getElementById("api-key-status");
+  status.textContent="Clearing…";status.style.color="var(--text4)";
+  fetch("/api/clear-key",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})
+  .then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      status.textContent="Key cleared.";status.style.color="#f87171";
+      document.getElementById("set-api-key").value="";
+      document.getElementById("set-api-key").placeholder="sk-ant-...";
+      setTimeout(function(){status.textContent="";},3000);
+    }else{
+      status.textContent=d.error||"Error clearing key.";status.style.color="#f87171";
     }
   }).catch(function(){status.textContent="Server error.";status.style.color="#f87171";});
 }

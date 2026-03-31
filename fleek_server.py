@@ -2196,6 +2196,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_cache_settings(req)
         elif path == "/api/set-key":
             self._serve_set_key(req)
+        elif path == "/api/clear-key":
+            self._serve_clear_key()
         else:
             self.send_error(404)
 
@@ -2771,6 +2773,29 @@ class FleekHandler(SimpleHTTPRequestHandler):
             env_path.chmod(0o600)
             ANTHROPIC_API_KEY = key
             print("  Claude API key updated via settings UI.")
+            result = json.dumps({"ok": True}).encode("utf-8")
+        except Exception as e:
+            result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
+    def _serve_clear_key(self):
+        """Remove the Anthropic API key from memory and ~/.fleek.env."""
+        global ANTHROPIC_API_KEY
+        try:
+            ANTHROPIC_API_KEY = ""
+            env_path = Path.home() / ".fleek.env"
+            if env_path.exists():
+                lines = [l for l in env_path.read_text().splitlines()
+                         if not l.strip().startswith("ANTHROPIC_API_KEY=")]
+                if lines:
+                    env_path.write_text("\n".join(lines) + "\n")
+                else:
+                    env_path.unlink()
+            print("  Claude API key cleared.")
             result = json.dumps({"ok": True}).encode("utf-8")
         except Exception as e:
             result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
