@@ -2476,6 +2476,7 @@ function animate(){
   requestAnimationFrame(animate);
   if(!renderer)return;
   syncCanvasSize(); /* keep canvas dims + camera in sync with layout */
+  if(typeof _tickFly==="function")_tickFly(); /* fly-to animation */
   if(viewIs3d){
     /* Intro orbit animation */
     if(introAnim){
@@ -2631,7 +2632,7 @@ function setupCtrl(){
   cv.addEventListener("mousedown",function(e){
     /* Release focus from any slider/input so keyboard shortcuts work */
     if(document.activeElement&&document.activeElement!==cv)document.activeElement.blur();
-    introAnim=null;
+    introAnim=null;_flyAnim=null;
     if(tooltipEl)tooltipEl.style.display="none";
     if(shiftHeld&&e.button===0){
       /* Capture NDC at aim time — camera is synced with what user sees */
@@ -2742,7 +2743,7 @@ function setupCtrl(){
   });
   var wheelSaveTimer=null;
   cv.addEventListener("wheel",function(e){e.preventDefault();
-    introAnim=null;
+    introAnim=null;_flyAnim=null;
     if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
     /* Scale zoom speed with scroll magnitude (acceleration) */
     var absD=Math.min(Math.abs(e.deltaY),150);
@@ -2789,6 +2790,45 @@ function setupCtrl(){
     crosshairTimer=setTimeout(function(){crosshairEl.classList.remove("show");},300);
   });
 
+  /* ── Fly-to animation for double-click ── */
+  var _flyAnim=null;
+  function _flyTo3d(target,radius,dur){
+    _flyAnim={
+      t0:performance.now(),dur:dur,
+      fromTgt:{x:tgt3.x,y:tgt3.y,z:tgt3.z},toTgt:{x:target.x,y:target.y,z:target.z},
+      fromR:sph.radius,toR:radius,
+      fromTheta:sph.theta,fromPhi:sph.phi,
+      mode:"3d"
+    };
+    if(pivotMarker){pivotMarker.position.copy(target);pivotMarker.visible=true;clearTimeout(pivotTimer);pivotTimer=setTimeout(function(){pivotMarker.visible=false;},dur+400);}
+  }
+  function _flyTo2d(px,py,z,dur){
+    _flyAnim={
+      t0:performance.now(),dur:dur,
+      fromPan:{x:pan2.x,y:pan2.y},toPan:{x:px,y:py},
+      fromZoom:zoom2,toZoom:z,
+      mode:"2d"
+    };
+    clearTimeout(crosshairTimer);crosshairEl.classList.add("show");
+    crosshairTimer=setTimeout(function(){crosshairEl.classList.remove("show");},dur+400);
+  }
+  function _tickFly(){
+    if(!_flyAnim)return;
+    var t=Math.min(1,(performance.now()-_flyAnim.t0)/_flyAnim.dur);
+    var ease=1-Math.pow(1-t,3); /* ease-out cubic */
+    if(_flyAnim.mode==="3d"){
+      tgt3.x=_flyAnim.fromTgt.x+(_flyAnim.toTgt.x-_flyAnim.fromTgt.x)*ease;
+      tgt3.y=_flyAnim.fromTgt.y+(_flyAnim.toTgt.y-_flyAnim.fromTgt.y)*ease;
+      tgt3.z=_flyAnim.fromTgt.z+(_flyAnim.toTgt.z-_flyAnim.fromTgt.z)*ease;
+      sph.radius=_flyAnim.fromR+(_flyAnim.toR-_flyAnim.fromR)*ease;
+    }else{
+      pan2.x=_flyAnim.fromPan.x+(_flyAnim.toPan.x-_flyAnim.fromPan.x)*ease;
+      pan2.y=_flyAnim.fromPan.y+(_flyAnim.toPan.y-_flyAnim.fromPan.y)*ease;
+      zoom2=_flyAnim.fromZoom+(_flyAnim.toZoom-_flyAnim.fromZoom)*ease;
+    }
+    if(t>=1){_flyAnim=null;saveCameraOnly();}
+  }
+
   /* Double-click on a cell point: center navcross and zoom to neighborhood.
      Smart minimum distance: the camera won't zoom closer than a default floor
      (15% of cloud radius). BUT if you're already closer than that floor when
@@ -2813,17 +2853,10 @@ function setupCtrl(){
     var pos=new THREE.Vector3();
     pos.fromBufferAttribute(pts.geometry.attributes.position,bestHit.index);
     if(viewIs3d){
-      tgt3.copy(pos);
-      sph.radius=cloudBounds.radius*0.35;
-      if(pivotMarker){pivotMarker.position.copy(tgt3);pivotMarker.visible=true;clearTimeout(pivotTimer);pivotTimer=setTimeout(function(){pivotMarker.visible=false;},600);}
+      _flyTo3d(pos,cloudBounds.radius*0.35,500);
     }else{
-      pan2.x=pos.x;
-      pan2.y=pos.y;
-      zoom2=zoom2Min()*8;
-      clearTimeout(crosshairTimer);crosshairEl.classList.add("show");
-      crosshairTimer=setTimeout(function(){crosshairEl.classList.remove("show");},600);
+      _flyTo2d(pos.x,pos.y,zoom2Min()*8,500);
     }
-    saveCameraOnly();
   });
   new ResizeObserver(function(){syncCanvasSize();}).observe(document.getElementById("cw"));
   window.addEventListener("resize",function(){syncCanvasSize();});
