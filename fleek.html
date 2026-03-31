@@ -3402,17 +3402,9 @@ function resetView(){
       sph={theta:0.5,phi:1.0,radius:fitDist};tgt3.copy(cloudBounds.center);
     }
   }else{
-    if(hc){
-      zoom2=hc.zoom2;
-      pan2={x:hc.pan2.x,y:hc.pan2.y};
-    }else{
-      var r=cloudBounds.radius;
-      var a=canvasW/canvasH;
-      var zoomV=frustum2/(r*1.05);
-      var zoomH=frustum2*a/(r*1.05);
-      zoom2=Math.min(zoomV,zoomH);
-      pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};
-    }
+    /* Always recompute 2D fit from current canvas size + cloud bounds */
+    zoom2=zoom2Fit();
+    pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};
   }
   syncCanvasSize();
   saveCameraOnly();
