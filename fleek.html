@@ -5889,21 +5889,35 @@ function _applySessionState(s){
   _restoring=false;_sessionLoading=false;
 }
 
+function _doSaveSession(name){
+  var state=_buildSessionState();
+  fetch("/api/session-save",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name:name,state:state})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){_sessionName=name;_loadSessionList(name);}
+    else{alert(d.error||"Failed to save session.");}
+  }).catch(function(){alert("Server error saving session.");});
+}
+
 function saveSessionAs(){
   fleekPrompt("Save session as:","Session name","Save",function(name){
     if(!name||!name.trim())return;
     name=name.trim();
     if(name==="_auto"){alert("Name '_auto' is reserved for auto-save.");return;}
-    var state=_buildSessionState();
-    fetch("/api/session-save",{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({name:name,state:state})
-    })
-    .then(function(r){return r.json();})
-    .then(function(d){
-      if(d.ok){_sessionName=name;_loadSessionList(name);}
-      else{alert(d.error||"Failed to save session.");}
-    }).catch(function(){alert("Server error saving session.");});
+    /* Check if session already exists */
+    var sel=document.getElementById("session-select");
+    var exists=false;
+    if(sel){for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===name){exists=true;break;}}}
+    if(exists){
+      fleekConfirm("Overwrite session \u201c"+name+"\u201d?","The existing session will be replaced.","Overwrite",function(ok){
+        if(ok)_doSaveSession(name);
+      });
+    }else{
+      _doSaveSession(name);
+    }
   });
 }
 
