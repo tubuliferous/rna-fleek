@@ -714,7 +714,7 @@
       <input type="text" id="deg-search" placeholder="Search genes..." oninput="renderDEGTable()" style="width:100%;padding:4px 6px;border:none;border-bottom:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:10px;font-family:inherit;outline:none;box-sizing:border-box;">
       <div style="flex:1;overflow-y:auto;">
         <table id="deg-table">
-          <thead><tr><th onclick="sortDEG('gene')">Gene</th><th onclick="sortDEG('log2fc')">log2FC</th><th id="deg-d-hdr" onclick="sortDEG('cohens_d',event)">d</th><th onclick="sortDEG('padj')">padj</th></tr></thead>
+          <thead><tr><th onclick="sortDEG('gene')">Gene</th><th onclick="sortDEG('log2fc')" title="Log2 fold change between groups&#10;Positive = upregulated in Group A">log2FC</th><th id="deg-d-hdr" onclick="sortDEG('cohens_d',event)" title="">d</th><th onclick="sortDEG('padj')" title="Benjamini-Hochberg adjusted p-value&#10;Lower = more statistically significant">padj</th></tr></thead>
           <tbody id="deg-tbody"></tbody>
         </table>
       </div>
@@ -6321,7 +6321,12 @@ function sortDEG(col,ev){
   if(col==="cohens_d"&&ev&&ev.altKey){
     degAbsD=!degAbsD;
     var hdr=document.getElementById("deg-d-hdr");
-    if(hdr)hdr.textContent=degAbsD?"|d|":"d";
+    if(hdr){
+      hdr.textContent=degAbsD?"|d|":"d";
+      hdr.title=degAbsD
+        ?"Absolute Cohen's d — magnitude only, ignoring direction\nClick to sort \u00b7 "+_ALT+"+click to show signed d"
+        :"Cohen's d effect size \u2014 magnitude of expression difference normalized by variance\nClick to sort \u00b7 "+_ALT+"+click to toggle |d| (absolute value)";
+    }
     renderDEGTable();
     return;
   }
@@ -7094,6 +7099,8 @@ function _patchOS(){
   document.getElementById("hist-fwd").title="Redo ("+_MOD+"+])";
   var _clrBtn=document.getElementById("sel-clear-btn");
   if(_clrBtn)_clrBtn.title="Clear visible cells from active group (Esc)\nHold "+_ALT+" to clear ALL cells including hidden/sliced ("+_ALT+"+Esc)";
+  var _dHdr=document.getElementById("deg-d-hdr");
+  if(_dHdr)_dHdr.title="Cohen\u2019s d effect size \u2014 magnitude of expression difference normalized by variance\nClick to sort \u00b7 "+_ALT+"+click to toggle |d| (absolute value)";
   /* Patch help panel text for current OS */
   var help=document.getElementById("help-overlay");
   if(!help)return;
