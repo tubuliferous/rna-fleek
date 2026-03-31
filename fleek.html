@@ -1266,6 +1266,8 @@ function histRedo(){
 function applyHistEntry(snap){
   var s=JSON.parse(snap);
   _navigating=true;
+  _restoring=true; /* suppress saves during batch restore */
+
   if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){
     var ps=Math.max(1,Math.min(100,Math.round(s.ptSize)));
@@ -1281,7 +1283,6 @@ function applyHistEntry(snap){
   if(s.visibleClusters){
     visibleClusters={};
     for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];
-    renderLeg();
   }
   /* Restore selection groups */
   if(s.selGroups){
@@ -1290,32 +1291,82 @@ function applyHistEntry(snap){
     selGroupIdCounter=s.selGroupIdCounter||selGroups.length;
     if(s.groupVisible){groupVisible={};for(var k in s.groupVisible)groupVisible[k]=s.groupVisible[k];}
     rebuildCellGroupMap();
-    renderSelPanel();
   }
-  /* Restore slice filter */
+  /* Restore slice filter — apply mask directly, skip full applySlice */
   if(s.sliceFilter){
     sliceFilter={};
     for(var col in s.sliceFilter)sliceFilter[col]=new Set(s.sliceFilter[col]);
+    /* Rebuild sliceMask inline (same logic as applySlice but no recolor/save) */
+    if(D){
+      var cats=D.header.obs_categories||{};
+      var cols=Object.keys(cats);
+      var hasFilter=false;
+      for(var ci=0;ci<cols.length;ci++){
+        if(sliceFilter[cols[ci]]&&sliceFilter[cols[ci]].size<cats[cols[ci]].categories.length){hasFilter=true;break;}
+      }
+      if(!hasFilter){sliceMask=null;}
+      else{
+        var n=D.header.n_cells;sliceMask=new Uint8Array(n);
+        for(var i=0;i<n;i++){
+          var ok=1;
+          for(var ci=0;ci<cols.length;ci++){
+            var c=cols[ci];var code=D.obs_codes[c]?D.obs_codes[c][i]:-1;
+            if(code<0)continue;if(!sliceFilter[c].has(code)){ok=0;break;}
+          }
+          sliceMask[i]=ok;
+        }
+      }
+    }
     _syncSlicePills();
-    applySlice();
+    _updateSliceUI();
   }else if(sliceMask){
-    resetSlice();
+    sliceMask=null;
+    if(sliceFilter){
+      var cats2=D&&D.header&&D.header.obs_categories||{};
+      for(var col in cats2){var n2=cats2[col].categories.length;sliceFilter[col]=new Set();for(var j=0;j<n2;j++)sliceFilter[col].add(j);}
+    }
+    _syncSlicePills();
+    _updateSliceUI();
   }
-  if(s.embMethod&&D&&D.embeddings[s.embMethod])setEmbMethod(s.embMethod);
-  if(s.viewIs3d!==undefined)setView(s.viewIs3d?"3d":"2d");
-  /* Restore camera AFTER setView/setEmbMethod which reset it */
+  /* Switch embedding/view without redundant recolors */
+  var needReposition=false;
+  if(s.embMethod&&D&&D.embeddings[s.embMethod]&&embMethod!==s.embMethod){
+    embMethod=s.embMethod;
+    var sel=document.getElementById("emb-select");if(sel)sel.value=s.embMethod;
+    var ml=document.getElementById("emb-mini-label");
+    var labels={"umap":"","pca":"PCA","pacmap":"PaCMAP"};
+    if(ml){ml.textContent=labels[s.embMethod]||s.embMethod.toUpperCase();ml.style.display=s.embMethod==="umap"?"none":"inline";}
+    needReposition=true;
+  }
+  if(s.viewIs3d!==undefined&&viewIs3d!==s.viewIs3d){
+    viewIs3d=s.viewIs3d;
+    if(pts){pts.material.sizeAttenuation=viewIs3d;pts.material.needsUpdate=true;}
+    if(ringPts){ringPts.material.sizeAttenuation=viewIs3d;ringPts.material.needsUpdate=true;}
+    needReposition=true;
+  }
+  if(needReposition&&D){
+    var emb=D.embeddings[embMethod]||D.embeddings["umap"];
+    var td=viewIs3d?3:2;
+    if(emb&&emb[td])positionPts(D,td);
+  }
+  /* Restore camera AFTER repositioning */
   if(s.sph){sph.theta=s.sph.theta;sph.phi=s.sph.phi;sph.radius=s.sph.radius;}
   if(s.tgt3){tgt3.set(s.tgt3.x,s.tgt3.y,s.tgt3.z);}
   if(s.pan2){pan2.x=s.pan2.x;pan2.y=s.pan2.y;}
   if(s.zoom2!==undefined)zoom2=s.zoom2;
-  if(s.mode==="gene"&&s.selGene){
-    pickGene(s.selGene);
-  }else{
-    setMode(s.mode||"cluster");
-  }
+  if(s.mode){mode=s.mode;}
+  if(s.mode==="gene"&&s.selGene){selGene=s.selGene;}
+  document.getElementById("bc").className="btn"+(mode==="cluster"?" on":"");
+  document.getElementById("bg").className="btn"+(mode==="gene"?" on":"");
+  document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
+
+  /* Single recolor + UI updates at the end */
+  recolor();
+  renderLeg();
+  if(selGroups.length>0)renderSelPanel();
+  _restoring=false;
   _navigating=false;
   updateHistBtn();
-  saveState();
 }
 
 function updateHistBtn(){
