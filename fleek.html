@@ -599,6 +599,10 @@
     <button id="hist-fwd" onclick="histRedo()" style="background:rgba(0,0,0,0.25);border:none;border-radius:0 4px 4px 0;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.35)'" onmouseleave="this.style.background='rgba(0,0,0,0.25)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
   <div id="hint">Drag pan · Scroll zoom</div>
+  <div id="action-flash" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:50;pointer-events:none;font-size:16px;font-weight:600;color:var(--text2);background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);padding:8px 20px;border-radius:8px;opacity:0;transition:opacity 0.15s;white-space:nowrap;">
+    <span id="action-flash-text"></span>
+    <span id="action-flash-key" style="font-size:11px;color:var(--text4);margin-left:8px;font-weight:400;"></span>
+  </div>
   <div id="no-key-banner">
     <span>No Claude API key configured</span>
     <button onclick="openSettingsToKey()">Set in Settings &rarr;</button>
@@ -645,6 +649,10 @@
     <div class="s-row">
       <span>Hint bar</span>
       <label class="s-toggle"><input type="checkbox" id="set-hint" onchange="toggleHintBar();saveSettings()" checked><span class="s-slider"></span></label>
+    </div>
+    <div class="s-row">
+      <span>Shortcut flash</span>
+      <label class="s-toggle"><input type="checkbox" id="set-flash" onchange="saveSettings()" checked><span class="s-slider"></span></label>
     </div>
     <div class="s-row">
       <span>Undo/Redo buttons</span>
@@ -764,6 +772,7 @@
         <p><strong>2D View</strong> uses an orthographic camera with pan and zoom. Panning is limited so the cloud can't be dragged fully off-screen. Zoom-out shows about 2× the cloud extent; zoom-in goes to 500×. A crosshair appears at screen center during panning to aid orientation.</p>
         <p><strong>Zoom acceleration:</strong> scroll speed scales with flick velocity — a gentle scroll nudges, a fast flick covers significant distance. Both 2D and 3D share the same acceleration curve.</p>
         <p><strong>Modifier key hints</strong> — when you hold Shift, Option, or Ctrl, the hint bar at the bottom-left updates to show what action your next drag will perform (lasso, fly, pan, etc.) before you start moving.</p>
+        <p><strong>Shortcut flash</strong> — when you press a keyboard shortcut, a brief overlay flashes on screen showing the action name and key combination. This helps learn shortcuts and confirms the action was received. Toggle it off in Settings if you prefer a quieter interface.</p>
         <p>The 2D/3D toggle and Reset button are always accessible in the View panel header, even when the panel is collapsed.</p>
         <p><strong>Sidebar:</strong> press <span class="help-key">\</span> or click the <strong>«</strong> button to hide the sidebar and give the visualization full width. Press <span class="help-key">\</span> again or click <strong>»</strong> to restore it.</p>
         <table class="help-table">
@@ -2952,8 +2961,8 @@ function setupCtrl(){
 
   /* ── Keyboard shortcuts: Cmd+[ undo, Cmd+] redo, 1-9 switch group, Esc clear ── */
   document.addEventListener("keydown",function(e){
-    if((e.metaKey||e.ctrlKey)&&e.key==="["){e.preventDefault();histUndo();}
-    if((e.metaKey||e.ctrlKey)&&e.key==="]"){e.preventDefault();histRedo();}
+    if((e.metaKey||e.ctrlKey)&&e.key==="["){e.preventDefault();histUndo();_flashAction("Undo",_MOD+"[");}
+    if((e.metaKey||e.ctrlKey)&&e.key==="]"){e.preventDefault();histRedo();_flashAction("Redo",_MOD+"]");}
     /* Escape: always works, even when a slider has focus */
     if(e.key==="Escape"){
       if(document.activeElement)document.activeElement.blur();
@@ -2965,6 +2974,7 @@ function setupCtrl(){
       var help=document.getElementById("help-overlay");
       if(help.style.display==="block"){help.style.display="none";return;}
       clearActiveGroup(e.altKey);
+      _flashAction(e.altKey?"Clear All":"Clear Visible","Esc");
       return;
     }
     /* Enter: trigger active dialog or Load button */
@@ -2995,6 +3005,7 @@ function setupCtrl(){
       var idx=parseInt(e.code.charAt(5))-1;
       if(idx<selGroups.length){
         toggleGroupVis(selGroups[idx].id);
+        _flashAction("Toggle Group "+(idx+1),_ALT+"+"+(idx+1));
       }
       return;
     }
@@ -3003,28 +3014,29 @@ function setupCtrl(){
       var idx=parseInt(e.key)-1;
       while(idx>=selGroups.length)addSelGroup();
       setActiveGroup(selGroups[idx].id);
+      _flashAction("Group "+(idx+1),(idx+1)+"");
     }
     if(inInput)return; /* remaining shortcuts only outside inputs */
     /* c = cluster color mode */
-    if(e.key==="c"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("cluster");}
+    if(e.key==="c"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("cluster");_flashAction("Cell Type Colors","C");}
     /* g = gene expression color mode */
-    if(e.key==="g"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("gene");}
+    if(e.key==="g"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("gene");_flashAction("Gene Expression","G");}
     /* h = hide/restore all selection group highlights */
-    if(e.key==="h"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();}
+    if(e.key==="h"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();_flashAction("Toggle All Groups","H");}
     /* r = reset view */
-    if(e.key==="r"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){resetView();}
+    if(e.key==="r"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){resetView();_flashAction("Reset View","R");}
     /* d = toggle 2D/3D */
-    if(e.key==="d"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setView(viewIs3d?"2d":"3d");}
+    if(e.key==="d"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setView(viewIs3d?"2d":"3d");_flashAction(viewIs3d?"3D View":"2D View","D");}
     /* e = cycle embeddings */
     if(e.key==="e"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
       var methods=[];var sel=document.getElementById("emb-select");
       if(sel){for(var oi=0;oi<sel.options.length;oi++)methods.push(sel.options[oi].value);}
-      if(methods.length>1){var ci=methods.indexOf(embMethod);setEmbMethod(methods[(ci+1)%methods.length]);}
+      if(methods.length>1){var ci=methods.indexOf(embMethod);var next=methods[(ci+1)%methods.length];setEmbMethod(next);_flashAction(next.toUpperCase(),"E");}
     }
     /* Shift+V = select all visible cells */
-    if(e.key==="V"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){selAllVisible();}
+    if(e.key==="V"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){selAllVisible();_flashAction("Select All Visible","Shift+V");}
     /* \ = toggle sidebar */
-    if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();}
+    if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
   });
 }
 
@@ -6926,6 +6938,22 @@ function toggleFPS(){
   var on=document.getElementById("set-fps").checked;
   document.getElementById("fps-box").style.display=on?"block":"none";
 }
+var _flashTimer=null;
+function _flashAction(text,key){
+  if(!document.getElementById("set-flash").checked)return;
+  var el=document.getElementById("action-flash");
+  if(!el)return;
+  document.getElementById("action-flash-text").textContent=text;
+  document.getElementById("action-flash-key").textContent=key||"";
+  el.style.display="block";
+  el.style.opacity="1";
+  clearTimeout(_flashTimer);
+  _flashTimer=setTimeout(function(){
+    el.style.opacity="0";
+    setTimeout(function(){el.style.display="none";},200);
+  },700);
+}
+
 function toggleHintBar(){
   var on=document.getElementById("set-hint").checked;
   document.getElementById("hint").style.display=on?"block":"none";
@@ -7025,8 +7053,9 @@ function saveSettings(){
   var hlMode=document.getElementById("set-highlight").value;
   var showHint=document.getElementById("set-hint").checked;
   var showHistBtns=document.getElementById("set-hist-btns").checked;
+  var showFlash=document.getElementById("set-flash").checked;
   applyTheme(theme);
-  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns}));}catch(e){}
+  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns,showFlash:showFlash}));}catch(e){}
 }
 function applyUIScale(v){
   var s=parseFloat(v);
@@ -7070,6 +7099,9 @@ function loadSettings(){
       if(o.showHistBtns===false){
         document.getElementById("set-hist-btns").checked=false;
         toggleHistBtns();
+      }
+      if(o.showFlash===false){
+        document.getElementById("set-flash").checked=false;
       }
     }
     document.getElementById("set-zoom-mode").value=zoomMode;
