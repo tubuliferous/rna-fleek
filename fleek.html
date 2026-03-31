@@ -3737,6 +3737,7 @@ function _setLinBtn(btn,mode){
   if(!flatBtn||!treeBtn)return;
   var onBg="rgba(251,191,36,0.15)";
   var offBg="rgba(251,191,36,0.04)";
+  treeBtn.style.color="#fbbf24"; /* reset from stop-red */
   if(mode==="tree"){
     /* Lineage view — tree half highlighted */
     flatBtn.innerHTML=_linIconFlat+"List";
@@ -3749,6 +3750,11 @@ function _setLinBtn(btn,mode){
     flatBtn.style.background=onBg;flatBtn.style.opacity="1";
     treeBtn.innerHTML=_linIconTree+"Lineage";
     treeBtn.style.background=offBg;treeBtn.style.opacity="0.5";
+  }else if(mode==="Stop"){
+    /* Cancel state — red stop button */
+    treeBtn.innerHTML="Stop";
+    treeBtn.style.background="rgba(248,113,113,0.15)";treeBtn.style.color="#f87171";treeBtn.style.opacity="1";
+    flatBtn.style.opacity="0.3";
   }else{
     /* Loading state — show on tree half */
     treeBtn.innerHTML=mode;
@@ -3777,18 +3783,31 @@ function toggleLineageView(){
   }
 }
 
+var _lineageAbort=null;
+
+function _cancelLineage(){
+  if(_lineageAbort){_lineageAbort.abort();_lineageAbort=null;}
+  _setLinBtn(null,"flat");
+}
+
 function _fetchLineage(){
+  /* If already running, cancel */
+  if(_lineageAbort){_cancelLineage();return;}
+  _lineageAbort=new AbortController();
+
   /* Always ensure Claude annotations exist before building lineage. */
   if(!llmAnnotations){
-    _setLinBtn(null,"Annotating…");
+    _setLinBtn(null,"Stop");
     fetch("/api/annotate-llm",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({})
+      body:JSON.stringify({}),
+      signal:_lineageAbort.signal
     })
     .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.error||"Server error "+r.status);});return r.json();})
     .then(function(data){
       if(data.error){
+        _lineageAbort=null;
         _setLinBtn(null,"flat");
         if(data.error.indexOf("API key")>=0||data.error.indexOf("ANTHROPIC")>=0){_showNoKeyBanner();}
         else{alert("Claude annotation required for lineage.\nError: "+data.error);}
@@ -3803,28 +3822,32 @@ function _fetchLineage(){
         renderLeg();
         if(_lastLoadSettings){_lastLoadSettings.annot_llm_cached=true;showLoadBadges(_lastLoadSettings);}
       }
-      _setLinBtn(null,"Building…");
+      _setLinBtn(null,"Stop");
       _doFetchLineage();
     })
     .catch(function(err){
+      _lineageAbort=null;
       _setLinBtn(null,"flat");
-      alert("Claude annotation failed: "+err.message);
+      if(err.name!=="AbortError")alert("Claude annotation failed: "+err.message);
     });
     return;
   }
 
-  _setLinBtn(null,"Loading…");
+  _setLinBtn(null,"Stop");
   _doFetchLineage();
 }
 
 function _doFetchLineage(){
+  if(!_lineageAbort)_lineageAbort=new AbortController();
   fetch("/api/lineage",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({})
+    body:JSON.stringify({}),
+    signal:_lineageAbort.signal
   })
   .then(function(r){return r.json();})
   .then(function(data){
+    _lineageAbort=null;
     if(data.error){
       _setLinBtn(null,"flat");
       alert("Lineage error: "+data.error);
@@ -3835,8 +3858,9 @@ function _doFetchLineage(){
     _showLineageView();
   })
   .catch(function(err){
+    _lineageAbort=null;
     _setLinBtn(null,"flat");
-    alert("Lineage request failed: "+err.message);
+    if(err.name!=="AbortError")alert("Lineage request failed: "+err.message);
   });
 }
 
