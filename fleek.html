@@ -2964,6 +2964,8 @@ function setupCtrl(){
     if(e.key==="h"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();}
     /* r = reset view */
     if(e.key==="r"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){resetView();}
+    /* Shift+V = select all visible cells */
+    if(e.key==="V"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){selAllVisible();}
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();}
   });
