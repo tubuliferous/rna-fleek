@@ -958,25 +958,24 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         need_save = True
 
     # ── Cluster colors ──────────────────────────────────────────────────────
-    # Priority: uns["{col}_colors"] (Scanpy standard) > fleek_palette fallback
+    # Priority: fleek_color_map (name→hex dict) > uns["{col}_colors"] > palette fallback
     CLUSTER_COL = _cluster_col_used
-    _uns_colors = []
-    if _cluster_col_used and _cluster_col_used in adata.uns.get("__colors__", {}):
-        pass  # placeholder; real lookup below
-    if _cluster_col_used:
-        _uns_colors = adata.uns.get(f"{_cluster_col_used}_colors", [])
-    # Also check "fleek_colors" written by our own export
-    _uns_colors_raw = _uns_colors if not isinstance(_uns_colors, np.ndarray) else _uns_colors.tolist()
-    if not _uns_colors_raw:
-        _uns_colors = adata.uns.get("fleek_colors", [])
-    if isinstance(_uns_colors, np.ndarray):
-        _uns_colors = _uns_colors.tolist()
-    elif not isinstance(_uns_colors, list):
-        _uns_colors = list(_uns_colors) if _uns_colors else []
-    if len(_uns_colors) == len(CLUSTER_NAMES):
-        CLUSTER_COLORS = [str(c) for c in _uns_colors]
+    _color_map = adata.uns.get("fleek_color_map", {})
+    if isinstance(_color_map, dict) and _color_map:
+        # Map by name — works even when subset has fewer/different cluster indices
+        CLUSTER_COLORS = [str(_color_map.get(n, _palette_hex(i))) for i, n in enumerate(CLUSTER_NAMES)]
     else:
-        CLUSTER_COLORS = [_palette_hex(i) for i in range(len(CLUSTER_NAMES))]
+        _uns_colors = []
+        if _cluster_col_used:
+            _uns_colors = adata.uns.get(f"{_cluster_col_used}_colors", [])
+        if isinstance(_uns_colors, np.ndarray):
+            _uns_colors = _uns_colors.tolist()
+        elif not isinstance(_uns_colors, list):
+            _uns_colors = list(_uns_colors) if _uns_colors else []
+        if len(_uns_colors) == len(CLUSTER_NAMES):
+            CLUSTER_COLORS = [str(c) for c in _uns_colors]
+        else:
+            CLUSTER_COLORS = [_palette_hex(i) for i in range(len(CLUSTER_NAMES))]
 
     # Detect slice-able obs metadata columns
     OBS_COLS = _detect_obs_cols(adata, clustering_col=_cluster_col_used)
@@ -1192,6 +1191,25 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
 
     ADATA = adata
+
+    # ── Extract embedded annotation caches from subset uns ──
+    # Subsets exported by FLEEK embed annotation JSON in uns so they carry over
+    for _annot_key, _annot_suffix in [
+        ("fleek_annot_markers_json", ".annot_markers.json"),
+        ("fleek_annot_llm_json", ".annot_llm.json"),
+        ("fleek_annot_lineage_json", ".annot_lineage.json"),
+    ]:
+        _annot_data = adata.uns.get(_annot_key)
+        if _annot_data and isinstance(_annot_data, str):
+            _existing, _ = _cache_read_path(_annot_suffix)
+            if not _existing:
+                try:
+                    wp = _cache_write_path(_annot_suffix)
+                    with open(wp, "w") as f:
+                        f.write(_annot_data)
+                    print(f"  Extracted embedded annotation: {_annot_suffix} -> {wp}")
+                except Exception:
+                    pass
 
     # ── Extract PCA coordinates ──
     # Priority: cache > obsm > compute
@@ -2068,14 +2086,21 @@ def export_h5ad_subset(cell_indices, group_name):
         elif PCA_2D is not None and PCA_2D.shape[0] == _nc:
             sub.obsm["X_pca"] = PCA_2D[idx]
 
-    # ── Bake colors into the subset ─────────────────────────────────────────
-    # Store current CLUSTER_COLORS in uns so the subset always loads with
-    # identical colors to the full dataset (Scanpy-compatible key).
-    if CLUSTER_COL and CLUSTER_COLORS:
-        sub.uns[f"{CLUSTER_COL}_colors"] = CLUSTER_COLORS
-        # Also store under the generic "fleek_colors" key as fallback when
-        # the subset is loaded with a different detected column name
-        sub.uns["fleek_colors"] = CLUSTER_COLORS
+    # ── Bake colors + annotations into the subset ─────────────────────────
+    # Store a name→color mapping so colors survive subsetting (positional
+    # lists break when categories are removed by subsetting)
+    if CLUSTER_NAMES and CLUSTER_COLORS:
+        color_map = {CLUSTER_NAMES[i]: CLUSTER_COLORS[i] for i in range(len(CLUSTER_NAMES)) if i < len(CLUSTER_COLORS)}
+        sub.uns["fleek_color_map"] = color_map
+
+    # Copy annotation caches so the subset loads with annotations
+    for suffix in [".annot_markers.json", ".annot_llm.json", ".annot_lineage.json"]:
+        ap, _ = _cache_read_path(suffix)
+        if ap:
+            try:
+                sub.uns[f"fleek{suffix.replace('.', '_')}"] = Path(ap).read_text()
+            except Exception:
+                pass
 
     n_emb = sum(k in sub.obsm for k in ("X_umap", "X_pacmap", "X_pca"))
     print(f"  Export: {len(cell_indices)} cells, {n_emb} embeddings in obsm")
