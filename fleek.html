@@ -2908,7 +2908,9 @@ function setupCtrl(){
     /* Escape: always works, even when a slider has focus */
     if(e.key==="Escape"){
       if(document.activeElement)document.activeElement.blur();
-      /* Dismiss confirm dialog first */
+      /* Dismiss dialogs first */
+      var pr=document.getElementById("prompt-overlay");
+      if(pr&&pr.style.display==="flex"){_promptResolve(null);return;}
       var conf=document.getElementById("confirm-overlay");
       if(conf&&conf.style.display==="flex"){_confirmResolve(false);return;}
       var help=document.getElementById("help-overlay");
@@ -2916,8 +2918,15 @@ function setupCtrl(){
       clearActiveGroup(e.altKey);
       return;
     }
-    /* Enter: trigger visible Load button */
+    /* Enter: trigger active dialog or Load button */
     if(e.key==="Enter"){
+      /* Confirm dialog — Enter activates the OK button */
+      var conf=document.getElementById("confirm-overlay");
+      if(conf&&conf.style.display==="flex"){e.preventDefault();_confirmResolve(true);return;}
+      /* Prompt dialog — Enter submits (already handled by input onkeydown, but catch here too) */
+      var pr=document.getElementById("prompt-overlay");
+      if(pr&&pr.style.display==="flex"){e.preventDefault();_promptResolve(document.getElementById("prompt-input").value);return;}
+      /* Upload/browse Load buttons */
       var up=document.getElementById("upload-popover");
       if(up&&up.style.display!=="none"){
         var btn=document.getElementById("upload-go-btn");
