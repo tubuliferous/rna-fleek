@@ -5952,7 +5952,11 @@ function _doSaveSession(name){
   })
   .then(function(r){return r.json();})
   .then(function(d){
-    if(d.ok){_sessionName=name;_loadSessionList(name);}
+    if(d.ok){
+      _sessionName=name;
+      _sessionSwitchCooldown=Date.now()+3000; /* prevent auto-save from overwriting dropdown */
+      _loadSessionList(name);
+    }
     else{alert(d.error||"Failed to save session.");}
   }).catch(function(){alert("Server error saving session.");});
 }
