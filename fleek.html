@@ -6140,8 +6140,32 @@ function loadDEGFromHistory(){
   var sel=document.getElementById("deg-history");
   var key=sel.value;
   if(!key||!degCache[key])return;
-  _showDEGResult(degCache[key].data,degCache[key].grpA,degCache[key].grpB);
-  sel.value=""; /* reset to placeholder */
+  var c=degCache[key];
+  _showDEGResult(c.data,c.grpA,c.grpB);
+  /* Check if this entry is stale and show detailed stale info */
+  if(_isDEGEntryStale(c)){
+    var el=document.getElementById("deg-stale");
+    if(el){
+      /* Build stale message showing original vs current counts */
+      var parts=[],statusParts=[];
+      for(var i=0;i<selGroups.length;i++){
+        if(selGroups[i].id===c.grpAId&&selGroups[i].cells.size!==c.grpASize){
+          var nm=c.grpA?c.grpA.name:"A";
+          parts.push(nm+": was "+c.grpASize.toLocaleString()+", now "+selGroups[i].cells.size.toLocaleString());
+          statusParts.push(nm+" \u0336"+c.grpASize.toLocaleString()+"\u0336 \u2192 "+selGroups[i].cells.size.toLocaleString());
+        }
+        if(selGroups[i].id===c.grpBId&&selGroups[i].cells.size!==c.grpBSize){
+          var nm2=c.grpB?c.grpB.name:"B";
+          parts.push(nm2+": was "+c.grpBSize.toLocaleString()+", now "+selGroups[i].cells.size.toLocaleString());
+          statusParts.push(nm2+" \u0336"+c.grpBSize.toLocaleString()+"\u0336 \u2192 "+selGroups[i].cells.size.toLocaleString());
+        }
+      }
+      el.textContent="stale \u00b7 "+statusParts.join(", ");
+      el.title="Groups changed since this analysis was run\n"+parts.join("\n");
+      el.style.display="inline";
+    }
+  }
+  sel.value="";
 }
 
 var _degAbort=null; /* AbortController for running DEG */
