@@ -6315,6 +6315,8 @@ function openSettingsToKey(){
     var inp=document.getElementById("set-api-key");
     inp.focus();
     inp.select();
+    inp.style.animation="btn-pulse 1.5s ease-in-out infinite";
+    inp.addEventListener("input",function _stop(){inp.style.animation="";inp.removeEventListener("input",_stop);},{once:true});
   },50);
 }
 function _showNoKeyBanner(){
