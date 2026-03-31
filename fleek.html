@@ -5761,10 +5761,10 @@ function _buildSessionState(){
 
 function _sessionAutoSave(){
   if(!D||_sessionLoading||_restoring||_navigating)return;
-  /* If working from a named session, switch indicator to auto-save */
-  if(_sessionName!=="_auto"){
+  /* Always switch to auto-save indicator (from named session or fresh) */
+  var sel=document.getElementById("session-select");
+  if(_sessionName!=="_auto"||(sel&&sel.value!=="_auto")){
     _sessionName="_auto";
-    var sel=document.getElementById("session-select");
     if(sel)sel.value="_auto";
     _updateSessionDeleteBtn();
   }
