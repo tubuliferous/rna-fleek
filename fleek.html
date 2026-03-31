@@ -5400,6 +5400,9 @@ function markDEGStale(){
   var selB=document.getElementById("deg-grpB");
   var prevA=selA.value, prevB=selB.value;
   selA.innerHTML="";selB.innerHTML="";
+  /* Clear ghost styling from stale history loads */
+  selA.style.fontStyle="";selA.style.opacity="";
+  selB.style.fontStyle="";selB.style.opacity="";
   var filled=[];
   for(var i=0;i<selGroups.length;i++){
     if(selGroups[i].cells.size>0)filled.push(selGroups[i]);
@@ -6030,13 +6033,13 @@ function _restoreSliceState(){
 }
 
 function _saveDEGState(){
-  if(!degData)return;
+  if(!degData&&Object.keys(degCache).length===0)return;
   try{
     sessionStorage.setItem("fleek_deg",JSON.stringify({
       data:degData,grpA:degGrpA,grpB:degGrpB,selHash:degSelHash,
       open:degOpen,panelH:degPanelH,
       yaxis:document.getElementById("deg-yaxis").value,
-      sort:degSort
+      sort:degSort,cache:degCache
     }));
   }catch(e){}
 }
@@ -6141,6 +6144,7 @@ function loadDEGFromHistory(){
   var key=sel.value;
   if(!key||!degCache[key])return;
   var c=degCache[key];
+  _removeStaleGhosts();
   _showDEGResult(c.data,c.grpA,c.grpB);
   /* If stale, add ghost entries in the group dropdowns for the original groups */
   if(_isDEGEntryStale(c)){
@@ -6151,9 +6155,17 @@ function loadDEGFromHistory(){
   sel.value="";
 }
 
+function _removeStaleGhosts(){
+  var selA=document.getElementById("deg-grpA");
+  var selB=document.getElementById("deg-grpB");
+  if(selA){var g=selA.querySelector('option[value="__stale_a"]');if(g)g.remove();selA.style.fontStyle="";selA.style.opacity="";}
+  if(selB){var g=selB.querySelector('option[value="__stale_b"]');if(g)g.remove();selB.style.fontStyle="";selB.style.opacity="";}
+}
+
 function _addStaleGhostOptions(c){
   /* Add grayed-out italic entries in group dropdowns for the original analysis groups.
      Browser <option> styling is limited, so we style the <select> itself. */
+  _removeStaleGhosts(); /* clear any previous ghosts first */
   var selA=document.getElementById("deg-grpA");
   var selB=document.getElementById("deg-grpB");
   if(!selA||!selB)return;
@@ -7270,6 +7282,7 @@ document.addEventListener("DOMContentLoaded",function(){
             degSelHash=ds.selHash;
             degSort=ds.sort||{col:"padj",asc:true};
             degPanelH=ds.panelH||280;
+            if(ds.cache)degCache=ds.cache;
             /* Always restore status/note so it's ready if panel is opened */
             var nSig=0;
             for(var si=0;si<degData.genes.length;si++){if(Math.abs(degData.genes[si].log2fc)>=FC_THRESH&&degData.genes[si].padj<PADJ_THRESH)nSig++;}
