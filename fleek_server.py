@@ -1849,6 +1849,16 @@ def build_init_payload():
     }
 
     # Include cached annotations if available
+    # Validation: cluster_names must be a superset of current names (handles subsets)
+    def _annot_valid(cached_obj):
+        cn = cached_obj.get("cluster_names")
+        nc = cached_obj.get("n_cells")
+        if cn == CLUSTER_NAMES and nc == N_CELLS:
+            return True  # exact match
+        if cn and set(CLUSTER_NAMES).issubset(set(cn)):
+            return True  # subset of parent — annotations still valid
+        return False
+
     for annot_key, suffix in [("cached_markers", ".annot_markers.json"), ("cached_llm", ".annot_llm.json")]:
         if LOADED_PATH:
             ap, _ = _cache_read_path(suffix)
@@ -1856,7 +1866,7 @@ def build_init_payload():
                 try:
                     with open(ap) as f:
                         cached = json.load(f)
-                    if cached.get("cluster_names") == CLUSTER_NAMES and cached.get("n_cells") == N_CELLS:
+                    if _annot_valid(cached):
                         header[annot_key] = cached.get("results", [])
                 except Exception:
                     pass
@@ -1868,7 +1878,7 @@ def build_init_payload():
             try:
                 with open(lp) as f:
                     lcached = json.load(f)
-                if lcached.get("cluster_names") == CLUSTER_NAMES and lcached.get("n_cells") == N_CELLS:
+                if _annot_valid(lcached):
                     header["cached_lineage"] = lcached.get("tree")
             except Exception:
                 pass
