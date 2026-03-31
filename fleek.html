@@ -336,6 +336,9 @@
         <button class="icon-btn" onclick="saveSessionAs()" title="Save session as..." style="color:var(--text3);font-size:10px;padding:1px 3px;">
           <svg viewBox="0 0 24 24" width="12" height="12" style="fill:currentColor;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
         </button>
+        <button class="icon-btn" id="session-delete-btn" onclick="deleteSession()" title="Delete this session" style="color:var(--text4);font-size:10px;padding:1px 3px;display:none;">
+          <svg viewBox="0 0 24 24" width="11" height="11" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </button>
         <button class="icon-btn" onclick="resetSession()" title="Reset to fresh session" style="color:var(--text4);font-size:10px;padding:1px 3px;">
           <svg viewBox="0 0 16 16" width="11" height="11" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg>
         </button>
@@ -1130,6 +1133,16 @@
   </div>
 </div>
 </div>
+</div>
+<div id="prompt-overlay" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.45);justify-content:center;align-items:center;" onclick="if(event.target===this)_promptResolve(null)">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px 24px;max-width:340px;width:90vw;box-shadow:0 16px 48px rgba(0,0,0,0.4);">
+    <div id="prompt-msg" style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:12px;"></div>
+    <input type="text" id="prompt-input" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:5px;background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;box-sizing:border-box;" onkeydown="if(event.key==='Enter')_promptResolve(this.value);if(event.key==='Escape')_promptResolve(null);">
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+      <button onclick="_promptResolve(null)" style="border-radius:5px;font-size:10px;font-family:inherit;padding:6px 16px;cursor:pointer;font-weight:600;border:none;background:var(--bg3);color:var(--text3);">Cancel</button>
+      <button id="prompt-ok" onclick="_promptResolve(document.getElementById('prompt-input').value)" style="border-radius:5px;font-size:10px;font-family:inherit;padding:6px 16px;cursor:pointer;font-weight:600;border:none;background:rgba(99,102,241,0.15);color:var(--accent2);">Save</button>
+    </div>
+  </div>
 </div>
 <div id="confirm-overlay" onclick="if(event.target===this)_confirmResolve(false)">
   <div id="confirm-panel">
@@ -5176,6 +5189,23 @@ function fleekConfirm(msg,sub,okLabel,cb){
   el.style.display="flex";
 }
 
+/* ── Custom prompt dialog ── */
+var _promptCb=null;
+function _promptResolve(val){
+  document.getElementById("prompt-overlay").style.display="none";
+  if(_promptCb)_promptCb(val);
+  _promptCb=null;
+}
+function fleekPrompt(msg,placeholder,okLabel,cb){
+  document.getElementById("prompt-msg").textContent=msg;
+  var inp=document.getElementById("prompt-input");
+  inp.value="";inp.placeholder=placeholder||"";
+  document.getElementById("prompt-ok").textContent=okLabel||"Save";
+  _promptCb=cb;
+  document.getElementById("prompt-overlay").style.display="flex";
+  setTimeout(function(){inp.focus();},50);
+}
+
 function clearCache(type){
   var info={
     fleek:["Delete embedding cache?","UMAP, PCA, PaCMAP, and Leiden will be recomputed on next load."],
@@ -5707,12 +5737,14 @@ function _loadSessionList(selectName){
     sel.appendChild(fresh);
     sel.value=selectName||_sessionName;
     document.getElementById("session-bar").style.display="flex";
+    _updateSessionDeleteBtn();
   }).catch(function(){});
 }
 
 function onSessionSelect(){
   var sel=document.getElementById("session-select");
   var name=sel.value;
+  _updateSessionDeleteBtn();
   if(name==="__fresh"){resetSession();return;}
   _sessionName=name;
   fetch("/api/session-load",{
@@ -5786,20 +5818,46 @@ function _applySessionState(s){
 }
 
 function saveSessionAs(){
-  var name=prompt("Session name:");
-  if(!name||!name.trim())return;
-  name=name.trim();
-  if(name==="_auto"){alert("Name '_auto' is reserved for auto-save.");return;}
-  var state=_buildSessionState();
-  fetch("/api/session-save",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name:name,state:state})
-  })
-  .then(function(r){return r.json();})
-  .then(function(d){
-    if(d.ok){_sessionName=name;_loadSessionList(name);}
-    else{alert(d.error||"Failed to save session.");}
-  }).catch(function(){alert("Server error saving session.");});
+  fleekPrompt("Save session as:","Session name","Save",function(name){
+    if(!name||!name.trim())return;
+    name=name.trim();
+    if(name==="_auto"){alert("Name '_auto' is reserved for auto-save.");return;}
+    var state=_buildSessionState();
+    fetch("/api/session-save",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:name,state:state})
+    })
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.ok){_sessionName=name;_loadSessionList(name);}
+      else{alert(d.error||"Failed to save session.");}
+    }).catch(function(){alert("Server error saving session.");});
+  });
+}
+
+function deleteSession(){
+  var sel=document.getElementById("session-select");
+  var name=sel.value;
+  if(!name||name==="_auto"||name==="__fresh")return;
+  fleekConfirm("Delete session \u201c"+name+"\u201d?","This cannot be undone.","Delete",function(ok){
+    if(!ok)return;
+    fetch("/api/session-delete",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:name})
+    })
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.ok){_sessionName="_auto";_loadSessionList("_auto");}
+    }).catch(function(){});
+  });
+}
+
+function _updateSessionDeleteBtn(){
+  var sel=document.getElementById("session-select");
+  var btn=document.getElementById("session-delete-btn");
+  if(!sel||!btn)return;
+  var name=sel.value;
+  btn.style.display=(name&&name!=="_auto"&&name!=="__fresh")?"":"none";
 }
 
 function resetSession(){
