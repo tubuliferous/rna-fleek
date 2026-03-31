@@ -5774,10 +5774,16 @@ function _sessionAutoSave(){
   }
   clearTimeout(_sessionAutoTimer);
   _sessionAutoTimer=setTimeout(function(){
-    fetch("/api/session-save",{
-      method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({name:"_auto",state:_buildSessionState()})
-    }).catch(function(){});
+    var s=_buildSessionState();
+    /* Limit history size for auto-save to keep payload manageable */
+    if(s._history&&s._history.length>20)s._history=s._history.slice(s._history.length-20);
+    try{
+      var body=JSON.stringify({name:"_auto",state:s});
+      fetch("/api/session-save",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:body
+      }).catch(function(){});
+    }catch(e){/* JSON too large — skip this auto-save */}
   },2000);
 }
 
