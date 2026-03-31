@@ -5703,6 +5703,12 @@ function _buildSessionState(){
   state.recentGenes=recentGenes;
   state._history=_history;
   state._histIdx=_histIdx;
+  /* Save DEG results */
+  if(degData){
+    state._deg={data:degData,grpA:degGrpA,grpB:degGrpB,
+      selHash:degSelHash,open:degOpen,panelH:degPanelH,
+      sort:degSort,cache:degCache};
+  }
   return state;
 }
 
@@ -5806,6 +5812,16 @@ function _applySessionState(s){
   document.getElementById("bg").className="btn"+(mode==="gene"?" on":"");
   document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
   recolor();renderLeg();if(selGroups.length>0)renderSelPanel();showRecentGenes();
+  /* Restore DEG results if present */
+  if(s._deg){
+    degData=s._deg.data;degGrpA=s._deg.grpA;degGrpB=s._deg.grpB;
+    degSelHash=s._deg.selHash||"";degOpen=s._deg.open||false;
+    degPanelH=s._deg.panelH||280;degSort=s._deg.sort||{col:"padj",asc:true};
+    if(s._deg.cache)degCache=s._deg.cache;
+    if(degOpen&&degData){
+      _showDEGResult();
+    }
+  }
   /* Restore undo/redo history if present */
   if(s._history&&s._history.length>0){
     _history=s._history;
