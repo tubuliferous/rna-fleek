@@ -5743,17 +5743,16 @@ var _sessionName="_auto";
 var _sessionAutoTimer=null;
 var _sessionLoading=false;
 
-function _buildSessionState(full){
+function _buildSessionState(){
   var state=JSON.parse(snapState());
   state.recentGenes=recentGenes;
   state._history=_history;
   state._histIdx=_histIdx;
-  /* Save DEG results */
-  if(degData){
+  /* Save DEG results + cache (all computed test/group combinations) */
+  if(degData||Object.keys(degCache).length>0){
     state._deg={data:degData,grpA:degGrpA,grpB:degGrpB,
       selHash:degSelHash,open:degOpen,panelH:degPanelH,
-      sort:degSort};
-    if(full)state._deg.cache=degCache;
+      sort:degSort,cache:degCache};
   }
   return state;
 }
@@ -5895,7 +5894,7 @@ function saveSessionAs(){
     if(!name||!name.trim())return;
     name=name.trim();
     if(name==="_auto"){alert("Name '_auto' is reserved for auto-save.");return;}
-    var state=_buildSessionState(true);
+    var state=_buildSessionState();
     fetch("/api/session-save",{
       method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({name:name,state:state})
