@@ -2363,10 +2363,17 @@ function recolor(){
   var hasAnySelection=false; /* any group with cells, regardless of visibility */
   var useRing=highlightMode==="ring";
   if(cellGroupMap){
-    for(var gi=0;gi<selGroups.length;gi++){
+    for(var gi=0;gi<selGroups.length&&!hasAnyVisible;gi++){
       if(selGroups[gi].cells.size>0){
         hasAnySelection=true;
-        if(groupVisible[selGroups[gi].id]!==false){hasAnyVisible=true;}
+        if(groupVisible[selGroups[gi].id]!==false){
+          /* Check if at least one cell in this group is actually rendered */
+          selGroups[gi].cells.forEach(function(ci){
+            if(!hasAnyVisible&&visibleClusters[D.cluster_ids[ci]]!==false&&!(sliceMask&&!sliceMask[ci])){
+              hasAnyVisible=true;
+            }
+          });
+        }
       }
     }
   }
