@@ -177,6 +177,8 @@
   #deg-hdr button:hover{border-color:var(--text3);color:var(--text2);}
   #deg-run-btn{background:rgba(99,102,241,0.2)!important;border-color:var(--accent)!important;color:var(--accent2)!important;font-weight:600;padding:3px 14px!important;}
   #deg-run-btn:hover{background:rgba(99,102,241,0.35)!important;}
+  #deg-run-btn.deg-stop{background:rgba(248,113,113,0.2)!important;border-color:#f87171!important;color:#f87171!important;}
+  #deg-run-btn.deg-stop:hover{background:rgba(248,113,113,0.35)!important;}
   #deg-body{display:flex;flex:1;min-height:0;overflow:hidden;}
   #volcano-wrap{flex:1;position:relative;min-width:0;}
   #volcano-cv{width:100%;height:100%;display:block;cursor:crosshair;}
@@ -6210,7 +6212,7 @@ function stopDEG(){
   _degRunning=false;
   var btn=document.getElementById("deg-run-btn");
   btn.textContent="Run";
-  btn.style.color="";btn.style.borderColor="";
+  btn.classList.remove("deg-stop");
   document.getElementById("deg-status").textContent="Cancelled";
 }
 
@@ -6243,7 +6245,7 @@ function runDEG(){
   _degAbort=new AbortController();
   var btn=document.getElementById("deg-run-btn");
   btn.textContent="Stop";
-  btn.style.color="#f87171";btn.style.borderColor="#f87171";
+  btn.classList.add("deg-stop");
 
   var startTime=Date.now();
   var progressTimer=setInterval(function(){
@@ -6265,7 +6267,7 @@ function runDEG(){
   .then(function(data){
     clearInterval(progressTimer);
     _degRunning=false;_degAbort=null;
-    btn.textContent="Run";btn.style.color="";btn.style.borderColor="";
+    btn.textContent="Run";btn.classList.remove("deg-stop");
     if(data.error){status.textContent="Error: "+data.error;return;}
     /* Cache the result */
     /* Store group IDs so we can check staleness per cache entry */
@@ -6280,7 +6282,7 @@ function runDEG(){
   .catch(function(err){
     clearInterval(progressTimer);
     _degRunning=false;_degAbort=null;
-    btn.textContent="Run";btn.style.color="";btn.style.borderColor="";
+    btn.textContent="Run";btn.classList.remove("deg-stop");
     if(err.name==="AbortError"){
       status.textContent="Cancelled";
     }else{
