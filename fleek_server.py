@@ -335,14 +335,13 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
         "top_n": top_n, "cluster_names": CLUSTER_NAMES, "n_cells": N_CELLS
     }
     
-    if cache_path:
-        try:
-            wp = _cache_write_path(".annot_markers.json")
-            with open(wp, "w") as f:
-                json.dump(result, f, separators=(",", ":"))
-            print(f"  Marker annotation cached to {wp}")
-        except Exception as e:
-            print(f"  Marker annotation cache save failed: {e}")
+    try:
+        wp = _cache_write_path(".annot_markers.json")
+        with open(wp, "w") as f:
+            json.dump(result, f, separators=(",", ":"))
+        print(f"  Marker annotation cached to {wp}")
+    except Exception as e:
+        print(f"  Marker annotation cache save failed: {e}")
     
     return result
 
@@ -2121,16 +2120,18 @@ def export_h5ad_subset(cell_indices, group_name):
                 np.savez(server_cache, **subset_cache)
                 print(f"  Export: pre-wrote cache ({', '.join(subset_cache)}) -> {server_cache}")
             # Pre-write annotation caches for the subset
+            import shutil
             for _annot_suffix in [".annot_markers.json", ".annot_llm.json", ".annot_lineage.json"]:
                 _annot_src, _ = _cache_read_path(_annot_suffix)
                 if _annot_src:
                     try:
                         _annot_dst = CACHE_DIR / f"{stem}{_annot_suffix}"
-                        import shutil
                         shutil.copy2(str(_annot_src), str(_annot_dst))
                         print(f"  Export: copied {_annot_suffix} -> {_annot_dst.name}")
-                    except Exception:
-                        pass
+                    except Exception as _ae:
+                        print(f"  Export: failed to copy {_annot_suffix}: {_ae}")
+                else:
+                    print(f"  Export: no source found for {_annot_suffix}")
     except Exception as e:
         print(f"  Export: cache pre-write failed (non-fatal): {e}")
 
