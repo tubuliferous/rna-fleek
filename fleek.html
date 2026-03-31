@@ -5036,6 +5036,9 @@ function unloadDataset(){
     /* Clear client state */
     D=null;mode="cluster";selGene="";geneExprCache={};
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
+    /* Close DEG panel */
+    if(degOpen)closeDEG();
+    degData=null;degCache={};degGrpA=null;degGrpB=null;
     selGroups=[];activeGroupId=null;cellGroupMap=null;
     _hadSelection=false;bgDimPct=0;
     markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
