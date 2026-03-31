@@ -366,13 +366,13 @@
             <span id="fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
           </div>
         </div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
+          <label class="s-toggle"><input type="checkbox" id="native-2d-toggle" checked><span class="s-slider"></span></label>
+          <span>Native 2D embeddings</span>
+        </label>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
           <label class="s-toggle"><input type="checkbox" id="backed-toggle"><span class="s-slider"></span></label>
           <span>Disk-backed</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
-          <label class="s-toggle"><input type="checkbox" id="native-2d-toggle"><span class="s-slider"></span></label>
-          <span>Native 2D embeddings</span>
         </label>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn" id="upload-go-btn" onclick="confirmUpload()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
@@ -413,13 +413,13 @@
             <label class="s-toggle"><input type="checkbox" id="browse-fast-deg" checked><span class="s-slider"></span></label>
             <span>QuickDEG</span>
           </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
+            <label class="s-toggle"><input type="checkbox" id="browse-native-2d" checked><span class="s-slider"></span></label>
+            <span>Native 2D embeddings</span>
+          </label>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Keep expression matrix on disk.">
             <label class="s-toggle"><input type="checkbox" id="browse-backed"><span class="s-slider"></span></label>
             <span>Disk-backed</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
-            <label class="s-toggle"><input type="checkbox" id="browse-native-2d"><span class="s-slider"></span></label>
-            <span>Native 2D embeddings</span>
           </label>
           <div style="display:flex;gap:6px;margin-top:6px;">
             <button class="btn" id="browse-load-btn" onclick="loadBrowsedFile()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
