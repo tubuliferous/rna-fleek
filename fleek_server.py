@@ -752,15 +752,14 @@ Respond with ONLY the JSON array. No markdown fences. No other text."""
         "n_cells": N_CELLS
     }
 
-    # Save cache
-    if cache_path:
-        try:
-            wp = _cache_write_path(".annot_llm.json")
-            with open(wp, "w") as f:
-                json.dump(result, f, separators=(",", ":"))
-            print(f"  LLM annotation cached to {wp}")
-        except Exception as e:
-            print(f"  LLM annotation cache save failed: {e}")
+    # Save cache (always — cache_path may be None if file didn't exist yet)
+    try:
+        wp = _cache_write_path(".annot_llm.json")
+        with open(wp, "w") as f:
+            json.dump(result, f, separators=(",", ":"))
+        print(f"  LLM annotation cached to {wp}")
+    except Exception as e:
+        print(f"  LLM annotation cache save failed: {e}")
 
     return result
 
@@ -2962,6 +2961,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
             counts = Counter(CLUSTER_IDS.tolist())
 
             # Load Claude annotations for inline context
+            # Priority: cache file > client-supplied predictions
             llm_preds = {}  # cluster_id -> predicted cell type
             llm_cache_path, _ = _cache_read_path(".annot_llm.json")
             if llm_cache_path:
@@ -2975,6 +2975,12 @@ class FleekHandler(SimpleHTTPRequestHandler):
                             llm_preds[cid] = preds[0].get("cell_type", "")
                 except Exception:
                     pass
+            # Fallback: use client-supplied predictions (covers case where cache wasn't saved)
+            if not llm_preds:
+                client_preds = req.get("llm_predictions", {})
+                for k, v in client_preds.items():
+                    if v:
+                        llm_preds[int(k)] = v
 
             for i, name in enumerate(CLUSTER_NAMES):
                 n_cells = counts.get(i, 0)

@@ -3968,10 +3968,18 @@ function _fetchLineage(){
 
 function _doFetchLineage(){
   if(!_lineageAbort)_lineageAbort=new AbortController();
+  /* Send llmAnnotations so server has them even if cache file wasn't written */
+  var _llmForLineage={};
+  if(llmAnnotations){
+    for(var cid in llmAnnotations){
+      var preds=llmAnnotations[cid];
+      if(preds&&preds.length>0)_llmForLineage[cid]=preds[0].cell_type||preds[0].type||"";
+    }
+  }
   fetch("/api/lineage",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({}),
+    body:JSON.stringify({llm_predictions:_llmForLineage}),
     signal:_lineageAbort.signal
   })
   .then(function(r){return r.json();})
