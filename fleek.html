@@ -6176,6 +6176,7 @@ function runDEG(){
     degCache[cacheKey]={data:data,grpA:savedGrpA,grpB:savedGrpB};
     _showDEGResult(data,savedGrpA,savedGrpB);
     _updateDEGHistory();
+    _sessionAutoSave();
   })
   .catch(function(err){
     clearInterval(progressTimer);
