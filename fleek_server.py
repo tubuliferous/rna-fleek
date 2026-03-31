@@ -818,7 +818,7 @@ def _reset_all():
     import gc; gc.collect()
 
 def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False,
-                     fast_umap_subsample=50000, backed="off"):
+                     fast_umap_subsample=50000, backed="off", native_2d=False):
     """Load h5ad, subsample if needed, compute UMAP(s).
     
     backed: "auto" (use file size vs RAM), "on" (force backed), "off" (force in-memory)
@@ -1037,6 +1037,10 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             dims_needed.append(nd)
             umap_from_cache = False
 
+    # If not native_2d and we need both dims, compute only 3D and derive 2D
+    if not native_2d and 2 in dims_needed and 3 in dims_needed:
+        dims_needed = [3]  # compute only 3D; 2D will be derived after
+
     if dims_needed and use_fast:
         # ── Shared setup: subsample + PCA (done ONCE for all dims) ──
         import umap as umap_lib
@@ -1173,6 +1177,11 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             cached[f"umap_{nd}d_full"] = umap_arr
             need_save = True
 
+    # Derive 2D from 3D if not native and 2D wasn't loaded/computed
+    if UMAP_2D is None and UMAP_3D is not None:
+        UMAP_2D = UMAP_3D[:, :2].copy()
+        print(f"  UMAP 2D derived from 3D (slice)")
+
     if need_save:
         # Also save PCA coords to cache if available
         if "X_pca" in adata.obsm:
@@ -1247,12 +1256,23 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         PACMAP_3D = cached[_pm_key3].astype(np.float32)
         PACMAP_COMPUTING = False
         print(f"  PaCMAP loaded from cache ({'quick' if _pm_suffix == '_quick' else 'full'})")
+    elif _pm_key3 in cached:
+        # 3D cached but no native 2D — derive 2D from 3D
+        PACMAP_3D = cached[_pm_key3].astype(np.float32)
+        PACMAP_2D = PACMAP_3D[:, :2].copy()
+        PACMAP_COMPUTING = False
+        print(f"  PaCMAP 3D from cache, 2D derived (slice)")
     elif "pacmap_2d" in cached and "pacmap_3d" in cached:
         # Legacy cache fallback
         PACMAP_2D = cached["pacmap_2d"].astype(np.float32)
         PACMAP_3D = cached["pacmap_3d"].astype(np.float32)
         PACMAP_COMPUTING = False
         print(f"  PaCMAP loaded from cache (legacy)")
+    elif "pacmap_3d" in cached:
+        PACMAP_3D = cached["pacmap_3d"].astype(np.float32)
+        PACMAP_2D = PACMAP_3D[:, :2].copy()
+        PACMAP_COMPUTING = False
+        print(f"  PaCMAP 3D from cache (legacy), 2D derived (slice)")
     elif "X_pacmap" in adata.obsm and adata.obsm["X_pacmap"].shape[0] == N_CELLS:
         # Pre-existing PaCMAP from obsm (e.g. exported subset)
         _obsm_pm = adata.obsm["X_pacmap"].astype(np.float32)
@@ -1302,6 +1322,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                         sub_path = os.path.join(tmpdir, "sub_idx.npy")
                         np.save(sub_path, np.array(sub_idx, dtype=np.int32))
 
+                        _do_native_pm = native_2d
                         script = f'''
 import numpy as np, pacmap, time
 from scipy.spatial import cKDTree
@@ -1312,12 +1333,16 @@ nn = min(10, max(2, len(sub_idx) // 50))
 t0 = time.time()
 n_total = X.shape[0]
 n_sub = len(sub_idx)
-print(f"  PaCMAP 2D ({{n_sub:,}} / {{n_total:,}} cells, {{nn}} neighbors)...")
-pm2 = pacmap.PaCMAP(n_components=2, n_neighbors=nn, verbose=False)
-Y2_sub = pm2.fit_transform(X_sub).astype(np.float32)
-print(f"  PaCMAP 3D...")
+do_native_2d = {_do_native_pm}
+if do_native_2d:
+    print(f"  PaCMAP 2D ({{n_sub:,}} / {{n_total:,}} cells, {{nn}} neighbors)...")
+    pm2 = pacmap.PaCMAP(n_components=2, n_neighbors=nn, verbose=False)
+    Y2_sub = pm2.fit_transform(X_sub).astype(np.float32)
+print(f"  PaCMAP 3D{{'' if do_native_2d else ' (2D will be derived)'}}")
 pm3 = pacmap.PaCMAP(n_components=3, n_neighbors=nn, verbose=False)
 Y3_sub = pm3.fit_transform(X_sub).astype(np.float32)
+if not do_native_2d:
+    Y2_sub = Y3_sub[:, :2].copy()
 # Project remaining cells via k-NN weighted interpolation in PCA space
 print(f"  Projecting {{n_total - n_sub:,}} remaining cells (k=5 weighted)...")
 tree = cKDTree(X_sub)
@@ -1325,7 +1350,6 @@ rest_mask = np.ones(n_total, dtype=bool)
 rest_mask[sub_idx] = False
 rest_idx = np.where(rest_mask)[0]
 dists, knn_idx = tree.query(X[rest_idx], k=5)
-# Inverse-distance weights (add small epsilon to avoid division by zero)
 weights = 1.0 / (dists + 1e-10)
 weights /= weights.sum(axis=1, keepdims=True)
 Y2 = np.empty((n_total, 2), dtype=np.float32)
@@ -1339,17 +1363,22 @@ np.save("{out3_path}", Y3)
 print(f"  PaCMAP done ({{time.time()-t0:.1f}}s, {{n_sub:,}}-cell fit)")
 '''
                     else:
+                        _do_native_pm = native_2d
                         script = f'''
 import numpy as np, pacmap, time
 X = np.load("{input_path}")
 nn = min(10, max(2, X.shape[0] // 50))
 t0 = time.time()
-print(f"  PaCMAP 2D ({{X.shape[0]:,}} cells, {{nn}} neighbors)...")
-Y2 = pacmap.PaCMAP(n_components=2, n_neighbors=nn, verbose=False).fit_transform(X).astype(np.float32)
-np.save("{out2_path}", Y2)
-print(f"  PaCMAP 3D...")
+do_native_2d = {_do_native_pm}
+if do_native_2d:
+    print(f"  PaCMAP 2D ({{X.shape[0]:,}} cells, {{nn}} neighbors)...")
+    Y2 = pacmap.PaCMAP(n_components=2, n_neighbors=nn, verbose=False).fit_transform(X).astype(np.float32)
+    np.save("{out2_path}", Y2)
+print(f"  PaCMAP 3D{{'' if do_native_2d else ' (2D will be derived)'}}")
 Y3 = pacmap.PaCMAP(n_components=3, n_neighbors=nn, verbose=False).fit_transform(X).astype(np.float32)
 np.save("{out3_path}", Y3)
+if not do_native_2d:
+    np.save("{out2_path}", Y3[:, :2].copy())
 print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
 '''
                     sub_label = f" (subsample {PACMAP_SUBSAMPLE:,})" if PACMAP_SUBSAMPLE > 0 and n_total > PACMAP_SUBSAMPLE else ""
@@ -1633,6 +1662,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
     LOAD_SETTINGS["quickdeg"] = DEG_SETTINGS.get("fast", True)
     LOAD_SETTINGS["quickdeg_n"] = DEG_SETTINGS.get("max_cells", 50000) if DEG_SETTINGS.get("fast", True) else 0
     LOAD_SETTINGS["quickpacmap"] = PACMAP_SETTINGS.get("fast", True)
+    LOAD_SETTINGS["native_2d"] = native_2d
     LOAD_SETTINGS["umap_cached"] = umap_from_cache
     LOAD_SETTINGS["umap_method"] = "quick" if use_fast else "full"
     LOAD_SETTINGS["pca_cached"] = ("pca_full" in cached or "pca_2d" in cached)
@@ -2538,6 +2568,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
             fast = req.get("fast_umap", True)
             fast_sub = int(req.get("fast_umap_n", 50000))
             backed = req.get("backed", "off")
+            _native_2d = req.get("native_2d", False)
             DEG_SETTINGS["fast"] = req.get("fast_deg", True)
             DEG_SETTINGS["max_cells"] = int(req.get("fast_deg_n", 50000))
             PACMAP_SETTINGS["fast"] = req.get("fast_pacmap", True)
@@ -2548,7 +2579,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
                     with PROCESSING_LOCK:
                         load_and_prepare(fpath, max_cells=0, n_dims_list=[2, 3],
                                          fast_umap=fast, fast_umap_subsample=fast_sub,
-                                         backed=backed)
+                                         backed=backed, native_2d=_native_2d)
                 except AbortError:
                     print("  Load aborted by user")
                     _reset_all()
@@ -3140,6 +3171,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
             fast = self.headers.get("X-Fast-UMAP", "0") == "1"
             fast_sub = int(self.headers.get("X-Fast-UMAP-N", "50000"))
             backed = self.headers.get("X-Backed", "off")  # "auto", "on", "off"
+            _native_2d = self.headers.get("X-Native-2D", "0") == "1"
             # QuickDEG settings
             DEG_SETTINGS["fast"] = self.headers.get("X-Fast-DEG", "1") == "1"
             DEG_SETTINGS["max_cells"] = int(self.headers.get("X-Fast-DEG-N", "50000"))
@@ -3151,7 +3183,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                     with PROCESSING_LOCK:
                         load_and_prepare(fpath, max_cells=0, n_dims_list=[2, 3],
                                          fast_umap=fast, fast_umap_subsample=fast_sub,
-                                         backed=backed)
+                                         backed=backed, native_2d=_native_2d)
                 except AbortError:
                     print("  Load aborted by user")
                     _reset_all()

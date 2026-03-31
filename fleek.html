@@ -370,6 +370,10 @@
           <label class="s-toggle"><input type="checkbox" id="backed-toggle"><span class="s-slider"></span></label>
           <span>Disk-backed</span>
         </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
+          <label class="s-toggle"><input type="checkbox" id="native-2d-toggle"><span class="s-slider"></span></label>
+          <span>Native 2D embeddings</span>
+        </label>
         <div style="display:flex;gap:6px;margin-top:8px;">
           <button class="btn" id="upload-go-btn" onclick="confirmUpload()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
           <button class="btn" onclick="cancelUpload()" style="color:var(--text4);">Cancel</button>
@@ -412,6 +416,10 @@
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Keep expression matrix on disk.">
             <label class="s-toggle"><input type="checkbox" id="browse-backed"><span class="s-slider"></span></label>
             <span>Disk-backed</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
+            <label class="s-toggle"><input type="checkbox" id="browse-native-2d"><span class="s-slider"></span></label>
+            <span>Native 2D embeddings</span>
           </label>
           <div style="display:flex;gap:6px;margin-top:6px;">
             <button class="btn" id="browse-load-btn" onclick="loadBrowsedFile()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
@@ -4719,7 +4727,8 @@ function loadBrowsedFile(){
     fast_pacmap:document.getElementById("browse-fast-pacmap").checked,
     fast_deg:document.getElementById("browse-fast-deg").checked,
     fast_deg_n:50000,
-    backed:document.getElementById("browse-backed").checked?"on":"off"
+    backed:document.getElementById("browse-backed").checked?"on":"off",
+    native_2d:document.getElementById("browse-native-2d").checked
   };
   fetch("/api/load",{
     method:"POST",
@@ -4925,6 +4934,7 @@ function confirmUpload(){
   xhr.setRequestHeader("X-Fast-PaCMAP",fastPacmap);
   var backedMode=document.getElementById("backed-toggle").checked?"on":"off";
   xhr.setRequestHeader("X-Backed",backedMode);
+  xhr.setRequestHeader("X-Native-2D",document.getElementById("native-2d-toggle").checked?"1":"0");
 
   xhr.upload.onprogress=function(e){
     if(e.lengthComputable){
@@ -5002,6 +5012,7 @@ function showLoadBadges(ls){
   if(ls&&ls.quickdeg)techBadges.push('<span class="load-badge qm" title="Annotation DEG subsampled to '+((ls.quickdeg_n||50000)/1000)+'k cells for faster cell type inference">QuickDEG '+((ls.quickdeg_n||50000)/1000)+'k</span>');
   if(ls&&ls.quickpacmap)techBadges.push('<span class="load-badge qm" title="PaCMAP computed via subsample-and-project (50k fit cells)">QuickPaCMAP</span>');
   if(ls&&ls.backed)techBadges.push('<span class="load-badge bk" title="Expression matrix kept on disk to save RAM">Disk-backed</span>');
+  if(ls&&ls.native_2d)techBadges.push('<span class="load-badge qm" title="2D embeddings computed independently for optimal cluster separation">Native 2D<\/span>');
   if(techBadges.length>0){
     badges.push('<span class="badge-sep">techniques</span>');
     badges=badges.concat(techBadges);
