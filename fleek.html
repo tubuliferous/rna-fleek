@@ -2799,6 +2799,19 @@ function setupCtrl(){
       clearActiveGroup(e.altKey);
       return;
     }
+    /* Enter: trigger visible Load button */
+    if(e.key==="Enter"){
+      var up=document.getElementById("upload-popover");
+      if(up&&up.style.display!=="none"){
+        var btn=document.getElementById("upload-go-btn");
+        if(btn&&!btn.disabled){e.preventDefault();confirmUpload();return;}
+      }
+      var bs=document.getElementById("browse-selected");
+      if(bs&&bs.style.display!=="none"){
+        var btn2=document.getElementById("browse-load-btn");
+        if(btn2&&!btn2.disabled){e.preventDefault();loadBrowsedFile();return;}
+      }
+    }
     /* Skip letter/number shortcuts when typing in inputs */
     var inInput=document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA";
     /* Option+Number: toggle group visibility (use e.code because macOS remaps opt+digit) */
