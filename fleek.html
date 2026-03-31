@@ -6152,27 +6152,35 @@ function loadDEGFromHistory(){
 }
 
 function _addStaleGhostOptions(c){
-  /* Add grayed-out italic entries in group dropdowns for the original analysis groups */
+  /* Add grayed-out italic entries in group dropdowns for the original analysis groups.
+     Browser <option> styling is limited, so we style the <select> itself. */
   var selA=document.getElementById("deg-grpA");
   var selB=document.getElementById("deg-grpB");
   if(!selA||!selB)return;
-  var ghostA=null,ghostB=null;
   var aName=(c.grpA?c.grpA.name:"Group A")+" ("+c.grpASize.toLocaleString()+" cells, at analysis)";
   var bName=(c.grpB?c.grpB.name:"Group B")+" ("+c.grpBSize.toLocaleString()+" cells, at analysis)";
-  var ghostIdA="__stale_a";
-  var ghostIdB="__stale_b";
   /* Add ghost option for group A */
-  ghostA=document.createElement("option");
-  ghostA.value=ghostIdA;ghostA.textContent=aName;
-  ghostA.style.fontStyle="italic";ghostA.style.color="var(--text4)";
+  var ghostA=document.createElement("option");
+  ghostA.value="__stale_a";ghostA.textContent=aName;
   ghostA.disabled=true;ghostA.selected=true;
   selA.appendChild(ghostA);
   /* Add ghost option for group B */
-  ghostB=document.createElement("option");
-  ghostB.value=ghostIdB;ghostB.textContent=bName;
-  ghostB.style.fontStyle="italic";ghostB.style.color="var(--text4)";
+  var ghostB=document.createElement("option");
+  ghostB.value="__stale_b";ghostB.textContent=bName;
   ghostB.disabled=true;ghostB.selected=true;
   selB.appendChild(ghostB);
+  /* Style the selects to show italic + dimmed for the ghost selection */
+  selA.style.fontStyle="italic";selA.style.opacity="0.5";
+  selB.style.fontStyle="italic";selB.style.opacity="0.5";
+  /* Reset styling when user changes selection */
+  function _resetStyle(){
+    selA.style.fontStyle="";selA.style.opacity="";
+    selB.style.fontStyle="";selB.style.opacity="";
+    selA.removeEventListener("change",_resetStyle);
+    selB.removeEventListener("change",_resetStyle);
+  }
+  selA.addEventListener("change",_resetStyle);
+  selB.addEventListener("change",_resetStyle);
 }
 
 var _degAbort=null; /* AbortController for running DEG */
