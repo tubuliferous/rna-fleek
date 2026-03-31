@@ -4568,14 +4568,22 @@ var _browseDragActive=false;
             }else{
               /* Single click selects, double-click loads */
               var now=Date.now();
-              if(_browseDblPath===entry.path&&now-_browseDblTime<400){
+              if(_browseDblPath===entry.path&&now-_browseDblTime<500){
                 /* Double-click — load immediately */
                 _browseDblPath="";_browseDblTime=0;
                 loadBrowsedFile();
               }else{
                 _browseDblPath=entry.path;
                 _browseDblTime=now;
+                /* Save scroll position before re-render (showing load options shifts layout) */
+                var colEl=row.closest(".browse-col");
+                var savedScroll=colEl?colEl.scrollTop:0;
                 _browseSelectFile(ci, idx);
+                /* Restore scroll so the clicked row stays in place for double-click */
+                if(colEl){
+                  var cols=el.querySelectorAll(".browse-col");
+                  if(cols[ci])cols[ci].scrollTop=savedScroll;
+                }
               }
             }
           }
