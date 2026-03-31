@@ -2907,7 +2907,11 @@ function setView(v){
   if(D){
     var emb=D.embeddings[embMethod]||D.embeddings["umap"];
     var td=viewIs3d?3:2;
-    if(emb&&emb[td])positionPts(D,td);
+    if(emb&&emb[td]){
+      positionPts(D,td);
+      /* Recompute 2D fit after positionPts updates cloudBounds */
+      if(!viewIs3d){zoom2=zoom2Fit();pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};}
+    }
   }
   if(pts){pts.material.sizeAttenuation=viewIs3d;pts.material.needsUpdate=true;}
   if(ringPts){ringPts.material.sizeAttenuation=viewIs3d;ringPts.material.needsUpdate=true;}
