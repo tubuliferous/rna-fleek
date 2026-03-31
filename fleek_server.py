@@ -2980,9 +2980,12 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 n_cells = counts.get(i, 0)
                 if n_cells == 0:
                     continue  # Skip empty clusters — no cells, no lineage
-                entry = f"  Cluster {i}: \"{name}\" ({n_cells:,} cells)"
+                # When Claude annotations exist, use inferred name as primary
+                # (raw cluster labels like "R" or "RV" can mislead lineage construction)
                 if i in llm_preds and llm_preds[i]:
-                    entry += f" — Claude predicted: \"{llm_preds[i]}\""
+                    entry = f'  Cluster {i}: "{llm_preds[i]}" ({n_cells:,} cells) [original label: "{name}"]'
+                else:
+                    entry = f'  Cluster {i}: "{name}" ({n_cells:,} cells)'
                 cluster_info.append(entry)
 
             n_in_lineage = len(cluster_info)
@@ -2991,8 +2994,6 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 print(f"  Lineage: using {n_in_lineage} non-empty clusters (skipping {n_skipped} empty)")
 
             llm_context = ""
-            if llm_preds:
-                llm_context = "\n\nIMPORTANT: Use the Claude-predicted cell type names (shown above) for the lineage tree node names, as they are more biologically meaningful than the raw cluster names."
 
             prompt = f"""You are a developmental biology expert. Given these cell types from a single-cell RNA-seq dataset, construct a developmental lineage tree.
 
