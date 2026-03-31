@@ -714,7 +714,7 @@
       <input type="text" id="deg-search" placeholder="Search genes..." oninput="renderDEGTable()" style="width:100%;padding:4px 6px;border:none;border-bottom:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:10px;font-family:inherit;outline:none;box-sizing:border-box;">
       <div style="flex:1;overflow-y:auto;">
         <table id="deg-table">
-          <thead><tr><th onclick="sortDEG('gene')">Gene</th><th onclick="sortDEG('log2fc')">log2FC</th><th onclick="sortDEG('cohens_d')">d</th><th onclick="sortDEG('padj')">padj</th></tr></thead>
+          <thead><tr><th onclick="sortDEG('gene')">Gene</th><th onclick="sortDEG('log2fc')">log2FC</th><th id="deg-d-hdr" onclick="sortDEG('cohens_d',event)">d</th><th onclick="sortDEG('padj')">padj</th></tr></thead>
           <tbody id="deg-tbody"></tbody>
         </table>
       </div>
@@ -6314,8 +6314,17 @@ function runDEG(){
   });
 }
 
-function sortDEG(col){
+var degAbsD=false; /* show |d| instead of d */
+function sortDEG(col,ev){
   if(!degData)return;
+  /* Alt+click on d header toggles absolute value mode */
+  if(col==="cohens_d"&&ev&&ev.altKey){
+    degAbsD=!degAbsD;
+    var hdr=document.getElementById("deg-d-hdr");
+    if(hdr)hdr.textContent=degAbsD?"|d|":"d";
+    renderDEGTable();
+    return;
+  }
   if(degSort.col===col)degSort.asc=!degSort.asc;
   else{degSort.col=col;degSort.asc=true;}
   renderDEGTable();
@@ -6330,6 +6339,7 @@ function renderDEGTable(){
   genes.sort(function(a,b){
     var va=a[col],vb=b[col];
     if(col==="gene")return asc?va.localeCompare(vb):vb.localeCompare(va);
+    if(col==="cohens_d"&&degAbsD){va=Math.abs(va);vb=Math.abs(vb);}
     return asc?va-vb:vb-va;
   });
   var colA=degGrpA?_rgb(degGrpA.color):"#f87171";
@@ -6342,7 +6352,7 @@ function renderDEGTable(){
     return '<tr class="'+hl+'" data-gene="'+g.gene+'" onclick="degClickGene(\''+g.gene+'\')" onmouseenter="degHoverGene(\''+g.gene+'\')" onmouseleave="degHoverGene(null)">'
       +'<td style="color:'+(sig?"var(--text)":"var(--text3)")+'">'+g.gene+'</td>'
       +'<td style="color:'+fcCol+'">'+g.log2fc.toFixed(2)+'</td>'
-      +'<td>'+g.cohens_d.toFixed(2)+'</td>'
+      +'<td>'+(degAbsD?Math.abs(g.cohens_d):g.cohens_d).toFixed(2)+'</td>'
       +'<td>'+g.padj.toExponential(1)+'</td>'
       +'</tr>';
   }).join("");
