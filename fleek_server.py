@@ -2198,6 +2198,14 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_set_key(req)
         elif path == "/api/clear-key":
             self._serve_clear_key()
+        elif path == "/api/sessions":
+            self._serve_sessions()
+        elif path == "/api/session-save":
+            self._serve_session_save(req)
+        elif path == "/api/session-load":
+            self._serve_session_load(req)
+        elif path == "/api/session-delete":
+            self._serve_session_delete(req)
         else:
             self.send_error(404)
 
@@ -2797,6 +2805,122 @@ class FleekHandler(SimpleHTTPRequestHandler):
                     env_path.unlink()
             print("  Claude API key cleared.")
             result = json.dumps({"ok": True}).encode("utf-8")
+        except Exception as e:
+            result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
+    # ── Session management ──
+
+    def _session_suffix(self, name):
+        safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
+        return f".fleek_session_{safe}.json"
+
+    def _serve_sessions(self):
+        """List all saved sessions for the current dataset."""
+        try:
+            if not LOADED_PATH:
+                raise ValueError("No dataset loaded")
+            _init_cache_dir()
+            stem = Path(LOADED_PATH).stem
+            seen = {}
+            # Check dataset dir
+            dp = Path(LOADED_PATH).parent
+            if dp.exists():
+                for f in dp.glob(f"{stem}.fleek_session_*.json"):
+                    name = f.stem.replace(f"{stem}.fleek_session_", "")
+                    seen[name] = {"name": name, "path": str(f),
+                                  "mtime": f.stat().st_mtime, "auto": name == "_auto"}
+            # Check server cache dir
+            if CACHE_DIR and CACHE_DIR.exists():
+                for f in CACHE_DIR.glob(f"{stem}.fleek_session_*.json"):
+                    name = f.stem.replace(f"{stem}.fleek_session_", "")
+                    if name not in seen:
+                        seen[name] = {"name": name, "path": str(f),
+                                      "mtime": f.stat().st_mtime, "auto": name == "_auto"}
+            sessions = sorted(seen.values(), key=lambda s: (not s["auto"], s["name"]))
+            result = json.dumps({"sessions": sessions}).encode("utf-8")
+        except Exception as e:
+            result = json.dumps({"sessions": [], "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
+    def _serve_session_save(self, req):
+        """Save a named session."""
+        try:
+            if not LOADED_PATH:
+                raise ValueError("No dataset loaded")
+            name = req.get("name", "").strip()
+            if not name:
+                raise ValueError("Session name is empty")
+            state = req.get("state", {})
+            state["_meta"] = {"n_cells": N_CELLS, "n_clusters": len(CLUSTER_NAMES or []),
+                              "dataset": Path(LOADED_PATH).name,
+                              "saved": time.time()}
+            suffix = self._session_suffix(name)
+            wp = _cache_write_path(suffix)
+            with open(wp, "w") as f:
+                json.dump(state, f, separators=(",", ":"))
+            print(f"  Session '{name}' saved to {wp}")
+            result = json.dumps({"ok": True, "name": name}).encode("utf-8")
+        except Exception as e:
+            result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
+    def _serve_session_load(self, req):
+        """Load a named session."""
+        try:
+            if not LOADED_PATH:
+                raise ValueError("No dataset loaded")
+            name = req.get("name", "").strip()
+            if not name:
+                raise ValueError("Session name is empty")
+            suffix = self._session_suffix(name)
+            path, _ = _cache_read_path(suffix)
+            if not path:
+                raise ValueError(f"Session '{name}' not found")
+            with open(path) as f:
+                state = json.load(f)
+            meta = state.get("_meta", {})
+            if meta.get("n_cells") and meta["n_cells"] != N_CELLS:
+                raise ValueError(f"Session has {meta['n_cells']} cells but dataset has {N_CELLS}")
+            result = json.dumps({"ok": True, "state": state}).encode("utf-8")
+        except Exception as e:
+            result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
+    def _serve_session_delete(self, req):
+        """Delete a named session from both cache locations."""
+        try:
+            if not LOADED_PATH:
+                raise ValueError("No dataset loaded")
+            name = req.get("name", "").strip()
+            if not name:
+                raise ValueError("Session name is empty")
+            suffix = self._session_suffix(name)
+            dp = _dataset_cache_path(suffix)
+            sp = _server_cache_path(suffix)
+            deleted = False
+            for cp in [dp, sp]:
+                if cp and cp.exists():
+                    cp.unlink()
+                    deleted = True
+                    print(f"  Session '{name}' deleted: {cp}")
+            result = json.dumps({"ok": True, "deleted": deleted}).encode("utf-8")
         except Exception as e:
             result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
         self.send_response(200)

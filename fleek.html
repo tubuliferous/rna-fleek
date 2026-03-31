@@ -330,6 +330,16 @@
         <span id="loaded-file-text"></span>
       </div>
       <div id="info" style="font-size:10px;color:var(--text4);margin-top:2px;">Connecting to server...</div>
+      <div id="session-bar" style="display:none;margin-top:4px;display:none;align-items:center;gap:4px;font-size:8px;">
+        <span style="color:var(--text4);">Session:</span>
+        <select id="session-select" onchange="onSessionSelect()" style="flex:1;min-width:0;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:8px;font-family:inherit;padding:1px 4px;outline:none;"></select>
+        <button class="icon-btn" onclick="saveSessionAs()" title="Save session as..." style="color:var(--text3);font-size:10px;padding:1px 3px;">
+          <svg viewBox="0 0 24 24" width="12" height="12" style="fill:currentColor;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+        </button>
+        <button class="icon-btn" onclick="resetSession()" title="Reset to fresh session" style="color:var(--text4);font-size:10px;padding:1px 3px;">
+          <svg viewBox="0 0 16 16" width="11" height="11" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg>
+        </button>
+      </div>
     </div>
     <div class="col-body">
       <div id="load-badges" style="display:none;margin-top:3px;gap:4px;flex-wrap:wrap;"></div>
@@ -1400,6 +1410,8 @@ function saveState(){
   }catch(e){}
   /* Also push to undo history */
   pushHistory();
+  /* Debounced auto-save to server */
+  _sessionAutoSave();
 }
 function saveCameraOnly(){
   /* Persist camera for refresh, but don't create undo entry */
@@ -5649,6 +5661,159 @@ function _saveSliceState(){
   }catch(e){}
 }
 
+/* ── Sessions ── */
+var _sessionName="_auto";
+var _sessionAutoTimer=null;
+var _sessionLoading=false;
+
+function _sessionAutoSave(){
+  if(!D||_sessionLoading||_restoring||_navigating)return;
+  clearTimeout(_sessionAutoTimer);
+  _sessionAutoTimer=setTimeout(function(){
+    var state=JSON.parse(snapState());
+    state.recentGenes=recentGenes;
+    fetch("/api/session-save",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({name:"_auto",state:state})
+    }).catch(function(){});
+  },2000);
+}
+
+function _loadSessionList(selectName){
+  fetch("/api/sessions",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})
+  .then(function(r){return r.json();})
+  .then(function(d){
+    var sel=document.getElementById("session-select");
+    if(!sel)return;
+    sel.innerHTML="";
+    var sessions=d.sessions||[];
+    for(var i=0;i<sessions.length;i++){
+      var s=sessions[i];
+      var opt=document.createElement("option");
+      opt.value=s.name;
+      opt.textContent=s.auto?"Auto-saved":s.name;
+      sel.appendChild(opt);
+    }
+    var fresh=document.createElement("option");
+    fresh.value="__fresh";fresh.textContent="(Fresh session)";
+    sel.appendChild(fresh);
+    sel.value=selectName||_sessionName;
+    document.getElementById("session-bar").style.display="flex";
+  }).catch(function(){});
+}
+
+function onSessionSelect(){
+  var sel=document.getElementById("session-select");
+  var name=sel.value;
+  if(name==="__fresh"){resetSession();return;}
+  _sessionName=name;
+  fetch("/api/session-load",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name:name})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(!d.ok||!d.state)return;
+    _applySessionState(d.state);
+  }).catch(function(){});
+}
+
+function _applySessionState(s){
+  _sessionLoading=true;_restoring=true;
+  if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
+  if(s.ptSize!==undefined){basePtSz=Math.max(1,Math.min(100,Math.round(s.ptSize)));document.getElementById("pt-size").value=basePtSz;}
+  if(s.ptOpacity!==undefined){var op=Math.max(0.05,Math.min(1,s.ptOpacity));document.getElementById("pt-opacity").value=op;if(pts)pts.material.opacity=op;}
+  if(s.bgDim!==undefined){bgDimPct=s.bgDim;document.getElementById("bg-dim").value=100-bgDimPct;}
+  if(s.visibleClusters){visibleClusters={};for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];}
+  if(s.selGroups){
+    selGroups=s.selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:new Set(g.cells)};});
+    activeGroupId=s.activeGroupId||null;
+    selGroupIdCounter=s.selGroupIdCounter||selGroups.length;
+    if(s.groupVisible){groupVisible={};for(var k in s.groupVisible)groupVisible[k]=s.groupVisible[k];}
+    rebuildCellGroupMap();
+  }
+  if(s.sliceFilter){
+    sliceFilter={};for(var col in s.sliceFilter)sliceFilter[col]=new Set(s.sliceFilter[col]);
+    /* Rebuild sliceMask inline */
+    if(D){
+      var cats=D.header.obs_categories||{};var cols=Object.keys(cats);
+      var hasFilter=false;
+      for(var ci=0;ci<cols.length;ci++){if(sliceFilter[cols[ci]]&&sliceFilter[cols[ci]].size<cats[cols[ci]].categories.length){hasFilter=true;break;}}
+      if(!hasFilter){sliceMask=null;}else{
+        var n=D.header.n_cells;sliceMask=new Uint8Array(n);
+        for(var i=0;i<n;i++){var ok=1;for(var ci=0;ci<cols.length;ci++){var c=cols[ci];var code=D.obs_codes[c]?D.obs_codes[c][i]:-1;if(code<0)continue;if(!sliceFilter[c].has(code)){ok=0;break;}}sliceMask[i]=ok;}
+      }
+    }
+    _syncSlicePills();_updateSliceUI();
+  }else if(sliceMask){
+    sliceMask=null;var cats2=D&&D.header&&D.header.obs_categories||{};
+    for(var col in cats2){var n2=cats2[col].categories.length;sliceFilter[col]=new Set();for(var j=0;j<n2;j++)sliceFilter[col].add(j);}
+    _syncSlicePills();_updateSliceUI();
+  }
+  if(s.recentGenes)recentGenes=s.recentGenes;
+  var needReposition=false;
+  if(s.embMethod&&D&&D.embeddings[s.embMethod]&&embMethod!==s.embMethod){
+    embMethod=s.embMethod;var esel=document.getElementById("emb-select");if(esel)esel.value=s.embMethod;needReposition=true;
+  }
+  if(s.viewIs3d!==undefined&&viewIs3d!==s.viewIs3d){viewIs3d=s.viewIs3d;if(pts){pts.material.sizeAttenuation=viewIs3d;pts.material.needsUpdate=true;}if(ringPts){ringPts.material.sizeAttenuation=viewIs3d;ringPts.material.needsUpdate=true;}needReposition=true;}
+  if(needReposition&&D){var emb=D.embeddings[embMethod]||D.embeddings["umap"];var td=viewIs3d?3:2;if(emb&&emb[td])positionPts(D,td);}
+  if(s.sph){sph.theta=s.sph.theta;sph.phi=s.sph.phi;sph.radius=s.sph.radius;}
+  if(s.tgt3){tgt3.set(s.tgt3.x,s.tgt3.y,s.tgt3.z);}
+  if(s.pan2){pan2.x=s.pan2.x;pan2.y=s.pan2.y;}
+  if(s.zoom2!==undefined)zoom2=s.zoom2;
+  if(s.mode){mode=s.mode;}if(s.selGene)selGene=s.selGene;
+  document.getElementById("bc").className="btn"+(mode==="cluster"?" on":"");
+  document.getElementById("bg").className="btn"+(mode==="gene"?" on":"");
+  document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
+  recolor();renderLeg();if(selGroups.length>0)renderSelPanel();showRecentGenes();
+  _restoring=false;_sessionLoading=false;
+}
+
+function saveSessionAs(){
+  var name=prompt("Session name:");
+  if(!name||!name.trim())return;
+  name=name.trim();
+  if(name==="_auto"){alert("Name '_auto' is reserved for auto-save.");return;}
+  var state=JSON.parse(snapState());
+  state.recentGenes=recentGenes;
+  fetch("/api/session-save",{
+    method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name:name,state:state})
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    if(d.ok){_sessionName=name;_loadSessionList(name);}
+    else{alert(d.error||"Failed to save session.");}
+  }).catch(function(){alert("Server error saving session.");});
+}
+
+function resetSession(){
+  _sessionLoading=true;_restoring=true;
+  /* Reset all state to defaults */
+  selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
+  if(cellGroupMap)for(var i=0;i<cellGroupMap.length;i++)cellGroupMap[i]=-1;
+  visibleClusters={};
+  bgDimPct=0;document.getElementById("bg-dim").value=100;
+  mode="cluster";selGene=null;
+  document.getElementById("bc").className="btn on";
+  document.getElementById("bg").className="btn";
+  document.getElementById("expr-legend").style.display="none";
+  /* Reset slice */
+  if(sliceFilter){
+    var cats=D&&D.header&&D.header.obs_categories||{};
+    for(var col in cats){var n=cats[col].categories.length;sliceFilter[col]=new Set();for(var j=0;j<n;j++)sliceFilter[col].add(j);}
+  }
+  sliceMask=null;_syncSlicePills();_updateSliceUI();
+  /* Reset view */
+  resetView();
+  recolor();renderLeg();renderSelPanel();showRecentGenes();
+  _restoring=false;_sessionLoading=false;
+  _sessionName="_auto";
+  var sel=document.getElementById("session-select");
+  if(sel)sel.value="__fresh";
+  saveState();
+}
+
 function _restoreSliceState(){
   try{
     var saved=sessionStorage.getItem("fleek_slice");
@@ -6725,6 +6890,15 @@ document.addEventListener("DOMContentLoaded",function(){
           updateHistBtn();
         }
         hideL();
+        /* Load session list and try auto-saved session if no sessionStorage state */
+        _loadSessionList("_auto");
+        if(!saved){
+          fetch("/api/session-load",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"_auto"})})
+          .then(function(r){return r.json();})
+          .then(function(d){
+            if(d.ok&&d.state){_applySessionState(d.state);_sessionName="_auto";}
+          }).catch(function(){});
+        }
         /* Show CSC spinner immediately — server starts building right after init.
            Keep visible until we get multiple consecutive "done" responses,
            because the GIL can block progress polls during heavy C-level work. */
