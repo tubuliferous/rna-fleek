@@ -6142,30 +6142,37 @@ function loadDEGFromHistory(){
   if(!key||!degCache[key])return;
   var c=degCache[key];
   _showDEGResult(c.data,c.grpA,c.grpB);
-  /* Check if this entry is stale and show detailed stale info */
+  /* If stale, add ghost entries in the group dropdowns for the original groups */
   if(_isDEGEntryStale(c)){
     var el=document.getElementById("deg-stale");
-    if(el){
-      /* Build stale message showing original vs current counts */
-      var parts=[],statusParts=[];
-      for(var i=0;i<selGroups.length;i++){
-        if(selGroups[i].id===c.grpAId&&selGroups[i].cells.size!==c.grpASize){
-          var nm=c.grpA?c.grpA.name:"A";
-          parts.push(nm+": was "+c.grpASize.toLocaleString()+", now "+selGroups[i].cells.size.toLocaleString());
-          statusParts.push(nm+" \u0336"+c.grpASize.toLocaleString()+"\u0336 \u2192 "+selGroups[i].cells.size.toLocaleString());
-        }
-        if(selGroups[i].id===c.grpBId&&selGroups[i].cells.size!==c.grpBSize){
-          var nm2=c.grpB?c.grpB.name:"B";
-          parts.push(nm2+": was "+c.grpBSize.toLocaleString()+", now "+selGroups[i].cells.size.toLocaleString());
-          statusParts.push(nm2+" \u0336"+c.grpBSize.toLocaleString()+"\u0336 \u2192 "+selGroups[i].cells.size.toLocaleString());
-        }
-      }
-      el.textContent="stale \u00b7 "+statusParts.join(", ");
-      el.title="Groups changed since this analysis was run\n"+parts.join("\n");
-      el.style.display="inline";
-    }
+    if(el){el.textContent="stale";el.style.display="inline";}
+    _addStaleGhostOptions(c);
   }
   sel.value="";
+}
+
+function _addStaleGhostOptions(c){
+  /* Add grayed-out italic entries in group dropdowns for the original analysis groups */
+  var selA=document.getElementById("deg-grpA");
+  var selB=document.getElementById("deg-grpB");
+  if(!selA||!selB)return;
+  var ghostA=null,ghostB=null;
+  var aName=(c.grpA?c.grpA.name:"Group A")+" ("+c.grpASize.toLocaleString()+" cells, at analysis)";
+  var bName=(c.grpB?c.grpB.name:"Group B")+" ("+c.grpBSize.toLocaleString()+" cells, at analysis)";
+  var ghostIdA="__stale_a";
+  var ghostIdB="__stale_b";
+  /* Add ghost option for group A */
+  ghostA=document.createElement("option");
+  ghostA.value=ghostIdA;ghostA.textContent=aName;
+  ghostA.style.fontStyle="italic";ghostA.style.color="var(--text4)";
+  ghostA.disabled=true;ghostA.selected=true;
+  selA.appendChild(ghostA);
+  /* Add ghost option for group B */
+  ghostB=document.createElement("option");
+  ghostB.value=ghostIdB;ghostB.textContent=bName;
+  ghostB.style.fontStyle="italic";ghostB.style.color="var(--text4)";
+  ghostB.disabled=true;ghostB.selected=true;
+  selB.appendChild(ghostB);
 }
 
 var _degAbort=null; /* AbortController for running DEG */
