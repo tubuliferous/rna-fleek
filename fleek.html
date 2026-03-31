@@ -738,11 +738,13 @@
       <a href="#" onclick="event.preventDefault();helpJump('help-emb')">Embeddings</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-sel')">Selection</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-celltypes')">Cell Types</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-slice')">Slice</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-annot')">Annotation</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-lineage')">Lineage</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-gene')">Gene Expression</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-deg')">DEG Analysis</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-data')">Data</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-sessions')">Sessions</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-ref')">Quick Reference</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-stats')">Methods</a>
     </div>
@@ -771,6 +773,7 @@
           <tr><td>Fly through</td><td><span class="help-key">⌥ Opt</span>+drag or middle-drag</td><td>—</td></tr>
           <tr><td>Zoom</td><td>Scroll wheel</td><td>Scroll wheel</td></tr>
           <tr><td>Reset</td><td colspan="2">Reset View button or <span class="help-key">R</span></td></tr>
+          <tr><td>Toggle 2D/3D</td><td colspan="2"><span class="help-key">D</span> key</td></tr>
         </table>
       </div>
     </div>
@@ -791,7 +794,9 @@
         </table>
         <p><strong>Practical guidance:</strong> Start with UMAP for exploration — the clusters are easiest to see and interact with. Switch to PCA to check whether two clusters that look separate in UMAP are genuinely distant in expression space, or whether UMAP is exaggerating a small difference. Use PaCMAP when you want the best of both worlds — it's the most balanced view for understanding how cell populations relate to each other.</p>
         <p><strong>Important UMAP caveat:</strong> UMAP's cluster sizes, shapes, and inter-cluster distances are all unreliable. A large cluster in UMAP may be smaller than a tiny one. Two adjacent clusters may be unrelated. Two distant clusters may be almost identical. UMAP only reliably tells you that cells within a cluster are similar — nothing about the relationships between clusters.</p>
-        <p>All embeddings are available in both 2D and 3D. UMAP and PCA are computed during initial data loading. PaCMAP computes in the background after loading — the dropdown shows "PaCMAP (computing…)" until it's ready. All embeddings are cached to disk for instant reload on subsequent sessions.</p>
+        <p>All embeddings are available in both 2D and 3D. UMAP and PCA are computed during initial data loading. PaCMAP computes in the background after loading — the dropdown shows "PaCMAP (computing&hellip;)" until it's ready. All embeddings are cached to disk for instant reload on subsequent sessions.</p>
+        <p><strong>Native 2D embeddings:</strong> By default, FLEEK computes only the 3D embedding and derives 2D by slicing the first two coordinates — halving computation time. Enable <strong>Native 2D embeddings</strong> in the load options to compute 2D independently, which produces tighter cluster separation in 2D views at the cost of longer load times. If a native 2D cache exists from a previous load, it is automatically preferred regardless of the current setting.</p>
+        <p><strong>Keyboard shortcuts:</strong> Press <span class="help-key">D</span> to toggle between 2D and 3D views. Press <span class="help-key">E</span> to cycle through available embeddings (UMAP &rarr; PCA &rarr; PaCMAP &rarr; &hellip;).</p>
       </div>
     </div>
 
@@ -820,7 +825,7 @@
         </table>
         <p>Cells are assigned to the <em>active</em> group (highlighted row). Groups are non-overlapping: adding a cell to one group removes it from any other.</p>
         <p><strong>Highlight modes</strong> (Settings): <em>Ring</em> (default) draws a colored ring around selected cells, preserving the underlying cluster/expression color — ideal for seeing how selected cells relate to expression patterns. <em>Fill</em> replaces the cell color entirely with the group color. In both modes, non-selected cells can be faded using the <strong>Unselected Brightness</strong> slider in the View panel — slide left to dim unselected cells, right for full brightness. Selected cells are never dimmed.</p>
-        <p><strong>Brightness auto-adjust:</strong> When you create your first selection, the slider automatically moves to a comfortable dim level so your selection stands out. You can adjust it freely from there. When you clear all selections (Escape), the slider resets to full brightness. Hiding a selection group doesn't affect the slider — the dim level holds until all groups are empty.</p>
+        <p><strong>Brightness auto-adjust:</strong> When you create your first selection, the slider automatically moves to a comfortable dim level so your selection stands out. You can adjust it freely from there. When you clear all selections (Escape), the slider resets to full brightness. When all highlighted cells are hidden — whether by hiding groups, hiding clusters, or slicing — brightness auto-resets to full.</p>
       </div>
     </div>
 
@@ -846,6 +851,26 @@
         <p>Hidden cell types are removed from the 3D/2D view entirely (exiled off-screen), not just faded. Hovering over a cell in the UMAP shows the cluster name, gene expression (if active), group membership, and annotation predictions (if computed). The tooltip in lineage view also shows the original cluster name from the file if it differs from the lineage node name.</p>
         <p><strong>Annotation buttons:</strong> <strong>Markers</strong> and <strong>Claude</strong> run cell type inference (see Annotation section). After completion, buttons show a ✓ and become inactive. Clearing their cache from the Data panel re-enables them.</p>
         <p><strong>Search:</strong> The search box filters by cluster name <em>and</em> annotation predictions in both views. In lineage mode, matching branches auto-expand and non-matching branches hide. Typing "monocyte" will show clusters whose name or annotation contains "monocyte."</p>
+      </div>
+    </div>
+
+    <!-- Slice Panel -->
+    <div class="help-sec" id="help-slice">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Slice Panel</span>
+      </div>
+      <div class="help-sec-body">
+        <p>The Slice panel filters cells by <code>obs</code> metadata columns (organ, timepoint, batch, etc.). Each column appears as a row of pill toggles — one per unique value in that column.</p>
+        <table class="help-table">
+          <tr><th>Action</th><th>How</th></tr>
+          <tr><td>Toggle a value</td><td>Click its pill</td></tr>
+          <tr><td>Solo a value</td><td><span class="help-key">⌥ Opt</span>+click (hides all others in that row)</td></tr>
+        </table>
+        <p>Empty values (cells with no entry for a column) are hidden by default. Click the <strong>+empty</strong> toggle to show them. Counts next to each column header show non-empty active / total values.</p>
+        <p>Cells that fall outside the current filter are exiled from the visualization — they are not just faded, they are removed entirely. All downstream tools (selection, DEG analysis, cell type visibility) respect the active slice.</p>
+        <p><strong>Save slice:</strong> Click the save button to export all cells matching the current filter as an .h5ad file.</p>
+        <p>Session auto-save captures the current slice state, so your filter persists across browser sessions.</p>
       </div>
     </div>
 
@@ -939,7 +964,6 @@
         <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a colorscale: <strong>Viridis</strong> (dark mode) or <strong>Blues sequential</strong> (light mode, where low expression fades into the white background). The expression legend (colormap bar) appears inside the Gene panel when a gene is selected.</p>
         <p><strong>Gene Variability</strong> — a ranked list of all genes sorted by variability score, shown below the search box. The score measures how much more (or less) variable a gene is than expected for its expression level. <strong>When a dataset already contains a variability metric</strong> (e.g. <code>dispersions_norm</code> from scanpy), that metric is used directly. <strong>When no pre-computed metric exists</strong>, FLEEK computes its own using the <em>locally standardized trend residual</em> method — see <strong>Methods &amp; Statistics</strong> below for full details. HVG genes appear bold with accent-colored bars. Selecting a gene auto-scrolls the ranked list to that gene's position.</p>
         <p><strong>Red-flagged genes:</strong> Genes shown in <span style="color:#dd4455;">red</span> in the ranked list are ones that <em>would have been excluded</em> by traditional cutoff-based methods (scanpy's <code>highly_variable_genes</code>). The specific reason is shown in the hover tooltip — either low mean expression (&lt; 0.0125), high mean expression (above the adaptive ceiling), or low detection rate (&lt; 0.5% of cells expressing). These genes are <strong>not excluded</strong> from FLEEK's ranking — the locally standardized z-score handles them naturally. The red flag is a transparency feature: it lets you evaluate whether high-ranking red-flagged genes represent genuine biological signal that traditional methods would have missed, or artifacts that the model hasn't fully corrected for. If many red genes appear near the top, treat the rankings with extra scrutiny.</p>
-        <p><strong>Red-flagged genes:</strong> When FLEEK computes variability itself, genes that <em>would have been excluded</em> by traditional scanpy-style cutoffs are shown in <span style="color:#d45;">red</span>. These are genes with very low mean expression (&lt; 0.0125), very high mean expression (above an adaptive ceiling), or expressed in fewer than 0.5% of cells. The locally standardized method does not exclude these genes — it scores them like any other gene, and the local standardization naturally dampens scores in the noisy low-expression regime. The red highlighting lets you evaluate the model's behavior at expression extremes: if red genes rank high, inspect them to decide whether the model is capturing genuine biological signal or residual noise. Hover over any red gene to see the specific reason it was flagged.</p>
         <p><strong>Gene index</strong> — on load, a CSC (compressed sparse column) index is built in the background for fast per-gene lookups. A spinner in the Data panel shows progress. Before the index completes, gene lookups use a slower row-scan fallback but still work. The index is cached to disk (<code>.csc_cache.npz</code>) — subsequent loads skip the build entirely.</p>
         <p><strong>View controls:</strong> Point Size, Unselected Opacity, and Unselected Brightness sliders in the View panel let you fine-tune the visualization. Point Size is normalized 1–100 and auto-scaled to the dataset on load. Opacity controls transparency of non-selected cells. Brightness fades non-selected cells toward the background.</p>
       </div>
@@ -985,6 +1009,7 @@
           <tr><td>QuickMap (PaCMAP)</td><td>On (50k)</td><td>Subsample-and-project PaCMAP. Fits on a subset, projects via k=5 inverse-distance weighted interpolation in PCA space. Smooth interpolation avoids discretization artifacts.</td></tr>
           <tr><td>QuickDEG</td><td>On (50k)</td><td>Subsample cells (stratified by cluster) for annotation DEG. Marker genes are virtually identical on 50k vs 600k+ cells, but 10–20× faster. Adjustable 10k–200k cells.</td></tr>
           <tr><td>Disk-backed</td><td>Off</td><td>Keeps the expression matrix on disk. Slower gene lookups but allows datasets larger than available RAM.</td></tr>
+          <tr><td>Native 2D embeddings</td><td>Off</td><td>Compute 2D embeddings independently instead of slicing 3D coordinates. Produces tighter 2D cluster separation at the cost of longer load times. If a native 2D cache already exists, it is used automatically regardless of this setting.</td></tr>
         </table>
         <p>The Data panel is collapsible — click the header to expand/collapse. It auto-collapses after data loads to save space. The upload button is always accessible in the header row.</p>
         <p><strong>Uploads</strong> can be stopped mid-transfer with the Stop button. Starting a new upload automatically cancels any in-progress upload. When loading a new dataset, the old dataset's memory is fully freed.</p>
@@ -1003,6 +1028,22 @@
         <p><strong>Server startup:</strong> <code>python fleek_server.py [file.h5ad]</code> — or start without a file and use the file browser or upload. For Claude annotation, set <code>ANTHROPIC_API_KEY</code> in your environment or in <code>~/.fleek.env</code>. Use <code>--host 0.0.0.0</code> to allow connections from other machines. SSH sessions are auto-detected (no browser auto-open).</p>
         <p><strong>Remote deployment:</strong> Run FLEEK on a remote server (e.g. HPC cluster) and access via SSH tunnel: <code>ssh -L 9123:127.0.0.1:9123 user@server</code>, then open <code>http://localhost:9123</code> locally. The server processes data where the files live — only small payloads (coordinates, expression values) travel through the tunnel. Use <code>pip install -r requirements.txt</code> to install dependencies; <code>pacmap&lt;0.8</code> avoids GCC version issues on older HPC systems.</p>
         <p><strong>Exports:</strong> Click the save icon on a selection group to download that cell subset as an .h5ad file. Large exports are streamed in 4MB chunks.</p>
+      </div>
+    </div>
+
+    <!-- Sessions -->
+    <div class="help-sec" id="help-sessions">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Sessions</span>
+      </div>
+      <div class="help-sec-body">
+        <p><strong>Auto-save:</strong> FLEEK auto-saves your session state every 2 seconds. This includes selection groups, camera position, active gene, coloring mode, slice filters, and panel states. State persists across browser sessions — reloading the page restores exactly where you left off.</p>
+        <p><strong>Named sessions:</strong> Use the <strong>Save As</strong> button to save the current state as a named session, stored alongside the dataset caches. Named sessions let you maintain multiple analysis configurations for the same dataset.</p>
+        <p><strong>Session dropdown:</strong> The Data panel includes a session dropdown to switch between saved sessions.</p>
+        <p><strong>Reset:</strong> Click the Reset button for a fresh start — clears all session state and returns to defaults.</p>
+        <p><strong>DEG results</strong> are saved with sessions, so switching back to a named session restores your previous differential expression results without recomputation.</p>
+        <p><strong>Undo/redo history</strong> is saved with sessions. Your full action history is preserved and restored when switching sessions or reloading.</p>
       </div>
     </div>
 
@@ -1043,10 +1084,14 @@
           <tr><td><span class="help-key">C</span></td><td>Color by cell type / cluster</td></tr>
           <tr><td><span class="help-key">G</span></td><td>Color by gene expression</td></tr>
           <tr><td><span class="help-key">R</span></td><td>Reset view</td></tr>
+          <tr><td><span class="help-key">D</span></td><td>Toggle 2D/3D view</td></tr>
+          <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
           <tr><td><span class="help-key">\</span></td><td>Toggle sidebar</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">General</th></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span></td><td>Undo</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">]</span></td><td>Redo</td></tr>
+          <tr><td><span class="help-key">Shift</span>+<span class="help-key">V</span></td><td>Select all visible cells</td></tr>
+          <tr><td><span class="help-key">Enter</span></td><td>Confirm dialog / load file</td></tr>
           <tr><td>Drag file onto Data panel</td><td>Upload .h5ad dataset</td></tr>
         </table>
       </div>
@@ -1059,7 +1104,7 @@
         <span class="help-sec-title">Methods &amp; Statistics</span>
       </div>
       <div class="help-sec-body">
-        <p><strong>UMAP</strong> is computed via scanpy using default parameters (n_neighbors=15, min_dist=0.5). Both 2D and 3D embeddings are computed and cached to disk. QuickMap fits on a stratified subsample (preserving cluster proportions) and projects remaining cells via batch PCA and UMAP transform. Quick and full versions are cached separately (<code>umap_2d_quick</code> / <code>umap_2d_full</code>) — switching between modes never overwrites the other. Legacy caches are accepted as fallback.</p>
+        <p><strong>UMAP</strong> is computed via scanpy using default parameters (n_neighbors=15, min_dist=0.3). Both 2D and 3D embeddings are computed and cached to disk. QuickMap fits on a stratified subsample (preserving cluster proportions) and projects remaining cells via batch PCA and UMAP transform. Quick and full versions are cached separately (<code>umap_2d_quick</code> / <code>umap_2d_full</code>) — switching between modes never overwrites the other. Legacy caches are accepted as fallback.</p>
         <p><strong>PCA</strong> — the first 2 or 3 principal components are extracted from the full PCA matrix (50 components by default). PCA is typically computed as part of the UMAP pipeline (scanpy requires it for the neighbor graph) so it adds no extra cost. The full 50-component matrix is cached and restored to <code>adata.obsm["X_pca"]</code> so downstream methods (PaCMAP, neighbor graph) can use it without recomputation.</p>
         <p><strong>PaCMAP</strong> (Pairwise Controlled Manifold Approximation) operates on the first 30 PCA components. It uses a three-stage optimization: (1) early iterations weight far pairs heavily to establish global layout, (2) mid-pairs prevent false neighbors (cells that are close in the embedding but distant in the original space), (3) late iterations refine local structure. Computed in a subprocess to avoid numba/threading conflicts with the server.</p>
         <p><strong>QuickMap (PaCMAP)</strong> uses subsample-and-project for datasets &gt;50k cells. PaCMAP is fit on a stratified subsample, then remaining cells are projected via k=5 inverse-distance weighted interpolation: for each unfit cell, the 5 nearest neighbors in PCA space are found (cKDTree), and the cell is placed at the weighted average of their PaCMAP coordinates (weights ∝ 1/distance). This produces smooth interpolation — cells between clusters land between them proportionally, avoiding the discretization artifacts of simple nearest-neighbor copy. Quick and full versions are cached separately.</p>
@@ -1112,8 +1157,6 @@
 
         <p><strong>Why no cutoffs:</strong> Every gene with detectable expression receives a z-score. There are no arbitrary thresholds on minimum mean, maximum mean, or minimum fraction of expressing cells. The local standardization naturally handles the noise at expression extremes — no gene needs to be excluded because its z-score already reflects the noise level at its expression level. This eliminates a class of silent errors where biologically relevant genes at expression extremes are dropped without the researcher's knowledge.</p>
         <p><strong>Cutoff transparency flags:</strong> Although FLEEK does not apply cutoffs, it computes which genes <em>would</em> have been excluded by traditional methods (min_mean &lt; 0.0125, max_mean above the 95th percentile, or detection in &lt; 0.5% of cells). These genes are flagged in <span style="color:#dd4455;">red</span> in the ranked list, with the specific reason shown on hover. This provides a built-in sanity check: if many red-flagged genes rank near the top, the local standardization may not be fully correcting for noise at that expression range, and the researcher should evaluate those genes individually. The flags are purely informational — they do not affect the scores.</p>
-
-        <p><strong>Cutoff flag overlay (red genes):</strong> As a diagnostic aid, genes that <em>would have been excluded</em> by traditional scanpy-style cutoffs are shown in <span style="color:#d45;">red</span> in the ranked list. This lets you evaluate at a glance whether the locally standardized z-scores are handling these genes correctly. Each flagged gene's tooltip shows the specific reason(s):</p>
         <table class="help-table">
           <tr><th>Flag</th><th>Meaning</th></tr>
           <tr><td>Not expressed</td><td>Mean expression = 0 across the subsample</td></tr>
@@ -1121,9 +1164,6 @@
           <tr><td>High mean</td><td>Mean above the adaptive ceiling (max of 3.0 or 95th percentile)</td></tr>
           <tr><td>Low detection rate</td><td>Expressed in &lt; 0.5% of cells</td></tr>
         </table>
-        <p>If the z-scores are working well, you should see very few red genes near the top of the list — most should cluster near the bottom with z-scores close to zero. Any red gene that <em>does</em> rank highly is worth investigating: it may be a genuine rare marker that traditional cutoffs would have incorrectly discarded, or it may reveal an edge case where the polynomial model overestimates the signal. The flags are purely informational — no genes are excluded from the ranking.</p>
-
-        <p><strong>Cutoff transparency (red flags):</strong> Although FLEEK does not apply cutoffs, it computes which genes <em>would</em> have been excluded by traditional scanpy-style thresholds (mean &lt; 0.0125, mean above the 95th-percentile adaptive ceiling, or detected in &lt; 0.5% of cells) and flags them in red in the ranked list. This serves as a visual audit: if a red gene ranks high, the researcher can inspect it and decide whether the locally standardized score reflects real biology or residual noise. The tooltip for each red gene shows the specific cutoff(s) it would have failed. This makes the method's behavior at expression extremes transparent and auditable rather than hiding behind arbitrary exclusion.</p>
 
         <p><strong>Why log-log space:</strong> The mean-variance relationship spans several orders of magnitude. Fitting in linear space would be dominated by a handful of very highly expressed genes. The log transform compresses the dynamic range, giving equal weight to genes across the full expression spectrum.</p>
 
@@ -2973,6 +3013,14 @@ function setupCtrl(){
     if(e.key==="h"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();}
     /* r = reset view */
     if(e.key==="r"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){resetView();}
+    /* d = toggle 2D/3D */
+    if(e.key==="d"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setView(viewIs3d?"2d":"3d");}
+    /* e = cycle embeddings */
+    if(e.key==="e"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+      var methods=[];var sel=document.getElementById("emb-select");
+      if(sel){for(var oi=0;oi<sel.options.length;oi++)methods.push(sel.options[oi].value);}
+      if(methods.length>1){var ci=methods.indexOf(embMethod);setEmbMethod(methods[(ci+1)%methods.length]);}
+    }
     /* Shift+V = select all visible cells */
     if(e.key==="V"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){selAllVisible();}
     /* \ = toggle sidebar */
