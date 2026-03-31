@@ -5968,6 +5968,10 @@ function resetSession(){
     for(var col in cats){var n=cats[col].categories.length;sliceFilter[col]=new Set();for(var j=0;j<n;j++)sliceFilter[col].add(j);}
   }
   sliceMask=null;_syncSlicePills();_updateSliceUI();
+  /* Reset DEG */
+  if(degOpen)closeDEG();
+  degData=null;degCache={};degGrpA=null;degGrpB=null;degSelHash="";
+  _updateDEGHistory();
   /* Reset view */
   resetView();
   recolor();renderLeg();renderSelPanel();showRecentGenes();
