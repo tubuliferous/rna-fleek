@@ -686,6 +686,9 @@
     <button onclick="toggleDEG()" id="deg-run-btn">Run</button>
     <span id="deg-status"></span>
     <select id="deg-history" onchange="loadDEGFromHistory()" title="Previously computed DEG analyses" style="font-size:8px;display:none;margin-left:4px;background:var(--bg3);color:var(--text3);border:1px solid var(--border);border-radius:3px;padding:1px 4px;font-family:inherit;max-width:140px;"></select>
+    <button id="deg-clear-history" onclick="clearDEGHistory()" class="icon-btn" style="display:none;color:var(--text4);padding:1px 2px;margin-left:1px;" title="Clear DEG history">
+      <svg viewBox="0 0 24 24" width="10" height="10" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    </button>
     <div style="flex:1;"></div>
     <select id="deg-yaxis" onchange="renderVolcano()" title="Volcano Y-axis" style="font-size:9px;">
       <option value="padj">-log₁₀ padj</option>
@@ -6102,10 +6105,11 @@ function _isDEGEntryStale(c){
 
 function _updateDEGHistory(){
   var sel=document.getElementById("deg-history");
+  var clrBtn=document.getElementById("deg-clear-history");
   if(!sel)return;
   var keys=Object.keys(degCache);
-  if(keys.length===0){sel.style.display="none";return;}
-  sel.style.display="";
+  if(keys.length===0){sel.style.display="none";if(clrBtn)clrBtn.style.display="none";return;}
+  sel.style.display="";if(clrBtn)clrBtn.style.display="";
   sel.innerHTML="<option value='' disabled selected>History ("+keys.length+")<\/option>";
   for(var i=0;i<keys.length;i++){
     var k=keys[i];
@@ -6120,6 +6124,16 @@ function _updateDEGHistory(){
     opt.textContent=(stale?"\u26a0 ":"")+aName+" vs "+bName+" ("+label+", "+nGenes+" genes)"+(stale?" [stale]":"");
     sel.appendChild(opt);
   }
+}
+
+function clearDEGHistory(){
+  fleekConfirm("Clear DEG history?","All cached analyses will be removed.","Clear",function(ok){
+    if(!ok)return;
+    degCache={};degData=null;degGrpA=null;degGrpB=null;degSelHash="";
+    _clearDEGDisplay();
+    _updateDEGHistory();
+    _sessionAutoSave();
+  });
 }
 
 function loadDEGFromHistory(){
