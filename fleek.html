@@ -177,6 +177,7 @@
   #deg-hdr button:hover{border-color:var(--text3);color:var(--text2);}
   #deg-run-btn{background:rgba(99,102,241,0.2)!important;border-color:var(--accent)!important;color:var(--accent2)!important;font-weight:600;padding:3px 14px!important;}
   #deg-run-btn:hover{background:rgba(99,102,241,0.35)!important;}
+  #deg-run-btn:disabled{opacity:0.3!important;cursor:default!important;}
   #deg-run-btn.deg-stop{background:rgba(248,113,113,0.2)!important;border-color:#f87171!important;color:#f87171!important;}
   #deg-run-btn.deg-stop:hover{background:rgba(248,113,113,0.35)!important;}
   #deg-body{display:flex;flex:1;min-height:0;overflow:hidden;}
@@ -5430,6 +5431,7 @@ function markDEGStale(){
   if(el)el.style.display=(cur&&degSelHash&&cur!==degSelHash)?"inline":"none";
   /* Refresh history to update stale annotations */
   _updateDEGHistory();
+  _updateDEGRunBtn();
 }
 
 function openDEG(){
@@ -5467,6 +5469,7 @@ function openDEG(){
     setTimeout(renderVolcano,150);
     markDEGStale();
   }
+  _updateDEGRunBtn();
 }
 
 function closeDEG(){
@@ -6092,7 +6095,22 @@ function _clearDEGDisplay(){
   if(cv){var ctx=cv.getContext("2d");ctx.clearRect(0,0,cv.width,cv.height);}
 }
 
+function _updateDEGRunBtn(){
+  if(_degRunning)return; /* don't disable while running (it's a Stop button) */
+  var btn=document.getElementById("deg-run-btn");
+  if(!btn)return;
+  var selA=document.getElementById("deg-grpA");
+  var selB=document.getElementById("deg-grpB");
+  var idA=selA?selA.value:"";
+  var idB=selB?selB.value:"";
+  /* Disabled if: same group, stale ghost selected, or no valid selections */
+  var invalid=!idA||!idB||idA===idB||idA.indexOf("__stale")===0||idB.indexOf("__stale")===0;
+  btn.disabled=invalid;
+}
+
 function onDEGTestChange(){
+  _removeStaleGhosts();
+  _updateDEGRunBtn();
   var key=_degCacheKey();
   if(degCache[key]){
     _showDEGResult(degCache[key].data,degCache[key].grpA,degCache[key].grpB);
@@ -6157,6 +6175,7 @@ function loadDEGFromHistory(){
     _addStaleGhostOptions(c);
   }
   sel.value="";
+  _updateDEGRunBtn();
 }
 
 function _removeStaleGhosts(){
