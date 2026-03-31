@@ -6081,6 +6081,7 @@ function _showDEGResult(data,grpA,grpB){
   /* Fallback in case ResizeObserver doesn't fire (already at size) */
   setTimeout(renderVolcano,150);
   _saveDEGState();
+  _updateDEGRunBtn();
 }
 
 function _clearDEGDisplay(){
@@ -6103,8 +6104,11 @@ function _updateDEGRunBtn(){
   var selB=document.getElementById("deg-grpB");
   var idA=selA?selA.value:"";
   var idB=selB?selB.value:"";
-  /* Disabled if: same group, stale ghost selected, or no valid selections */
+  /* Disabled if: same group, stale ghost selected, no valid selections, or already cached */
   var invalid=!idA||!idB||idA===idB||idA.indexOf("__stale")===0||idB.indexOf("__stale")===0;
+  if(!invalid){
+    try{var key=_degCacheKey();if(degCache[key])invalid=true;}catch(e){}
+  }
   btn.disabled=invalid;
 }
 
