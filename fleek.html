@@ -330,7 +330,7 @@
         <span id="loaded-file-text"></span>
       </div>
       <div id="info" style="font-size:10px;color:var(--text4);margin-top:2px;">Connecting to server...</div>
-      <div id="session-bar" style="display:none;margin-top:4px;display:none;align-items:center;gap:4px;font-size:8px;">
+      <div id="session-bar" style="display:none;margin-top:4px;align-items:center;gap:4px;font-size:8px;">
         <span style="color:var(--text4);">Session:</span>
         <select id="session-select" onchange="onSessionSelect()" style="flex:1;min-width:0;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:8px;font-family:inherit;padding:1px 4px;outline:none;"></select>
         <button class="icon-btn" onclick="saveSessionAs()" title="Save session as..." style="color:var(--text3);font-size:10px;padding:1px 3px;">
@@ -5756,6 +5756,13 @@ function _buildSessionState(){
 
 function _sessionAutoSave(){
   if(!D||_sessionLoading||_restoring||_navigating)return;
+  /* If working from a named session, switch indicator to auto-save */
+  if(_sessionName!=="_auto"){
+    _sessionName="_auto";
+    var sel=document.getElementById("session-select");
+    if(sel)sel.value="_auto";
+    _updateSessionDeleteBtn();
+  }
   clearTimeout(_sessionAutoTimer);
   _sessionAutoTimer=setTimeout(function(){
     fetch("/api/session-save",{
@@ -5857,11 +5864,15 @@ function _applySessionState(s){
   /* Restore DEG results if present */
   if(s._deg){
     degData=s._deg.data;degGrpA=s._deg.grpA;degGrpB=s._deg.grpB;
-    degSelHash=s._deg.selHash||"";degOpen=s._deg.open||false;
+    degSelHash=s._deg.selHash||"";
     degPanelH=s._deg.panelH||280;degSort=s._deg.sort||{col:"padj",asc:true};
     if(s._deg.cache)degCache=s._deg.cache;
-    if(degOpen&&degData){
-      _showDEGResult();
+    /* Enable DEG button since we have groups with cells */
+    var _degBtn=document.getElementById("deg-open-btn");
+    if(_degBtn)_degBtn.disabled=false;
+    if(s._deg.open&&degData){
+      degOpen=false; /* openDEG toggles, so start from closed */
+      openDEG();
     }
   }
   /* Restore undo/redo history if present */
