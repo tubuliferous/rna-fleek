@@ -5787,7 +5787,6 @@ function _saveSliceState(){
 var _sessionName="_auto";
 var _sessionAutoTimer=null;
 var _sessionLoading=false;
-var _sessionSwitchCooldown=0; /* timestamp: suppress auto-save until this time */
 
 function _buildSessionState(){
   var state=JSON.parse(snapState());
@@ -5805,12 +5804,6 @@ function _buildSessionState(){
 
 function _sessionAutoSave(){
   if(!D||_sessionLoading||_restoring||_navigating)return;
-  if(Date.now()<_sessionSwitchCooldown){
-    /* Retry after cooldown expires */
-    clearTimeout(_sessionAutoTimer);
-    _sessionAutoTimer=setTimeout(_sessionAutoSave,_sessionSwitchCooldown-Date.now()+100);
-    return;
-  }
   /* Always switch to auto-save indicator (from named session or fresh) */
   var sel=document.getElementById("session-select");
   if(_sessionName!=="_auto"||(sel&&sel.value!=="_auto")){
@@ -5862,7 +5855,6 @@ function onSessionSelect(){
   var name=sel.value;
   _updateSessionDeleteBtn();
   if(name==="__fresh"){resetSession();return;}
-  _sessionSwitchCooldown=Date.now()+3000; /* suppress auto-save for 3s */
   _sessionName=name;
   fetch("/api/session-load",{
     method:"POST",headers:{"Content-Type":"application/json"},
@@ -5959,7 +5951,6 @@ function _doSaveSession(name){
   .then(function(d){
     if(d.ok){
       _sessionName=name;
-      _sessionSwitchCooldown=Date.now()+3000; /* prevent auto-save from overwriting dropdown */
       _loadSessionList(name);
     }
     else{alert(d.error||"Failed to save session.");}
@@ -6035,7 +6026,6 @@ function resetSession(){
   resetView();
   recolor();renderLeg();renderSelPanel();showRecentGenes();
   _restoring=false;_sessionLoading=false;
-  _sessionSwitchCooldown=Date.now()+3000; /* suppress auto-save for 3s */
   _sessionName="_auto";
   var sel=document.getElementById("session-select");
   if(sel)sel.value="__fresh";
