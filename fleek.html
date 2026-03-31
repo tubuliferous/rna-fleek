@@ -685,6 +685,7 @@
     </select>
     <button onclick="toggleDEG()" id="deg-run-btn">Run</button>
     <span id="deg-status"></span>
+    <select id="deg-history" onchange="loadDEGFromHistory()" title="Previously computed DEG analyses" style="font-size:8px;display:none;margin-left:4px;background:var(--bg3);color:var(--text3);border:1px solid var(--border);border-radius:3px;padding:1px 4px;font-family:inherit;max-width:140px;"></select>
     <div style="flex:1;"></div>
     <select id="deg-yaxis" onchange="renderVolcano()" title="Volcano Y-axis" style="font-size:9px;">
       <option value="padj">-log₁₀ padj</option>
@@ -5429,6 +5430,7 @@ function openDEG(){
   }
   if(filled.length>=2)selB.selectedIndex=1;
   syncCanvasSize();
+  _updateDEGHistory();
   /* If results already exist (e.g. restored from sessionStorage), render them */
   if(degData){
     renderDEGTable();
@@ -5879,6 +5881,7 @@ function _applySessionState(s){
       degOpen=false; /* openDEG toggles, so start from closed */
       openDEG();
     }
+    _updateDEGHistory();
   }
   /* Restore undo/redo history if present */
   if(s._history&&s._history.length>0){
@@ -6056,6 +6059,35 @@ function onDEGTestChange(){
   }
 }
 
+function _updateDEGHistory(){
+  var sel=document.getElementById("deg-history");
+  if(!sel)return;
+  var keys=Object.keys(degCache);
+  if(keys.length===0){sel.style.display="none";return;}
+  sel.style.display="";
+  sel.innerHTML="<option value='' disabled selected>History ("+keys.length+")<\/option>";
+  for(var i=0;i<keys.length;i++){
+    var k=keys[i];
+    var c=degCache[k];
+    var label=k.split("|")[0]||"test";
+    var aName=c.grpA?c.grpA.name:"A";
+    var bName=c.grpB?c.grpB.name:"B";
+    var nGenes=c.data?c.data.genes.length:0;
+    var opt=document.createElement("option");
+    opt.value=k;
+    opt.textContent=aName+" vs "+bName+" ("+label+", "+nGenes+" genes)";
+    sel.appendChild(opt);
+  }
+}
+
+function loadDEGFromHistory(){
+  var sel=document.getElementById("deg-history");
+  var key=sel.value;
+  if(!key||!degCache[key])return;
+  _showDEGResult(degCache[key].data,degCache[key].grpA,degCache[key].grpB);
+  sel.value=""; /* reset to placeholder */
+}
+
 var _degAbort=null; /* AbortController for running DEG */
 var _degRunning=false;
 
@@ -6129,6 +6161,7 @@ function runDEG(){
     /* Cache the result */
     degCache[cacheKey]={data:data,grpA:savedGrpA,grpB:savedGrpB};
     _showDEGResult(data,savedGrpA,savedGrpB);
+    _updateDEGHistory();
   })
   .catch(function(err){
     clearInterval(progressTimer);
