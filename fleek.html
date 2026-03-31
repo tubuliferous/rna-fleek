@@ -4994,6 +4994,8 @@ function unloadDataset(){
     document.getElementById("load-badges").innerHTML="";
     document.getElementById("csc-status").style.display="none";
     document.getElementById("gene-sec").style.display="none";
+    document.getElementById("session-bar").style.display="none";
+    if(_sessionAutoTimer){clearTimeout(_sessionAutoTimer);_sessionAutoTimer=null;}
     document.getElementById("data-sec").classList.add("no-data");
     document.getElementById("lineage-tree").style.display="none";
     document.getElementById("lineage-tree").innerHTML="";
@@ -5666,15 +5668,21 @@ var _sessionName="_auto";
 var _sessionAutoTimer=null;
 var _sessionLoading=false;
 
+function _buildSessionState(){
+  var state=JSON.parse(snapState());
+  state.recentGenes=recentGenes;
+  state._history=_history;
+  state._histIdx=_histIdx;
+  return state;
+}
+
 function _sessionAutoSave(){
   if(!D||_sessionLoading||_restoring||_navigating)return;
   clearTimeout(_sessionAutoTimer);
   _sessionAutoTimer=setTimeout(function(){
-    var state=JSON.parse(snapState());
-    state.recentGenes=recentGenes;
     fetch("/api/session-save",{
       method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({name:"_auto",state:state})
+      body:JSON.stringify({name:"_auto",state:_buildSessionState()})
     }).catch(function(){});
   },2000);
 }
@@ -5766,6 +5774,14 @@ function _applySessionState(s){
   document.getElementById("bg").className="btn"+(mode==="gene"?" on":"");
   document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
   recolor();renderLeg();if(selGroups.length>0)renderSelPanel();showRecentGenes();
+  /* Restore undo/redo history if present */
+  if(s._history&&s._history.length>0){
+    _history=s._history;
+    _histIdx=typeof s._histIdx==="number"?s._histIdx:_history.length-1;
+  }else{
+    _history=[snapState()];_histIdx=0;
+  }
+  updateHistBtn();
   _restoring=false;_sessionLoading=false;
 }
 
@@ -5774,8 +5790,7 @@ function saveSessionAs(){
   if(!name||!name.trim())return;
   name=name.trim();
   if(name==="_auto"){alert("Name '_auto' is reserved for auto-save.");return;}
-  var state=JSON.parse(snapState());
-  state.recentGenes=recentGenes;
+  var state=_buildSessionState();
   fetch("/api/session-save",{
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({name:name,state:state})
