@@ -5805,7 +5805,12 @@ function _buildSessionState(){
 
 function _sessionAutoSave(){
   if(!D||_sessionLoading||_restoring||_navigating)return;
-  if(Date.now()<_sessionSwitchCooldown)return;
+  if(Date.now()<_sessionSwitchCooldown){
+    /* Retry after cooldown expires */
+    clearTimeout(_sessionAutoTimer);
+    _sessionAutoTimer=setTimeout(_sessionAutoSave,_sessionSwitchCooldown-Date.now()+100);
+    return;
+  }
   /* Always switch to auto-save indicator (from named session or fresh) */
   var sel=document.getElementById("session-select");
   if(_sessionName!=="_auto"||(sel&&sel.value!=="_auto")){
