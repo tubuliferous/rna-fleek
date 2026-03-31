@@ -533,7 +533,7 @@
         <span id="slice-total-count" style="color:var(--text4);"></span>
         <span style="flex:1;"></span>
         <span id="slice-empty-global" style="font-size:7.5px;color:var(--text4);cursor:pointer;opacity:0.7;user-select:none;" onclick="toggleAllEmptySlices()" title="Show/hide empty values (0 cells) in all categories">+empty</span>
-        <button id="slice-save-btn" onclick="exportSlice()" style="background:none;border:1px solid var(--border);border-radius:3px;color:var(--text3);font-size:8px;font-family:inherit;cursor:pointer;padding:1px 6px;white-space:nowrap;" title="Save currently visible cells as h5ad subset">Save slice</button>
+        <button id="slice-save-btn" onclick="exportSlice()" class="icon-btn" style="color:var(--text3);padding:1px 3px;" title="Save currently visible cells as h5ad subset"><svg viewBox="0 0 24 24" width="13" height="13" style="fill:currentColor;vertical-align:-2px;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
       </div>
     </div>
   </div>
@@ -5606,8 +5606,12 @@ function exportSlice(){
   }
   var name=parts.length>0?parts.join("_"):"slice";
   var btn=document.getElementById("slice-save-btn");
-  var origText=btn.textContent;
-  btn.textContent="Saving\u2026";btn.disabled=true;
+  var origHTML=btn.innerHTML;
+  btn.style.color="#6366f1";btn.style.opacity="0.5";btn.disabled=true;
+  var spinner=document.createElement("span");
+  spinner.className="csc-spinner";
+  spinner.style.cssText="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-left:2px;";
+  btn.parentNode.insertBefore(spinner,btn.nextSibling);
   fetch("/api/export",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -5626,11 +5630,13 @@ function exportSlice(){
     a.download=obj.fname;
     a.click();
     URL.revokeObjectURL(a.href);
-    btn.textContent=origText;btn.disabled=false;
+    btn.innerHTML=origHTML;btn.style.color="";btn.style.opacity="";btn.disabled=false;
+    if(spinner.parentNode)spinner.parentNode.removeChild(spinner);
   })
   .catch(function(err){
     alert("Export error: "+err.message);
-    btn.textContent=origText;btn.disabled=false;
+    btn.innerHTML=origHTML;btn.style.color="";btn.style.opacity="";btn.disabled=false;
+    if(spinner.parentNode)spinner.parentNode.removeChild(spinner);
   });
 }
 
