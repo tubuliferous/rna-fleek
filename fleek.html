@@ -5049,7 +5049,7 @@ function unloadDataset(){
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
     /* Close DEG panel */
     if(degOpen)closeDEG();
-    degData=null;degCache={};degGrpA=null;degGrpB=null;
+    degData=null;degCache={};degGrpA=null;degGrpB=null;_degOrigGroups=null;
     selGroups=[];activeGroupId=null;cellGroupMap=null;
     _hadSelection=false;bgDimPct=0;
     markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
@@ -5348,6 +5348,7 @@ var FC_THRESH=0.5, PADJ_THRESH=0.05;
 var degGrpA=null, degGrpB=null;
 var degPanelH=280;
 var degSelHash=""; /* hash of groups at last DEG run, for stale detection */
+var _degOrigGroups=null; /* {aId,bId,aSize,bSize,aName,bName} at time of current result */
 var degOpen=false;
 var degCache={}; /* key: testType+"_"+selHash → {data, grpA, grpB} */
 var vZoom={x:1,y:1}, vPan={x:0,y:0}; /* volcano zoom (multiplicative) and pan (data-space offset) */
@@ -5427,8 +5428,18 @@ function markDEGStale(){
   /* Show stale badge only if the two groups in the DEG analysis changed */
   if(!degData)return;
   var cur=_degGroupHash();
+  var isStale=cur&&degSelHash&&cur!==degSelHash;
   var el=document.getElementById("deg-stale");
-  if(el)el.style.display=(cur&&degSelHash&&cur!==degSelHash)?"inline":"none";
+  if(el)el.style.display=isStale?"inline":"none";
+  /* Show/remove ghost entries for stale original groups */
+  if(isStale&&_degOrigGroups){
+    _addStaleGhostOptions({
+      grpA:{name:_degOrigGroups.aName},grpB:{name:_degOrigGroups.bName},
+      grpASize:_degOrigGroups.aSize,grpBSize:_degOrigGroups.bSize
+    });
+  }else{
+    _removeStaleGhosts();
+  }
   /* Refresh history to update stale annotations */
   _updateDEGHistory();
   _updateDEGRunBtn();
@@ -6009,7 +6020,7 @@ function resetSession(){
   sliceMask=null;_syncSlicePills();_updateSliceUI();
   /* Reset DEG */
   if(degOpen)closeDEG();
-  degData=null;degCache={};degGrpA=null;degGrpB=null;degSelHash="";
+  degData=null;degCache={};degGrpA=null;degGrpB=null;degSelHash="";_degOrigGroups=null;
   _updateDEGHistory();
   /* Reset view */
   resetView();
@@ -6056,8 +6067,23 @@ function _showDEGResult(data,grpA,grpB){
   degGrpA=grpA;
   degGrpB=grpB;
   /* Use a short timeout so dropdown values are set before hashing */
-  setTimeout(function(){degSelHash=_degGroupHash();},0);
+  setTimeout(function(){
+    degSelHash=_degGroupHash();
+    /* Capture original group info for stale ghost display */
+    var selA=document.getElementById("deg-grpA");
+    var selB=document.getElementById("deg-grpB");
+    var aId=selA?parseInt(selA.value):null;
+    var bId=selB?parseInt(selB.value):null;
+    var aSize=0,bSize=0;
+    for(var i=0;i<selGroups.length;i++){
+      if(selGroups[i].id===aId)aSize=selGroups[i].cells.size;
+      if(selGroups[i].id===bId)bSize=selGroups[i].cells.size;
+    }
+    _degOrigGroups={aId:aId,bId:bId,aSize:aSize,bSize:bSize,
+      aName:grpA?grpA.name:"A",bName:grpB?grpB.name:"B"};
+  },0);
   document.getElementById("deg-stale").style.display="none";
+  _removeStaleGhosts();
   var nSig=0;
   for(var i=0;i<data.genes.length;i++){if(Math.abs(data.genes[i].log2fc)>=FC_THRESH&&data.genes[i].padj<PADJ_THRESH)nSig++;}
   document.getElementById("deg-status").textContent=data.genes.length.toLocaleString()+" genes \u00b7 "+nSig.toLocaleString()+" significant \u00b7 "+data.elapsed+"s";
