@@ -6310,12 +6310,18 @@ function openSettingsToKey(){
   document.getElementById("no-key-banner").style.display="none";
   var popup=document.getElementById("settings-popup");
   popup.style.display="block";
-  setTimeout(function(){document.getElementById("set-api-key").focus();},50);
+  setTimeout(function(){
+    var inp=document.getElementById("set-api-key");
+    inp.focus();
+    inp.select();
+  },50);
 }
 function _showNoKeyBanner(){
-  var b=document.getElementById("no-key-banner");
-  b.style.display="flex";
-  setTimeout(function(){if(b.style.display==="flex")b.style.display="none";},8000);
+  /* Open settings directly to the API key field */
+  openSettingsToKey();
+  var status=document.getElementById("api-key-status");
+  status.textContent="API key required for Claude features.";
+  status.style.color="#f87171";
 }
 function saveApiKey(){
   var key=document.getElementById("set-api-key").value.trim();
