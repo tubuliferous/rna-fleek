@@ -56,12 +56,12 @@
   .light .leg-item:hover{background:rgba(0,0,0,0.04);}
   .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;box-sizing:border-box;}
   .annot-pred{display:flex;align-items:center;gap:3px;margin-top:1px;padding-left:12px;width:100%;}
-  .annot-type{font-size:8px;color:var(--accent2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
-  .annot-score{font-size:7px;color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;background:rgba(99,102,241,0.1);padding:0 3px;border-radius:2px;}
-  .annot-tag{font-size:7px;font-weight:700;padding:0 3px;border-radius:2px;background:rgba(52,211,153,0.15);color:#34d399;flex-shrink:0;}
-  .annot-tag-llm{background:rgba(196,181,253,0.15);color:#c4b5fd;}
-  .annot-tag{font-size:7px;font-weight:700;padding:0 3px;border-radius:2px;background:rgba(52,211,153,0.15);color:#34d399;flex-shrink:0;}
-  .annot-tag-llm{background:rgba(196,181,253,0.15);color:#c4b5fd;}
+  .annot-type{font-size:9px;color:var(--accent2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+  .annot-score{font-size:9px;color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;background:rgba(99,102,241,0.1);padding:0 3px;border-radius:2px;}
+  .annot-tag{font-size:9px;font-weight:700;padding:0 3px;border-radius:2px;background:rgba(52,211,153,0.15);color:#34d399;flex-shrink:0;}
+  .annot-tag-llm{background:rgba(196,181,253,0.15);color:#c4b5fd;font-size:9px;}
+  .annot-tag{font-size:9px;font-weight:700;padding:0 3px;border-radius:2px;background:rgba(52,211,153,0.15);color:#34d399;flex-shrink:0;}
+  .annot-tag-llm{background:rgba(196,181,253,0.15);color:#c4b5fd;font-size:9px;}
   .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex-shrink:1;}
   #cw{flex:1;position:relative;overflow:hidden;}
   #c{width:100%;height:100%;display:block;cursor:crosshair;}
@@ -95,23 +95,47 @@
   #upload-status{font-size:9px;color:var(--accent);margin-top:4px;display:none;}
   #upload-progress{height:3px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden;display:none;}
   #upload-progress-bar{height:100%;background:linear-gradient(90deg,#4338ca,#6366f1);width:0%;border-radius:2px;transition:width 0.2s;}
-  .load-badge{display:inline-flex;align-items:center;gap:0;font-size:8px;padding:1px 5px 1px 5px;border-radius:3px;font-weight:600;letter-spacing:0.02em;position:relative;transition:padding-left 0.12s;}
+  .load-badge{display:inline-flex;align-items:center;gap:0;font-size:9px;padding:1px 5px 1px 5px;border-radius:3px;font-weight:600;letter-spacing:0.02em;position:relative;transition:padding-left 0.12s;}
   .load-badge .badge-x{position:absolute;left:2px;top:0;bottom:0;width:0;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;font-size:9px;line-height:1;border-radius:2px;opacity:0;pointer-events:none;transition:width 0.12s,opacity 0.12s;color:inherit;}
   .load-badge.cached:hover{padding-left:14px;}
   .load-badge.cached:hover .badge-x{width:10px;opacity:0.5;pointer-events:auto;}
   .load-badge .badge-x:hover{opacity:1;color:#f87171;}
   .light .load-badge .badge-x:hover{opacity:1;color:#ef4444;}
+  /* ── Light-mode button color overrides: darken pastel colors for white bg ── */
+  /* Yellow (#fbbf24) → darker amber */
+  #lineage-btn-flat:hover,#lineage-btn-tree:hover{opacity:1!important;}
+  .light #lineage-btn-flat,.light #lineage-btn-tree{color:#b45309!important;}
+  .light #deg-stale{color:#b45309!important;background:rgba(180,83,9,0.1)!important;}
+  .light .load-badge.bk{color:#b45309!important;border-color:rgba(180,83,9,0.3)!important;background:rgba(180,83,9,0.08)!important;}
+  /* Purple (#c4b5fd) → deeper violet */
+  .light #annotate-llm-btn{color:#7c3aed!important;border-color:rgba(124,58,237,0.35)!important;background:rgba(124,58,237,0.06)!important;}
+  .light .annot-tag-llm{color:#7c3aed!important;background:rgba(124,58,237,0.12)!important;}
+  .light #no-key-banner{color:#7c3aed!important;border-color:rgba(124,58,237,0.4)!important;}
+  .light #no-key-banner button{color:#7c3aed!important;border-color:rgba(124,58,237,0.4)!important;background:rgba(124,58,237,0.1)!important;}
+  /* Green (#34d399) → deeper emerald */
+  .light #annotate-btn{color:#059669!important;border-color:rgba(5,150,105,0.35)!important;background:rgba(5,150,105,0.06)!important;}
+  .light .annot-tag{color:#059669!important;background:rgba(5,150,105,0.12)!important;}
+  .light .fleek-option.active{color:#059669!important;border-color:rgba(5,150,105,0.45)!important;background:rgba(5,150,105,0.1)!important;}
+  .light #slice-active-badge{color:#059669!important;}
+  .light #slice-footer .sf-count{color:#059669!important;}
+  .light .load-badge.cached{color:#059669!important;border-color:rgba(5,150,105,0.2)!important;background:rgba(5,150,105,0.08)!important;}
+  /* Red (#f87171) → deeper red */
+  .light #upload-stop-btn{color:#dc2626!important;border-color:#dc2626!important;}
+  .light #deg-run-btn.deg-stop{color:#dc2626!important;border-color:#dc2626!important;background:rgba(220,38,38,0.12)!important;}
+  .light #confirm-ok{color:#dc2626!important;background:rgba(220,38,38,0.1)!important;}
+  .light .sg-del:hover{color:#dc2626!important;}
+  .light .deg-close:hover{color:#dc2626!important;}
   .browse-entry{display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:pointer;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border);}
   .browse-entry:last-child{border-bottom:none;}
   .browse-entry:hover{background:var(--bg3);}
   .browse-entry.selected{background:rgba(99,102,241,0.15);}
   .browse-entry .browse-icon{font-size:13px;width:16px;text-align:center;flex-shrink:0;}
   .browse-entry .browse-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .browse-entry .browse-meta{font-size:8px;color:var(--text4);white-space:nowrap;}
+  .browse-entry .browse-meta{font-size:9px;color:var(--text4);white-space:nowrap;}
   .load-badge.qm{background:rgba(99,102,241,0.12);color:#818cf8;border:1px dashed rgba(99,102,241,0.25);}
   .load-badge.bk{background:rgba(251,191,36,0.12);color:#fbbf24;border:1px dashed rgba(251,191,36,0.25);}
   .load-badge.cached{background:rgba(52,211,153,0.12);color:#34d399;border:1px solid rgba(52,211,153,0.15);}
-  .badge-sep{font-size:7px;color:var(--text4);opacity:0.5;flex-basis:100%;line-height:1;margin:2px 0 0 0;}
+  .badge-sep{font-size:9px;color:var(--text4);opacity:0.5;flex-basis:100%;line-height:1;margin:2px 0 0 0;}
   .browse-row{display:flex;align-items:center;padding:4px 6px;font-size:9px;cursor:pointer;overflow:hidden;border-radius:3px;margin:1px 0;}
   .browse-row:last-child{border-bottom:none;}
   .browse-row:hover{background:rgba(99,102,241,0.08);}
@@ -123,7 +147,7 @@
   .browse-row.active{background:rgba(99,102,241,0.18);}
   .browse-col{min-width:100%;width:100%;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--border);padding:2px;scroll-snap-align:start;box-sizing:border-box;}
   .browse-col:last-child{border-right:none;}
-  .hvg-label{font-size:8px;color:var(--text4);margin:6px 0 3px;letter-spacing:0.03em;text-transform:uppercase;font-weight:600;}
+  .hvg-label{font-size:9px;color:var(--text4);margin:6px 0 3px;letter-spacing:0.03em;text-transform:uppercase;font-weight:600;}
   /* Lineage tree */
   .lin-node{padding:1px 0;user-select:none;}
   .lin-row{display:flex;align-items:center;gap:4px;padding:3px 5px;border-radius:3px;font-size:9px;cursor:pointer;}
@@ -134,10 +158,10 @@
   .lin-dot:hover{opacity:0.8;}
   .lin-dot.vis-on{border-color:currentColor;background:currentColor;}
   .lin-dot.vis-off{border-color:currentColor;background:transparent;}
-  .lin-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lin-name{flex:1;min-width:0;white-space:normal;overflow-wrap:break-word;overflow:hidden;line-height:1.3;}
   .lin-name.inferred{opacity:0.45;font-style:italic;}
-  .lin-count{font-size:7px;color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;}
-  .lin-children{margin-left:14px;border-left:1px solid var(--border);padding-left:4px;}
+  .lin-count{font-size:9px;color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;}
+  .lin-children{margin-left:9px;border-left:1px solid var(--border);padding-left:2px;}
   #crosshair.show{opacity:1;transition:opacity 0.05s ease-in;}
   .vbtn{display:inline-block;padding:4px 12px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;font-size:11px;background:transparent;color:var(--text2);font-family:inherit;transition:all 0.1s;margin-right:4px;}
   .vbtn:hover{border-color:#6366f1;color:#a5b4fc;}
@@ -153,7 +177,7 @@
   .sg-item:hover{background:var(--bg-hover);}
   .sg-item.active{background:var(--bg-active);color:var(--text);}
   .sg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;cursor:pointer;box-sizing:border-box;}
-  .sg-num{font-size:8px;font-weight:700;flex-shrink:0;width:10px;text-align:center;opacity:0.7;font-variant-numeric:tabular-nums;}
+  .sg-num{font-size:9px;font-weight:700;flex-shrink:0;width:10px;text-align:center;opacity:0.7;font-variant-numeric:tabular-nums;}
   .sg-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;font:inherit;padding:0;min-width:0;cursor:pointer;}
   .sg-rename{flex:1;min-width:0;background:none;border:none;border-bottom:1px solid var(--text3);color:var(--text);font:inherit;padding:0;outline:none;}
   .sg-count{font-size:9px;color:var(--text4);flex-shrink:0;}
@@ -161,14 +185,13 @@
   .sg-del:hover{color:#f87171;}
   .sg-save{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;margin-right:8px;}
   .sg-save:hover{color:#6366f1;}
-  .sg-add-btn{display:block;width:100%;padding:4px 0;border:1px dashed var(--border2);border-radius:4px;background:none;color:var(--text3);font-size:9px;font-family:inherit;cursor:pointer;text-align:center;margin-top:4px;}
-  .sg-add-btn:hover{border-color:#6366f1;color:#a5b4fc;}
-  .sg-toolbar{display:flex;gap:4px;margin-top:6px;}
-  .sg-toolbar button{flex:1;padding:3px 0;border:1px solid var(--border);border-radius:3px;background:none;color:var(--text3);font-size:9px;font-family:inherit;cursor:pointer;}
-  .sg-toolbar button:hover{border-color:var(--text3);color:var(--text2);}
-  .sg-toolbar button.deg-run{background:rgba(99,102,241,0.1);border-color:var(--accent);color:var(--accent2);}
-  .sg-toolbar button.deg-run:hover{background:rgba(99,102,241,0.18);border-color:var(--accent);color:var(--accent2);}
-  .sg-toolbar button.deg-run:disabled{opacity:0.3;cursor:default;}
+  /* sg-add-btn removed — replaced by + button in header */
+  .sg-toolbar{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap;}
+  .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:9px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;}
+  .sg-toolbar button:hover{background:var(--bg-hover);border-color:var(--border2);color:var(--text2);}
+  .sg-toolbar button.deg-run{background:rgba(99,102,241,0.08);border-color:rgba(99,102,241,0.3);color:var(--accent2);font-weight:600;}
+  .sg-toolbar button.deg-run:hover{background:rgba(99,102,241,0.15);border-color:var(--accent);}
+  .sg-toolbar button.deg-run:disabled{opacity:0.25;cursor:default;pointer-events:none;}
   /* DEG panel */
   #deg-panel{display:none;background:var(--bg2);flex-shrink:0;flex-direction:column;height:280px;}
   #deg-drag{height:5px;background:var(--border);cursor:ns-resize;position:relative;flex-shrink:0;}
@@ -177,7 +200,7 @@
   #deg-drag:hover::after,#deg-drag.dragging::after{background:#818cf8;}
   #deg-hdr{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
   #deg-hdr .lbl{margin:0;font-size:10px;}
-  #deg-hdr select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 4px;outline:none;}
+  #deg-hdr select{padding:4px 6px;}
   #deg-hdr button{background:none;border:1px solid var(--border);border-radius:3px;color:var(--text3);font-size:9px;font-family:inherit;padding:3px 8px;cursor:pointer;}
   #deg-hdr button:hover{border-color:var(--text3);color:var(--text2);}
   #deg-run-btn{background:rgba(99,102,241,0.2)!important;border-color:var(--accent)!important;color:var(--accent2)!important;font-weight:600;padding:3px 14px!important;}
@@ -195,11 +218,14 @@
   #deg-table td{padding:3px 6px;color:var(--text2);border-bottom:1px solid var(--bg3);cursor:pointer;}
   #deg-table tr:hover td{background:var(--bg-hover);color:var(--text);}
   #deg-table tr.hl td{background:var(--bg-active);color:var(--text);}
-  #deg-note{font-size:8px;color:var(--text4);padding:0 12px 4px;font-style:italic;}
+  #deg-note{font-size:9px;color:var(--text4);padding:0 12px 4px;font-style:italic;}
   #deg-status{font-size:9px;color:var(--accent);}
   @keyframes deg-pulse{0%,100%{opacity:0.6;}50%{opacity:1;}}
   @keyframes btn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,0.4);}50%{box-shadow:0 0 0 6px rgba(99,102,241,0);}}
   @keyframes spin{to{transform:rotate(360deg);}}
+  .rna-spin{display:inline-block;animation:spin 1.2s linear infinite;vertical-align:middle;color:var(--accent);}
+  /* Standard dropdown styling */
+  select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:4px 6px;outline:none;cursor:pointer;}
   /* Help panel */
   #help-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.55);}
   .light #help-overlay{background:rgba(0,0,0,0.3);}
@@ -232,7 +258,7 @@
   .help-sec{margin-bottom:4px;}
   .help-sec-hdr{display:flex;align-items:center;gap:8px;padding:8px 0;cursor:pointer;user-select:none;border-bottom:1px solid var(--border);}
   .help-sec-hdr:hover .help-sec-title{color:var(--text);}
-  .help-sec-chev{font-size:8px;color:var(--text4);transition:transform 0.15s;flex-shrink:0;}
+  .help-sec-chev{font-size:9px;color:var(--text4);transition:transform 0.15s;flex-shrink:0;}
   .help-sec.collapsed .help-sec-chev{transform:rotate(-90deg);}
   .help-sec-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);}
   .help-sec-body{padding:12px 0 8px;display:block;}
@@ -255,7 +281,7 @@
   #settings-popup{display:none;position:absolute;bottom:42px;right:12px;z-index:55;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;min-width:220px;backdrop-filter:blur(8px);}
   #settings-popup .s-title{font-size:10px;color:var(--text2);font-weight:700;margin-bottom:8px;}
   #settings-popup .s-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:10px;color:var(--text2);}
-  #settings-popup .s-row select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;}
+  #settings-popup .s-row select{padding:4px 8px;}
   #settings-popup .s-key-row{flex-direction:column;align-items:flex-start;gap:4px;}
   #settings-popup .s-key-input-wrap{display:flex;gap:4px;width:100%;}
   #settings-popup .s-key-input-wrap input{flex:1;min-width:0;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;}
@@ -277,23 +303,30 @@
   #slice-body .slice-col{margin-bottom:6px;}
   #slice-body .slice-col-hdr{display:flex;align-items:center;font-size:9px;color:var(--text2);font-weight:600;margin-bottom:2px;cursor:pointer;user-select:none;gap:3px;}
   #slice-body .slice-col-hdr .slice-caret{font-size:9px;color:var(--text4);transition:transform 0.15s;display:inline-block;}
-  #slice-body .slice-col-hdr .slice-counts{font-size:8px;color:var(--text4);font-weight:400;margin-left:auto;}
-  #slice-body .slice-col-hdr .slice-badge{font-size:8px;color:#f59e0b;font-weight:400;margin-left:2px;}
+  #slice-body .slice-col-hdr .slice-counts{font-size:9px;color:var(--text4);font-weight:400;margin-left:auto;}
+  #slice-body .slice-col-hdr .slice-badge{font-size:9px;color:#f59e0b;font-weight:400;margin-left:2px;}
   #slice-body .slice-col.collapsed .slice-vals{display:none;}
   #slice-body .slice-col.collapsed .slice-caret{transform:rotate(-90deg);}
   .fleek-option.empty-slice{opacity:0.35;}
   .slice-vals.hide-empty .fleek-option.empty-slice{display:none;}
-  #slice-body .slice-empty-toggle{font-size:7.5px;color:var(--text4);cursor:pointer;margin-left:4px;opacity:0.7;user-select:none;}
-  #slice-body .slice-empty-toggle:hover{opacity:1;color:var(--text3);}
+  /* Mini toggle switch for show-empty */
+  .se-wrap{display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none;margin-left:auto;margin-right:12px;}
+  .se-wrap .se-label{font-size:9px;color:var(--text4);line-height:1.1;text-align:left;font-weight:400;}
+  .se-switch{position:relative;width:20px;height:11px;flex-shrink:0;}
+  .se-switch input{opacity:0;width:0;height:0;position:absolute;}
+  .se-switch .se-track{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:background 0.15s,border-color 0.15s;}
+  .se-switch .se-track:before{content:"";position:absolute;width:7px;height:7px;left:1px;top:1px;background:var(--text4);border-radius:50%;transition:transform 0.15s,background 0.15s;}
+  .se-switch input:checked+.se-track{background:var(--accent);border-color:var(--accent);}
+  .se-switch input:checked+.se-track:before{transform:translateX(9px);background:#fff;}
   #slice-body .slice-vals{display:flex;flex-wrap:wrap;gap:3px 4px;padding-left:2px;}
   /* Unified pill toggle — used for slice values AND load options */
-  .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:8.5px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;max-width:100%;}
+  .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:9px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;max-width:100%;}
   .fleek-option .sv-name{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto;}
   .fleek-option:hover{border-color:var(--text3);color:var(--text3);}
   .fleek-option.active{background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.4);}
   .fleek-option.active:hover{background:rgba(52,211,153,0.2);}
   .fleek-option input[type=checkbox]{display:none;}
-  .fleek-option .sv-count{opacity:0.6;font-size:8px;flex-shrink:0;}
+  .fleek-option .sv-count{opacity:0.6;font-size:9px;flex-shrink:0;}
   #slice-footer{font-size:9px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;}
   #slice-footer .sf-count{color:#34d399;font-weight:600;}
 
@@ -340,9 +373,9 @@
         <span id="loaded-file-text"></span>
       </div>
       <div id="info" style="font-size:10px;color:var(--text4);margin-top:2px;">Connecting to server...</div>
-      <div id="session-bar" style="display:none;margin-top:4px;align-items:center;gap:4px;font-size:8px;">
+      <div id="session-bar" style="display:none;margin-top:4px;align-items:center;gap:4px;font-size:9px;">
         <span style="color:var(--text4);">Session:</span>
-        <select id="session-select" onchange="onSessionSelect()" style="flex:1;min-width:0;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:8px;font-family:inherit;padding:1px 4px;outline:none;"></select>
+        <select id="session-select" onchange="onSessionSelect()" style="flex:1;min-width:0;"></select>
         <button class="icon-btn" onclick="saveSessionAs()" title="Save session as..." style="color:var(--text3);font-size:10px;padding:1px 3px;">
           <svg viewBox="0 0 24 24" width="12" height="12" style="fill:currentColor;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
         </button>
@@ -357,7 +390,7 @@
     <div class="col-body">
       <div id="load-badges" style="display:none;margin-top:3px;gap:4px;flex-wrap:wrap;"></div>
       <div id="csc-status" style="font-size:9px;color:var(--accent);margin-top:2px;display:none;">
-        <span class="csc-spinner" style="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:4px;"></span>
+        <span id="csc-spinner-static"></span>
         Building gene index — first lookups may be slow
       </div>
       <!-- Upload popover: shown after file selection, hidden after load -->
@@ -369,7 +402,7 @@
         </label>
         <div id="fast-umap-opts" style="margin:4px 0 0 16px;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:8px;color:var(--text4);white-space:nowrap;">Fit cells:</span>
+            <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Fit cells:</span>
             <input type="range" id="fast-umap-n" min="10000" max="200000" step="10000" value="50000" oninput="updateFastLabel()" style="flex:1;min-width:0;">
             <span id="fast-umap-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
           </div>
@@ -384,7 +417,7 @@
         </label>
         <div id="fast-deg-opts" style="margin:4px 0 0 16px;">
           <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:8px;color:var(--text4);white-space:nowrap;">Max cells:</span>
+            <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Max cells:</span>
             <input type="range" id="fast-deg-n" min="10000" max="200000" step="10000" value="50000" oninput="updateDegLabel()" style="flex:1;min-width:0;">
             <span id="fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
           </div>
@@ -404,7 +437,7 @@
       </div>
       <div id="upload-progress"><div id="upload-progress-bar"></div></div>
       <div id="upload-status"></div>
-      <button id="upload-stop-btn" onclick="abortUpload()" style="display:none;background:none;border:1px solid #f87171;border-radius:3px;color:#f87171;font-size:8px;font-family:inherit;padding:2px 6px;cursor:pointer;margin-top:4px;">Stop Loading</button>
+      <button id="upload-stop-btn" onclick="abortUpload()" style="display:none;background:none;border:1px solid #f87171;border-radius:3px;color:#f87171;font-size:9px;font-family:inherit;padding:2px 6px;cursor:pointer;margin-top:4px;">Stop Loading</button>
       <!-- Server file browser popover -->
       <div id="browse-popover" style="display:none;margin-top:6px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
         <div style="display:flex;align-items:center;gap:2px;margin-bottom:6px;">
@@ -415,10 +448,10 @@
             <button class="btn" onclick="browseTo('~')" title="Home directory" style="padding:2px 4px;font-size:11px;line-height:1;"><svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:middle;fill:currentColor;"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg></button>
           </div>
           <div style="flex:1;position:relative;">
-            <input type="text" id="browse-path" style="width:100%;font-size:8px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-family:'SF Mono',Monaco,Consolas,monospace;outline:none;text-overflow:ellipsis;cursor:text;" placeholder="Type a path or paste..."
+            <input type="text" id="browse-path" style="width:100%;font-size:9px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-family:'SF Mono',Monaco,Consolas,monospace;outline:none;text-overflow:ellipsis;cursor:text;" placeholder="Type a path or paste..."
               onfocus="this.style.borderColor='var(--accent)';this.style.background='var(--bg);';this.select();"
               onblur="this.style.borderColor='var(--border)';this.style.background='var(--bg2)';">
-            <div id="browse-complete" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--bg2);border:1px solid var(--border);border-radius:4px;max-height:120px;overflow-y:auto;z-index:10;font-size:8px;"></div>
+            <div id="browse-complete" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--bg2);border:1px solid var(--border);border-radius:4px;max-height:120px;overflow-y:auto;z-index:10;font-size:9px;"></div>
           </div>
         </div>
         <div id="browse-columns" style="display:flex;overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:4px;background:var(--bg2);height:220px;scroll-snap-type:x proximity;cursor:grab;"></div>
@@ -457,65 +490,64 @@
     <div class="col-hdr" onclick="toggleSec('view')">
       <span class="lbl" style="margin-bottom:0;">View</span>
       <div id="view-mini-btns" onclick="event.stopPropagation()">
-        <button class="vbtn" id="vb2m" onclick="setView('2d')">2D</button>
-        <button class="vbtn on" id="vb3m" onclick="setView('3d')">3D</button>
-        <span id="emb-mini-label" style="font-size:7px;color:var(--text4);display:none;"></span>
+        <span style="display:inline-flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;">
+          <button id="vb2m" onclick="setView('2d')" style="background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;transition:all 0.1s;">2D</button>
+          <button id="vb3m" onclick="setView('3d')" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;transition:all 0.1s;">3D</button>
+        </span>
+        <span id="emb-mini-label" style="font-size:9px;color:var(--text4);display:none;"></span>
         <button id="view-reset-mini" onclick="resetView()" title="Reset camera to default (R)"><svg viewBox="0 0 16 16" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg></button>
       </div>
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
-      <div style="margin-bottom:8px;">
-        <button class="vbtn" id="vb2" onclick="setView('2d')">2D</button>
-        <button class="vbtn on" id="vb3" onclick="setView('3d')">3D</button>
+      <div style="display:flex;align-items:center;margin-bottom:8px;">
+        <span style="display:inline-flex;border:1px solid var(--border2);border-radius:4px;overflow:hidden;">
+          <button id="vb2" onclick="setView('2d')" style="background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:11px;font-family:inherit;padding:4px 12px;transition:all 0.1s;">2D</button>
+          <button id="vb3" onclick="setView('3d')" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:11px;font-family:inherit;padding:4px 12px;transition:all 0.1s;">3D</button>
+        </span>
+        <div style="display:inline-flex;gap:2px;margin-left:auto;margin-right:4px;">
+          <button class="btn" id="b-auto" onclick="toggleAuto()" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Toggle auto-rotation"><svg viewBox="0 0 1203 706" width="12" height="7" style="width:12px;height:7px;flex-shrink:0;fill:currentColor;"><path d="m 439.45,701.38 c -2.9,-1.7 -6.86,-5.75 -8.82,-9.02 -3.35,-5.59 -3.6,-8.39 -4.36,-48.71 l -0.8,-42.78 -32.88,-6.07 C 339.15,584.93 296.71,573.75 251.45,557.62 93.08,501.16 1.42,410.27 1.1,309.38 1.01,281.1 4.16,264.66 14.44,239.78 83.46,72.61 412.24,-31.01 745.4,9.4 c 180.62,21.9 330.05,84.62 403.99,169.56 33.54,38.52 50.28,76.86 52.53,120.24 5.92,114.45 -103.52,215.84 -294.45,272.79 -61.04,18.21 -144.19,32.96 -215.11,38.17 l -16.99,1.25 -1.04,-18.76 c -0.58,-10.32 -1.05,-49.88 -1.05,-87.91 l -0.01,-69.15 3.61,-0.04 c 8.5,-0.09 66.39,-7.71 87.01,-11.46 91.9,-16.7 170.49,-47.6 221,-86.89 20.93,-16.29 42.06,-41.09 49.42,-58.03 4.93,-11.35 5.39,-13.85 5.42,-29.59 0.03,-15.57 -0.46,-18.39 -5.15,-29.73 C 1008,155.56 901.7,98.55 761.16,73.21 665.73,56 539.63,55.99 441.5,73.18 384.1,83.24 326.75,100.64 283.58,121.11 210.36,155.82 165.21,201.55 162.16,244.09 c -2.64,36.75 25,74.88 79.66,109.92 39.43,25.27 102.27,49.75 160.39,62.47 10.14,2.22 19.71,4.48 21.25,5.03 2.61,0.92 2.81,-1.94 2.81,-41.61 0,-37.8 0.33,-43.35 2.97,-49.25 5.63,-12.61 17.51,-18.11 30.31,-14.03 4.79,1.53 166.87,169.6 171.57,177.91 4.33,7.66 4.88,20.47 1.25,28.83 -2.28,5.25 -156.88,167 -168.84,176.66 -6.67,5.38 -16.29,5.93 -24.07,1.37 z"/><\/svg><span>Rotate</span></button>
+          <button class="btn" onclick="resetView()" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Reset camera to default (R)"><svg viewBox="0 0 16 16" style="width:12px;height:12px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/><\/svg><span>Reset</span></button>
+        </div>
       </div>
       <div id="emb-row" style="display:none;margin-bottom:8px;">
         <div class="lbl">Embedding</div>
-        <select id="emb-select" onchange="setEmbMethod(this.value)" style="width:100%;padding:4px 24px 4px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:10px;font-family:inherit;cursor:pointer;outline:none;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;">
+        <select id="emb-select" onchange="setEmbMethod(this.value)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
           <option value="umap">UMAP</option>
         </select>
       </div>
+      <div class="lbl" style="margin-top:6px;">Color</div>
+      <select id="color-mode-select" onchange="setMode(this.value)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
+        <option value="cluster">Cell Type / Cluster</option>
+        <option value="gene">Gene Expression</option>
+      </select>
       <div class="lbl" style="margin-top:6px;">Point Size</div>
       <input type="range" id="pt-size" min="1" max="100" step="1" value="50" oninput="setPtSz(this.value,true)" onchange="setPtSz(this.value);this.blur()">
       <div class="lbl" style="margin-top:6px;">Unselected Opacity</div>
       <input type="range" id="pt-opacity" min="0.05" max="1" step="0.05" value="0.7" oninput="setPtOpacity(this.value,true)" onchange="setPtOpacity(this.value);this.blur()">
       <div class="lbl" style="margin-top:6px;">Unselected Brightness</div>
       <input type="range" id="bg-dim" min="0" max="100" step="5" value="100" oninput="setBgDim(100-this.value,true)" onchange="setBgDim(100-this.value);this.blur()" title="How bright non-selected cells appear. Slide left to fade, right for full brightness.">
-      <div id="rot-sec" style="margin-top:8px;">
-        <button class="btn" id="b-auto" onclick="toggleAuto()" style="display:flex;align-items:center;gap:5px;" title="Toggle auto-rotation"><svg viewBox="0 0 1203 706" width="14" height="8" style="width:14px;height:8px;flex-shrink:0;fill:currentColor;"><path d="m 439.45,701.38 c -2.9,-1.7 -6.86,-5.75 -8.82,-9.02 -3.35,-5.59 -3.6,-8.39 -4.36,-48.71 l -0.8,-42.78 -32.88,-6.07 C 339.15,584.93 296.71,573.75 251.45,557.62 93.08,501.16 1.42,410.27 1.1,309.38 1.01,281.1 4.16,264.66 14.44,239.78 83.46,72.61 412.24,-31.01 745.4,9.4 c 180.62,21.9 330.05,84.62 403.99,169.56 33.54,38.52 50.28,76.86 52.53,120.24 5.92,114.45 -103.52,215.84 -294.45,272.79 -61.04,18.21 -144.19,32.96 -215.11,38.17 l -16.99,1.25 -1.04,-18.76 c -0.58,-10.32 -1.05,-49.88 -1.05,-87.91 l -0.01,-69.15 3.61,-0.04 c 8.5,-0.09 66.39,-7.71 87.01,-11.46 91.9,-16.7 170.49,-47.6 221,-86.89 20.93,-16.29 42.06,-41.09 49.42,-58.03 4.93,-11.35 5.39,-13.85 5.42,-29.59 0.03,-15.57 -0.46,-18.39 -5.15,-29.73 C 1008,155.56 901.7,98.55 761.16,73.21 665.73,56 539.63,55.99 441.5,73.18 384.1,83.24 326.75,100.64 283.58,121.11 210.36,155.82 165.21,201.55 162.16,244.09 c -2.64,36.75 25,74.88 79.66,109.92 39.43,25.27 102.27,49.75 160.39,62.47 10.14,2.22 19.71,4.48 21.25,5.03 2.61,0.92 2.81,-1.94 2.81,-41.61 0,-37.8 0.33,-43.35 2.97,-49.25 5.63,-12.61 17.51,-18.11 30.31,-14.03 4.79,1.53 166.87,169.6 171.57,177.91 4.33,7.66 4.88,20.47 1.25,28.83 -2.28,5.25 -156.88,167 -168.84,176.66 -6.67,5.38 -16.29,5.93 -24.07,1.37 z"/></svg><span>Auto-Rotate</span></button>
-      </div>
-      <button class="btn" onclick="resetView()" style="margin-top:2px;display:flex;align-items:center;gap:5px;" title="Reset camera to default (R)"><svg viewBox="0 0 16 16" style="width:14px;height:14px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg><span>Reset View</span></button>
+      <!-- rot-sec moved to top row with 2D/3D buttons -->
     </div>
   </div>
   <!-- Selection Groups -->
   <div class="sec" id="sel-sec" data-col="sel">
     <div class="col-hdr" onclick="toggleSec('sel')">
-      <span class="lbl" style="margin-bottom:0;">Selection Groups</span>
+      <span class="lbl" style="margin-bottom:0;" id="sel-groups-label">Selection Groups</span>
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
-      <div id="sel-hint" style="font-size:8px;color:var(--text4);margin-bottom:6px;"></div>
       <div id="sel-groups"></div>
-      <button class="sg-add-btn" onclick="addSelGroup()" title="Add selection group (or press 1-9)">+ new group</button>
+      <button onclick="addSelGroup()" title="Add selection group (or press 1-9)" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;margin:4px 0;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
       <div class="sg-toolbar">
-        <button onclick="selAllVisible()" title="Select all visible cells into active group">sel visible</button>
-        <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)">Clear Visible</button>
-        <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (H to hide/restore)">hide all</button>
+        <button onclick="selAllVisible()" title="Select all visible cells into active group">Sel. Vis.</button>
+        <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)">Clear</button>
+        <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (H)">Hide All</button>
         <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button>
       </div>
     </div>
   </div>
-  <!-- Color By -->
-  <div class="sec" data-col="color">
-    <div class="col-hdr" onclick="toggleSec('color')">
-      <span class="lbl" style="margin-bottom:0;">Color By</span>
-      <span class="col-chev">&#9660;</span>
-    </div>
-    <div class="col-body">
-      <button class="btn on" id="bc" onclick="setMode('cluster')" title="Color by cell type (C)">&#9679; Cell Type / Cluster</button>
-      <button class="btn" id="bg" onclick="setMode('gene')" title="Color by gene expression (G)">&#9679; Gene Expression</button>
-    </div>
-  </div>
+  <!-- Color By section removed — merged into View panel as dropdown -->
   <!-- Gene search -->
   <div class="sec" id="gene-sec" data-col="gene">
     <div class="col-hdr" onclick="toggleSec('gene')">
@@ -527,7 +559,14 @@
       <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()">
       <div id="glist" style="margin-top:6px;max-height:220px;overflow-y:auto;"></div>
       <div id="hvg-section" style="display:none;margin-top:8px;">
-        <div class="hvg-label">Gene Variability</div>
+        <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;flex-wrap:wrap;">
+          <select id="gv-mode" style="color:var(--text2);" onchange="_gvModeChanged(this.value)">
+            <option value="global">Global Variability</option>
+            <option value="cluster">By Cell Type</option>
+          </select>
+          <span id="gv-dot" style="display:none;width:8px;height:8px;border-radius:50%;flex-shrink:0;cursor:pointer;box-sizing:border-box;" title="Click: toggle · Alt: solo · Shift: select" onclick="_gvDotClick(event)"></span>
+          <select id="gv-cluster" style="display:none;color:var(--text2);max-width:140px;" onchange="_gvClusterChanged(this.value)"></select>
+        </div>
         <div id="hvg-scroll" style="max-height:200px;overflow-y:auto;" onscroll="_gvVirtualRender()">
           <div id="hvg-list"></div>
         </div>
@@ -545,7 +584,7 @@
     <div class="col-hdr" onclick="toggleSec('slice')">
       <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:0;">
         <span class="lbl" style="margin-bottom:0;">Slice</span>
-        <span id="slice-active-badge" style="font-size:8px;color:#34d399;"></span>
+        <span id="slice-active-badge" style="font-size:9px;color:#34d399;"></span>
       </div>
       <button id="slice-reset-btn" onclick="event.stopPropagation();resetSlice()" style="display:none;background:none;border:none;color:var(--text4);font-size:9px;font-family:inherit;cursor:pointer;padding:0 4px;">reset</button>
       <span class="col-chev">&#9660;</span>
@@ -555,7 +594,7 @@
         <span id="slice-cell-count" class="sf-count"></span>
         <span id="slice-total-count" style="color:var(--text4);"></span>
         <span style="flex:1;"></span>
-        <span id="slice-empty-global" style="font-size:7.5px;color:var(--text4);cursor:pointer;opacity:0.7;user-select:none;" onclick="toggleAllEmptySlices()" title="Show/hide empty values (0 cells) in all categories">+empty</span>
+        <label class="se-wrap" title="Show/hide empty values (0 cells) in all categories"><span class="se-label">Show<br>Empty</span><span class="se-switch"><input type="checkbox" id="slice-empty-global" onchange="toggleAllEmptySlices()"><span class="se-track"></span></span></label>
         <button id="slice-save-btn" onclick="exportSlice()" class="icon-btn" style="color:var(--text3);padding:1px 3px;" title="Save all cells in current slice as h5ad subset"><svg viewBox="0 0 24 24" width="13" height="13" style="fill:currentColor;vertical-align:-2px;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
       </div>
     </div>
@@ -577,17 +616,17 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
-      <div style="display:flex;align-items:stretch;gap:4px;margin-bottom:4px;">
-        <button id="annotate-btn" onclick="runAnnotation()" style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.3);border-radius:3px;color:#34d399;cursor:pointer;font-size:8px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;" title="Infer cell types from marker gene database">Markers</button>
-        <button id="annotate-llm-btn" onclick="runAnnotationLLM()" style="background:rgba(196,181,253,0.06);border:1px solid rgba(196,181,253,0.3);border-radius:3px;color:#c4b5fd;cursor:pointer;font-size:8px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;" title="Infer cell types using Claude AI (requires ANTHROPIC_API_KEY env var or ~/.fleek.env)">Claude</button>
-        <span id="lineage-toggle" style="display:inline-flex;border:1px solid rgba(251,191,36,0.3);border-radius:3px;overflow:hidden;font-size:8px;font-family:inherit;flex-shrink:0;margin-left:auto;">
-          <button id="lineage-btn-flat" onclick="if(lineageView)toggleLineageView()" style="background:rgba(251,191,36,0.15);border:none;color:#fbbf24;cursor:pointer;font-size:8px;font-family:inherit;padding:3px 6px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex-shrink:0;"></button>
-          <button id="lineage-btn-tree" onclick="if(!lineageView)toggleLineageView()" style="background:rgba(251,191,36,0.06);border:none;border-left:1px solid rgba(251,191,36,0.2);color:#fbbf24;cursor:pointer;font-size:8px;font-family:inherit;padding:3px 6px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex-shrink:0;" title="Show developmental lineage tree (uses Claude AI)"></button>
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;min-width:0;">
+        <button id="annotate-btn" onclick="runAnnotation()" style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.3);border-radius:3px;color:#34d399;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;" title="Infer cell types from marker gene database">Markers</button>
+        <button id="annotate-llm-btn" onclick="runAnnotationLLM()" style="background:rgba(196,181,253,0.06);border:1px solid rgba(196,181,253,0.3);border-radius:3px;color:#c4b5fd;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;" title="Infer cell types using Claude AI (requires ANTHROPIC_API_KEY env var or ~/.fleek.env)">Claude</button>
+        <span id="lineage-toggle" style="display:inline-flex;border:1px solid rgba(251,191,36,0.3);border-radius:3px;overflow:hidden;font-size:9px;font-family:inherit;flex-shrink:0;margin-left:auto;">
+          <button id="lineage-btn-flat" onclick="if(lineageView)toggleLineageView()" style="background:rgba(251,191,36,0.15);border:none;color:#fbbf24;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 6px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex-shrink:0;"></button>
+          <button id="lineage-btn-tree" onclick="if(!lineageView)toggleLineageView()" style="background:rgba(251,191,36,0.06);border:none;border-left:1px solid rgba(251,191,36,0.2);color:#fbbf24;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 6px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex-shrink:0;" title="Show developmental lineage tree (uses Claude AI)"></button>
         </span>
       </div>
       <input type="text" id="type-search" placeholder="Search types &amp; annotations..." oninput="filterTypes()">
       <div id="lineage-tree" style="display:none;margin-top:4px;"></div>
-      <div id="leg-scroll" style="max-height:280px;overflow-y:auto;margin-top:4px;" onscroll="_legVirtualRender()">
+      <div id="leg-scroll" style="max-height:280px;overflow-y:auto;overflow-x:hidden;margin-top:4px;" onscroll="_legVirtualRender()">
         <div id="leg"></div>
       </div>
     </div>
@@ -643,9 +682,9 @@
     </div>
     <div class="s-row">
       <span>Selection highlight</span>
-      <select id="set-highlight" onchange="setHighlightMode(this.value);saveSettings()" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;">
-        <option value="fill">Fill (replace color)</option>
-        <option value="ring" selected>Ring (show color through)</option>
+      <select id="set-highlight" onchange="setHighlightMode(this.value);saveSettings()">
+        <option value="fill">Fill (Replace Color)</option>
+        <option value="ring" selected>Ring (Show Color Through)</option>
       </select>
     </div>
     <div class="s-row">
@@ -671,9 +710,9 @@
     </div>
     <div class="s-row">
       <span>Cache location</span>
-      <select id="set-cache-mode" onchange="setCacheMode(this.value)" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;">
-        <option value="dataset">With dataset</option>
-        <option value="server">Server directory</option>
+      <select id="set-cache-mode" onchange="setCacheMode(this.value)">
+        <option value="dataset">With Dataset</option>
+        <option value="server">Server Directory</option>
       </select>
     </div>
   </div>
@@ -690,22 +729,22 @@
 <div id="deg-panel">
   <div id="deg-hdr">
     <span class="lbl" style="color:#a5b4fc;font-weight:700;">DEG Analysis</span>
-    <span id="deg-stale" style="display:none;font-size:8px;color:#fbbf24;background:rgba(251,191,36,0.1);padding:1px 5px;border-radius:3px;" title="Selection groups have changed since this analysis was run">stale</span>
+    <span id="deg-stale" style="display:none;font-size:9px;color:#fbbf24;background:rgba(251,191,36,0.1);padding:1px 5px;border-radius:3px;" title="Selection groups have changed since this analysis was run">stale</span>
     <select id="deg-grpA" onchange="onDEGTestChange()"></select>
     <span style="font-size:10px;color:var(--text4);">vs</span>
     <select id="deg-grpB" onchange="onDEGTestChange()"></select>
     <select id="deg-test" onchange="onDEGTestChange()">
       <option value="wilcoxon">Wilcoxon</option>
-      <option value="t-test">t-test</option>
+      <option value="t-test">T-test</option>
     </select>
     <button onclick="toggleDEG()" id="deg-run-btn">Run</button>
     <span id="deg-status"></span>
-    <select id="deg-history" onchange="loadDEGFromHistory()" title="Previously computed DEG analyses" style="font-size:8px;display:none;margin-left:4px;background:var(--bg3);color:var(--text3);border:1px solid var(--border);border-radius:3px;padding:1px 4px;font-family:inherit;max-width:140px;"></select>
+    <select id="deg-history" onchange="loadDEGFromHistory()" title="Previously computed DEG analyses" style="display:none;margin-left:4px;color:var(--text3);max-width:140px;"></select>
     <button id="deg-clear-history" onclick="clearDEGHistory()" class="icon-btn" style="display:none;color:var(--text4);padding:1px 2px;margin-left:1px;" title="Clear DEG history">
       <svg viewBox="0 0 24 24" width="10" height="10" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
     </button>
     <div style="flex:1;"></div>
-    <select id="deg-yaxis" onchange="renderVolcano()" title="Volcano Y-axis" style="font-size:9px;">
+    <select id="deg-yaxis" onchange="renderVolcano()" title="Volcano Y-axis">
       <option value="padj">-log₁₀ padj</option>
       <option value="cohens_d">|Cohen's d|</option>
     </select>
@@ -714,8 +753,8 @@
   </div>
   <div id="deg-filter" style="display:flex;align-items:center;gap:6px;padding:3px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
     <span>Show top</span>
-    <input type="range" id="volcano-pct" min="5" max="100" step="5" value="5" oninput="document.getElementById('volcano-pct-label').textContent=this.value+'%'" onchange="renderVolcano()" style="width:70px;">
-    <span id="volcano-pct-label" style="min-width:28px;font-variant-numeric:tabular-nums;">5%</span>
+    <input type="range" id="volcano-pct" min="5" max="100" step="5" value="50" oninput="document.getElementById('volcano-pct-label').textContent=this.value+'%'" onchange="renderVolcano()" style="width:70px;">
+    <span id="volcano-pct-label" style="min-width:28px;font-variant-numeric:tabular-nums;">50%</span>
     <span style="color:var(--text4);">by significance</span>
   </div>
   <div id="deg-body">
@@ -755,6 +794,8 @@
       <a href="#" onclick="event.preventDefault();helpJump('help-deg')">DEG Analysis</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-data')">Data</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-sessions')">Sessions</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-undo')">Undo &amp; Redo</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-settings')">Settings</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-ref')">Quick Reference</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-stats')">Methods</a>
     </div>
@@ -771,6 +812,8 @@
         <p><strong>Moving the navcross:</strong> Pan (<span class="help-key">Ctrl</span>/<span class="help-key">⌘</span>+drag or right-drag) slides the navcross laterally. Fly (<span class="help-key">⌥ Opt</span>+drag or middle-drag) pushes it forward/backward along the camera's line of sight. The camera follows in both cases.</p>
         <p>The navcross is constrained inside a bounding sphere computed from the point cloud — you can fly through the cloud but the navcross can't leave it. When you push it against the boundary, a <strong>geodesic wireframe</strong> briefly flashes to show the constraint. It fades when you stop or pull back. Zoom-out is capped at 4× the cloud radius.</p>
         <p>On first load, the camera performs a brief intro orbit — starting close and pulling back with a half-rotation — to convey that the space is 3D and interactive. Any click or scroll cancels it.</p>
+        <p><strong>Double-click</strong> on any cell to fly the camera to that location and zoom in to the neighborhood. The fly-to animation smoothly centers the view and zooms to 35% of the cloud radius — the same distance every time, regardless of your starting zoom level. In 3D, the navcross moves to the target cell. This is useful for quickly inspecting a region of interest spotted in the overview.</p>
+        <p><strong>Auto-rotate:</strong> An optional slow orbit can be toggled from the View panel. When active, a small "Auto" badge appears on the button. Any manual interaction pauses auto-rotation; it resumes when you stop. This is useful for presentations or when exploring the cloud's 3D structure passively.</p>
         <p><strong>2D View</strong> uses an orthographic camera with pan and zoom. Panning is limited so the cloud can't be dragged fully off-screen. Zoom-out shows about 2× the cloud extent; zoom-in goes to 500×. A crosshair appears at screen center during panning to aid orientation.</p>
         <p><strong>Zoom acceleration:</strong> scroll speed scales with flick velocity — a gentle scroll nudges, a fast flick covers significant distance. Both 2D and 3D share the same acceleration curve.</p>
         <p><strong>Modifier key hints</strong> — when you hold Shift, Option, or Ctrl, the hint bar at the bottom-left updates to show what action your next drag will perform (lasso, fly, pan, etc.) before you start moving.</p>
@@ -829,6 +872,7 @@
           <tr><td>Toggle visibility</td><td>Click the color dot, or <span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td></tr>
           <tr><td>Hide/restore all</td><td><span class="help-key">H</span> (press again to restore previously visible)</td></tr>
           <tr><td>Solo group</td><td><span class="help-key">⌥ Opt</span>+click the dot (click again to restore)</td></tr>
+          <tr><td>Select all visible cells</td><td><span class="help-key">Shift</span>+<span class="help-key">V</span></td></tr>
           <tr><td>Clear visible cells</td><td><span class="help-key">Esc</span></td></tr>
           <tr><td>Clear ALL cells</td><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td></tr>
           <tr><td>Rename</td><td>Double-click the name</td></tr>
@@ -878,7 +922,7 @@
           <tr><td>Toggle a value</td><td>Click its pill</td></tr>
           <tr><td>Solo a value</td><td><span class="help-key">⌥ Opt</span>+click (hides all others in that row)</td></tr>
         </table>
-        <p>Empty values (cells with no entry for a column) are hidden by default. Click the <strong>+empty</strong> toggle to show them. Counts next to each column header show non-empty active / total values.</p>
+        <p>Empty values (cells with no entry for a column) are hidden by default. Click the <strong>N empty</strong> toggle (per column) or the global <strong>empty</strong> toggle in the footer to reveal them — the label highlights when empty values are visible. Counts next to each column header show non-empty active / total values.</p>
         <p>Cells that fall outside the current filter are exiled from the visualization — they are not just faded, they are removed entirely. All downstream tools (selection, DEG analysis, cell type visibility) respect the active slice.</p>
         <p><strong>Save slice:</strong> Click the save button to export all cells matching the current filter as an .h5ad file.</p>
         <p>Session auto-save captures the current slice state, so your filter persists across browser sessions.</p>
@@ -973,7 +1017,18 @@
       <div class="help-sec-body">
         <p>The Gene panel is always visible in the sidebar. Switch to <strong>Gene Expression</strong> coloring with <span class="help-key">G</span> or click the Gene Expression button. Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP. When the panel is collapsed, the currently selected gene name appears in the header.</p>
         <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a colorscale: <strong>Viridis</strong> (dark mode) or <strong>Blues sequential</strong> (light mode, where low expression fades into the white background). The expression legend (colormap bar) appears inside the Gene panel when a gene is selected.</p>
-        <p><strong>Gene Variability</strong> — a ranked list of all genes sorted by variability score, shown below the search box. The score measures how much more (or less) variable a gene is than expected for its expression level. <strong>When a dataset already contains a variability metric</strong> (e.g. <code>dispersions_norm</code> from scanpy), that metric is used directly. <strong>When no pre-computed metric exists</strong>, FLEEK computes its own using the <em>locally standardized trend residual</em> method — see <strong>Methods &amp; Statistics</strong> below for full details. HVG genes appear bold with accent-colored bars. Selecting a gene auto-scrolls the ranked list to that gene's position.</p>
+        <p><strong>Gene Variability</strong> — a ranked list of all genes shown below the search box. A dropdown at the top switches between two modes:</p>
+        <ul style="margin:4px 0 6px 16px;font-size:11px;line-height:1.5;">
+          <li><strong>Global variability</strong> (default) — genes ranked by variability score, measuring how much more (or less) variable each gene is than expected for its expression level. <strong>When a dataset already contains a variability metric</strong> (e.g. <code>dispersions_norm</code> from scanpy), that metric is used directly. <strong>When no pre-computed metric exists</strong>, FLEEK computes its own using the <em>locally standardized trend residual</em> method — see <strong>Methods &amp; Statistics</strong> below for full details. HVG genes appear bold with accent-colored bars.</li>
+          <li><strong>By cell type</strong> — shows per-cluster gene rankings from the shared one-vs-rest DEG analysis (the same computation used by Claude annotation). A dropdown selects the cell type (showing Claude-inferred names when available). A colored dot to the left of the dropdown reflects that cluster's visibility — click it to toggle, Alt+click to solo, Shift+click to select into a group. The column header shows the current sort metric and <strong>clicks to cycle</strong> through: <strong>|Cohen's d|</strong> → <strong>log&#x2082;FC</strong> → <strong>&minus;log&#x2081;&#x2080;(padj)</strong>. Bars are colored by direction: accent for upregulated genes, red for downregulated. Hovering over any gene shows all three metrics in the tooltip. The DEG computation triggers automatically on first use and is cached for the session.</li>
+        </ul>
+        <p><strong>When to use each metric:</strong></p>
+        <ul style="margin:4px 0 6px 16px;font-size:11px;line-height:1.5;">
+          <li><strong>|Cohen's d|</strong> (default) — standardized effect size: the mean difference divided by the pooled standard deviation. Tells you how <em>cleanly separated</em> a gene's expression is between this cell type and all others. Robust to sample size — a gene with a large d is a reliable marker regardless of how many cells you have. Best for finding <strong>definitive marker genes</strong> that distinguish a cell type.</li>
+          <li><strong>log&#x2082;FC</strong> — log fold change: how many doublings of expression this cell type has over the rest. Directly interpretable in biological terms (a gene at +2 is 4× higher). However, fold change can be inflated for low-expression genes where small absolute differences produce large ratios. Best for identifying <strong>strongly upregulated or downregulated</strong> genes in absolute terms.</li>
+          <li><strong>&minus;log&#x2081;&#x2080;(padj)</strong> — transformed adjusted p-value: statistical significance of the difference. Sensitive to sample size — with thousands of cells, even tiny differences reach significance. Useful for confirming a gene is <strong>reliably different</strong> (not noise), but the top-ranked genes may have trivially small effect sizes. Best used as a <strong>filter</strong> (is this real?) rather than a ranking (is this important?).</li>
+        </ul>
+        <p>In both modes, clicking a gene loads its expression on the UMAP. Selecting a gene auto-scrolls the ranked list to that gene's position.</p>
         <p><strong>Red-flagged genes:</strong> Genes shown in <span style="color:#dd4455;">red</span> in the ranked list are ones that <em>would have been excluded</em> by traditional cutoff-based methods (scanpy's <code>highly_variable_genes</code>). The specific reason is shown in the hover tooltip — either low mean expression (&lt; 0.0125), high mean expression (above the adaptive ceiling), or low detection rate (&lt; 0.5% of cells expressing). These genes are <strong>not excluded</strong> from FLEEK's ranking — the locally standardized z-score handles them naturally. The red flag is a transparency feature: it lets you evaluate whether high-ranking red-flagged genes represent genuine biological signal that traditional methods would have missed, or artifacts that the model hasn't fully corrected for. If many red genes appear near the top, treat the rankings with extra scrutiny.</p>
         <p><strong>Gene index</strong> — on load, a CSC (compressed sparse column) index is built in the background for fast per-gene lookups. A spinner in the Data panel shows progress. Before the index completes, gene lookups use a slower row-scan fallback but still work. The index is cached to disk (<code>.csc_cache.npz</code>) — subsequent loads skip the build entirely.</p>
         <p><strong>View controls:</strong> Point Size, Unselected Opacity, and Unselected Brightness sliders in the View panel let you fine-tune the visualization. Point Size is normalized 1–100 and auto-scaled to the dataset on load. Opacity controls transparency of non-selected cells. Brightness fades non-selected cells toward the background.</p>
@@ -996,9 +1051,13 @@
         </table>
         <p><strong>Gene filtering:</strong> Before testing, genes expressed in fewer than 3 cells across both groups are removed. This typically reduces ~60k genes to ~10–20k, giving a 3–6× speedup without affecting results for meaningful genes.</p>
         <p><strong>Normalization:</strong> If the data appears to contain raw counts (integer values with max > 5 in a sample), the server auto-applies <code>normalize_total(target_sum=1e4)</code> and <code>log1p</code> to the subset before testing.</p>
-        <p><strong>Volcano plot:</strong> log₂ fold-change on x-axis. Y-axis toggles between −log₁₀(padj) and |Cohen's d|. Dotted lines mark significance thresholds: |log₂FC| ≥ 0.5 and padj &lt; 0.05 (or |d| ≥ 0.8). Genes passing both thresholds are colored by group direction. The <strong>"Show top N%"</strong> slider controls how many genes are rendered — default 5% shows only the most significant, keeping the plot responsive. Hover to see gene stats; click a gene to load its expression on the UMAP and scroll to it in the table.</p>
+        <p><strong>Volcano plot:</strong> log₂ fold-change on x-axis. Y-axis toggles between −log₁₀(padj) and |Cohen's d|. Dotted lines mark significance thresholds: |log₂FC| ≥ 0.5 (vertical lines) and padj &lt; 0.05 or |d| ≥ 0.8 (horizontal line). Genes passing both thresholds are colored by group direction. A horizontal dotted line labeled "top N%" shows the visibility cutoff — genes below this line are hidden by the <strong>"Show top N%"</strong> slider. When viewing all 100% of genes, the visibility cutoff line is hidden. Default 50% shows the most significant genes, keeping the plot responsive.</p>
+        <p><strong>Volcano navigation:</strong> Scroll to zoom both axes simultaneously. Drag the plot to pan. Drag the <strong>x-axis area (bottom)</strong> left/right to zoom just the x-axis (fold-change); drag the <strong>y-axis area (left)</strong> up/down to zoom just the y-axis (significance). Double-click to reset all axes to default view.</p>
+        <p><strong>Interacting with results:</strong> Hover over a volcano point or table row to see gene stats and highlight the corresponding element in the other view. Click a gene (in either the volcano or the table) to load its expression on the UMAP — this lets you immediately see where a differentially expressed gene is active in the cell landscape. The gene search box in the DEG table filters results in real time. Table columns (gene, log₂FC, Cohen's d, padj) are sortable — click any header to sort.</p>
+        <p><strong>Resizable panel:</strong> Drag the divider between the volcano plot and gene table to adjust their relative sizes. The layout is preserved during the session.</p>
+        <p><strong>Download:</strong> Click the download button to export the full DEG table as a <strong>TSV file</strong> (tab-separated values), suitable for spreadsheets or downstream analysis tools.</p>
         <p><strong>Cohen's d</strong> is computed directly on the sparse matrix using E[X²]−E[X]² with Bessel correction, avoiding densification.</p>
-        <p><strong>Caching:</strong> Results are cached by test type + group combination. Switching between Wilcoxon and t-test shows cached results instantly if available.</p>
+        <p><strong>Caching &amp; history:</strong> Results are cached by test type + group combination. The <strong>History</strong> dropdown lists all previous DEG analyses for the current session — click any entry to restore its results instantly, including the volcano plot and gene table. Switching between Wilcoxon and t-test shows cached results instantly if available. A <strong>"stale"</strong> badge appears on a history entry when the selection groups have changed since that analysis was run — the results are still viewable but may no longer reflect the current cell assignments.</p>
         <p><strong>Pseudoreplication caveat:</strong> Cells from the same donor/sample are not independent observations. P-values from single-cell comparisons are anti-conservative — they reflect intra-sample variability, not inter-donor. For publication-level results, use pseudobulk approaches.</p>
       </div>
     </div>
@@ -1010,7 +1069,7 @@
         <span class="help-sec-title">Data Management</span>
       </div>
       <div class="help-sec-body">
-        <p>RNA-FLEEK loads <strong>.h5ad</strong> files (AnnData format) in two ways: <strong>upload</strong> (drag-and-drop or click the upload icon) or <strong>browse</strong> (click the folder icon to navigate the server's file system — no upload needed for local files).</p>
+        <p>RNA-FLEEK loads <strong>.h5ad</strong> files (AnnData format) in three ways: <strong>upload</strong> (click the upload icon or select a file), <strong>drag-and-drop</strong> (drag an .h5ad file onto the Data panel), or <strong>browse</strong> (click the folder icon to navigate the server's file system — no upload needed for local files).</p>
         <p><strong>File browser:</strong> Finder-style column navigation — click a directory to see its contents in a new column to the right. Swipe horizontally (trackpad or click-and-drag) to navigate up and down the hierarchy. The path bar at the top is editable — type or paste a path, press Tab for completions, Enter to navigate. Single-click a file to see load options, double-click to load immediately. Cache status dots show which files have cached embeddings, gene indices, or annotations.</p>
         <p><strong>Unloading:</strong> Click the power icon (⏻) in the Data panel header to unload the current dataset and free all server memory. This stops any background processing (CSC indexing, PaCMAP computation) and clears all caches.</p>
         <p>Before loading, a popover lets you configure:</p>
@@ -1038,7 +1097,7 @@
         <p>Badges in the Data panel show active settings (QuickMap, QuickPaCMAP, QuickDEG) and which caches are loaded. Cache badges appear as green pills (or colored for Markers/Claude/Lineage). <strong>Hover over any cache badge to reveal a × on the left — click it to delete that cache.</strong> A confirmation dialog appears before deletion. Deleting an annotation cache clears the in-memory annotations and re-enables the corresponding button. Cache badges appear immediately when new caches are created (e.g. after running Markers or Claude). Cache files are validated against cell count — if the h5ad changes, stale caches are automatically discarded.</p>
         <p><strong>Server startup:</strong> <code>python fleek_server.py [file.h5ad]</code> — or start without a file and use the file browser or upload. For Claude annotation, set <code>ANTHROPIC_API_KEY</code> in your environment or in <code>~/.fleek.env</code>. Use <code>--host 0.0.0.0</code> to allow connections from other machines. SSH sessions are auto-detected (no browser auto-open).</p>
         <p><strong>Remote deployment:</strong> Run FLEEK on a remote server (e.g. HPC cluster) and access via SSH tunnel: <code>ssh -L 9123:127.0.0.1:9123 user@server</code>, then open <code>http://localhost:9123</code> locally. The server processes data where the files live — only small payloads (coordinates, expression values) travel through the tunnel. Use <code>pip install -r requirements.txt</code> to install dependencies; <code>pacmap&lt;0.8</code> avoids GCC version issues on older HPC systems.</p>
-        <p><strong>Exports:</strong> Click the save icon on a selection group to download that cell subset as an .h5ad file. Large exports are streamed in 4MB chunks.</p>
+        <p><strong>Exports:</strong> Click the save icon on a selection group to download that cell subset as an .h5ad file. Exported subsets include sliced embeddings (UMAP, PCA, PaCMAP), cluster color maps, and annotation caches — so when you load a saved subset, it appears instantly with colors and cell type predictions already in place, no recomputation or API calls needed. You can also save all cells matching the current slice filter from the Slice panel. Large exports are streamed in 4MB chunks.</p>
       </div>
     </div>
 
@@ -1051,10 +1110,57 @@
       <div class="help-sec-body">
         <p><strong>Auto-save:</strong> FLEEK auto-saves your session state every 2 seconds. This includes selection groups, camera position, active gene, coloring mode, slice filters, and panel states. State persists across browser sessions — reloading the page restores exactly where you left off.</p>
         <p><strong>Named sessions:</strong> Use the <strong>Save As</strong> button to save the current state as a named session, stored alongside the dataset caches. Named sessions let you maintain multiple analysis configurations for the same dataset.</p>
-        <p><strong>Session dropdown:</strong> The Data panel includes a session dropdown to switch between saved sessions.</p>
+        <p><strong>Session dropdown:</strong> The Data panel includes a session dropdown to switch between saved sessions. Loading a session restores the full UI state including camera position, active gene, selections, and visibility.</p>
+        <p><strong>Delete:</strong> Click the trash icon to remove a named session (with confirmation). The auto-save session cannot be deleted manually — it is overwritten on every state change.</p>
         <p><strong>Reset:</strong> Click the Reset button for a fresh start — clears all session state and returns to defaults.</p>
         <p><strong>DEG results</strong> are saved with sessions, so switching back to a named session restores your previous differential expression results without recomputation.</p>
         <p><strong>Undo/redo history</strong> is saved with sessions. Your full action history is preserved and restored when switching sessions or reloading.</p>
+      </div>
+    </div>
+
+    <!-- Undo & Redo -->
+    <div class="help-sec" id="help-undo">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Undo &amp; Redo</span>
+      </div>
+      <div class="help-sec-body">
+        <p>FLEEK tracks your actions and lets you step backward and forward through your work. Press <span class="help-key">⌘</span>+<span class="help-key">[</span> to undo or <span class="help-key">⌘</span>+<span class="help-key">]</span> to redo (Windows/Linux: <span class="help-key">Ctrl</span>+<span class="help-key">[</span> / <span class="help-key">Ctrl</span>+<span class="help-key">]</span>). Optional undo/redo buttons can be shown in the top-right corner of the canvas — toggle their visibility in Settings.</p>
+        <p><strong>What is tracked:</strong></p>
+        <table class="help-table">
+          <tr><th>State</th><th>Examples</th></tr>
+          <tr><td>Selection groups</td><td>Lasso select, clear cells, add/remove group</td></tr>
+          <tr><td>Camera position</td><td>Rotate, pan, fly, zoom, reset view, fly-to</td></tr>
+          <tr><td>Active gene &amp; color mode</td><td>Loading a gene, switching Cell Type / Gene Expression</td></tr>
+          <tr><td>Visibility</td><td>Show/hide groups, show/hide cell types, solo/unsolo</td></tr>
+          <tr><td>Slice filters</td><td>Toggle filter values, reset filters</td></tr>
+          <tr><td>Panel states</td><td>Collapse/expand sidebar panels</td></tr>
+        </table>
+        <p>History is capped at 50 entries. Performing a new action while partway through the undo stack discards the redo future (standard undo behavior). The full undo/redo history is saved with sessions and restored when switching sessions or reloading the page.</p>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="help-sec" id="help-settings">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Settings</span>
+      </div>
+      <div class="help-sec-body">
+        <p>Click the <strong>gear icon</strong> in the top-right corner to open the Settings popup. Changes take effect immediately and are persisted in the browser.</p>
+        <table class="help-table">
+          <tr><th>Setting</th><th>Options</th><th>Description</th></tr>
+          <tr><td><strong>Theme</strong></td><td>Dark / Light</td><td>Switches the entire UI and canvas between dark and light themes. Light mode uses a Blues sequential colorscale for gene expression (low expression fades into the white background). Dark mode uses Viridis.</td></tr>
+          <tr><td><strong>Zoom target</strong></td><td>Cursor / Center</td><td>Controls where zoom is anchored. <em>Cursor</em> zooms toward/away from the mouse pointer (like a map). <em>Center</em> zooms toward the screen center (like a microscope).</td></tr>
+          <tr><td><strong>UI scale</strong></td><td>75%–150%</td><td>Adjusts the size of all UI elements — sidebar, panels, text, buttons. Useful on high-DPI displays or when using FLEEK on a projector.</td></tr>
+          <tr><td><strong>FPS counter</strong></td><td>On / Off</td><td>Shows frames-per-second in the top-right corner of the canvas. Useful for checking rendering performance on large datasets.</td></tr>
+          <tr><td><strong>Selection highlight</strong></td><td>Ring / Fill</td><td><em>Ring</em> draws a colored outline around selected cells, preserving their cluster/expression color underneath — ideal for seeing how a selection relates to gene expression patterns. <em>Fill</em> replaces the cell color entirely with the group color — clearer for selection membership but hides expression.</td></tr>
+          <tr><td><strong>Hint bar</strong></td><td>On / Off</td><td>The hint bar at the bottom of the canvas shows contextual tips about modifier keys and available actions. Disable for a cleaner view once you know the shortcuts.</td></tr>
+          <tr><td><strong>Shortcut flash</strong></td><td>On / Off</td><td>Brief overlay that flashes on screen when you press a keyboard shortcut, showing the action name and key combination. Helps learn shortcuts. Disable for a quieter interface.</td></tr>
+          <tr><td><strong>Undo/Redo buttons</strong></td><td>On / Off</td><td>Show or hide the undo/redo arrow buttons in the top-right corner of the canvas. The keyboard shortcuts (<span class="help-key">⌘</span>+<span class="help-key">[</span>/<span class="help-key">]</span>) always work regardless.</td></tr>
+          <tr><td><strong>Claude API key</strong></td><td>Text input</td><td>Enter your Anthropic API key directly in the UI — it is saved to <code>~/.fleek.env</code> on the server. This is an alternative to setting the <code>ANTHROPIC_API_KEY</code> environment variable. A green check appears when a key is active.</td></tr>
+          <tr><td><strong>Cache mode</strong></td><td>Dataset / Server</td><td><em>Dataset</em> stores caches alongside the .h5ad file (portable — cache moves with the data). <em>Server</em> stores caches in <code>~/.fleek_cache/</code> (works with read-only or networked data). If the dataset directory is not writable, FLEEK falls back to server mode automatically.</td></tr>
+        </table>
       </div>
     </div>
 
@@ -1081,22 +1187,29 @@
           <tr><td><span class="help-key">Shift</span>+dblclick (UMAP)</td><td>Toggle entire cell type</td></tr>
           <tr><td><span class="help-key">Shift</span>+click (Cell Types)</td><td>Select cell type into group</td></tr>
           <tr><td><span class="help-key">⌥ Opt</span>+click (legend dot)</td><td>Solo / unsolo</td></tr>
-          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Lineage View</th></tr>
-          <tr><td><span class="help-key">Shift</span>+click</td><td>Toggle sub-lineage in/out of group</td></tr>
-          <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+click</td><td>Toggle only this node (not descendants)</td></tr>
-          <tr><td><span class="help-key">⌥ Opt</span>+click</td><td>Solo sub-lineage</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Lineage View (dot = this node only, name = node + descendants)</th></tr>
+          <tr><td>Click name</td><td>Toggle visibility of branch (node + descendants)</td></tr>
+          <tr><td>Click dot</td><td>Toggle visibility of this node only</td></tr>
+          <tr><td><span class="help-key">⌥</span>+name</td><td>Solo branch (node + descendants)</td></tr>
+          <tr><td><span class="help-key">⌥</span>+dot</td><td>Solo this node only</td></tr>
+          <tr><td><span class="help-key">Shift</span>+click</td><td>Select branch into group (dot = this only)</td></tr>
+          <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+click</td><td>Select only this node (not descendants)</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Groups</th></tr>
           <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
           <tr><td><span class="help-key">H</span></td><td>Hide all group highlights (press again to restore)</td></tr>
           <tr><td><span class="help-key">Esc</span></td><td>Clear visible cells in active group / close help</td></tr>
           <tr><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td><td>Clear ALL cells in active group</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Lists (vim-style)</th></tr>
+          <tr><td><span class="help-key">J</span></td><td>Move down in gene list (hold to scroll continuously)</td></tr>
+          <tr><td><span class="help-key">K</span></td><td>Move up in gene list (hold to scroll continuously)</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Display</th></tr>
           <tr><td><span class="help-key">C</span></td><td>Color by cell type / cluster</td></tr>
           <tr><td><span class="help-key">G</span></td><td>Color by gene expression</td></tr>
           <tr><td><span class="help-key">R</span></td><td>Reset view</td></tr>
           <tr><td><span class="help-key">D</span></td><td>Toggle 2D/3D view</td></tr>
           <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
+          <tr><td><span class="help-key">T</span></td><td>Toggle dark/light theme</td></tr>
           <tr><td><span class="help-key">\</span></td><td>Toggle sidebar</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">General</th></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span></td><td>Undo</td></tr>
@@ -1213,8 +1326,32 @@
     </div>
   </div>
 </div>
+<svg id="rna-svg-tpl" viewBox="0 0 1440 2966" style="display:none;"><path d="m 249.6,2943.7c-10.5-2.6-21.2-13-24.4-23.7-2.1-7.1-4.1-36.4-3.2-49.6 2-31.5 9.7-59.3 25.4-90.8 18-36.2 39.9-66.5 74.9-103.9 31.1-33.2 64.6-63.5 113-102.2 72.2-57.7 115.1-88.6 284.9-205.3 31.1-21.4 49.7-34.5 97.9-68.8 81.8-58.3 143.2-108.6 187.1-153.3 18.5-18.8 25.8-27.2 38.3-43.7 39.4-51.9 55.8-96.2 53.6-144.8-2.9-65-42.7-127.6-126.5-199-11.7-9.9-44.7-35.4-60.7-46.8-10.4-7.4-58.1-39-74.9-49.6-31.1-19.6-39.5-24.7-114.3-69.5-139.2-83.3-169.6-102.3-222.5-139.8-69.3-49-125.9-99.9-163.2-146.8-43.8-55-70.1-109.8-81.3-169.4-22.5-119.6 18.1-256.1 113.1-379.6 76-98.8 174.9-187.1 373.7-333.6 33.2-24.5 64.4-47.4 79.7-58.5 84.2-61.3 155.9-117.4 196.5-153.8 19.8-17.7 54.2-52.8 67-68.2 21.9-26.4 37.9-53.6 44-74.6 4.5-15.7 10-22.5 23-28.4 11.2-5.1 27.4-2.2 36.7 6.7 7.5 7.1 11.8 16.5 11.8 25.5 0 13-7.3 35.8-19.1 59.9-18.2 37.2-47 75-91.4 120.2-59.9 61-99.5 94.8-257 219.5-105.2 83.3-159.1 128.7-220.1 186.8-71.3 67.9-119.7 125.6-155.1 184.8-39.6 66.3-60.4 134-60.4 197 0 48.8 13.5 94.3 39.8 133.8 17.1 25.7 26.7 37.5 50.4 61.6 27.8 28.3 50.6 47.8 92.5 79.1 31.5 23.5 103 70.7 146.6 96.6 150 89.3 198.8 119.6 255 158.3 92.3 63.5 149.7 114.4 191.1 169.3 39.6 52.6 61.7 103.8 70.2 162.4 2.1 14.6 2.3 19.4 1.7 43.2-.7 28.5-2.1 40-7.8 62.3-6.2 24.1-13.5 43.3-25.8 68-25 49.8-71.4 104.3-136.6 160.1-66.6 57-142.9 110.9-289.3 204.5-12 7.7-24.3 15.6-27.3 17.5-3 2-16.5 10.7-30.1 19.4-134 86.1-199.7 131.6-255.9 177.5-65.4 53.3-106.5 97.8-128.9 139.5-6.3 11.7-13.6 30.5-16.7 42.7-2.3 9.4-2.6 12.8-2.6 35.5l0 25.2-3.1 6.2c-3.6 7.3-8.8 12.2-17.1 16.1-6.7 3.1-17.2 4.1-24.4 2.3z m 186.8-75.1c-11.1-3.9-18.6-8.7-25.9-16.6-10.8-11.7-16.2-25.3-16.2-41.2 0-17.2 5.9-31.5 18.2-44 8.2-8.4 18.6-14.3 29-16.6 7.2-1.6 49.2-2.4 194.6-4 29.2-.3 63.6-.8 76.6-1.1 12.9-.3 55.8-.8 95.2-1.1 39.4-.3 84.2-.8 99.5-1.1 15.3-.3 57.7-.8 94.1-1.2 73.5-.7 73.1-.8 87 6.5 9.8 5.1 21.2 17 26 27 5.4 11.5 6.7 18 6 30.5-.7 12.4-3.4 21.2-9.6 30.7-11.6 18-27.5 26.6-51.4 27.8-6.9.4-45.1.9-84.8 1.2-39.7.3-84 .8-98.4 1.1-14.4.3-52.3.8-84.2 1.1-61.4.6-120.3 1.3-178.8 2.2-19.6.3-65.3.8-101.7 1.1l-66.2.6z m 304.5-243.3c-34.9-4.6-58.9-38.3-52.3-73.3 4.3-22.7 24.9-43.5 47.2-47.9 8.1-1.6 33.8-2.2 116.8-2.9 39.4-.3 74.8-.8 78.8-1.1 3.9-.3 46.5-.8 94.6-1.2l87.5-.7 8.8 2.8c16.4 5.3 28.6 15.7 36 30.7 9.2 18.7 9.3 37.3.1 56-8.8 17.9-25.7 29.9-46.8 33.1-3.8.6-45.7 1.3-93.3 1.7-47.5.4-88.6.9-91.3 1.1-2.7.2-39.6.7-82 1.1-42.4.4-81.5.8-87 1-5.4.2-13.1 0-17.2-.6zM483.5 2300.6c-23.9-5.1-41.6-22-47.6-45.5-3.8-14.7-2.3-28.2 4.7-43.1 4.2-8.9 16.1-21 25.5-26 14.5-7.6 4.5-7 169.4-9.5 142.2-2.1 132.9-2.1 141-.2 28.4 6.7 47.7 31.1 47.7 60.3 0 28.1-17.8 51.3-45.4 59.4-5.6 1.6-4.1 1.6-168.4 4-101.8 1.5-122.7 1.6-126.9.7zM349.7 2065.3c-11-1.9-22-7.6-31.2-16.2-17-15.8-23.6-42.4-16-64.5 3.2-9.3 12-22.3 18.9-27.8 6.5-5.2 18.6-11 26.4-12.7 3.2-.7 25.9-1.4 53.6-1.8 26.5-.3 64.9-.8 85.3-1.1 73.3-1.1 125-1.7 217.7-2.7 51.7-.6 105.9-1.3 120.3-1.6 14.4-.3 56.8-.9 94.1-1.2l67.8-.7 8.8 2.8c38 12.2 54.5 56.9 33.7 91.6-5 8.3-16.2 18.6-24.8 22.7-13.1 6.2-15 6.4-88.3 7.1-37 .4-80.3.9-96.3 1.2-15.9.3-55.1.8-87 1.1-31.9.3-73.7.8-93 1.1-32.8.5-55.1.8-172.8 2.2-25.9.3-61.6.8-79.3 1-17.7.3-34.9 0-38.1-.6z m 79.6-233.4c-19.7-5.5-35.8-20.3-42.8-39.4-3.2-8.6-3.5-29.6-.7-38.8 4.4-14 17.4-29.7 30.3-36.5 13-6.8 14.4-7 78.3-7.7 31.9-.4 70.5-.9 85.9-1.2 54.6-1 95.4-1.6 150.4-2.2 30.7-.3 64.2-.8 74.4-1.2 22.6-.7 31.8.7 43.5 6.8 15.9 8.3 29.5 26.4 32.7 43.5 2.6 14.4-1 33.3-8.5 44.8-7.9 12-20.6 22-32.7 25.7-9.3 2.9-16.3 3.2-83 3.9-57.2.6-102.5 1.2-170.1 2.2-110 1.7-151.4 1.7-157.5 0zM592.4 1303c-6.9-1.5-19.3-7.6-26-12.9-7.3-5.8-15.3-17-18.7-26.3-3.7-9.9-4.5-27.1-1.9-37.3 6.6-25.5 29.7-44.3 56.9-46.3 4.8-.4 48.1-.9 96.3-1.3 48.1-.3 91.7-.8 96.8-1.1 5.1-.3 47-.7 93-1.1 46-.3 90.6-.9 99-1.2 10.8-.4 18 0 24.2 1 23.6 4.2 41.9 20.8 49 44.5 2.3 7.7 2.4 24.7.1 33.1-4.4 16.8-17.6 32.3-33.6 39.6-12.2 5.6-14.7 5.7-127.8 7.1-58.1.7-115.9 1.4-128.5 1.7-49.7 1.2-174.1 1.6-178.8.6zM496.6 1097.4c-12.4-3-22.1-8.4-30.6-17.3-11.3-11.7-16.7-23.9-17.7-40.1-1.9-29.8 19-57.6 48.1-63.9 6.3-1.4 39.7-2.1 188.9-3.9 70.7-.9 166.2-2.1 212.2-2.7 186.2-2.4 209.3-2.5 216-1.3 21 3.9 40.8 22.6 47.1 44.3 1.4 5 1.7 9.3 1.4 18.6-.4 10.3-1 13.5-4 21-6.5 16.7-21.2 30.5-38.2 35.8-10.3 3.2-20.4 3.7-102.5 4.5-59.1.6-117.6 1.3-180.5 2.2-21.1.3-63.9.8-95.2 1.1-31.3.3-67.7.8-80.9 1.1-55.1 1.2-159.9 1.5-164.1.5z m 96.1-191.5c-15.6-2.7-30.2-11.8-39.3-24.7-6.5-9.1-9.9-17.9-11.5-29.6-1.1-8.4-1-10.8.6-18.2 5.3-23.9 21.1-41.2 44.4-48.3 7.3-2.3 10.4-2.4 135.6-3.8 52.6-.6 130.2-1.6 172.4-2.2 85.2-1.2 85.8-1.2 100 5.7 9.8 4.7 22.5 17.7 27.3 27.6 15 31.5 2.5 68.6-28 83.4-12.8 6.2-18.9 6.8-64.3 6.9-22.3 0-46.6.3-54.1.6-7.5.3-38.8.8-69.5 1.1-115.3 1.2-159.3 1.7-183.2 2.1-13.5.2-27.1 0-30.3-.5zM395.4 409.9c-22.9-6.3-40.5-25-45.4-48.1-.9-4.2-1.6-9.6-1.6-12 0-7.6 3.1-19.4 7.2-27.9 5.2-10.6 16.5-22 26.7-27 14.2-7 7.7-6.7 161.8-7.5 127.8-.7 141.2-.6 147.4 1 25.5 6.6 42.6 25.8 46.5 52.3 1 7.1.9 10-.6 18.1-4.8 25.2-22.1 43.9-46.2 49.9-10.1 2.5-287 3.7-295.9 1.3zM369.2 186.7c-18.5-5-33.7-17.5-42.4-34.9-3-6-5.7-18.7-5.7-26.6 0-8.6 3.6-22 7.8-29.4 8.6-15 24.7-27 41.2-30.4 11.4-2.4 560.8-2.3 571.1.1 10.1 2.4 19.3 7.7 27.5 15.8 12.5 12.4 18.7 26.7 18.8 43.8.1 17.7-5.6 31.5-18.3 44.4-8.7 8.8-19.5 14.8-31.2 17.3-11 2.4-560 2.3-568.8 0z"/></svg>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
+/* ── RNA spinner helper ── */
+function _mkSpin(size,mr){
+  var s=document.createElement("span");
+  s.className="rna-spin";
+  var tpl=document.getElementById("rna-svg-tpl");
+  var svg=tpl.cloneNode(true);
+  svg.removeAttribute("id");
+  svg.style.display="block";
+  svg.style.width=(size||10)+"px";
+  svg.style.height="auto";
+  svg.style.fill="currentColor";
+  s.appendChild(svg);
+  if(mr)s.style.marginRight=mr+"px";
+  if(!mr&&mr!==0)s.style.marginLeft="2px";
+  return s;
+}
+function _spinHTML(size,marginPx,side){
+  var tpl=document.getElementById("rna-svg-tpl");
+  var tmp=document.createElement("div");tmp.appendChild(tpl.cloneNode(true));
+  var inner=tmp.innerHTML.replace(' id="rna-svg-tpl"','').replace('display:none;','display:block;width:'+(size||10)+'px;height:auto;fill:currentColor;');
+  var m=side==="right"?"margin-right:"+marginPx+"px;":"margin-left:"+(marginPx||2)+"px;";
+  return '<span class="rna-spin" style="'+m+'">'+inner+'<\/span>';
+}
 /* ── State ── */
 var _isMac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent);
 var _MOD=_isMac?"⌘":"Ctrl"; /* primary modifier label */
@@ -1441,8 +1578,7 @@ function applyHistEntry(snap){
   if(s.zoom2!==undefined)zoom2=s.zoom2;
   if(s.mode){mode=s.mode;}
   if(s.mode==="gene"&&s.selGene){selGene=s.selGene;}
-  document.getElementById("bc").className="btn"+(mode==="cluster"?" on":"");
-  document.getElementById("bg").className="btn"+(mode==="gene"?" on":"");
+  var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value=mode;
   document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
 
   /* Single recolor + UI updates at the end */
@@ -1794,7 +1930,7 @@ function clearActiveGroup(allCells){
 function _updateClearBtn(e){
   var btn=document.getElementById("sel-clear-btn");
   if(!btn)return;
-  btn.textContent=e&&e.altKey?"Clear All":"Clear Visible";
+  btn.textContent=e&&e.altKey?"Clear All":"Clear";
 }
 /* Listen for Alt key changes while hovering the clear button */
 document.addEventListener("keydown",function(e){if(e.key==="Alt"){_updateClearBtn(e);}});
@@ -1835,7 +1971,7 @@ function toggleSelVis(){
   /* Toggle all to opposite */
   for(var i=0;i<selGroups.length;i++){groupVisible[selGroups[i].id]=!anyVis;}
   var btn=document.getElementById("sel-vis-btn");
-  if(btn)btn.textContent=anyVis?"show all":"hide all";
+  if(btn)btn.textContent=anyVis?"Hide All":"Show All";
   renderSelPanel();
   recolor();
 }
@@ -2073,7 +2209,7 @@ function renderSelPanel(){
       +'<div class="sg-dot" style="'+dotStyle+'" onclick="event.stopPropagation();toggleGroupVis('+g.id+',event)" title="Click: '+(vis?"hide":"show")+' · '+_ALT+'-click: solo · '+_ALT+num+': toggle"></div>'
       +'<span class="sg-name" style="color:'+textColor+'" ondblclick="startRenameGroup('+g.id+',event)">'+g.name.replace(/\x3c/g,"&lt;")+'</span>'
       +'<span class="sg-count">'+countHtml+'</span>'
-      +'<button class="icon-btn sg-save" onclick="event.stopPropagation();exportGroup('+g.id+')" title="Download h5ad subset"><svg viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/><\/svg><\/button>'
+      +'<button class="icon-btn sg-save" onclick="event.stopPropagation();exportGroup('+g.id+')" title="Save cells in selection group as h5ad subset"><svg viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/><\/svg><\/button>'
       +'<button class="sg-del" onclick="event.stopPropagation();removeSelGroup('+g.id+')" title="Delete group">&times;<\/button>'
       +'</div>';
   }).join("");
@@ -2081,7 +2217,7 @@ function renderSelPanel(){
   var anyVis=false;
   for(var ii=0;ii<selGroups.length;ii++){if(groupVisible[selGroups[ii].id]!==false){anyVis=true;break;}}
   var btn=document.getElementById("sel-vis-btn");
-  if(btn)btn.textContent=anyVis?"hide all":"show all";
+  if(btn)btn.textContent=anyVis?"Hide All":"Show All";
   /* Enable DEG button when 2+ groups have cells */
   var degBtn=document.getElementById("deg-open-btn");
   if(degBtn){
@@ -2638,11 +2774,11 @@ function animate(){
         var annotLines="";
         if(markerAnnotations&&markerAnnotations[cid]&&markerAnnotations[cid].length>0){
           var mp=markerAnnotations[cid][0];
-          annotLines+='<div style="font-size:8px;color:#34d399;margin-top:2px;">M: '+mp.cell_type+' ('+Math.round(mp.score*100)+'%)</div>';
+          annotLines+='<div style="font-size:9px;color:#34d399;margin-top:2px;">M: '+mp.cell_type+' ('+Math.round(mp.score*100)+'%)</div>';
         }
         if(llmAnnotations&&llmAnnotations[cid]&&llmAnnotations[cid].length>0){
           var lp=llmAnnotations[cid][0];
-          annotLines+='<div style="font-size:8px;color:#c4b5fd;margin-top:1px;">AI: '+lp.cell_type+' ('+(lp.confidence||"")+')</div>';
+          annotLines+='<div style="font-size:9px;color:#c4b5fd;margin-top:1px;">AI: '+lp.cell_type+' ('+(lp.confidence||"")+')</div>';
         }
         tooltipEl.style.whiteSpace=annotLines?"normal":"nowrap";
         tooltipEl.innerHTML=dotHtml+text+annotLines;
@@ -2897,7 +3033,7 @@ function setupCtrl(){
      a point while farther than the default. */
   cv.addEventListener("dblclick",function(e){
     if(e.shiftKey||e.altKey||e.ctrlKey||e.metaKey)return;
-    if(!pts||!D)return;
+    if(!pts||!D){console.warn("fly-to: no pts/D");return;}
     var rect=cv.getBoundingClientRect();
     var z=currentUIScale;
     var mx=(e.clientX-rect.left)/z, my=(e.clientY-rect.top)/z;
@@ -2907,11 +3043,12 @@ function setupCtrl(){
     if(viewIs3d){update3dCam();}else{update2dCam();}
     raycaster.setFromCamera(ndc,cam);
     var hits=raycaster.intersectObject(pts);
-    if(hits.length===0)return;
+    if(hits.length===0){console.warn("fly-to: no hits at",ndc.x.toFixed(3),ndc.y.toFixed(3),"thresh=",raycaster.params.Points.threshold.toFixed(4));return;}
     var bestHit=_bestVisibleHit(hits);
-    if(!bestHit)return;
+    if(!bestHit){console.warn("fly-to: no visible hit");return;}
     var pos=new THREE.Vector3();
     pos.fromBufferAttribute(pts.geometry.attributes.position,bestHit.index);
+    _flyAnim=null; /* clear any stale animation before starting new one */
     if(viewIs3d){
       _flyTo3d(pos,cloudBounds.radius*0.35,500);
     }else{
@@ -3037,19 +3174,37 @@ function setupCtrl(){
     }
     /* Shift+V = select all visible cells */
     if(e.key==="V"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){selAllVisible();_flashAction("Select All Visible","Shift+V");}
+    /* t = toggle theme dark/light */
+    if(e.key==="t"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+      var _sel=document.getElementById("set-theme");
+      _sel.value=_sel.value==="dark"?"light":"dark";
+      saveSettings();
+      _flashAction(_sel.value==="dark"?"Dark Theme":"Light Theme","T");
+    }
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
+    /* j/k = vim-style list navigation (works with key repeat for holding) */
+    if((e.key==="j"||e.key==="k")&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();_jkNavigate(e.key);}
   });
 }
 
 /* ── View switching ── */
 function setView(v){
   viewIs3d=(v==="3d");
-  document.getElementById("vb2").className="vbtn"+(viewIs3d?"":" on");
-  document.getElementById("vb3").className="vbtn"+(viewIs3d?" on":"");
-  document.getElementById("vb2m").className="vbtn"+(viewIs3d?"":" on");
-  document.getElementById("vb3m").className="vbtn"+(viewIs3d?" on":"");
-  document.getElementById("rot-sec").style.display=viewIs3d?"block":"none";
+  var _onBg="rgba(99,102,241,0.12)",_offBg="transparent";
+  var _onC="var(--accent2)",_offC="var(--text2)";
+  var _onW="600",_offW="400",_onOp="1",_offOp="0.75";
+  [["vb2","vb2m"],["vb3","vb3m"]].forEach(function(ids,i){
+    var isOn=(i===0&&!viewIs3d)||(i===1&&viewIs3d);
+    ids.forEach(function(id){
+      var b=document.getElementById(id);if(!b)return;
+      b.style.background=isOn?_onBg:_offBg;
+      b.style.color=isOn?_onC:_offC;
+      b.style.fontWeight=isOn?_onW:_offW;
+      b.style.opacity=isOn?_onOp:_offOp;
+    });
+  });
+  document.getElementById("b-auto").style.display=viewIs3d?"inline-flex":"none";
   document.getElementById("hint").textContent=viewIs3d?"Left-drag rotate \u00b7 "+_MOD+"+drag pan \u00b7 "+_ALT+"+drag fly \u00b7 Scroll zoom":"Drag pan \u00b7 Scroll zoom";
   if(D){
     var emb=D.embeddings[embMethod]||D.embeddings["umap"];
@@ -3255,8 +3410,7 @@ function loadGene(name){
       /* Gene not found — revert to cluster mode so view doesn't stay blank */
       if(selGene===name&&!geneExprCache[name]){
         selGene=null;mode="cluster";
-        document.getElementById("bc").className="btn on";
-        document.getElementById("bg").className="btn";
+        var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="cluster";
         document.getElementById("expr-legend").style.display="none";
         recolor();
       }
@@ -3288,12 +3442,29 @@ var _allGeneVar=null; /* [{name,var},...] fetched from /api/gene-var */
 var _allGeneVarMap={}; /* gene->var lookup */
 var _geneVarMetric="dispersions_norm"; /* metric name from server */
 
+/* ── Cluster gene ranking mode ── */
+var _gvMode="global"; /* "global" or "cluster" */
+var _gvClusterId=0; /* selected cluster index */
+var _gvSortMetric="cohens_d"; /* "cohens_d","log2fc","padj" */
+var _clusterGeneCache={}; /* cluster_id -> {genes,log2fc,padj,cohens_d,...} */
+var _clusterGeneSorted=null; /* current sorted index array for cluster mode */
+var _clusterGeneData=null; /* current cluster's raw data (from cache) */
+
 function renderHVGChips(){
   var sec=document.getElementById("hvg-section");
   var listEl=document.getElementById("hvg-list");
   if(!sec||!listEl)return;
   if(!hvgGenes||hvgGenes.length===0){sec.style.display="none";return;}
   sec.style.display="block";
+
+  /* In cluster mode, use cluster rendering path */
+  if(_gvMode==="cluster"){
+    var listHasContent=document.getElementById("gv-spacer");
+    if(listHasContent){_updateGeneVarHighlight();}
+    else if(_clusterGeneData){_renderClusterGeneList(listEl);}
+    else{_gvClusterChanged(_gvClusterId);}
+    return;
+  }
 
   /* Render ranked list — fetch full data if not loaded */
   if(_allGeneVar){
@@ -3304,7 +3475,7 @@ function renderHVGChips(){
       _renderGeneVarList(listEl);
     }
   }else{
-    listEl.innerHTML='<div style="padding:8px;font-size:8px;color:var(--text4);">Loading gene variability...</div>';
+    listEl.innerHTML='<div style="padding:8px;font-size:9px;color:var(--text4);">Loading gene variability...</div>';
     _fetchAllGeneVar();
   }
 }
@@ -3317,21 +3488,21 @@ var _gvMaxVar=1; /* cached max value for bar scaling */
 
 function _renderGeneVarList(listEl){
   if(!_allGeneVar||_allGeneVar.length===0){
-    listEl.innerHTML='<div style="padding:8px;font-size:8px;color:var(--text4);">No variability data available</div>';
+    listEl.innerHTML='<div style="padding:8px;font-size:9px;color:var(--text4);">No variability data available</div>';
     return;
   }
   _gvMaxVar=_allGeneVar[0][1];
   if(_gvMaxVar<=0)_gvMaxVar=1;
   _gvHvgSet={};
   for(var i=0;i<hvgGenes.length;i++)_gvHvgSet[hvgGenes[i]]=true;
-  var metricLabels={"trend_residual":"Trend Res.","dispersions_norm":"Disp. Norm","dispersions":"Dispersion","variances_norm":"Var. Norm","variances":"Variance"};
+  var metricLabels={"trend_residual":"Trend Residual","dispersions_norm":"Disp. Norm","dispersions":"Dispersion","variances_norm":"Var. Norm","variances":"Variance"};
   _gvMetricLabel=metricLabels[_geneVarMetric]||_geneVarMetric;
 
   /* Header (sticky) + spacer for total height + viewport for visible rows */
   var totalH=_allGeneVar.length*_gvRowH;
-  listEl.innerHTML='<div style="display:flex;font-size:7px;color:var(--text4);padding:2px 4px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:1;">'
-    +'<span style="width:28px;flex-shrink:0;">#</span><span style="flex:3;">Gene</span>'
-    +'<span style="flex:2;text-align:right;">'+_gvMetricLabel+'</span><span style="flex:3;"></span>'
+  listEl.innerHTML='<div style="display:flex;font-size:9px;color:var(--text4);padding:2px 4px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:1;">'
+    +'<span style="width:28px;flex-shrink:0;">#</span><span style="flex:3;padding-left:6px;">Gene</span>'
+    +'<span style="flex:3;padding-left:6px;white-space:nowrap;" title="Locally standardized trend residual: (1) fit polynomial to log(mean) vs log(Fano) trend, (2) fit scatter envelope to get local sigma, then (3) z-score = residual / max(local_sigma, 0.1)">'+_gvMetricLabel+'</span><span style="flex:2;"></span>'
     +'<\/div>'
     +'<div id="gv-spacer" style="height:'+totalH+'px;position:relative;">'
     +'<div id="gv-viewport" style="position:absolute;left:0;right:0;top:0;"></div>'
@@ -3363,18 +3534,92 @@ function _gvRenderRow(i){
     if(flagBits&8)reasons.push("low detection rate (< 0.5% of cells expressing)");
     tip+='\n\u26a0 Would be excluded by traditional cutoffs due to '+reasons.join(', ');
   }
-  return '<div style="position:absolute;left:0;right:0;top:'+(i*_gvRowH)+'px;height:'+_gvRowH+'px;display:flex;align-items:center;font-size:8px;padding:0 4px;cursor:pointer;border-radius:2px;'+rowStyle
+  return '<div style="position:absolute;left:0;right:0;top:'+(i*_gvRowH)+'px;height:'+_gvRowH+'px;display:flex;align-items:center;font-size:9px;padding:0 4px;cursor:pointer;border-radius:2px;'+rowStyle
     +'" onclick="pickGene(\''+g.replace(/'/g,"\\'")+'\')" title="'+tip.replace(/"/g,'&quot;')+'">'
-    +'<span style="width:28px;flex-shrink:0;color:'+(flagged?'#d45':'var(--text4)')+';font-size:7px;">'+(i+1)+'</span>'
-    +'<span style="flex:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(isHvg&&!flagged?'font-weight:600;':'')+'">'+g+'</span>'
-    +'<span style="flex:2;text-align:right;font-variant-numeric:tabular-nums;font-size:7px;color:'+(flagged?'#d45':'var(--text3)')+';">'+v.toFixed(2)+'</span>'
-    +'<span style="flex:3;padding-left:4px;"><div style="height:3px;border-radius:1.5px;background:'+barBg+';opacity:'+barOp+';width:'+barW+'%;"><\/div></span>'
+    +'<span style="width:28px;flex-shrink:0;color:'+(flagged?'#d45':'var(--text4)')+';font-size:9px;">'+(i+1)+'</span>'
+    +'<span style="flex:3;padding-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(isHvg&&!flagged?'font-weight:600;':'')+'">'+g+'</span>'
+    +'<span style="flex:3;padding-left:6px;font-variant-numeric:tabular-nums;font-size:9px;color:'+(flagged?'#d45':'var(--text3)')+';">'+v.toFixed(2)+'</span>'
+    +'<span style="flex:2;padding-left:4px;"><div style="height:3px;border-radius:1.5px;background:'+barBg+';opacity:'+barOp+';width:'+barW+'%;"><\/div></span>'
     +'<\/div>';
 }
 
 var _gvLastStart=-1,_gvLastEnd=-1;
+var _gvCursor=-1; /* current j/k cursor position in gene list */
+var _legCursor=-1; /* current j/k cursor position in cell type list */
+
+/* ── Vim-style j/k list navigation ── */
+function _jkNavigate(key){
+  /* Determine which list is active: gene variability or cell type */
+  var hvgSec=document.getElementById("hvg-section");
+  var hvgVisible=hvgSec&&hvgSec.style.display!=="none";
+  var geneCount=0;
+  if(hvgVisible){
+    if(_gvMode==="cluster"&&_clusterGeneSorted) geneCount=_clusterGeneSorted.length;
+    else if(_allGeneVar) geneCount=_allGeneVar.length;
+  }
+  /* Gene list takes priority if it has content; otherwise fall through to cell type list */
+  if(geneCount>0){
+    _jkGene(key,geneCount);
+  }else if(_legIndices&&_legIndices.length>0){
+    _jkCellType(key);
+  }
+}
+
+function _jkGene(key,count){
+  if(count===0)return;
+  /* Initialize cursor to current selection if not set */
+  if(_gvCursor<0){
+    _gvCursor=_findGeneIdx(selGene);
+    if(_gvCursor<0)_gvCursor=0;
+  }
+  if(key==="j") _gvCursor=Math.min(_gvCursor+1,count-1);
+  else _gvCursor=Math.max(_gvCursor-1,0);
+  /* Pick the gene at cursor position */
+  var g;
+  if(_gvMode==="cluster"&&_clusterGeneSorted&&_clusterGeneData){
+    g=_clusterGeneData.genes[_clusterGeneSorted[_gvCursor]];
+  }else if(_allGeneVar){
+    g=_allGeneVar[_gvCursor][0];
+  }
+  if(g)pickGene(g);
+}
+
+function _findGeneIdx(gene){
+  if(!gene)return -1;
+  if(_gvMode==="cluster"&&_clusterGeneSorted&&_clusterGeneData){
+    for(var i=0;i<_clusterGeneSorted.length;i++){
+      if(_clusterGeneData.genes[_clusterGeneSorted[i]]===gene)return i;
+    }
+  }else if(_allGeneVar){
+    for(var i=0;i<_allGeneVar.length;i++){
+      if(_allGeneVar[i][0]===gene)return i;
+    }
+  }
+  return -1;
+}
+
+function _jkCellType(key){
+  var n=_legIndices.length;
+  if(n===0)return;
+  if(_legCursor<0)_legCursor=0;
+  if(key==="j") _legCursor=Math.min(_legCursor+1,n-1);
+  else _legCursor=Math.max(_legCursor-1,0);
+  var ci=_legIndices[_legCursor];
+  toggleCluster(ci);
+  /* Scroll into view */
+  var scroll=document.getElementById("leg-scroll");
+  if(scroll&&_legRowY[_legCursor]!==undefined){
+    var top=_legRowY[_legCursor];
+    var h=_legRowH[_legCursor]||24;
+    if(top<scroll.scrollTop) scroll.scrollTop=top;
+    else if(top+h>scroll.scrollTop+scroll.clientHeight) scroll.scrollTop=top+h-scroll.clientHeight;
+  }
+}
+
 function _gvVirtualRender(){
-  if(!_allGeneVar)return;
+  var isCluster=_gvMode==="cluster"&&_clusterGeneSorted;
+  var totalItems=isCluster?_clusterGeneSorted.length:(_allGeneVar?_allGeneVar.length:0);
+  if(totalItems===0)return;
   var scroll=document.getElementById("hvg-scroll");
   var vp=document.getElementById("gv-viewport");
   if(!scroll||!vp)return;
@@ -3382,21 +3627,24 @@ function _gvVirtualRender(){
   var viewH=scroll.clientHeight;
   if(viewH<=0)viewH=200; /* fallback if not yet laid out */
   var start=Math.max(0,Math.floor(scrollTop/_gvRowH)-_gvBuffer);
-  var end=Math.min(_allGeneVar.length,Math.ceil((scrollTop+viewH)/_gvRowH)+_gvBuffer);
+  var end=Math.min(totalItems,Math.ceil((scrollTop+viewH)/_gvRowH)+_gvBuffer);
   /* Skip re-render if same range */
   if(start===_gvLastStart&&end===_gvLastEnd)return;
   _gvLastStart=start;_gvLastEnd=end;
   var html='';
   for(var i=start;i<end;i++){
-    html+=_gvRenderRow(i);
+    html+=isCluster?_gvRenderClusterRow(i):_gvRenderRow(i);
   }
   vp.innerHTML=html;
 }
 
 function _scrollToSelectedGene(listEl){
-  if(!selGene||!_allGeneVar)return;
-  for(var i=0;i<_allGeneVar.length;i++){
-    if(_allGeneVar[i][0]===selGene){
+  var items=(_gvMode==="cluster"&&_clusterGeneSorted)?_clusterGeneSorted:_allGeneVar;
+  if(!selGene||!items)return;
+  var n=items.length;
+  for(var i=0;i<n;i++){
+    var g=(_gvMode==="cluster")?_clusterGeneData.genes[items[i]]:items[i][0];
+    if(g===selGene){
       var scroll=document.getElementById("hvg-scroll");
       if(scroll){
         var targetTop=i*_gvRowH;
@@ -3409,7 +3657,8 @@ function _scrollToSelectedGene(listEl){
 
 /* Fast update: force re-render of visible rows (e.g. after gene selection change) */
 function _updateGeneVarHighlight(){
-  if(!_allGeneVar)return;
+  if(_gvMode==="cluster"){if(!_clusterGeneSorted)return;}
+  else{if(!_allGeneVar)return;}
   _gvLastStart=-1;_gvLastEnd=-1; /* force re-render */
   _gvVirtualRender();
   _scrollToSelectedGene(document.getElementById("hvg-list"));
@@ -3436,6 +3685,200 @@ function _fetchAllGeneVar(){
   });
 }
 
+/* ── Cluster gene ranking mode handlers ── */
+function _gvPopulateClusterDropdown(){
+  var sel=document.getElementById("gv-cluster");
+  var names=D&&D.header&&D.header.cluster_names?D.header.cluster_names:null;
+  if(!sel||!names||names.length===0)return;
+  sel.innerHTML="";
+  for(var i=0;i<names.length;i++){
+    var raw=names[i];
+    var label=raw;
+    /* Use Claude-inferred name if available */
+    if(llmAnnotations&&llmAnnotations[i]&&llmAnnotations[i].length>0){
+      var ai=llmAnnotations[i][0].cell_type;
+      if(ai&&ai!==raw) label=ai+" ("+raw+")";
+    }
+    var opt=document.createElement("option");
+    opt.value=i;
+    opt.textContent=label;
+    sel.appendChild(opt);
+  }
+  sel.value=_gvClusterId;
+}
+function _gvModeChanged(mode){
+  _gvMode=mode;
+  var clSel=document.getElementById("gv-cluster");
+  var dot=document.getElementById("gv-dot");
+  if(mode==="cluster"){
+    _gvPopulateClusterDropdown();
+    if(clSel)clSel.style.display="";
+    if(dot)dot.style.display="";
+    _gvClusterChanged(_gvClusterId);
+  }else{
+    if(clSel)clSel.style.display="none";
+    if(dot)dot.style.display="none";
+    /* Switch back to global variability */
+    var listEl=document.getElementById("hvg-list");
+    if(listEl&&_allGeneVar){
+      _renderGeneVarList(listEl);
+    }
+  }
+}
+function _gvUpdateDot(){
+  var dot=document.getElementById("gv-dot");
+  if(!dot||!D)return;
+  var i=_gvClusterId;
+  var c=cc(i);
+  var rgb="rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")";
+  var vis=visibleClusters[i]!==false;
+  if(vis){
+    dot.style.background=rgb;
+    dot.style.border="none";
+  }else{
+    dot.style.background="transparent";
+    dot.style.border="1.5px solid "+rgb;
+  }
+}
+function _gvDotClick(ev){
+  var i=_gvClusterId;
+  if(!D||i<0||i>=D.header.n_clusters)return;
+  if(ev.altKey){
+    soloCluster(i);
+  }else if(ev.shiftKey){
+    if(selGroups.length===0)addSelGroup();
+    if(!cellGroupMap)initCellGroupMap();
+    selToggleCellType(i);
+  }else{
+    toggleCluster(i);
+  }
+  _gvUpdateDot();
+}
+function _gvClusterChanged(id){
+  _gvClusterId=parseInt(id,10);
+  _gvUpdateDot();
+  if(_clusterGeneCache[_gvClusterId]){
+    _clusterGeneData=_clusterGeneCache[_gvClusterId];
+    _gvApplyClusterSort();
+    var listEl=document.getElementById("hvg-list");
+    if(listEl)_renderClusterGeneList(listEl);
+  }else{
+    var listEl=document.getElementById("hvg-list");
+    if(listEl)listEl.innerHTML='<div style="padding:8px;font-size:9px;color:var(--text4);">Loading cluster genes...</div>';
+    _fetchClusterGenes(_gvClusterId);
+  }
+}
+function _gvSortChanged(metric){
+  _gvSortMetric=metric;
+  if(_clusterGeneData){
+    _gvApplyClusterSort();
+    var listEl=document.getElementById("hvg-list");
+    if(listEl)_renderClusterGeneList(listEl);
+  }
+}
+var _gvSortCycle=["cohens_d","log2fc","padj"];
+function _gvCycleSort(){
+  var ci=_gvSortCycle.indexOf(_gvSortMetric);
+  _gvSortChanged(_gvSortCycle[(ci+1)%_gvSortCycle.length]);
+}
+function _gvApplyClusterSort(){
+  if(!_clusterGeneData||!_clusterGeneData.genes)return;
+  var n=_clusterGeneData.genes.length;
+  var idx=new Array(n);
+  for(var i=0;i<n;i++)idx[i]=i;
+  var m=_gvSortMetric;
+  var arr=_clusterGeneData[m==="log2fc"?"log2fc":m==="padj"?"padj":"cohens_d"];
+  if(!arr){_clusterGeneSorted=idx;return;}
+  if(m==="padj"){
+    /* Sort ascending padj (most significant first) */
+    idx.sort(function(a,b){return arr[a]-arr[b];});
+  }else if(m==="log2fc"){
+    /* Sort descending log2fc */
+    idx.sort(function(a,b){return arr[b]-arr[a];});
+  }else{
+    /* Sort descending |Cohen's d| */
+    idx.sort(function(a,b){return Math.abs(arr[b])-Math.abs(arr[a]);});
+  }
+  _clusterGeneSorted=idx;
+}
+function _fetchClusterGenes(clusterId){
+  fetch("/api/cluster-genes?id="+clusterId)
+  .then(function(r){return r.json();})
+  .then(function(data){
+    if(data.error){console.error("Cluster genes:",data.error);return;}
+    _clusterGeneCache[clusterId]=data;
+    if(_gvClusterId===clusterId){
+      _clusterGeneData=data;
+      _gvApplyClusterSort();
+      var listEl=document.getElementById("hvg-list");
+      if(listEl)_renderClusterGeneList(listEl);
+    }
+  })
+  .catch(function(err){
+    console.error("Cluster genes fetch failed:",err);
+    var listEl=document.getElementById("hvg-list");
+    if(listEl)listEl.innerHTML='<div style="padding:8px;font-size:9px;color:#d45;">Error loading cluster genes</div>';
+  });
+}
+function _renderClusterGeneList(listEl){
+  if(!_clusterGeneData||!_clusterGeneSorted||_clusterGeneSorted.length===0){
+    listEl.innerHTML='<div style="padding:8px;font-size:9px;color:var(--text4);">'
+      +(_clusterGeneData&&_clusterGeneData.small?'Cluster too small (&lt;5 cells) for DEG':'No data')+'<\/div>';
+    return;
+  }
+  var sortLabels={"cohens_d":"Cohen's d","log2fc":"log\u2082FC","padj":"\u2212log\u2081\u2080(padj)"};
+  _gvMetricLabel=sortLabels[_gvSortMetric]||_gvSortMetric;
+  /* Compute max for bar scaling */
+  var sorted=_clusterGeneSorted;
+  var d=_clusterGeneData;
+  var arr=d[_gvSortMetric==="log2fc"?"log2fc":_gvSortMetric==="padj"?"padj":"cohens_d"];
+  _gvMaxVar=1;
+  for(var k=0;k<Math.min(20,sorted.length);k++){
+    var raw=arr[sorted[k]];
+    var val=_gvSortMetric==="padj"?-Math.log10(Math.max(raw,1e-300)):Math.abs(raw);
+    if(val>_gvMaxVar)_gvMaxVar=val;
+  }
+  if(_gvMaxVar<=0)_gvMaxVar=1;
+  var totalH=sorted.length*_gvRowH;
+  listEl.innerHTML='<div style="display:flex;font-size:9px;color:var(--text4);padding:2px 4px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:1;">'
+    +'<span style="width:28px;flex-shrink:0;">#<\/span><span style="flex:3;">Gene<\/span>'
+    +'<span style="flex:2;text-align:right;cursor:pointer;user-select:none;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;" onclick="_gvCycleSort()" title="Click to cycle: |Cohen\'s d| → log₂FC → −log₁₀(padj)">'+_gvMetricLabel+'<\/span><span style="flex:3;"><\/span>'
+    +'<\/div>'
+    +'<div id="gv-spacer" style="height:'+totalH+'px;position:relative;">'
+    +'<div id="gv-viewport" style="position:absolute;left:0;right:0;top:0;"><\/div>'
+    +'<\/div>';
+  _gvLastStart=-1;_gvLastEnd=-1;
+  _gvVirtualRender();
+  _scrollToSelectedGene(listEl);
+}
+function _gvRenderClusterRow(rank){
+  var idx=_clusterGeneSorted[rank];
+  var d=_clusterGeneData;
+  var g=d.genes[idx];
+  var lfc=d.log2fc[idx];
+  var padj=d.padj[idx];
+  var cd=d.cohens_d[idx];
+  var m=_gvSortMetric;
+  var val=m==="log2fc"?lfc:m==="padj"?-Math.log10(Math.max(padj,1e-300)):cd;
+  var displayVal=m==="padj"?val.toFixed(1):m==="log2fc"?lfc.toFixed(2):cd.toFixed(2);
+  var barVal=m==="padj"?val:Math.abs(val);
+  var barW=Math.max(0,Math.min(100,Math.round(barVal/_gvMaxVar*100)));
+  var isSel=selGene===g;
+  var isUp=lfc>=0;
+  var barColor=isUp?'var(--accent)':'#d45';
+  var barOp=isSel?'0.8':'0.5';
+  var rowStyle=isSel?'background:rgba(99,102,241,0.18);color:var(--accent2);':'color:var(--text);';
+  var tip=g+'\nlog\u2082FC: '+lfc.toFixed(3)+'\npadj: '+(padj<0.001?padj.toExponential(2):padj.toFixed(4))
+    +"\nCohen's d: "+cd.toFixed(3)+'\nRank: '+(rank+1)+' / '+_clusterGeneSorted.length;
+  return '<div style="position:absolute;left:0;right:0;top:'+(rank*_gvRowH)+'px;height:'+_gvRowH+'px;display:flex;align-items:center;font-size:9px;padding:0 4px;cursor:pointer;border-radius:2px;'+rowStyle
+    +'" onclick="pickGene(\''+g.replace(/'/g,"\\'")+'\')" title="'+tip.replace(/"/g,'&quot;')+'">'
+    +'<span style="width:28px;flex-shrink:0;color:var(--text4);font-size:9px;">'+(rank+1)+'<\/span>'
+    +'<span style="flex:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+g+'<\/span>'
+    +'<span style="flex:2;text-align:right;font-variant-numeric:tabular-nums;font-size:9px;color:var(--text3);">'+displayVal+'<\/span>'
+    +'<span style="flex:3;padding-left:4px;"><div style="height:3px;border-radius:1.5px;background:'+barColor+';opacity:'+barOp+';width:'+barW+'%;"><\/div><\/span>'
+    +'<\/div>';
+}
+
 function renderGeneList(genes){
   var varMap=_allGeneVarMap&&Object.keys(_allGeneVarMap).length>0?_allGeneVarMap:hvgVar;
   document.getElementById("glist").innerHTML=genes.map(function(g){
@@ -3449,8 +3892,8 @@ function renderGeneList(genes){
 /* ── UI ── */
 function setMode(m){
   mode=m;
-  document.getElementById("bc").className="btn"+(m==="cluster"?" on":"");
-  document.getElementById("bg").className="btn"+(m==="gene"?" on":"");
+  var cms=document.getElementById("color-mode-select");
+  if(cms)cms.value=m;
   /* Gene panel stays visible after data loads; only expression legend toggles */
   document.getElementById("expr-legend").style.display=(m==="gene"&&selGene)?"block":"none";
   _updateGeneCollapsedName();
@@ -3459,13 +3902,15 @@ function setMode(m){
 }
 function pickGene(g){
   selGene=g;
+  /* Sync j/k cursor to picked gene */
+  var idx=_findGeneIdx(g);
+  if(idx>=0)_gvCursor=idx;
   document.getElementById("egnm").textContent="Expression: "+g;
   /* Clear search box so recent genes list shows */
   document.getElementById("gsearch").value="";
   var btns=document.querySelectorAll(".gbtn");for(var i=0;i<btns.length;i++)btns[i].className="gbtn"+(btns[i].getAttribute("data-g")===g?" on":"");
   mode="gene";
-  document.getElementById("bc").className="btn";
-  document.getElementById("bg").className="btn on";
+  var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="gene";
   /* Expand gene section if collapsed */
   var gsec=document.getElementById("gene-sec");
   if(gsec&&gsec.classList.contains("collapsed"))gsec.classList.remove("collapsed");
@@ -3585,14 +4030,14 @@ function _updateAnnotBtns(){
   var cb=document.getElementById("annotate-llm-btn");
   if(mb){
     if(markerAnnotations){
-      mb.style.opacity="0.4";mb.style.cursor="default";mb.textContent="Markers \u2713";
+      mb.style.opacity="0.4";mb.style.cursor="default";mb.innerHTML="Markers<span style=\"margin-left:1px;\">\u2713<\/span>";
     }else{
       mb.style.opacity="";mb.style.cursor="pointer";mb.textContent="Markers";
     }
   }
   if(cb){
     if(llmAnnotations){
-      cb.style.opacity="0.4";cb.style.cursor="default";cb.textContent="Claude \u2713";
+      cb.style.opacity="0.4";cb.style.cursor="default";cb.innerHTML="Claude<span style=\"margin-left:1px;\">\u2713<\/span>";
     }else{
       cb.style.opacity="";cb.style.cursor="pointer";cb.textContent="Claude";
     }
@@ -3611,6 +4056,8 @@ var _emptyExpanded=false; /* collapsed by default */
 
 function renderLeg(){
   if(!D)return;
+  _legCursor=-1; /* reset vim cursor on re-render */
+  _gvUpdateDot(); /* sync gene panel cluster dot */
   _updateAnnotBtns();
   var q=(document.getElementById("type-search")||{}).value||"";
   q=q.toLowerCase();
@@ -3662,13 +4109,13 @@ function renderLeg(){
   if(emptyIndices.length>0){
     var chevron=_emptyExpanded?"\u25BE":"\u25B8";
     html+='<div style="margin-top:4px;padding:3px 4px;cursor:pointer;font-size:9px;color:var(--text4);user-select:none;opacity:0.6;" onclick="_emptyExpanded=!_emptyExpanded;renderLeg();if(lineageView)_renderLineageTree();" title="'+emptyIndices.length+' cluster'+(emptyIndices.length===1?"":"s")+' with 0 cells">'
-      +chevron+' <span style="font-size:8px;">'+emptyIndices.length+' empty cluster'+(emptyIndices.length===1?"":"s")+'<\/span>'
+      +chevron+' <span style="font-size:9px;">'+emptyIndices.length+' empty cluster'+(emptyIndices.length===1?"":"s")+'<\/span>'
       +'<\/div>';
     if(_emptyExpanded){
       for(var e=0;e<emptyIndices.length;e++){
         var ei=emptyIndices[e];
         var enm=D.header.cluster_names[ei];
-        html+='<div style="padding:2px 4px 2px 16px;font-size:8px;color:var(--text4);opacity:0.45;" title="Empty cluster (no cells in dataset)">'
+        html+='<div style="padding:2px 4px 2px 16px;font-size:9px;color:var(--text4);opacity:0.45;" title="Empty cluster (no cells in dataset)">'
           +'<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--border);margin-right:6px;vertical-align:middle;"><\/span>'
           +enm
           +'<\/div>';
@@ -3716,7 +4163,7 @@ function _legRenderRow(j){
     +'<div class="dot" style="'+dotStyle+'"><\/div>'
     +'<span class="nm" style="color:'+textColor+'">'+nm+'<\/span>'
     +'<span style="flex:1;"><\/span>'
-    +'<span style="font-size:8px;color:'+(vis?"var(--text4)":"var(--border2)")+';font-variant-numeric:tabular-nums;margin-left:4px;flex-shrink:0;">'+cnt.toLocaleString()+'<\/span>'
+    +'<span style="font-size:9px;color:'+(vis?"var(--text4)":"var(--border2)")+';font-variant-numeric:tabular-nums;margin-left:4px;flex-shrink:0;">'+cnt.toLocaleString()+'<\/span>'
     +'<\/div>'
     +annot
     +'<\/div>';
@@ -3879,20 +4326,20 @@ function _setLinBtn(btn,mode){
   var treeBtn=document.getElementById("lineage-btn-tree");
   if(!flatBtn||!treeBtn)return;
   var onBg="rgba(251,191,36,0.15)";
-  var offBg="rgba(251,191,36,0.04)";
+  var offBg="transparent";
+  var onOp="1";
+  var offOp="0.75";
   treeBtn.style.color="#fbbf24"; /* reset from stop-red */
   if(mode==="tree"){
-    /* Lineage view — tree half highlighted */
     flatBtn.innerHTML=_linIconFlat+"List";
-    flatBtn.style.background=offBg;flatBtn.style.opacity="0.5";
+    flatBtn.style.background=offBg;flatBtn.style.opacity=offOp;flatBtn.style.fontWeight="400";
     treeBtn.innerHTML=_linIconTree+"Lineage";
-    treeBtn.style.background=onBg;treeBtn.style.opacity="1";
+    treeBtn.style.background=onBg;treeBtn.style.opacity=onOp;treeBtn.style.fontWeight="600";
   }else if(mode==="flat"){
-    /* Flat view — list half highlighted */
     flatBtn.innerHTML=_linIconFlat+"List";
-    flatBtn.style.background=onBg;flatBtn.style.opacity="1";
+    flatBtn.style.background=onBg;flatBtn.style.opacity=onOp;flatBtn.style.fontWeight="600";
     treeBtn.innerHTML=_linIconTree+"Lineage";
-    treeBtn.style.background=offBg;treeBtn.style.opacity="0.5";
+    treeBtn.style.background=offBg;treeBtn.style.opacity=offOp;treeBtn.style.fontWeight="400";
   }else if(mode==="Stop"){
     /* Cancel state — red stop button */
     treeBtn.innerHTML="Stop";
@@ -4080,24 +4527,18 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
   }
   _countCells(node);
 
-  /* Color: use palette P matching flat list and UMAP */
+  /* Color: use cc() to match flat list and UMAP (respects custom colors) */
   var dotColor="var(--text4)";
   if(present&&cids.length>0&&D){
     var ci=cids[0];
-    var c=P[ci%P.length];
+    var c=cc(ci);
     dotColor="rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")";
   }
 
-  /* Visibility: check if all clusters in subtree are visible */
-  var allCids=[];
-  function _collectCids(n){
-    var ids=n.cluster_ids||[];
-    for(var i=0;i<ids.length;i++)allCids.push(ids[i]);
-    if(n.children){for(var j=0;j<n.children.length;j++)_collectCids(n.children[j]);}
-  }
-  _collectCids(node);
-  var allVisible=allCids.length>0&&allCids.every(function(c){return visibleClusters[c]!==false;});
+  /* Visibility: dot reflects direct clusters, name reflects entire subtree */
+  var allCids=_collectDescendantCids(node);
   var anyVisible=allCids.some(function(c){return visibleClusters[c]!==false;});
+  var directVis=cids.length>0&&cids.some(function(c){return visibleClusters[c]!==false;});
 
   /* Build tooltip with original cluster names for present nodes */
   var tipParts=[];
@@ -4113,7 +4554,7 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
   }
   tipParts.push(cellCount.toLocaleString()+" cells");
   if(hasChildren){
-    tipParts.push("Click: toggle visibility · Shift: select branch · "+_ALT+"+Shift: select this only");
+    tipParts.push("Click name: toggle branch · "+_ALT+": solo branch · Shift: select branch · "+_ALT+"+Shift: select this only");
   }
 
   var html='<div class="lin-node">';
@@ -4124,16 +4565,14 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
   /* Caret — collapse/expand only */
   if(hasChildren){
     var caretTip=collapsed?"Click: expand branch":"Click: collapse branch";
-    html+='<span class="lin-caret" onclick="event.stopPropagation();lineageToggle(\''+path+'\')" title="'+caretTip+'">'+(collapsed?"▸":"▾")+'</span>';
-  }else{
-    html+='<span class="lin-caret"></span>';
+    html+='<span class="lin-caret" onclick="event.stopPropagation();lineageToggle(\''+path+'\',event)" title="'+caretTip+' · '+_ALT+': expand/collapse all">'+(collapsed?"▸":"▾")+'</span>';
   }
 
-  /* Dot for visibility — routes through lineageClick for modifier key support */
-  var dotVis=anyVisible?"vis-on":"vis-off";
+  /* Dot for visibility — dotOnly=true means "this node only, not descendants" */
+  var dotVis=directVis?"vis-on":"vis-off";
   html+='<span class="lin-dot '+dotVis+'" style="color:'+dotColor+';"'
-    +' onclick="event.stopPropagation();lineageClick(event,\''+path+'\')"'
-    +' title="Click: toggle visibility · Shift: select branch · '+_ALT+'+Shift: this only"></span>';
+    +' onclick="event.stopPropagation();lineageClick(event,\''+path+'\',true)"'
+    +' title="Click: toggle this only · '+_ALT+': solo this only"></span>';
 
   /* Name */
   html+='<span class="lin-name'+(present?'':' inferred')+'">'+node.name+'</span>';
@@ -4144,7 +4583,7 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
     if(llmAnnotations[ci]&&llmAnnotations[ci].length>0){
       var pred=llmAnnotations[ci][0].cell_type;
       if(pred&&pred!==node.name){
-        html+='<span style="font-size:7px;color:#c4b5fd;margin-left:2px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;" title="Claude: '+pred.replace(/"/g,"&quot;")+'">'+pred+'</span>';
+        html+='<span style="font-size:9px;color:#c4b5fd;margin-left:2px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;" title="Claude: '+pred.replace(/"/g,"&quot;")+'">'+pred+'</span>';
       }
     }
   }
@@ -4183,132 +4622,118 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
   return html;
 }
 
-function lineageToggle(path){
-  _lineageCollapsed[path]=!_lineageCollapsed[path];
+function lineageToggle(path,ev){
+  if(ev&&ev.altKey){
+    /* Alt+click caret: expand/collapse this node AND all descendants */
+    var node=_getNodeByPath(path);
+    if(!node)return;
+    var collapsing=!_lineageCollapsed[path]; /* will we be collapsing? */
+    function _setAll(n,p){
+      _lineageCollapsed[p]=collapsing;
+      if(n.children){for(var i=0;i<n.children.length;i++)_setAll(n.children[i],p+"."+i);}
+    }
+    _setAll(node,path);
+  }else{
+    _lineageCollapsed[path]=!_lineageCollapsed[path];
+  }
   _renderLineageTree();
 }
 
-function lineageClick(ev,path){
+function _collectDescendantCids(node){
+  var cids=[];
+  var _r=function(n){
+    var ids=n.cluster_ids||[];
+    for(var i=0;i<ids.length;i++)cids.push(ids[i]);
+    if(n.children){for(var j=0;j<n.children.length;j++)_r(n.children[j]);}
+  };
+  _r(node);
+  return cids;
+}
+
+function lineageClick(ev,path,dotOnly){
   var node=_getNodeByPath(path);
   if(!node)return;
+
+  /* Collect cids: dot = direct only, name = node + descendants */
+  var directCids=node.cluster_ids||[];
+  var cids=dotOnly?directCids.slice():_collectDescendantCids(node);
+  if(cids.length===0)return;
 
   /* Alt+Shift+click: select ONLY this node's direct clusters (not descendants) */
   if(ev.shiftKey&&ev.altKey){
-    var cids=node.cluster_ids||[];
-    if(cids.length===0)return;
-    if(selGroups.length===0)addSelGroup();
-    if(!cellGroupMap)initCellGroupMap();
-    var ag=getActiveGroup();
-    var agi=getActiveGroupIndex();
-    if(!ag)return;
-    var cidSet={};for(var c=0;c<cids.length;c++)cidSet[cids[c]]=true;
-    var inGroup=0,total=0;
-    for(var ci=0;ci<D.header.n_cells;ci++){
-      if(cidSet[D.cluster_ids[ci]]){
-        total++;
-        if(ag.cells.has(ci))inGroup++;
-      }
-    }
-    var adding=(inGroup<total/2);
-    for(var ci=0;ci<D.header.n_cells;ci++){
-      if(cidSet[D.cluster_ids[ci]]){
-        if(adding){
-          for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(ci);}
-          ag.cells.add(ci);
-          cellGroupMap[ci]=agi;
-        }else{
-          ag.cells.delete(ci);
-          cellGroupMap[ci]=-1;
-        }
-      }
-    }
-    renderSelPanel();recolor();saveState();
+    if(directCids.length===0)return;
+    _lineageSelect(directCids);
     return;
   }
 
-  /* Shift+click: toggle entire sub-lineage in/out of active group */
+  /* Shift+click: select into active group (dot=direct, name=branch) */
   if(ev.shiftKey){
-    if(selGroups.length===0)addSelGroup();
-    if(!cellGroupMap)initCellGroupMap();
-    var cids=[];
-    function _collectShift(n){
-      var ids=n.cluster_ids||[];
-      for(var i=0;i<ids.length;i++)cids.push(ids[i]);
-      if(n.children){for(var j=0;j<n.children.length;j++)_collectShift(n.children[j]);}
-    }
-    _collectShift(node);
-    var ag=getActiveGroup();
-    var agi=getActiveGroupIndex();
-    if(!ag)return;
-    var cidSet={};for(var c=0;c<cids.length;c++)cidSet[cids[c]]=true;
-    /* Check if majority already in group → toggle off */
-    var inGroup=0,total=0;
-    for(var ci=0;ci<D.header.n_cells;ci++){
-      if(cidSet[D.cluster_ids[ci]]){
-        total++;
-        if(ag.cells.has(ci))inGroup++;
-      }
-    }
-    var adding=(inGroup<total/2);
-    for(var ci=0;ci<D.header.n_cells;ci++){
-      if(cidSet[D.cluster_ids[ci]]){
-        if(adding){
-          for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(ci);}
-          ag.cells.add(ci);
-          cellGroupMap[ci]=agi;
-        }else{
-          ag.cells.delete(ci);
-          cellGroupMap[ci]=-1;
-        }
-      }
-    }
-    renderSelPanel();recolor();saveState();
+    _lineageSelect(cids);
     return;
   }
 
-  /* Alt+click: solo/unsolo this sub-lineage */
+  /* Alt+click: solo/unsolo (dot=direct, name=branch) */
   if(ev.altKey){
-    var cids2=[];
-    function _collectAlt(n){
-      var ids=n.cluster_ids||[];
-      for(var i=0;i<ids.length;i++)cids2.push(ids[i]);
-      if(n.children){for(var j=0;j<n.children.length;j++)_collectAlt(n.children[j]);}
-    }
-    _collectAlt(node);
-    var cidSet2={};for(var i=0;i<cids2.length;i++)cidSet2[cids2[i]]=true;
-
-    /* Check if this is the same path we already solo'd — unsolo if so */
-    if(_soloPath===path&&_preSoloVis){
-      for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=_preSoloVis[k]!==false;
-      _preSoloVis=null;_soloIdx=null;_soloPath=null;
-    }else{
-      /* Save current visibility, then solo */
-      _preSoloVis={};
-      for(var k=0;k<D.header.n_clusters;k++)_preSoloVis[k]=visibleClusters[k]!==false;
-      for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=!!cidSet2[k];
-      _soloIdx=null;_soloPath=path;
-    }
-    renderLeg();recolor();saveState();
-    if(selGroups.length>0)renderSelPanel();
-    _renderLineageTree();
+    _lineageSolo(path,cids);
     return;
   }
 
-  /* Plain click: toggle visibility (same as dot) for all nodes */
-  lineageToggleVis(path);
+  /* Plain click: toggle visibility (dot=direct, name=branch) */
+  _lineageToggleVis(cids);
 }
 
-function lineageToggleVis(path){
-  var node=_getNodeByPath(path);
-  if(!node)return;
-  var cids=[];
-  function _collectAll(n){
-    var ids=n.cluster_ids||[];
-    for(var i=0;i<ids.length;i++)cids.push(ids[i]);
-    if(n.children){for(var j=0;j<n.children.length;j++)_collectAll(n.children[j]);}
+function _lineageSelect(cids){
+  if(selGroups.length===0)addSelGroup();
+  if(!cellGroupMap)initCellGroupMap();
+  var ag=getActiveGroup();
+  var agi=getActiveGroupIndex();
+  if(!ag)return;
+  var cidSet={};for(var c=0;c<cids.length;c++)cidSet[cids[c]]=true;
+  var inGroup=0,total=0;
+  for(var ci=0;ci<D.header.n_cells;ci++){
+    if(cidSet[D.cluster_ids[ci]]){
+      total++;
+      if(ag.cells.has(ci))inGroup++;
+    }
   }
-  _collectAll(node);
-  /* Toggle: if any visible, hide all; if all hidden, show all */
+  var adding=(inGroup<total/2);
+  for(var ci=0;ci<D.header.n_cells;ci++){
+    if(cidSet[D.cluster_ids[ci]]){
+      if(adding){
+        for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(ci);}
+        ag.cells.add(ci);
+        cellGroupMap[ci]=agi;
+      }else{
+        ag.cells.delete(ci);
+        cellGroupMap[ci]=-1;
+      }
+    }
+  }
+  renderSelPanel();recolor();saveState();
+}
+
+function _lineageSolo(path,cids){
+  if(_soloPath===path&&_preSoloVis){
+    /* Unsolo — restore pre-solo visibility */
+    for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=_preSoloVis[k]!==false;
+    _preSoloVis=null;_soloIdx=null;_soloPath=null;
+  }else{
+    /* If already solo'd something else, restore first so we save clean state */
+    if(_preSoloVis){
+      for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=_preSoloVis[k]!==false;
+    }
+    _preSoloVis={};
+    for(var k=0;k<D.header.n_clusters;k++)_preSoloVis[k]=visibleClusters[k]!==false;
+    var cidSet={};for(var i=0;i<cids.length;i++)cidSet[cids[i]]=true;
+    for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=!!cidSet[k];
+    _soloIdx=null;_soloPath=path;
+  }
+  renderLeg();recolor();saveState();
+  if(selGroups.length>0)renderSelPanel();
+  _renderLineageTree();
+}
+
+function _lineageToggleVis(cids){
   _preSoloVis=null;_soloIdx=null;_soloPath=null;
   var anyVis=cids.some(function(c){return visibleClusters[c]!==false;});
   for(var i=0;i<cids.length;i++){
@@ -4640,7 +5065,7 @@ function _renderAllColumns(){
         html+='<div class="browse-row browse-dir'+(isActive?" active":"")+'" data-col="'+ci+'" data-idx="'+i+'">'
           +'<span style="margin-right:4px;">📁</span>'
           +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+e.path.replace(/"/g,"&quot;")+'">'+e.name+'</span>'
-          +'<span style="color:var(--text4);margin-left:2px;font-size:8px;">›</span>'
+          +'<span style="color:var(--text4);margin-left:2px;font-size:9px;">›</span>'
           +'</div>';
       }else{
         var cacheInfo="";
@@ -4653,17 +5078,17 @@ function _renderAllColumns(){
           }
           cacheInfo='<span style="display:flex;gap:1px;align-items:center;margin-left:3px;flex-shrink:0;">'+dots+'</span>';
         }
-        var loadedMark=e.loaded?'<span style="font-size:7px;color:#34d399;margin-left:3px;flex-shrink:0;">loaded</span>':"";
+        var loadedMark=e.loaded?'<span style="font-size:9px;color:#34d399;margin-left:3px;flex-shrink:0;">loaded</span>':"";
         html+='<div class="browse-row browse-file'+(e.loaded?" browse-loaded":"")+(isActive?" active":"")+'" data-col="'+ci+'" data-idx="'+i+'" title="'+e.path.replace(/"/g,"&quot;")+'">'
           +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+e.name+'</span>'
           +loadedMark
-          +'<span style="font-size:7px;color:var(--text4);white-space:nowrap;margin-left:3px;">'+(e.size_mb<1000?e.size_mb+" MB":((e.size_mb/1000).toFixed(1)+" GB"))+'</span>'
+          +'<span style="font-size:9px;color:var(--text4);white-space:nowrap;margin-left:3px;">'+(e.size_mb<1000?e.size_mb+" MB":((e.size_mb/1000).toFixed(1)+" GB"))+'</span>'
           +cacheInfo
           +'</div>';
       }
     }
     if(col.entries.length===0){
-      html='<div style="padding:8px;font-size:8px;color:var(--text4);">Empty</div>';
+      html='<div style="padding:8px;font-size:9px;color:var(--text4);">Empty</div>';
     }
     div.innerHTML=html;
     container.appendChild(div);
@@ -5117,6 +5542,10 @@ function unloadDataset(){
     /* Clear client state */
     D=null;mode="cluster";selGene="";geneExprCache={};
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
+    _clusterGeneCache={};_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="global";
+    var _modeDD=document.getElementById("gv-mode");if(_modeDD)_modeDD.value="global";
+    var _clDD=document.getElementById("gv-cluster");if(_clDD)_clDD.style.display="none";
+    var _gvD=document.getElementById("gv-dot");if(_gvD)_gvD.style.display="none";
     /* Close DEG panel */
     if(degOpen)closeDEG();
     degData=null;degCache={};degGrpA=null;degGrpB=null;_degOrigGroups=null;
@@ -5421,18 +5850,46 @@ var degSelHash=""; /* hash of groups at last DEG run, for stale detection */
 var _degOrigGroups=null; /* {aId,bId,aSize,bSize,aName,bName} at time of current result */
 var degOpen=false;
 var degCache={}; /* key: testType+"_"+selHash → {data, grpA, grpB} */
-var vZoom={x:1,y:1}, vPan={x:0,y:0}; /* volcano zoom (multiplicative) and pan (data-space offset) */
+var vZoom={x:1,y:1}, vPan={x:0,y:0}; /* per-axis compression set by axis dragging */
+var vGlobalZoom=1; /* uniform zoom set by scroll wheel — never changes axis compression ratio */
+var _vAxisDrag=null; /* axis drag state: null | {axis:'x'|'y', startX/Y, startZoom, startPan} */
 var _vBounds={maxFC:1,maxY:2}; /* updated each render, used by clamp */
+var _vScrollTarget=1; /* target vGlobalZoom that scroll animation interpolates toward */
+var _vScrollAnim=0;   /* rAF id, 0 = not animating */
+var _vScrollCursor={mx:0,my:0}; /* last cursor pos during scroll (for cursor-mode tracking) */
 function clampVPan(){
   /* Clamp pan so visible range stays within data bounds */
-  var visFC=_vBounds.maxFC/vZoom.x;
-  var visY=_vBounds.maxY/vZoom.y;
+  var visFC=_vBounds.maxFC/(vZoom.x*vGlobalZoom);
+  var visY=_vBounds.maxY/(vZoom.y*vGlobalZoom);
   /* X: center can shift at most so the edge touches the data boundary */
   var maxPanX=Math.max(0,_vBounds.maxFC-visFC);
   vPan.x=Math.max(-maxPanX,Math.min(maxPanX,vPan.x));
   /* Y: bottom stays at 0 minimum, top doesn't exceed maxY */
   var maxPanY=Math.max(0,_vBounds.maxY-visY);
   vPan.y=Math.max(0,Math.min(maxPanY,vPan.y));
+}
+function _vScrollTick(){
+  var cv=document.getElementById("volcano-cv");
+  var L=cv&&cv._vLayout;if(!L){_vScrollAnim=0;return;}
+  /* Re-clamp target in case axis drag changed vZoom since last scroll event */
+  var minG=1/Math.max(vZoom.x,vZoom.y);
+  _vScrollTarget=Math.max(minG,_vScrollTarget);
+  var dg=_vScrollTarget-vGlobalZoom;
+  if(Math.abs(dg)<0.0005){
+    vGlobalZoom=_vScrollTarget;
+    renderVolcano();
+    _vScrollAnim=0;return;
+  }
+  var oldG=vGlobalZoom;
+  vGlobalZoom+=dg*0.3;
+  /* Cursor-mode: adjust pan so point under cursor stays fixed each frame */
+  if(zoomMode==="cursor"&&oldG!==vGlobalZoom){
+    var dataX=L.fromX(_vScrollCursor.mx),dataY=L.fromY(_vScrollCursor.my);
+    vPan.x+=(dataX-vPan.x)*(1-oldG/vGlobalZoom);
+    vPan.y+=(dataY-vPan.y)*(1-oldG/vGlobalZoom);
+  }
+  renderVolcano();
+  _vScrollAnim=requestAnimationFrame(_vScrollTick);
 }
 /* ── Slice state ── */
 var sliceFilter={};   /* {col: Set of included category indices} — all = no filter */
@@ -5592,6 +6049,7 @@ function buildSlicePanel(){
   var footer=document.getElementById("slice-footer");
   if(footer&&footer.parentNode)footer.parentNode.removeChild(footer);
   body.innerHTML="";
+  var _totalEmpty=0;
   for(var i=0;i<cols.length;i++){
     var col=cols[i];
     var info=cats[col];
@@ -5646,27 +6104,19 @@ function buildSlicePanel(){
       });
       vals.appendChild(pill);
     }
-    /* Empty slice toggle — only if this column has empty values */
-    if(nEmpty>0){
-      var etog=document.createElement("span");
-      etog.className="slice-empty-toggle";
-      etog.textContent="+"+nEmpty+" empty";
-      etog.title="Show/hide empty values (0 cells)";
-      etog.addEventListener("click",function(e){
-        e.stopPropagation();
-        var v=this.closest(".slice-col").querySelector(".slice-vals");
-        if(!v)return;
-        var hidden=v.classList.toggle("hide-empty");
-        var ne=parseInt(this.getAttribute("data-n"));
-        this.textContent=hidden?("+"+ne+" empty"):("\u2212"+ne+" empty");
-      });
-      etog.setAttribute("data-n",nEmpty);
-      hdr.appendChild(etog);
-    }
+    _totalEmpty+=nEmpty;
     div.appendChild(vals);
     body.appendChild(div);
   }
   if(footer)body.appendChild(footer);
+  /* Disable global "Show Empty" switch if no empty values exist */
+  var glChk=document.getElementById("slice-empty-global");
+  if(glChk){
+    glChk.disabled=_totalEmpty===0;
+    var wrap=glChk.closest(".se-wrap");
+    if(wrap)wrap.style.opacity=_totalEmpty===0?"0.3":"";
+    if(wrap)wrap.style.pointerEvents=_totalEmpty===0?"none":"";
+  }
   _updateSliceUI();
 }
 
@@ -5740,27 +6190,28 @@ function _updateSliceUI(){
   var badge=document.getElementById("slice-active-badge");
   var resetBtn=document.getElementById("slice-reset-btn");
   if(resetBtn)resetBtn.style.display=active?"":"none";
-  /* Per-column counts and badges — exclude empty (0-count) categories */
+  /* Per-column counts and badges — adjust denominator based on show-empty state */
   var cats=D&&D.header&&D.header.obs_categories||{};
-  var totalActive=0,totalNonEmpty=0;
+  var totalActive=0,totalShown=0;
   for(var col in cats){
     var counts=cats[col].counts||[];
-    var nonEmpty=0,selNonEmpty=0;
-    for(var j=0;j<cats[col].categories.length;j++){
-      if((counts[j]||0)>0){
-        nonEmpty++;
-        if(sliceFilter[col]&&sliceFilter[col].has(j))selNonEmpty++;
-      }
+    var nTotal=cats[col].categories.length;
+    var shown=0,sel=0;
+    for(var j=0;j<nTotal;j++){
+      var isEmpty=(counts[j]||0)===0;
+      if(!_sliceShowEmpty&&isEmpty)continue;
+      shown++;
+      if(sliceFilter[col]&&sliceFilter[col].has(j))sel++;
     }
-    totalActive+=selNonEmpty;
-    totalNonEmpty+=nonEmpty;
+    totalActive+=sel;
+    totalShown+=shown;
     var countsEl=document.getElementById("slcounts-"+col);
-    if(countsEl)countsEl.textContent=selNonEmpty+"/"+nonEmpty;
+    if(countsEl)countsEl.textContent=sel+"/"+shown;
     var el=document.getElementById("slbadge-"+col);
-    if(el)el.textContent=selNonEmpty<nonEmpty?"\u2022":"";
+    if(el)el.textContent=sel<shown?"\u2022":"";
   }
-  /* Header badge — always visible, shows active/total non-empty */
-  if(badge)badge.textContent=totalActive+"/"+totalNonEmpty;
+  /* Header badge — always visible, shows active/total */
+  if(badge)badge.textContent=totalActive+"/"+totalShown;
   /* Footer count */
   var n=D?D.header.n_cells:0;
   var included=n;
@@ -5773,20 +6224,14 @@ function _updateSliceUI(){
 
 var _sliceShowEmpty=false;
 function toggleAllEmptySlices(){
-  _sliceShowEmpty=!_sliceShowEmpty;
+  var gl=document.getElementById("slice-empty-global");
+  _sliceShowEmpty=gl?gl.checked:false;
   var allVals=document.querySelectorAll("#slice-body .slice-vals");
   for(var i=0;i<allVals.length;i++){
     if(_sliceShowEmpty)allVals[i].classList.remove("hide-empty");
     else allVals[i].classList.add("hide-empty");
   }
-  /* Update per-column toggles to match */
-  var togs=document.querySelectorAll("#slice-body .slice-empty-toggle");
-  for(var i=0;i<togs.length;i++){
-    var ne=parseInt(togs[i].getAttribute("data-n"));
-    togs[i].textContent=_sliceShowEmpty?("\u2212"+ne+" empty"):("+"+ne+" empty");
-  }
-  var gl=document.getElementById("slice-empty-global");
-  if(gl)gl.textContent=_sliceShowEmpty?"\u2212empty":"+empty";
+  _updateSliceUI();
 }
 
 function exportSlice(){
@@ -5812,9 +6257,7 @@ function exportSlice(){
   var btn=document.getElementById("slice-save-btn");
   var origHTML=btn.innerHTML;
   btn.style.color="#6366f1";btn.style.opacity="0.5";btn.disabled=true;
-  var spinner=document.createElement("span");
-  spinner.className="csc-spinner";
-  spinner.style.cssText="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-left:2px;";
+  var spinner=_mkSpin(7,2);
   btn.parentNode.insertBefore(spinner,btn.nextSibling);
   fetch("/api/export",{
     method:"POST",
@@ -5974,15 +6417,14 @@ function _applySessionState(s){
   if(s.embMethod&&D&&D.embeddings[s.embMethod]&&embMethod!==s.embMethod){
     embMethod=s.embMethod;var esel=document.getElementById("emb-select");if(esel)esel.value=s.embMethod;needReposition=true;
   }
-  if(s.viewIs3d!==undefined&&viewIs3d!==s.viewIs3d){viewIs3d=s.viewIs3d;if(pts){pts.material.sizeAttenuation=viewIs3d;pts.material.needsUpdate=true;}if(ringPts){ringPts.material.sizeAttenuation=viewIs3d;ringPts.material.needsUpdate=true;}needReposition=true;}
+  if(s.viewIs3d!==undefined&&viewIs3d!==s.viewIs3d){setView(s.viewIs3d?"3d":"2d");needReposition=true;}
   if(needReposition&&D){var emb=D.embeddings[embMethod]||D.embeddings["umap"];var td=viewIs3d?3:2;if(emb&&emb[td])positionPts(D,td);}
   if(s.sph){sph.theta=s.sph.theta;sph.phi=s.sph.phi;sph.radius=s.sph.radius;}
   if(s.tgt3){tgt3.set(s.tgt3.x,s.tgt3.y,s.tgt3.z);}
   if(s.pan2){pan2.x=s.pan2.x;pan2.y=s.pan2.y;}
   if(s.zoom2!==undefined)zoom2=s.zoom2;
   if(s.mode){mode=s.mode;}if(s.selGene)selGene=s.selGene;
-  document.getElementById("bc").className="btn"+(mode==="cluster"?" on":"");
-  document.getElementById("bg").className="btn"+(mode==="gene"?" on":"");
+  var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value=mode;
   document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
   recolor();renderLeg();if(selGroups.length>0)renderSelPanel();showRecentGenes();
   /* Restore DEG results if present */
@@ -6079,8 +6521,7 @@ function resetSession(){
   visibleClusters={};
   bgDimPct=0;document.getElementById("bg-dim").value=100;
   mode="cluster";selGene=null;
-  document.getElementById("bc").className="btn on";
-  document.getElementById("bg").className="btn";
+  var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="cluster";
   document.getElementById("expr-legend").style.display="none";
   /* Reset slice */
   if(sliceFilter){
@@ -6160,7 +6601,7 @@ function _showDEGResult(data,grpA,grpB){
   document.getElementById("deg-search").value="";
   degSort={col:"padj",asc:true};
   degHlGene=null;
-  vZoom={x:1,y:1};vPan={x:0,y:0};
+  vZoom={x:1,y:1};vPan={x:0,y:0};vGlobalZoom=1;_vScrollTarget=1;
   /* Auto-expand panel if too small for a usable volcano */
   var panel=document.getElementById("deg-panel");
   if(degPanelH<320){degPanelH=320;panel.style.height=degPanelH+"px";}
@@ -6502,9 +6943,7 @@ function exportGroup(id){
   if(!btn)return;
   btn.style.color="#6366f1";btn.style.opacity="0.5";
   /* Add spinner next to button */
-  var spinner=document.createElement("span");
-  spinner.className="csc-spinner";
-  spinner.style.cssText="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-left:2px;";
+  var spinner=_mkSpin(7,2);
   btn.parentNode.insertBefore(spinner,btn.nextSibling);
   fetch("/api/export",{
     method:"POST",
@@ -6602,9 +7041,9 @@ function renderVolcano(){
   _vBounds.maxFC=maxFC;_vBounds.maxY=maxY;
   clampVPan();
 
-  /* Apply zoom and pan: visible range = base / zoom, offset by pan */
-  var visFC=baseFC/vZoom.x;
-  var visY=baseY/vZoom.y;
+  /* Apply zoom and pan: visible range = base / (axis-compression × global-zoom) */
+  var visFC=baseFC/(vZoom.x*vGlobalZoom);
+  var visY=baseY/(vZoom.y*vGlobalZoom);
   var centerFC=vPan.x;
   var yBottom=vPan.y;
   var yTop=yBottom+visY;
@@ -6637,6 +7076,17 @@ function renderVolcano(){
   ctx.beginPath();ctx.moveTo(toX(-FC_THRESH),pad.top);ctx.lineTo(toX(-FC_THRESH),pad.top+ph);ctx.stroke();
   ctx.beginPath();ctx.moveTo(toX(FC_THRESH),pad.top);ctx.lineTo(toX(FC_THRESH),pad.top+ph);ctx.stroke();
   ctx.setLineDash([]);
+
+  /* Visibility cutoff line — shows where the "top N%" slider cuts off genes */
+  if(showPct<100){
+    ctx.strokeStyle=cBorder;ctx.lineWidth=0.5;ctx.setLineDash([3,3]);
+    var cutoffY=toY(yCutoff);
+    ctx.beginPath();ctx.moveTo(pad.left,cutoffY);ctx.lineTo(pad.left+pw,cutoffY);ctx.stroke();
+    /* Annotate visibility cutoff */
+    ctx.font="8px Inter,system-ui,sans-serif";ctx.fillStyle=cText3;ctx.textAlign="left";
+    ctx.fillText("top "+showPct+"%",pad.left+pw-50,cutoffY-3);
+    ctx.setLineDash([]);
+  }
 
   /* Points — batch by category for performance */
   var pathNS=new Path2D(); /* non-significant */
@@ -6745,6 +7195,25 @@ function setupVolcanoHover(){
     _volcanoMx=(e.clientX-rect.left)/z;
     _volcanoMy=(e.clientY-rect.top)/z;
 
+    /* Axis zoom drag */
+    if(_vAxisDrag){
+      if(!cv._vLayout)return;
+      if(_vAxisDrag.axis==='x'){
+        var dx=(e.clientX-_vAxisDrag.startX)/z;
+        var factor=Math.pow(2,-dx/35);
+        vZoom.x=Math.max(0.5,Math.min(500,_vAxisDrag.startZoom*factor));
+        vPan.x=_vAxisDrag.startPan;
+      }else{
+        var dy=(e.clientY-_vAxisDrag.startY)/z;
+        var factor=Math.pow(2,dy/35);
+        vZoom.y=Math.max(0.5,Math.min(500,_vAxisDrag.startZoom*factor));
+        vPan.y=_vAxisDrag.startPan;
+      }
+      clampVPan();
+      renderVolcano();
+      return;
+    }
+
     /* Panning — run immediately (needs tight loop for smooth feel) */
     if(vDragging){
       var dx=(e.clientX-vPrev.x)/z, dy=(e.clientY-vPrev.y)/z;
@@ -6796,6 +7265,18 @@ function setupVolcanoHover(){
       var prevHl=document.querySelector("#deg-tbody tr.hl");
       if(prevHl)prevHl.className="";
     }
+
+    /* Cursor feedback for axis regions */
+    if(!_vAxisDrag&&cv._vLayout){
+      var L3=cv._vLayout, pad3=L3.pad, pw3=L3.pw, ph3=L3.ph, h3=L3.h;
+      if(my>=pad3.top+ph3&&mx>=pad3.left&&mx<=pad3.left+pw3){
+        cv.style.cursor="ew-resize";
+      }else if(mx<=pad3.left&&my>=pad3.top&&my<=pad3.top+ph3){
+        cv.style.cursor="ns-resize";
+      }else{
+        cv.style.cursor="";
+      }
+    }
   });
 
   cv.addEventListener("mouseleave",function(){
@@ -6812,15 +7293,40 @@ function setupVolcanoHover(){
   var vClickStart={x:0,y:0};
 
   cv.addEventListener("mousedown",function(e){
-    if(e.button===0){
-      vDragging=true;
-      vPrev={x:e.clientX,y:e.clientY};
-      vClickStart={x:e.clientX,y:e.clientY};
-      cv.style.cursor="grab";
+    if(e.button!==0)return;
+    var L=cv._vLayout;if(!L)return;
+    var rect=cv.getBoundingClientRect();var z=currentUIScale;
+    var mx=(_volcanoMx||0), my=(_volcanoMy||0);
+    var pad=L.pad, pw=L.pw, ph=L.ph, h=L.h;
+
+    if(my>=pad.top+ph&&mx>=pad.left&&mx<=pad.left+pw){
+      /* Grabbed x-axis — absorb global zoom into per-axis zoom first */
+      vZoom.x*=vGlobalZoom;vZoom.y*=vGlobalZoom;vGlobalZoom=1;_vScrollTarget=1;
+      if(_vScrollAnim){cancelAnimationFrame(_vScrollAnim);_vScrollAnim=0;}
+      _vAxisDrag={axis:'x',startX:e.clientX,startZoom:vZoom.x,startPan:vPan.x};
+      cv.style.cursor="ew-resize";
+      e.preventDefault();
+      return;
     }
+    if(mx<=pad.left&&my>=pad.top&&my<=pad.top+ph){
+      /* Grabbed y-axis — absorb global zoom into per-axis zoom first */
+      vZoom.x*=vGlobalZoom;vZoom.y*=vGlobalZoom;vGlobalZoom=1;_vScrollTarget=1;
+      if(_vScrollAnim){cancelAnimationFrame(_vScrollAnim);_vScrollAnim=0;}
+      _vAxisDrag={axis:'y',startY:e.clientY,startZoom:vZoom.y,startPan:vPan.y};
+      cv.style.cursor="ns-resize";
+      e.preventDefault();
+      return;
+    }
+
+    /* Existing pan logic */
+    vDragging=true;
+    vPrev={x:e.clientX,y:e.clientY};
+    vClickStart={x:e.clientX,y:e.clientY};
+    cv.style.cursor="grab";
   });
 
   window.addEventListener("mouseup",function(e){
+    if(_vAxisDrag){_vAxisDrag=null;cv.style.cursor="";}
     if(vDragging){
       vDragging=false;
       cv.style.cursor="";
@@ -6836,37 +7342,25 @@ function setupVolcanoHover(){
     }
   });
 
-  /* Scroll to zoom volcano */
+  /* Scroll to zoom volcano — animated via _vScrollTick for smooth transitions */
   cv.addEventListener("wheel",function(e){
     e.preventDefault();e.stopPropagation();
     if(!degData||!cv._vLayout)return;
-    var L=cv._vLayout;
     var rect=cv.getBoundingClientRect();
     var z=currentUIScale;
-    var mx=(e.clientX-rect.left)/z, my=(e.clientY-rect.top)/z;
+    _vScrollCursor.mx=(e.clientX-rect.left)/z;
+    _vScrollCursor.my=(e.clientY-rect.top)/z;
     var factor=e.deltaY<0?1.08:1/1.08;
-
-    if(zoomMode==="cursor"){
-      /* Zoom toward cursor position in data space */
-      var dataX=L.fromX(mx), dataY=L.fromY(my);
-      var oldZx=vZoom.x, oldZy=vZoom.y;
-      vZoom.x=Math.max(0.5,Math.min(100,vZoom.x*factor));
-      vZoom.y=Math.max(0.5,Math.min(100,vZoom.y*factor));
-      /* Shift pan so data point under cursor stays in place */
-      vPan.x+=(dataX-vPan.x)*(1-oldZx/vZoom.x);
-      vPan.y+=(dataY-vPan.y)*(1-oldZy/vZoom.y);
-      clampVPan();
-    }else{
-      vZoom.x=Math.max(0.5,Math.min(100,vZoom.x*factor));
-      vZoom.y=Math.max(0.5,Math.min(100,vZoom.y*factor));
-    }
-    renderVolcano();
+    var minG=1/Math.max(vZoom.x,vZoom.y);
+    _vScrollTarget=Math.max(minG,Math.min(500,_vScrollTarget*factor));
+    if(!_vScrollAnim)_vScrollAnim=requestAnimationFrame(_vScrollTick);
   },{passive:false});
 
   /* Double-click to reset volcano zoom/pan */
   cv.addEventListener("dblclick",function(e){
     e.preventDefault();
-    vZoom={x:1,y:1};vPan={x:0,y:0};
+    vZoom={x:1,y:1};vPan={x:0,y:0};vGlobalZoom=1;_vScrollTarget=1;
+    if(_vScrollAnim){cancelAnimationFrame(_vScrollAnim);_vScrollAnim=0;}
     renderVolcano();
   });
 }
@@ -7233,9 +7727,9 @@ function _patchOS(){
   _setLinBtn(null,"flat");
   /* Init HVG toggle */
   renderHVGChips();
-  /* Set OS-specific selection hint */
-  var sh=document.getElementById("sel-hint");
-  if(sh)sh.textContent="Shift+drag lasso \u00b7 +"+_ALT+" deselect";
+  /* Set OS-specific selection hint as tooltip on header label */
+  var sh=document.getElementById("sel-groups-label");
+  if(sh)sh.title="Shift+drag lasso \u00b7 +"+_ALT+" deselect \u00b7 1-9 to switch groups";
 }
 
 document.addEventListener("DOMContentLoaded",function(){
@@ -7366,7 +7860,7 @@ document.addEventListener("DOMContentLoaded",function(){
            because the GIL can block progress polls during heavy C-level work. */
         var cscEl=document.getElementById("csc-status");
         cscEl.style.display="block";
-        cscEl.innerHTML='<span class="csc-spinner" style="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:4px;"></span>Building gene index\u2026';
+        cscEl.innerHTML=_spinHTML(7,4,"right")+'Building gene index\u2026';
         /* Poll for CSC build completion + HVG availability */
         var _cscDoneCount=0;
         var _cscStart=Date.now();
@@ -7394,7 +7888,7 @@ document.addEventListener("DOMContentLoaded",function(){
               _cscDoneCount=0;
               var msg="Building gene index";
               if(p.message)msg=p.message;
-              cscEl.innerHTML='<span class="csc-spinner" style="display:inline-block;width:8px;height:8px;border:1.5px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:4px;"></span>'+msg;
+              cscEl.innerHTML=_spinHTML(7,4,"right")+msg;
               setTimeout(pollCSC,2000);
             }else{
               _cscDoneCount++;

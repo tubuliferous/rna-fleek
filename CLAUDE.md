@@ -33,6 +33,7 @@ RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool
 | `/api/gene` | POST | Gene expression values (float32 binary) |
 | `/api/search` | POST | Gene name search |
 | `/api/gene-var` | POST | Gene variability ranked list |
+| `/api/cluster-genes` | GET | Per-cluster gene rankings (all genes, full metrics + Cohen's d) |
 | `/api/load` | POST | Load a new h5ad file |
 | `/api/annotate` | POST | Marker DB cell type annotation |
 | `/api/annotate-llm` | POST | Claude AI cell type annotation |
@@ -119,9 +120,10 @@ Both flat list and lineage tree should have consistent modifier key behavior:
 - **Shift+click**: Select cells into active group
 - **Alt+Shift+click**: Select only this node's direct clusters (lineage only)
 
-In lineage view:
-- **Caret (▸/▾) click**: Collapse/expand branch (NOT the name)
-- **Name/dot click**: Toggle visibility (same behavior)
+In lineage view, **dot** and **name** have different scopes:
+- **Dot click/Alt+click**: Acts on this node's direct clusters only
+- **Name click/Alt+click**: Acts on this node + all descendants
+- **Caret (▸/▾) click**: Collapse/expand branch (Alt+click: recursive)
 - Children sort by current `typeSortMode` (alpha or count)
 
 ### UI Conventions

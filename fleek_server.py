@@ -125,20 +125,15 @@ def _is_writable(path):
     except (OSError, PermissionError):
         return False
 
-def _cache_read_path(suffix, scan_all=False):
+def _cache_read_path(suffix):
     """Find an existing cache file. Checks dataset dir first, then server dir.
-    Returns (path, writable) or (None, False) if no cache exists.
-    If scan_all=True and no exact match, scan CACHE_DIR for any file with this suffix."""
+    Returns (path, writable) or (None, False) if no cache exists."""
     dp = _dataset_cache_path(suffix)
     if dp and dp.exists():
         return dp, _is_writable(dp)
     sp = _server_cache_path(suffix)
     if sp and sp.exists():
         return sp, True
-    # Scan server cache dir for any matching file (e.g. parent dataset's annotations)
-    if scan_all and CACHE_DIR and CACHE_DIR.exists():
-        for f in sorted(CACHE_DIR.glob(f"*{suffix}"), key=lambda p: p.stat().st_mtime, reverse=True):
-            return f, True
     return None, False
 
 def _cache_write_path(suffix):
@@ -253,13 +248,20 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
     if not MARKER_DB:
         load_marker_db()
     
-    # Check annotation cache
+    # Check annotation cache (with parent stem fallback for subsets)
+    _parent_stem = ADATA.uns.get("fleek_parent_stem") if ADATA is not None else None
     cache_path, _cw = _cache_read_path(".annot_markers.json")
+    if not cache_path and _parent_stem and CACHE_DIR:
+        _pp = CACHE_DIR / f"{_parent_stem}.annot_markers.json"
+        if _pp.exists():
+            cache_path = _pp
     if cache_path:
         try:
             with open(cache_path) as f:
                 cached_annot = json.load(f)
-            if cached_annot.get("cluster_names") == CLUSTER_NAMES and cached_annot.get("n_cells") == N_CELLS:
+            _cn = cached_annot.get("cluster_names")
+            _valid = (_cn == CLUSTER_NAMES and cached_annot.get("n_cells") == N_CELLS) or (_cn and set(CLUSTER_NAMES).issubset(set(_cn)))
+            if _valid:
                 print(f"  Marker annotation loaded from cache")
                 cached_annot["cached"] = True
                 return cached_annot
@@ -422,7 +424,7 @@ def _load_api_key():
 ANTHROPIC_API_KEY = _load_api_key()
 
 # ── Shared DEG cache (used by both marker and LLM annotation) ──
-_DEG_CACHE = {"key": None, "cluster_genes": None, "small_clusters": None}
+_DEG_CACHE = {"key": None, "cluster_genes": None, "small_clusters": None, "full_rankings": None}
 _DEG_LOCK = threading.Lock()
 
 def _get_shared_deg(top_n=50, test="wilcoxon"):
@@ -446,8 +448,9 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
     cache_key = (N_CELLS, len(CLUSTER_NAMES), test, DEG_MAX_CELLS)
     
     with _DEG_LOCK:
-        # Cache hit — return immediately
-        if _DEG_CACHE["key"] == cache_key and _DEG_CACHE["cluster_genes"] is not None:
+        # Cache hit — return immediately (full_rankings must also be populated if present in cache schema)
+        if (_DEG_CACHE["key"] == cache_key and _DEG_CACHE["cluster_genes"] is not None
+                and _DEG_CACHE["full_rankings"] is not None):
             print("  DEG results from memory cache")
             return _DEG_CACHE["cluster_genes"], _DEG_CACHE["small_clusters"]
 
@@ -527,31 +530,82 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         ANNOT_STATUS["pct"] = 15
         print(f"  Running one-vs-rest {test} for {n_valid} clusters on {adata_deg.n_obs:,} cells...")
 
+        n_all_genes = adata_deg.n_vars
         try:
             sc.tl.rank_genes_groups(adata_deg, groupby="fleek_cluster", method=test,
-                                    n_genes=top_n, use_raw=False)
+                                    n_genes=n_all_genes, use_raw=False)
         except Exception as e:
             print(f"  rank_genes_groups failed: {e}, retrying with t-test...")
             try:
                 sc.tl.rank_genes_groups(adata_deg, groupby="fleek_cluster", method="t-test",
-                                        n_genes=top_n, use_raw=False)
+                                        n_genes=n_all_genes, use_raw=False)
             except Exception as e2:
                 print(f"  DEG failed: {e2}")
                 return {}, small_clusters
 
-        # Extract top genes per cluster
+        rgg = adata_deg.uns["rank_genes_groups"]
+
+        # Extract top genes per cluster (for annotation backward compat)
         result = {}
         for cid, cname in enumerate(CLUSTER_NAMES):
             if cname in small_clusters:
                 result[cname] = []
                 continue
             try:
-                names = adata_deg.uns["rank_genes_groups"]["names"][cname][:top_n]
-                scores = adata_deg.uns["rank_genes_groups"]["scores"][cname][:top_n]
+                names = rgg["names"][cname][:top_n]
+                scores = rgg["scores"][cname][:top_n]
                 genes = [str(g) for g, s in zip(names, scores) if s > 0]
                 result[cname] = genes[:top_n]
             except (KeyError, IndexError):
                 result[cname] = []
+
+        # Build full rankings with all metrics + Cohen's d
+        full_rankings = {}
+        ANNOT_STATUS["step"] = "Computing effect sizes..."
+        ANNOT_STATUS["pct"] = 55
+        X = adata_deg.X
+        cluster_labels = adata_deg.obs["fleek_cluster"].values
+        for cname in CLUSTER_NAMES:
+            if cname in small_clusters:
+                full_rankings[cname] = None
+                continue
+            try:
+                all_names = [str(g) for g in rgg["names"][cname]]
+                all_lfc = rgg["logfoldchanges"][cname].astype(np.float64)
+                all_padj = rgg["pvals_adj"][cname].astype(np.float64)
+                # Cohen's d: vectorized over all genes
+                mask_in = cluster_labels == cname
+                n1 = int(mask_in.sum())
+                n2 = int((~mask_in).sum())
+                if n1 >= 2 and n2 >= 2:
+                    X_in = X[mask_in]
+                    X_out = X[~mask_in]
+                    m1 = np.asarray(X_in.mean(axis=0)).ravel()
+                    m2 = np.asarray(X_out.mean(axis=0)).ravel()
+                    sq1 = np.asarray(X_in.power(2).mean(axis=0)).ravel() if sp.issparse(X_in) else np.asarray((X_in**2).mean(axis=0)).ravel()
+                    sq2 = np.asarray(X_out.power(2).mean(axis=0)).ravel() if sp.issparse(X_out) else np.asarray((X_out**2).mean(axis=0)).ravel()
+                    v1 = np.maximum(sq1 - m1**2, 0) * n1 / (n1 - 1)
+                    v2 = np.maximum(sq2 - m2**2, 0) * n2 / (n2 - 1)
+                    pooled = np.sqrt(((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2))
+                    d_all = (m1 - m2) / np.maximum(pooled, 1e-9)
+                    # Map Cohen's d by gene name (d_all is indexed by var position, not by ranking)
+                    gene_to_varidx = {g: j for j, g in enumerate(adata_deg.var_names)}
+                    all_d = np.array([float(d_all[gene_to_varidx[g]]) if g in gene_to_varidx else 0.0 for g in all_names])
+                else:
+                    all_d = np.zeros(len(all_names))
+                # Replace non-finite values
+                all_lfc = np.where(np.isfinite(all_lfc), all_lfc, 0.0)
+                all_padj = np.where(np.isfinite(all_padj), all_padj, 1.0)
+                all_d = np.where(np.isfinite(all_d), all_d, 0.0)
+                full_rankings[cname] = {
+                    "genes": all_names,
+                    "log2fc": np.round(all_lfc, 4).tolist(),
+                    "padj": all_padj.tolist(),
+                    "cohens_d": np.round(all_d, 4).tolist(),
+                }
+            except (KeyError, IndexError):
+                full_rankings[cname] = None
+        print(f"  Full cluster rankings computed for {sum(1 for v in full_rankings.values() if v)} clusters")
 
         if adata_deg is not adata:
             del adata_deg
@@ -562,6 +616,7 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         _DEG_CACHE["key"] = cache_key
         _DEG_CACHE["cluster_genes"] = result
         _DEG_CACHE["small_clusters"] = small_clusters
+        _DEG_CACHE["full_rankings"] = full_rankings
 
         return result, small_clusters
 
@@ -581,13 +636,20 @@ def annotate_clusters_llm(top_n=30, test="wilcoxon", tissue_hint=""):
     if ADATA is None:
         return {"error": "No dataset loaded"}
 
-    # Check cache
+    # Check cache (with parent stem fallback for subsets)
+    _parent_stem = ADATA.uns.get("fleek_parent_stem") if ADATA is not None else None
     cache_path, _cw = _cache_read_path(".annot_llm.json")
+    if not cache_path and _parent_stem and CACHE_DIR:
+        _pp = CACHE_DIR / f"{_parent_stem}.annot_llm.json"
+        if _pp.exists():
+            cache_path = _pp
     if cache_path:
         try:
             with open(cache_path) as f:
                 cached = json.load(f)
-            if cached.get("cluster_names") == CLUSTER_NAMES and cached.get("n_cells") == N_CELLS:
+            _cn = cached.get("cluster_names")
+            _valid = (_cn == CLUSTER_NAMES and cached.get("n_cells") == N_CELLS) or (_cn and set(CLUSTER_NAMES).issubset(set(_cn)))
+            if _valid:
                 print(f"  LLM annotation loaded from cache")
                 cached["cached"] = True
                 return cached
@@ -818,6 +880,7 @@ def _reset_all():
     _DEG_CACHE["key"] = None
     _DEG_CACHE["cluster_genes"] = None
     _DEG_CACHE["small_clusters"] = None
+    _DEG_CACHE["full_rankings"] = None
     import gc; gc.collect()
 
 def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False,
@@ -1864,29 +1927,52 @@ def build_init_payload():
             return True  # subset of parent — annotations still valid
         return False
 
+    # Parent stem fallback: subsets store their parent's stem in uns so we
+    # can look up the parent's annotation caches directly.
+    _parent_stem = None
+    if ADATA is not None:
+        _parent_stem = ADATA.uns.get("fleek_parent_stem")
+
+    def _find_annot_cache(suffix):
+        """Find annotation cache: try normal path, then parent stem fallback."""
+        ap, _ = _cache_read_path(suffix)
+        if ap:
+            return ap
+        if _parent_stem and CACHE_DIR:
+            pp = CACHE_DIR / f"{_parent_stem}{suffix}"
+            if pp.exists():
+                return pp
+        return None
+
     for annot_key, suffix in [("cached_markers", ".annot_markers.json"), ("cached_llm", ".annot_llm.json")]:
         if LOADED_PATH:
-            ap, _ = _cache_read_path(suffix, scan_all=True)
+            ap = _find_annot_cache(suffix)
             if ap:
                 try:
                     with open(ap) as f:
                         cached = json.load(f)
                     if _annot_valid(cached):
                         header[annot_key] = cached.get("results", [])
-                except Exception:
-                    pass
+                        print(f"  Init: loaded {annot_key} from {ap.name}")
+                    else:
+                        print(f"  Init: {ap.name} FAILED validation (cached_names={cached.get('cluster_names')}, current={CLUSTER_NAMES})")
+                except Exception as e:
+                    print(f"  Init: error reading {ap}: {e}")
 
     # Include cached lineage tree if available
     if LOADED_PATH:
-        lp, _ = _cache_read_path(".annot_lineage.json", scan_all=True)
+        lp = _find_annot_cache(".annot_lineage.json")
         if lp:
             try:
                 with open(lp) as f:
                     lcached = json.load(f)
                 if _annot_valid(lcached):
                     header["cached_lineage"] = lcached.get("tree")
-            except Exception:
-                pass
+                    print(f"  Init: loaded cached_lineage from {lp.name}")
+                else:
+                    print(f"  Init: {lp.name} lineage FAILED validation (cached_names={lcached.get('cluster_names')}, current={CLUSTER_NAMES})")
+            except Exception as e:
+                print(f"  Init: error reading lineage {lp}: {e}")
 
     header_bytes = json.dumps(header, separators=(",", ":")).encode("utf-8")
 
@@ -2088,8 +2174,10 @@ def export_h5ad_subset(cell_indices, group_name):
         color_map = {CLUSTER_NAMES[i]: CLUSTER_COLORS[i] for i in range(len(CLUSTER_NAMES)) if i < len(CLUSTER_COLORS)}
         sub.uns["fleek_color_map"] = color_map
 
-    # Annotations are pre-written to the server cache dir (see below),
-    # not embedded in uns (strings don't survive h5ad round-trip reliably)
+    # Store parent stem so subset can find parent's annotation caches
+    _ps = Path(LOADED_PATH).stem
+    sub.uns["fleek_parent_stem"] = _ps
+    print(f"  Export: stored fleek_parent_stem = {_ps!r}")
 
     n_emb = sum(k in sub.obsm for k in ("X_umap", "X_pacmap", "X_pca"))
     print(f"  Export: {len(cell_indices)} cells, {n_emb} embeddings in obsm")
@@ -2134,15 +2222,18 @@ def export_h5ad_subset(cell_indices, group_name):
             if subset_cache:
                 np.savez(server_cache, **subset_cache)
                 print(f"  Export: pre-wrote cache ({', '.join(subset_cache)}) -> {server_cache}")
-            # Pre-write annotation caches for the subset
+            # Copy annotation caches keyed by PARENT stem so subsets can
+            # find them via fleek_parent_stem regardless of file renaming
             import shutil
+            _parent = Path(LOADED_PATH).stem
             for _annot_suffix in [".annot_markers.json", ".annot_llm.json", ".annot_lineage.json"]:
                 _annot_src, _ = _cache_read_path(_annot_suffix)
                 if _annot_src:
                     try:
-                        _annot_dst = CACHE_DIR / f"{stem}{_annot_suffix}"
-                        shutil.copy2(str(_annot_src), str(_annot_dst))
-                        print(f"  Export: copied {_annot_suffix} -> {_annot_dst.name}")
+                        _annot_dst = CACHE_DIR / f"{_parent}{_annot_suffix}"
+                        if not _annot_dst.exists() or str(_annot_src) != str(_annot_dst):
+                            shutil.copy2(str(_annot_src), str(_annot_dst))
+                        print(f"  Export: ensured {_annot_suffix} at {_annot_dst.name}")
                     except Exception as _ae:
                         print(f"  Export: failed to copy {_annot_suffix}: {_ae}")
                 else:
@@ -2186,6 +2277,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_complete(params.get("partial", [""])[0])
         elif path == "/api/gene-var":
             self._serve_gene_var()
+        elif path == "/api/cluster-genes":
+            self._serve_cluster_genes(params)
         else:
             self.send_error(404)
 
@@ -2489,6 +2582,53 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
         except Exception as e:
             err = json.dumps({"genes": [], "error": str(e)}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(err)))
+            self.end_headers()
+            self.wfile.write(err)
+
+    def _serve_cluster_genes(self, params):
+        """Return full gene rankings for a specific cluster from the shared one-vs-rest DEG.
+        Each gene has: name, log2fc, padj, cohens_d.  Triggers DEG computation if not cached."""
+        try:
+            if ADATA is None or CLUSTER_NAMES is None:
+                raise ValueError("No dataset loaded")
+            cluster_id = int(params.get("id", [0])[0])
+            if cluster_id < 0 or cluster_id >= len(CLUSTER_NAMES):
+                raise ValueError(f"Invalid cluster id {cluster_id}")
+            cname = CLUSTER_NAMES[cluster_id]
+            # Ensure shared DEG is computed (may trigger computation)
+            if _DEG_CACHE.get("full_rankings") is None:
+                print(f"  Cluster genes: computing shared DEG for full rankings...")
+                _get_shared_deg(top_n=50, test="wilcoxon")
+            rankings = _DEG_CACHE.get("full_rankings", {})
+            cdata = rankings.get(cname)
+            if cdata is None:
+                from collections import Counter
+                counts = Counter(CLUSTER_IDS.tolist())
+                n_cells = counts.get(cluster_id, 0)
+                result = {"genes": [], "log2fc": [], "padj": [], "cohens_d": [],
+                          "cluster": cname, "cluster_id": cluster_id, "n_cells": n_cells,
+                          "n_genes": 0, "small": True}
+            else:
+                from collections import Counter
+                counts = Counter(CLUSTER_IDS.tolist())
+                n_cells = counts.get(cluster_id, 0)
+                result = {
+                    "genes": cdata["genes"], "log2fc": cdata["log2fc"],
+                    "padj": cdata["padj"], "cohens_d": cdata["cohens_d"],
+                    "cluster": cname, "cluster_id": cluster_id,
+                    "n_cells": n_cells, "n_genes": len(cdata["genes"]),
+                }
+            data = json.dumps(result, separators=(",", ":")).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            err = json.dumps({"error": str(e)}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(err)))
@@ -2963,14 +3103,22 @@ class FleekHandler(SimpleHTTPRequestHandler):
             if ADATA is None or CLUSTER_NAMES is None:
                 raise ValueError("No dataset loaded")
 
-            # Check cache
+            # Check cache (with parent stem fallback for subsets)
+            _parent_stem = ADATA.uns.get("fleek_parent_stem") if ADATA is not None else None
             cache_path, _cw = _cache_read_path(".annot_lineage.json")
+            if not cache_path and _parent_stem and CACHE_DIR:
+                _pp = CACHE_DIR / f"{_parent_stem}.annot_lineage.json"
+                if _pp.exists():
+                    cache_path = _pp
             if cache_path:
                 try:
                     with open(cache_path) as f:
                         cached = json.load(f)
-                    if cached.get("cluster_names") == CLUSTER_NAMES and cached.get("n_cells") == N_CELLS:
-                        print(f"  Lineage loaded from cache")
+                    _cn = cached.get("cluster_names")
+                    _nc = cached.get("n_cells")
+                    _valid = (_cn == CLUSTER_NAMES and _nc == N_CELLS) or (_cn and set(CLUSTER_NAMES).issubset(set(_cn)))
+                    if _valid:
+                        print(f"  Lineage loaded from cache: {cache_path.name if hasattr(cache_path, 'name') else cache_path}")
                         result = {"ok": True, "tree": cached["tree"], "cached": True}
                         data = json.dumps(result).encode("utf-8")
                         self.send_response(200)
@@ -2988,9 +3136,13 @@ class FleekHandler(SimpleHTTPRequestHandler):
             counts = Counter(CLUSTER_IDS.tolist())
 
             # Load Claude annotations for inline context
-            # Priority: cache file > client-supplied predictions
+            # Priority: cache file > parent stem fallback > client-supplied predictions
             llm_preds = {}  # cluster_id -> predicted cell type
             llm_cache_path, _ = _cache_read_path(".annot_llm.json")
+            if not llm_cache_path and _parent_stem and CACHE_DIR:
+                _pp = CACHE_DIR / f"{_parent_stem}.annot_llm.json"
+                if _pp.exists():
+                    llm_cache_path = _pp
             if llm_cache_path:
                 try:
                     with open(llm_cache_path) as f:
@@ -3071,10 +3223,7 @@ Return ONLY a JSON object with this structure (no markdown, no explanation):
 "cluster_ids" is an array of cluster indices that map to this node (empty for inferred nodes).
 Every non-empty cluster_id listed above must appear exactly once in the tree. Empty clusters (0 cells) have been excluded."""
 
-            print(f"  Lineage: llm_preds = {llm_preds}")
-            for _ci in cluster_info:
-                print(f"  Lineage prompt: {_ci}")
-            print(f"  Requesting lineage tree from Claude ({n_in_lineage} cell types)...")
+            print(f"  Requesting lineage tree from Claude ({n_in_lineage} cell types, {len(llm_preds)} with inferred names)...")
             import urllib.request, urllib.error
             request_body = json.dumps({
                 "model": "claude-sonnet-4-20250514",
