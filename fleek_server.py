@@ -2797,15 +2797,20 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+        except BrokenPipeError:
+            pass
         except Exception as e:
             import traceback
             traceback.print_exc()
-            err = json.dumps({"error": str(e)}).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(err)))
-            self.end_headers()
-            self.wfile.write(err)
+            try:
+                err = json.dumps({"error": str(e)}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
+            except BrokenPipeError:
+                pass
 
     def _serve_annotate_llm(self, req):
         """Run cell type annotation using Claude LLM."""
@@ -2821,15 +2826,20 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
+        except BrokenPipeError:
+            pass  # Client disconnected (e.g. abort button) — silently ignore
         except Exception as e:
             import traceback
             traceback.print_exc()
-            err = json.dumps({"error": str(e)}).encode("utf-8")
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(err)))
-            self.end_headers()
-            self.wfile.write(err)
+            try:
+                err = json.dumps({"error": str(e)}).encode("utf-8")
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
+            except BrokenPipeError:
+                pass
 
     def _serve_clear_cache(self, req):
         """Delete a specific cache file."""
@@ -3308,15 +3318,20 @@ Every non-empty cluster_id listed above must appear exactly once in the tree. Em
             self.end_headers()
             self.wfile.write(data)
 
+        except BrokenPipeError:
+            pass
         except Exception as e:
             import traceback
             traceback.print_exc()
-            err = json.dumps({"error": str(e)}).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(err)))
-            self.end_headers()
-            self.wfile.write(err)
+            try:
+                err = json.dumps({"error": str(e)}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
+            except BrokenPipeError:
+                pass
 
     def _serve_compute_embedding(self, req):
         """Compute an embedding on demand (e.g. PaCMAP) and return coordinates."""

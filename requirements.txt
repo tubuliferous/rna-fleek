@@ -1,16 +1,24 @@
 # RNA-FLEEK dependencies
 # Install: pip install -r requirements.txt
 
-# Core (required)
+# Core
 anndata>=0.9
 numpy>=1.21
 scipy>=1.7
 
-# Analysis (required for embeddings, DEG, clustering)
+# Analysis (embeddings, DEG, clustering)
 scanpy>=1.9
+scikit-learn
+matplotlib
+igraph
+leidenalg
+
+# SSL (needed for Claude API calls in bundled app)
+certifi
 
 # PaCMAP embedding (optional — FLEEK works without it)
-pacmap<0.8  # 0.9+ requires faiss/GCC>=9.3, problematic on HPC
+pacmap<0.8
 
-# Server (included in Python stdlib)
-# http.server, json, argparse, threading — no install needed
+# Build only (not needed to run FLEEK)
+# pyinstaller
+# hatchling

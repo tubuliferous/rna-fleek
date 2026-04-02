@@ -29,6 +29,7 @@
   #sidebar-toggle.show{opacity:0.7;pointer-events:auto;}
   #sidebar-toggle.show:hover{opacity:1;}
   #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
+  #sidebar-upper.sb-scrolling .sb-trap,#sidebar-upper .sb-trap.sb-locked{pointer-events:none;}
   #glist,#hvg-scroll,#leg-scroll{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:10px;font-family:inherit;outline:none;margin-top:4px;}
   .sec{padding:10px 14px;border-bottom:1px solid var(--border);}
@@ -69,13 +70,14 @@
   #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
   #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;}
+  #hidden-count{position:absolute;bottom:12px;left:12px;font-size:9px;color:var(--text4);pointer-events:none;display:none;}
   #action-flash{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;pointer-events:none;opacity:0;transition:opacity 0.2s,transform 0.2s;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
   .light #action-flash{box-shadow:0 4px 16px rgba(0,0,0,0.08);}
   #action-flash.show{display:block;opacity:1;transform:translate(-50%,-50%) scale(1);}
   #action-flash .af-label{font-size:13px;font-weight:600;letter-spacing:0.3px;color:var(--text);}
   #action-flash .af-key{display:inline-block;font-size:9px;font-weight:500;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:8px;vertical-align:1px;}
   #loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);padding:20px 32px;border-radius:8px;border:1px solid var(--border);color:var(--accent2);font-weight:600;display:none;pointer-events:none;}
-  #expr-bar{height:12px;border-radius:3px;background:linear-gradient(to right,#120b1d,#27314f,#1e845b,#9ec826,#fde724);}
+  #expr-bar{height:6px;border-radius:3px;background:linear-gradient(to right,#120b1d,#27314f,#1e845b,#9ec826,#fde724);}
   .light #expr-bar{background:linear-gradient(to right,#f7fbff,#c6dbef,#6baed6,#2171b5,#08306b);}
   .elbl{display:flex;justify-content:space-between;font-size:9px;color:var(--text4);margin-top:3px;}
   #gene-sec{display:none;}
@@ -119,6 +121,9 @@
   .light #slice-active-badge{color:#059669!important;}
   .light #slice-footer .sf-count{color:#059669!important;}
   .light .load-badge.cached{color:#059669!important;border-color:rgba(5,150,105,0.2)!important;background:rgba(5,150,105,0.08)!important;}
+  .light .load-badge.cb-claude{color:#7c3aed!important;border-color:rgba(124,58,237,0.25)!important;background:rgba(124,58,237,0.06)!important;}
+  .light .load-badge.cb-lineage{color:#b45309!important;border-color:rgba(180,83,9,0.25)!important;background:rgba(180,83,9,0.06)!important;}
+  .light .load-badge.qm{color:#4338ca!important;border-color:rgba(67,56,202,0.3)!important;background:rgba(67,56,202,0.06)!important;}
   /* Red (#f87171) → deeper red */
   .light #upload-stop-btn{color:#dc2626!important;border-color:#dc2626!important;}
   .light #deg-run-btn.deg-stop{color:#dc2626!important;border-color:#dc2626!important;background:rgba(220,38,38,0.12)!important;}
@@ -134,7 +139,9 @@
   .browse-entry .browse-meta{font-size:9px;color:var(--text4);white-space:nowrap;}
   .load-badge.qm{background:rgba(99,102,241,0.12);color:#818cf8;border:1px dashed rgba(99,102,241,0.25);}
   .load-badge.bk{background:rgba(251,191,36,0.12);color:#fbbf24;border:1px dashed rgba(251,191,36,0.25);}
-  .load-badge.cached{background:rgba(52,211,153,0.12);color:#34d399;border:1px solid rgba(52,211,153,0.15);}
+  .load-badge.cached{background:rgba(52,211,153,0.12);color:#34d399;border:1px solid rgba(52,211,153,0.15);margin-right:2px;}
+  .load-badge.cb-claude{color:#c4b5fd;background:rgba(196,181,253,0.12);border-color:rgba(196,181,253,0.2);}
+  .load-badge.cb-lineage{color:#fbbf24;background:rgba(251,191,36,0.12);border-color:rgba(251,191,36,0.2);}
   .badge-sep{font-size:9px;color:var(--text4);opacity:0.5;flex-basis:100%;line-height:1;margin:2px 0 0 0;}
   .browse-row{display:flex;align-items:center;padding:4px 6px;font-size:9px;cursor:pointer;overflow:hidden;border-radius:3px;margin:1px 0;}
   .browse-row:last-child{border-bottom:none;}
@@ -148,6 +155,18 @@
   .browse-col{min-width:100%;width:100%;flex-shrink:0;overflow-y:auto;border-right:1px solid var(--border);padding:2px;scroll-snap-align:start;box-sizing:border-box;}
   .browse-col:last-child{border-right:none;}
   .hvg-label{font-size:9px;color:var(--text4);margin:6px 0 3px;letter-spacing:0.03em;text-transform:uppercase;font-weight:600;}
+  /* Custom cluster dropdown */
+  .gv-dd{position:relative;flex:1;min-width:0;}
+  .gv-dd-btn{display:flex;align-items:center;gap:4px;width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:4px 24px 4px 6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center;}
+  .gv-dd-btn:hover{border-color:var(--border2);}
+  .gv-dd-list{display:none;position:fixed;min-width:280px;width:max-content;background:var(--bg2);border:1px solid var(--border2);border-radius:4px;max-height:70vh;overflow-y:auto;overflow-x:hidden;z-index:100;padding:3px 0;box-shadow:0 4px 16px rgba(0,0,0,0.25);}
+  .gv-dd.open .gv-dd-list{display:block;}
+  .gv-dd-item{display:flex;align-items:center;padding:3px 6px;font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:2px;margin:0 2px;}
+  .gv-dd-item:hover{background:var(--bg-hover);}
+  .gv-dd-item.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
+  .gv-dd-dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .gv-dd-indent{border-left:1px solid var(--border);margin-left:4px;padding-left:4px;}
+  .gv-dd-group{font-size:8px;color:var(--text4);padding:4px 6px 2px;font-weight:600;cursor:default;}
   /* Lineage tree */
   .lin-node{padding:1px 0;user-select:none;}
   .lin-row{display:flex;align-items:center;gap:4px;padding:3px 5px;border-radius:3px;font-size:9px;cursor:pointer;}
@@ -279,6 +298,10 @@
   #settings-btn:hover{color:var(--text2);border-color:var(--border2);}
   #settings-btn svg{width:14px;height:14px;fill:currentColor;}
   #settings-popup{display:none;position:absolute;bottom:42px;right:12px;z-index:55;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;min-width:220px;backdrop-filter:blur(8px);}
+  #debug-popup{display:none;position:absolute;top:12px;right:12px;z-index:55;background:var(--bg2);border:1px solid #f87171;border-radius:8px;padding:12px 16px;min-width:200px;backdrop-filter:blur(8px);}
+  #debug-popup .s-title{font-size:10px;color:#f87171;font-weight:700;margin-bottom:8px;}
+  #debug-popup .s-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:10px;color:var(--text2);}
+  #debug-popup .dbg-info{font-size:8px;color:var(--text4);font-family:monospace;padding:4px 0;border-top:1px solid var(--border);margin-top:4px;white-space:pre-wrap;word-break:break-all;}
   #settings-popup .s-title{font-size:10px;color:var(--text2);font-weight:700;margin-bottom:8px;}
   #settings-popup .s-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:10px;color:var(--text2);}
   #settings-popup .s-row select{padding:4px 8px;}
@@ -516,17 +539,35 @@
           <option value="umap">UMAP</option>
         </select>
       </div>
-      <div class="lbl" style="margin-top:6px;">Color</div>
-      <select id="color-mode-select" onchange="setMode(this.value)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
-        <option value="cluster">Cell Type / Cluster</option>
-        <option value="gene">Gene Expression</option>
-      </select>
       <div class="lbl" style="margin-top:6px;">Point Size</div>
       <input type="range" id="pt-size" min="1" max="100" step="1" value="50" oninput="setPtSz(this.value,true)" onchange="setPtSz(this.value);this.blur()">
       <div class="lbl" style="margin-top:6px;">Unselected Opacity</div>
       <input type="range" id="pt-opacity" min="0.05" max="1" step="0.05" value="0.7" oninput="setPtOpacity(this.value,true)" onchange="setPtOpacity(this.value);this.blur()">
       <div class="lbl" style="margin-top:6px;">Unselected Brightness</div>
       <input type="range" id="bg-dim" min="0" max="100" step="5" value="100" oninput="setBgDim(100-this.value,true)" onchange="setBgDim(100-this.value);this.blur()" title="How bright non-selected cells appear. Slide left to fade, right for full brightness.">
+      <div class="lbl" style="margin-top:6px;">Color</div>
+      <select id="color-mode-select" onchange="setMode(this.value)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
+        <option value="cluster">Cell Type / Cluster</option>
+        <option value="gene">Gene Expression</option>
+      </select>
+      <div id="expr-controls" style="display:none;">
+        <label style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Show cells with zero detected expression as a ghost color. Toggle off to hide them.">
+          <span style="font-size:9px;color:var(--text3);flex:1;">Non-expressing cells</span>
+          <span class="se-switch"><input type="checkbox" id="show-non-expressing" checked onchange="showNonExpressing=this.checked;recolor();"><span class="se-track"></span></span>
+        </label>
+        <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Scale point area with expression level. High-expressing cells appear larger; non-expressing cells shrink to a tiny dot.">
+          <span style="font-size:9px;color:var(--text3);flex:1;">Expression → size</span>
+          <span class="se-switch"><input type="checkbox" id="show-expr-size" checked onchange="showExprSize=this.checked;recolor();"><span class="se-track"></span></span>
+        </label>
+        <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Show a glow halo around expressing cells. Visible especially when zoomed out.">
+          <span style="font-size:9px;color:var(--text3);flex:1;">Expression glow</span>
+          <span class="se-switch"><input type="checkbox" id="show-glow" checked onchange="showGlow=this.checked;if(haloPts)haloPts.visible=showGlow&&!!(mode==='gene'&&selGene&&geneExprCache[selGene]);"><span class="se-track"></span></span>
+        </label>
+        <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Slowly pulse expressing cells (and glow if enabled) brighter to help spot them.">
+          <span style="font-size:9px;color:var(--text3);flex:1;">Pulse cells</span>
+          <span class="se-switch"><input type="checkbox" id="show-pulse-glow" onchange="pulseGlow=this.checked;"><span class="se-track"></span></span>
+        </label>
+      </div>
       <!-- rot-sec moved to top row with 2D/3D buttons -->
     </div>
   </div>
@@ -557,17 +598,22 @@
     </div>
     <div class="col-body">
       <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()">
-      <div id="glist" style="margin-top:6px;max-height:220px;overflow-y:auto;"></div>
+      <div id="glist" style="margin-top:6px;"></div>
       <div id="hvg-section" style="display:none;margin-top:8px;">
         <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;flex-wrap:wrap;">
           <select id="gv-mode" style="color:var(--text2);" onchange="_gvModeChanged(this.value)">
             <option value="global">Global Variability</option>
             <option value="cluster">By Cell Type</option>
           </select>
-          <span id="gv-dot" style="display:none;width:8px;height:8px;border-radius:50%;flex-shrink:0;cursor:pointer;box-sizing:border-box;" title="Click: toggle · Alt: solo · Shift: select" onclick="_gvDotClick(event)"></span>
-          <select id="gv-cluster" style="display:none;color:var(--text2);max-width:140px;" onchange="_gvClusterChanged(this.value)"></select>
         </div>
-        <div id="hvg-scroll" style="max-height:200px;overflow-y:auto;" onscroll="_gvVirtualRender()">
+        <div id="gv-cluster-row" style="display:none;align-items:center;gap:4px;margin-bottom:3px;">
+          <div id="gv-cluster-dd" class="gv-dd">
+            <button class="gv-dd-btn" onclick="_gvDdToggle(this)"><span id="gv-dd-label" style="display:flex;align-items:center;gap:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">Select cluster...</span></button>
+            <div class="gv-dd-list" id="gv-dd-list"></div>
+          </div>
+          <span id="gv-dot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;cursor:pointer;box-sizing:border-box;" title="Click: toggle · Alt: solo · Shift: select" onclick="_gvDotClick(event)"></span>
+        </div>
+        <div id="hvg-scroll" class="sb-trap" style="max-height:200px;overflow-y:auto;overflow-x:hidden;" onscroll="_gvVirtualRender()">
           <div id="hvg-list"></div>
         </div>
       </div>
@@ -626,7 +672,7 @@
       </div>
       <input type="text" id="type-search" placeholder="Search types &amp; annotations..." oninput="filterTypes()">
       <div id="lineage-tree" style="display:none;margin-top:4px;"></div>
-      <div id="leg-scroll" style="max-height:280px;overflow-y:auto;overflow-x:hidden;margin-top:4px;" onscroll="_legVirtualRender()">
+      <div id="leg-scroll" class="sb-trap" style="max-height:280px;overflow-y:auto;overflow-x:hidden;margin-top:4px;" onscroll="_legVirtualRender()">
         <div id="leg"></div>
       </div>
     </div>
@@ -642,6 +688,7 @@
     <button id="hist-back" onclick="histUndo()" style="background:rgba(0,0,0,0.25);border:none;border-radius:4px 0 0 4px;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.35)'" onmouseleave="this.style.background='rgba(0,0,0,0.25)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
     <button id="hist-fwd" onclick="histRedo()" style="background:rgba(0,0,0,0.25);border:none;border-radius:0 4px 4px 0;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.35)'" onmouseleave="this.style.background='rgba(0,0,0,0.25)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
+  <div id="hidden-count"></div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="action-flash"></div>
   <div id="no-key-banner">
@@ -650,7 +697,7 @@
     <button class="nbr-close" onclick="document.getElementById('no-key-banner').style.display='none'" title="Dismiss">&times;</button>
   </div>
   <div id="loading">Connecting to server...</div>
-  <button id="settings-btn" onclick="toggleSettings()" title="Settings">
+  <button id="settings-btn" onclick="toggleSettings(event)" title="Settings">
     <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
   </button>
   <div id="settings-popup">
@@ -663,29 +710,11 @@
       </select>
     </div>
     <div class="s-row">
-      <span>Zoom target</span>
-      <select id="set-zoom-mode" onchange="saveSettings()">
-        <option value="cursor">Cursor position</option>
-        <option value="center">Screen center</option>
-      </select>
-    </div>
-    <div class="s-row">
       <span>UI scale</span>
       <div style="display:flex;align-items:center;gap:6px;">
         <input type="range" id="set-ui-scale" min="0.75" max="1.5" step="0.05" value="1" oninput="document.getElementById('ui-scale-label').textContent=Math.round(this.value*100)+'%'" onchange="applyUIScale(this.value);saveSettings()" style="width:80px;">
         <span id="ui-scale-label" style="font-size:9px;color:var(--text3);min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">100%</span>
       </div>
-    </div>
-    <div class="s-row">
-      <span>FPS counter</span>
-      <label class="s-toggle"><input type="checkbox" id="set-fps" onchange="toggleFPS();saveSettings()"><span class="s-slider"></span></label>
-    </div>
-    <div class="s-row">
-      <span>Selection highlight</span>
-      <select id="set-highlight" onchange="setHighlightMode(this.value);saveSettings()">
-        <option value="fill">Fill (Replace Color)</option>
-        <option value="ring" selected>Ring (Show Color Through)</option>
-      </select>
     </div>
     <div class="s-row">
       <span>Hint bar</span>
@@ -715,6 +744,49 @@
         <option value="server">Server Directory</option>
       </select>
     </div>
+  </div>
+  <div id="debug-popup">
+    <div class="s-title">Debug</div>
+    <div class="s-row">
+      <span>Raycast marker</span>
+      <label class="s-toggle"><input type="checkbox" id="dbg-raycast" onchange="_dbgRaycast=this.checked;if(!this.checked&&_dbgMarker)_dbgMarker.visible=false;"><span class="s-slider"></span></label>
+    </div>
+    <div class="s-row">
+      <span>Show ray</span>
+      <label class="s-toggle"><input type="checkbox" id="dbg-ray" onchange="_dbgShowRay=this.checked;if(!this.checked&&_dbgRayLine)_dbgRayLine.visible=false;"><span class="s-slider"></span></label>
+    </div>
+    <div class="s-row">
+      <span>Marker size</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="range" id="dbg-marker-sz" min="0.1" max="5" step="0.1" value="0.6" oninput="document.getElementById('dbg-sz-label').textContent=this.value+'×'" style="width:70px;">
+        <span id="dbg-sz-label" style="font-size:9px;color:var(--text3);min-width:24px;text-align:right;font-variant-numeric:tabular-nums;">0.6×</span>
+      </div>
+    </div>
+    <div class="s-row">
+      <span>Zoom target</span>
+      <select id="set-zoom-mode" onchange="saveSettings()">
+        <option value="cursor">Cursor position</option>
+        <option value="center">Screen center</option>
+      </select>
+    </div>
+    <div class="s-row">
+      <span>FPS counter</span>
+      <label class="s-toggle"><input type="checkbox" id="set-fps" onchange="toggleFPS();saveSettings()"><span class="s-slider"></span></label>
+    </div>
+    <div class="s-row">
+      <span>Selection highlight</span>
+      <select id="set-highlight" onchange="setHighlightMode(this.value);saveSettings()">
+        <option value="fill">Fill (Replace Color)</option>
+        <option value="ring" selected>Ring (Show Color Through)</option>
+      </select>
+    </div>
+    <div class="s-row">
+      <span>BG scheme</span>
+      <select id="dbg-bg-scheme" onchange="_bgScheme=this.value;recolor();">
+        <option value="background01">background01</option>
+      </select>
+    </div>
+    <div class="dbg-info" id="dbg-info"></div>
   </div>
   <svg id="crosshair" width="24" height="24" viewBox="0 0 24 24">
     <line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1" stroke-opacity="0.4"/>
@@ -1016,7 +1088,15 @@
       </div>
       <div class="help-sec-body">
         <p>The Gene panel is always visible in the sidebar. Switch to <strong>Gene Expression</strong> coloring with <span class="help-key">G</span> or click the Gene Expression button. Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP. When the panel is collapsed, the currently selected gene name appears in the header.</p>
-        <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a colorscale: <strong>Viridis</strong> (dark mode) or <strong>Blues sequential</strong> (light mode, where low expression fades into the white background). The expression legend (colormap bar) appears inside the Gene panel when a gene is selected.</p>
+        <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a colorscale: <strong>Viridis</strong> (dark mode) or <strong>Blues sequential</strong> (light mode). The expression legend (colormap bar) appears inside the Gene panel when a gene is selected.</p>
+        <p>When Gene Expression coloring is active, additional controls appear in the View panel:</p>
+        <ul style="margin:4px 0 6px 16px;font-size:11px;line-height:1.5;">
+          <li><strong>Non-expressing cells</strong> — toggle visibility of cells with zero detected expression. When on (default), they appear as subtle ghost dots; when off, they are hidden entirely.</li>
+          <li><strong>Expression → size</strong> — scales point area proportionally to expression level. High-expressing cells appear larger; non-expressing cells shrink to tiny dots.</li>
+          <li><strong>Expression glow</strong> — adds a halo glow around expressing cells, making them stand out at a distance. The glow size adapts with zoom level.</li>
+          <li><strong>Pulse cells</strong> — slowly pulses expressing cells and their glow brighter (towards white in dark mode, deep navy in light mode) to help spot them. The halo also breathes in size with the pulse.</li>
+        </ul>
+        <p>A hidden cell counter appears in the bottom-left corner of the canvas when any cells are invisible (hidden clusters, slice filter, or non-expressing toggle).</p>
         <p><strong>Gene Variability</strong> — a ranked list of all genes shown below the search box. A dropdown at the top switches between two modes:</p>
         <ul style="margin:4px 0 6px 16px;font-size:11px;line-height:1.5;">
           <li><strong>Global variability</strong> (default) — genes ranked by variability score, measuring how much more (or less) variable each gene is than expected for its expression level. <strong>When a dataset already contains a variability metric</strong> (e.g. <code>dispersions_norm</code> from scanpy), that metric is used directly. <strong>When no pre-computed metric exists</strong>, FLEEK computes its own using the <em>locally standardized trend residual</em> method — see <strong>Methods &amp; Statistics</strong> below for full details. HVG genes appear bold with accent-colored bars.</li>
@@ -1209,6 +1289,7 @@
           <tr><td><span class="help-key">R</span></td><td>Reset view</td></tr>
           <tr><td><span class="help-key">D</span></td><td>Toggle 2D/3D view</td></tr>
           <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
+          <tr><td><span class="help-key">A</span></td><td>Show all cells / hide all cells (press again to restore)</td></tr>
           <tr><td><span class="help-key">T</span></td><td>Toggle dark/light theme</td></tr>
           <tr><td><span class="help-key">\</span></td><td>Toggle sidebar</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">General</th></tr>
@@ -1359,6 +1440,34 @@ var _ALT=_isMac?"⌥":"Alt"; /* alt/option label */
 var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 var D=null, mode="cluster", selGene="", geneExprCache={};
+var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
+var showExprSize=true; /* scale point size with expression level in gene mode */
+var showGlow=true; /* show expression halo glow */
+var pulseGlow=false; /* pulse expression halo on/off */
+/* Background point schemes — each defines ghost color, alpha, size for non-expressing cells,
+   halo colors, and pulse target for both dark and light themes */
+var _bgSchemes={
+  background01:{
+    label:"background01",
+    dark:{ghostColor:[.18,.19,.26],ghostAlpha:0.45,ghostSize:0.10,
+          haloBase:[null],haloPulseTarget:[1,1,1],
+          cellPulseTarget:[1,1,1]},
+    light:{ghostColor:[.72,.74,.80],ghostAlpha:0.45,ghostSize:0.10,
+           haloBase:[0.05,0.25,0.55],haloPulseTarget:[0.02,0.05,0.18],
+           cellPulseTarget:[0.02,0.05,0.18]}
+  }
+};
+var _bgScheme="background01";
+function _getBgScheme(){
+  var s=_bgSchemes[_bgScheme];if(!s)s=_bgSchemes["background01"];
+  return document.body.classList.contains("light")?s.light:s.dark;
+}
+var _hoverIdx=-1; /* index of cell under cursor, -1 if none */
+var _hoverPrevColor=null; /* original RGB to restore when hover leaves */
+var _dbgRaycast=false; /* debug: show raycast hit marker */
+var _dbgMarker=null; /* debug: THREE.Mesh sphere at raycast hit */
+var _dbgShowRay=false; /* debug: show ray line */
+var _dbgRayLine=null; /* debug: THREE.Line for ray visualization */
 var recentGenes=[]; /* most recently viewed genes, newest first */
 var hvgGenes=[]; /* highly variable genes from server */
 var hvgVar={};   /* gene_name -> variance value */
@@ -1571,15 +1680,30 @@ function applyHistEntry(snap){
     var td=viewIs3d?3:2;
     if(emb&&emb[td])positionPts(D,td);
   }
-  /* Restore camera AFTER repositioning */
-  if(s.sph){sph.theta=s.sph.theta;sph.phi=s.sph.phi;sph.radius=s.sph.radius;}
-  if(s.tgt3){tgt3.set(s.tgt3.x,s.tgt3.y,s.tgt3.z);}
-  if(s.pan2){pan2.x=s.pan2.x;pan2.y=s.pan2.y;}
-  if(s.zoom2!==undefined)zoom2=s.zoom2;
+  /* Restore camera AFTER repositioning — animate the transition */
+  _flyAnim=null;
+  if(viewIs3d&&s.sph&&s.tgt3){
+    _flyAnim={t0:performance.now(),dur:400,mode:"3d",_noHist:true,
+      fromTgt:{x:tgt3.x,y:tgt3.y,z:tgt3.z},toTgt:{x:s.tgt3.x,y:s.tgt3.y,z:s.tgt3.z},
+      fromR:sph.radius,toR:s.sph.radius,
+      fromTheta:sph.theta,toTheta:s.sph.theta,
+      fromPhi:sph.phi,toPhi:s.sph.phi};
+  }else if(!viewIs3d&&s.pan2&&s.zoom2!==undefined){
+    _flyAnim={t0:performance.now(),dur:400,mode:"2d",_noHist:true,
+      fromPan:{x:pan2.x,y:pan2.y},toPan:{x:s.pan2.x,y:s.pan2.y},
+      fromZoom:zoom2,toZoom:s.zoom2};
+  }else{
+    /* Fallback: direct set if mode mismatch */
+    if(s.sph){sph.theta=s.sph.theta;sph.phi=s.sph.phi;sph.radius=s.sph.radius;}
+    if(s.tgt3){tgt3.set(s.tgt3.x,s.tgt3.y,s.tgt3.z);}
+    if(s.pan2){pan2.x=s.pan2.x;pan2.y=s.pan2.y;}
+    if(s.zoom2!==undefined)zoom2=s.zoom2;
+  }
   if(s.mode){mode=s.mode;}
   if(s.mode==="gene"&&s.selGene){selGene=s.selGene;}
   var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value=mode;
   document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
+  document.getElementById("expr-controls").style.display=(mode==="gene")?"block":"none";
 
   /* Single recolor + UI updates at the end */
   recolor();
@@ -1623,8 +1747,9 @@ function saveState(){
   /* Debounced auto-save to server */
   _sessionAutoSave();
 }
+var _camHistTimer=null;
 function saveCameraOnly(){
-  /* Persist camera for refresh, but don't create undo entry */
+  /* Persist camera for refresh + debounced undo entry */
   try{
     var s={
       viewIs3d:viewIs3d, embMethod:embMethod, mode:mode, selGene:selGene,
@@ -1638,6 +1763,9 @@ function saveCameraOnly(){
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
+  /* Debounced history push — wait for camera to settle */
+  clearTimeout(_camHistTimer);
+  _camHistTimer=setTimeout(pushHistory,500);
 }
 function loadState(){
   try{
@@ -2263,6 +2391,7 @@ function parseInit(buf){
 var circleTexture=null;
 var ringTexture=null;
 var ringPts=null; /* second point cloud for ring highlights */
+var haloPts=null; /* third point cloud for expression halos */
 var highlightMode="ring"; /* "fill" or "ring" */
 var bgDimPct=0; /* 0-100: how much non-selected cells are dimmed */
 var _hadSelection=false; /* tracks whether selections existed last recolor */
@@ -2313,13 +2442,13 @@ function makeRingTexture(){
   c2.width=sz;c2.height=sz;
   var ctx=c2.getContext("2d");
   var r=sz/2;
-  /* Ring: transparent center, solid edge band */
+  /* Ring: transparent center, tight band at outer edge */
   var grad=ctx.createRadialGradient(r,r,0,r,r,r);
   grad.addColorStop(0,"rgba(255,255,255,0)");
-  grad.addColorStop(0.55,"rgba(255,255,255,0)");
-  grad.addColorStop(0.65,"rgba(255,255,255,0.9)");
-  grad.addColorStop(0.8,"rgba(255,255,255,1)");
-  grad.addColorStop(0.9,"rgba(255,255,255,0.7)");
+  grad.addColorStop(0.62,"rgba(255,255,255,0)");
+  grad.addColorStop(0.72,"rgba(255,255,255,0.9)");
+  grad.addColorStop(0.85,"rgba(255,255,255,1)");
+  grad.addColorStop(0.93,"rgba(255,255,255,0.6)");
   grad.addColorStop(1,"rgba(255,255,255,0)");
   ctx.fillStyle=grad;
   ctx.fillRect(0,0,sz,sz);
@@ -2454,6 +2583,7 @@ function positionPts(data,nD){
 function buildPts(data){
   if(pts){scene.remove(pts);pts.geometry.dispose();pts.material.dispose();}
   if(ringPts){scene.remove(ringPts);ringPts.geometry.dispose();ringPts.material.dispose();ringPts=null;}
+  if(haloPts){scene.remove(haloPts);haloPts.material.dispose();haloPts=null;}
   D=data;
   hvgGenes=data.header.hvg_genes||[];
   hvgVar=data.header.hvg_var||{};
@@ -2485,6 +2615,10 @@ function buildPts(data){
   var geo=new THREE.BufferGeometry();
   geo.setAttribute("position",new THREE.BufferAttribute(pos,3));
   geo.setAttribute("color",new THREE.BufferAttribute(col,3));
+  var szArr=new Float32Array(n).fill(1.0);
+  geo.setAttribute('aSize',new THREE.BufferAttribute(szArr,1));
+  var alArr=new Float32Array(n).fill(1.0);
+  geo.setAttribute('aAlpha',new THREE.BufferAttribute(alArr,1));
   circleTexture=makeCircleTexture(document.body.classList.contains("light"));
   /* Auto-scale point size: slider 1-100, actual size computed per-frame in animate().
      Default position depends on cell count — fewer cells = bigger points. */
@@ -2494,7 +2628,17 @@ function buildPts(data){
   document.getElementById("pt-size").value=autoSlider;
   document.getElementById("pt-opacity").value=autoOpacity;
   var _isLight=document.body.classList.contains("light");
-  var mat=new THREE.PointsMaterial({size:1,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:autoOpacity,depthWrite:true,map:circleTexture,alphaTest:_isLight?0.5:0.05});
+  var _bsInit=_getBgScheme();
+  /* Per-vertex size ShaderMaterial — proxies PointsMaterial interface */
+  var _pvs='attribute float aSize;\nattribute float aAlpha;\nvarying vec3 vColor;\nvarying float vAlpha;\nuniform float uSize;\nuniform float uVpH;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat sz=uSize*aSize;\nif(uVpH>0.0)sz*=uVpH/(-mv.z);\nvAlpha=aAlpha;\ngl_PointSize=max(sz,0.5);\ngl_Position=projectionMatrix*mv;\n}';
+  var _pfs='uniform sampler2D uMap;\nuniform float uOpa;\nuniform float uAT;\nuniform float uPulse;\nuniform vec3 uCellPulse;\nvarying vec3 vColor;\nvarying float vAlpha;\nvoid main(){\nvec4 t=texture2D(uMap,gl_PointCoord);\nif(t.a<uAT)discard;\nif(vAlpha>=1.0&&uPulse>1.0){\nfloat w=clamp((uPulse-1.0)/1.5,0.0,0.35);\nvec3 pt=uCellPulse;\nvec3 pc=mix(vColor,pt,w);\ngl_FragColor=vec4(pc,vAlpha*uOpa*t.a);\n}else{\ngl_FragColor=vec4(vColor,vAlpha*uOpa*t.a);\n}\n}';
+  var mat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uMap:{value:circleTexture},uOpa:{value:autoOpacity},uAT:{value:_isLight?0.5:0.05},uPulse:{value:1.0},uCellPulse:{value:new THREE.Vector3(_bsInit.cellPulseTarget[0],_bsInit.cellPulseTarget[1],_bsInit.cellPulseTarget[2])}},vertexShader:_pvs,fragmentShader:_pfs,transparent:true,vertexColors:true,depthWrite:true});
+  Object.defineProperty(mat,'size',{get:function(){return mat.uniforms.uSize.value;},set:function(v){mat.uniforms.uSize.value=v;}});
+  Object.defineProperty(mat,'opacity',{get:function(){return mat.uniforms.uOpa.value;},set:function(v){mat.uniforms.uOpa.value=v;}});
+  Object.defineProperty(mat,'alphaTest',{get:function(){return mat.uniforms.uAT.value;},set:function(v){mat.uniforms.uAT.value=v;}});
+  Object.defineProperty(mat,'map',{get:function(){return mat.uniforms.uMap.value;},set:function(v){mat.uniforms.uMap.value=v;}});
+  Object.defineProperty(mat,'sizeAttenuation',{get:function(){return mat.uniforms.uVpH.value>0;},set:function(v){}});
+  Object.defineProperty(mat,'needsUpdate',{get:function(){return false;},set:function(v){}});
   pts=new THREE.Points(geo,mat);
   scene.add(pts);
   /* Ring highlight layer — same number of points, initially hidden */
@@ -2505,11 +2649,32 @@ function buildPts(data){
   var ringGeo=new THREE.BufferGeometry();
   ringGeo.setAttribute("position",new THREE.BufferAttribute(ringPos,3));
   ringGeo.setAttribute("color",new THREE.BufferAttribute(ringCol,3));
-  var ringMat=new THREE.PointsMaterial({size:1.8,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:0.85,depthWrite:false,depthTest:false,map:ringTexture,alphaTest:0.05});
+  var ringSzArr=new Float32Array(n).fill(1.0);
+  ringGeo.setAttribute('aSize',new THREE.BufferAttribute(ringSzArr,1));
+  /* Procedural ring shader — fixed pixel-width band regardless of point size */
+  var _rvs='attribute float aSize;\nvarying vec3 vColor;\nvarying float vCF;\nvarying float vTsz;\nuniform float uSize;\nuniform float uVpH;\nuniform float uRPx;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat csz=uSize*aSize;\nif(uVpH>0.0)csz*=uVpH/(-mv.z);\nfloat tsz=csz+uRPx*2.0;\ngl_PointSize=max(tsz,0.5);\nvCF=csz/max(tsz,0.5);\nvTsz=gl_PointSize;\ngl_Position=projectionMatrix*mv;\n}';
+  var _rfs='varying vec3 vColor;\nvarying float vCF;\nvarying float vTsz;\nuniform float uOpa;\nuniform float uRPx;\nvoid main(){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat ce=vCF*0.92;\nfloat rw=uRPx*2.0/max(vTsz,1.0);\nfloat a=smoothstep(ce-rw*0.3,ce,d)*(1.0-smoothstep(ce+rw*0.8,ce+rw,d));\nif(a<0.05)discard;\ngl_FragColor=vec4(vColor,a*uOpa);\n}';
+  var ringMat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uRPx:{value:5.0},uOpa:{value:0.85}},vertexShader:_rvs,fragmentShader:_rfs,transparent:true,vertexColors:true,depthWrite:false,depthTest:false});
+  Object.defineProperty(ringMat,'size',{get:function(){return ringMat.uniforms.uSize.value;},set:function(v){ringMat.uniforms.uSize.value=v;}});
+  Object.defineProperty(ringMat,'sizeAttenuation',{get:function(){return ringMat.uniforms.uVpH.value>0;},set:function(v){}});
+  Object.defineProperty(ringMat,'needsUpdate',{get:function(){return false;},set:function(v){}});
   ringPts=new THREE.Points(ringGeo,ringMat);
-  ringPts.renderOrder=1;
+  ringPts.renderOrder=3;
   ringPts.visible=false;
   scene.add(ringPts);
+  /* Halo layer — separate point cloud, purely additive, rendered behind cells */
+  var haloGeo=new THREE.BufferGeometry();
+  haloGeo.setAttribute('position',geo.getAttribute('position'));
+  haloGeo.setAttribute('color',geo.getAttribute('color'));
+  haloGeo.setAttribute('aSize',geo.getAttribute('aSize'));
+  haloGeo.setAttribute('aAlpha',geo.getAttribute('aAlpha'));
+  var _hvs='attribute float aSize;\nattribute float aAlpha;\nvarying vec3 vColor;\nvarying float vHF;\nuniform float uSize;\nuniform float uVpH;\nuniform float uPulse;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat sz=uSize*aSize;\nif(uVpH>0.0)sz*=uVpH/(-mv.z);\nbool expr=aAlpha>=1.0&&aSize>0.15;\nfloat hfSz=max(1.0-smoothstep(5.0,30.0,sz),0.2);\nfloat hBase=mix(2.5,8.0,hfSz);\nfloat pf=smoothstep(0.0,1.5,uPulse-1.0);\nfloat hm=expr?hBase*1.5:0.0;\nfloat tsz=sz*hm;\ngl_PointSize=expr?max(tsz,0.5):0.0;\nvHF=expr?max(1.0-smoothstep(15.0,30.0,sz),0.2)/max(hm,1.0):0.0;\ngl_Position=expr?projectionMatrix*mv:vec4(0.0,0.0,-2.0,1.0);\n}';
+  var _hfs='varying vec3 vColor;\nvarying float vHF;\nuniform float uLight;\nuniform float uPulse;\nuniform vec3 uHaloBase;\nuniform vec3 uHaloPulse;\nvoid main(){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat ha=(1.0-smoothstep(0.15,0.85,d))*0.9*vHF*uPulse;\nif(ha<0.01)discard;\nfloat pw=clamp((uPulse-1.0)/1.5,0.0,0.6);\nif(uLight>0.5){\nvec3 hc=mix(uHaloBase,uHaloPulse,pw);\ngl_FragColor=vec4(hc,ha);\n}else{\nvec3 hc=mix(vColor,uHaloPulse,pw);\ngl_FragColor=vec4(hc*ha,0.0);\n}\n}';
+  var haloMat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uLight:{value:_isLight?1.0:0.0},uPulse:{value:1.0},uHaloBase:{value:new THREE.Vector3(_bsInit.haloBase[0]||0,_bsInit.haloBase[1]||0,_bsInit.haloBase[2]||0)},uHaloPulse:{value:new THREE.Vector3(_bsInit.haloPulseTarget[0],_bsInit.haloPulseTarget[1],_bsInit.haloPulseTarget[2])}},vertexShader:_hvs,fragmentShader:_hfs,transparent:true,vertexColors:true,depthWrite:false,depthTest:true,blending:THREE.CustomBlending,blendSrc:_isLight?THREE.SrcAlphaFactor:THREE.OneFactor,blendDst:_isLight?THREE.OneMinusSrcAlphaFactor:THREE.OneFactor});
+  haloPts=new THREE.Points(haloGeo,haloMat);
+  haloPts.renderOrder=1;
+  haloPts.visible=false;
+  scene.add(haloPts);
   var ad=data.availDims;
   var has3=ad.indexOf(3)>=0,has2=ad.indexOf(2)>=0;
   /* Populate embedding dropdown */
@@ -2578,6 +2743,7 @@ function getBG(){return document.body.classList.contains("light")?[0.96,0.97,0.9
 var EXILE=99999; // off-screen position for hidden cells
 function recolor(){
   if(!D||!pts)return;
+  _hoverIdx=-1;_hoverPrevColor=null; /* recolor overwrites buffer, clear hover state */
   var col=pts.geometry.attributes.color.array,n=D.header.n_cells;
   var pos=pts.geometry.attributes.position.array;
   var BG=getBG();
@@ -2615,9 +2781,8 @@ function recolor(){
     document.getElementById("bg-dim").value=100;
   }
   _hadSelection=hasAnyVisible;
-  /* Dim applies only when visible selections exist. */
-  var dimFactor=hasAnyVisible?(1-bgDimPct/100):1;
-  var dimBias=hasAnyVisible?(bgDimPct/100):0;
+  var dimFactor=1-bgDimPct/100;
+  var dimBias=bgDimPct/100;
 
   /* Ring layer positions/colors */
   var ringPos=ringPts?ringPts.geometry.attributes.position.array:null;
@@ -2627,10 +2792,21 @@ function recolor(){
   /* Determine color source: gene expression if available, else cluster */
   var useGene=mode==="gene"&&selGene&&geneExprCache[selGene];
   var ex=useGene?geneExprCache[selGene]:null;
+  if(haloPts)haloPts.visible=showGlow&&!!useGene;
+  /* Update scheme uniforms */
+  var _bsu=_getBgScheme();
+  if(pts.material.uniforms&&pts.material.uniforms.uCellPulse)pts.material.uniforms.uCellPulse.value.set(_bsu.cellPulseTarget[0],_bsu.cellPulseTarget[1],_bsu.cellPulseTarget[2]);
+  if(haloPts&&haloPts.material.uniforms){
+    var _hu=haloPts.material.uniforms;
+    _hu.uHaloBase.value.set(_bsu.haloBase[0]||0,_bsu.haloBase[1]||0,_bsu.haloBase[2]||0);
+    _hu.uHaloPulse.value.set(_bsu.haloPulseTarget[0],_bsu.haloPulseTarget[1],_bsu.haloPulseTarget[2]);
+  }
 
+  var _nHidden=0;
   for(var i=0;i<n;i++){
     var cid=D.cluster_ids[i];
     if(visibleClusters[cid]===false||(sliceMask&&!sliceMask[i])){
+      _nHidden++;
       col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
       pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
       if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
@@ -2640,7 +2816,19 @@ function recolor(){
     var sg=cellGroupMap?cellGroupMap[i]:-1;
     var inGroup=sg>=0&&sg<selGroups.length&&groupVisible[selGroups[sg].id]!==false;
     /* Base color from gene expression or cluster */
-    var c=useGene?ec(ex[i]):cc(cid);
+    var c;
+    if(useGene){
+      var isZero=ex[i]<0.01;
+      if(isZero&&!showNonExpressing){
+        _nHidden++;
+        col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
+        pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
+        if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+        continue;
+      }
+      var _bs=_getBgScheme();
+      c=isZero?_bs.ghostColor:ec(ex[i]);
+    }else{c=cc(cid);}
     if(inGroup&&!useRing){
       var sc=selGroups[sg].color;
       col[i*3]=sc[0];col[i*3+1]=sc[1];col[i*3+2]=sc[2];
@@ -2659,12 +2847,37 @@ function recolor(){
       }
     }
   }
+  /* Update per-vertex point sizes and alpha for expression mode */
+  var _szAttr=pts.geometry.attributes.aSize;
+  var _alAttr=pts.geometry.attributes.aAlpha;
+  if(_szAttr&&_alAttr){
+    var _szArr=_szAttr.array,_alArr=_alAttr.array;
+    for(var _si=0;_si<n;_si++){
+      var _bss=_getBgScheme();
+      _szArr[_si]=(useGene&&showExprSize&&ex)?(ex[_si]<0.01?_bss.ghostSize:Math.max(0.38,Math.sqrt(ex[_si])*1.8)):1.0;
+      _alArr[_si]=(useGene&&ex&&ex[_si]<0.01)?_bss.ghostAlpha:1.0;
+    }
+    _szAttr.needsUpdate=true;
+    _alAttr.needsUpdate=true;
+  }
+  /* Update hidden cell count display */
+  var _hcEl=document.getElementById("hidden-count");
+  if(_hcEl){
+    if(_nHidden>0){_hcEl.textContent=_nHidden.toLocaleString()+" / "+n.toLocaleString()+" cells hidden";_hcEl.style.display="block";}
+    else{_hcEl.style.display="none";}
+  }
   pts.geometry.attributes.color.needsUpdate=true;
   pts.geometry.attributes.position.needsUpdate=true;
   if(ringPts){
     ringPts.visible=showRingLayer;
     ringPts.geometry.attributes.color.needsUpdate=true;
     ringPts.geometry.attributes.position.needsUpdate=true;
+    var _rszAttr=ringPts.geometry.attributes.aSize;
+    if(_rszAttr&&_szAttr){
+      var _rszArr=_rszAttr.array,_mszArr=_szAttr.array;
+      for(var _ri=0;_ri<n;_ri++)_rszArr[_ri]=_mszArr[_ri];
+      _rszAttr.needsUpdate=true;
+    }
   }
 }
 
@@ -2678,12 +2891,14 @@ function _tickFly(){
     tgt3.y=_flyAnim.fromTgt.y+(_flyAnim.toTgt.y-_flyAnim.fromTgt.y)*ease;
     tgt3.z=_flyAnim.fromTgt.z+(_flyAnim.toTgt.z-_flyAnim.fromTgt.z)*ease;
     sph.radius=_flyAnim.fromR+(_flyAnim.toR-_flyAnim.fromR)*ease;
+    if(_flyAnim.toTheta!==undefined){sph.theta=_flyAnim.fromTheta+(_flyAnim.toTheta-_flyAnim.fromTheta)*ease;}
+    if(_flyAnim.toPhi!==undefined){sph.phi=_flyAnim.fromPhi+(_flyAnim.toPhi-_flyAnim.fromPhi)*ease;}
   }else{
     pan2.x=_flyAnim.fromPan.x+(_flyAnim.toPan.x-_flyAnim.fromPan.x)*ease;
     pan2.y=_flyAnim.fromPan.y+(_flyAnim.toPan.y-_flyAnim.fromPan.y)*ease;
     zoom2=_flyAnim.fromZoom+(_flyAnim.toZoom-_flyAnim.fromZoom)*ease;
   }
-  if(t>=1){_flyAnim=null;saveCameraOnly();}
+  if(t>=1){var _noHist=_flyAnim._noHist;_flyAnim=null;if(_noHist){try{var _s={viewIs3d:viewIs3d,embMethod:embMethod,mode:mode,selGene:selGene,visibleClusters:visibleClusters,autoRotate:autoRotate,ptSize:basePtSz,ptOpacity:pts?pts.material.opacity:0.7,bgDim:bgDimPct,sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2,selGroups:_serializeSel(),activeGroupId:activeGroupId,selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible))};sessionStorage.setItem("fleek_state",JSON.stringify(_s));}catch(e){}}else{saveCameraOnly();}}
 }
 function animate(){
   requestAnimationFrame(animate);
@@ -2732,15 +2947,21 @@ function animate(){
     var worldSz=basePtSz/100*maxWorldSz;
     if(viewIs3d){
       pts.material.size=worldSz;
-      if(ringPts)ringPts.material.size=worldSz*1.8;
+      if(ringPts)ringPts.material.size=worldSz;
     }else{
       /* Convert world units → pixels, then scale down for 2D (points don't need
          to fill depth gaps like in 3D, so smaller looks better) */
       var pxPerWorld=canvasH*zoom2/(2*frustum2);
       var px=worldSz*pxPerWorld*0.5;
       pts.material.size=px;
-      if(ringPts)ringPts.material.size=px*1.8;
+      if(ringPts)ringPts.material.size=px;
     }
+    var _vpH=viewIs3d?(canvasH*Math.min(window.devicePixelRatio,2)*0.5):0;
+    if(pts.material.uniforms)pts.material.uniforms.uVpH.value=_vpH;
+    if(ringPts&&ringPts.material.uniforms)ringPts.material.uniforms.uVpH.value=_vpH;
+    var _pulse=(pulseGlow&&mode==="gene"&&selGene&&geneExprCache[selGene])?1.0+1.5*(0.5+0.5*Math.sin(performance.now()*0.002)):1.0;
+    if(pts.material.uniforms&&pts.material.uniforms.uPulse)pts.material.uniforms.uPulse.value=_pulse;
+    if(haloPts&&haloPts.material.uniforms){haloPts.material.uniforms.uVpH.value=_vpH;haloPts.material.uniforms.uSize.value=pts.material.size;haloPts.material.uniforms.uPulse.value=_pulse;}
   }
 
   /* Hover raycast — adaptive throttle: more cells = less frequent */
@@ -2751,7 +2972,45 @@ function animate(){
     raycaster.params.Points.threshold=pickThreshold();
     var cam=viewIs3d?cam3d:cam2d;
     raycaster.setFromCamera(mouseNDC,cam);
+    /* Debug ray visualization */
+    if(_dbgShowRay){
+      if(!_dbgRayLine){
+        var _rlGeo=new THREE.BufferGeometry();
+        _rlGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));
+        _dbgRayLine=new THREE.Line(_rlGeo,new THREE.LineBasicMaterial({color:0x00ff00,depthTest:false,transparent:true,opacity:0.8}));
+        _dbgRayLine.renderOrder=10;
+        scene.add(_dbgRayLine);
+      }
+      var _rO=raycaster.ray.origin;
+      var _rD=raycaster.ray.direction;
+      var _rLen=cloudBounds?cloudBounds.radius*4:100;
+      var _rEnd=new THREE.Vector3(_rO.x+_rD.x*_rLen,_rO.y+_rD.y*_rLen,_rO.z+_rD.z*_rLen);
+      var _rlPos=_dbgRayLine.geometry.attributes.position.array;
+      _rlPos[0]=_rO.x;_rlPos[1]=_rO.y;_rlPos[2]=_rO.z;
+      _rlPos[3]=_rEnd.x;_rlPos[4]=_rEnd.y;_rlPos[5]=_rEnd.z;
+      _dbgRayLine.geometry.attributes.position.needsUpdate=true;
+      _dbgRayLine.visible=true;
+    }else if(_dbgRayLine){_dbgRayLine.visible=false;}
     var hits=raycaster.intersectObject(pts);
+    /* Hover highlight — brighten hovered cell */
+    var _col=pts.geometry.attributes.color.array;
+    var _newHover=-1;
+    if(hits.length>0){var _bh=_bestVisibleHit(hits);if(_bh)_newHover=_bh.index;}
+    if(_newHover!==_hoverIdx){
+      if(_hoverIdx>=0&&_hoverPrevColor){
+        _col[_hoverIdx*3]=_hoverPrevColor[0];_col[_hoverIdx*3+1]=_hoverPrevColor[1];_col[_hoverIdx*3+2]=_hoverPrevColor[2];
+      }
+      if(_newHover>=0){
+        _hoverPrevColor=[_col[_newHover*3],_col[_newHover*3+1],_col[_newHover*3+2]];
+        var _isL=document.body.classList.contains("light");
+        var _hf=_isL?0.6:0.4;
+        _col[_newHover*3]=_hoverPrevColor[0]*(1-_hf)+_hf;
+        _col[_newHover*3+1]=_hoverPrevColor[1]*(1-_hf)+_hf;
+        _col[_newHover*3+2]=_hoverPrevColor[2]*(1-_hf)+_hf;
+      }else{_hoverPrevColor=null;}
+      _hoverIdx=_newHover;
+      pts.geometry.attributes.color.needsUpdate=true;
+    }
     if(hits.length>0){
       var bestHit=_bestVisibleHit(hits);
       var idx=bestHit?bestHit.index:-1;
@@ -2785,9 +3044,36 @@ function animate(){
         tooltipEl.style.display="block";
         tooltipEl.style.left=(mouseScreenX+12)+"px";
         tooltipEl.style.top=(mouseScreenY-8)+"px";
+        /* Debug raycast marker */
+        if(_dbgRaycast){
+          if(!_dbgMarker){
+            var _dg=new THREE.SphereGeometry(1,12,12);
+            _dbgMarker=new THREE.Mesh(_dg,new THREE.MeshBasicMaterial({color:0xff0000,transparent:true,opacity:0.7,depthTest:false}));
+            _dbgMarker.renderOrder=10;
+            scene.add(_dbgMarker);
+          }
+          var _dp=new THREE.Vector3();
+          _dp.fromBufferAttribute(pts.geometry.attributes.position,idx);
+          _dbgMarker.position.copy(_dp);
+          var _dSzArr=pts.geometry.attributes.aSize?pts.geometry.attributes.aSize.array:null;
+          var _dAs=_dSzArr?_dSzArr[idx]:1.0;
+          var _dWs=cloudBounds.radius>0?basePtSz/100*cloudBounds.radius*0.018:0.5;
+          var _dSzMul=parseFloat(document.getElementById("dbg-marker-sz").value)||0.6;
+          _dbgMarker.scale.setScalar(_dWs*_dAs*_dSzMul);
+          _dbgMarker.visible=true;
+          var _dD2r=bestHit.distanceToRay!==undefined?bestHit.distanceToRay.toFixed(4):"n/a";
+          var _dR=_dWs*Math.max(_dAs,0.3)*(viewIs3d?0.5:0.25);
+          var _di=document.getElementById("dbg-info");
+          if(_di)_di.textContent="idx:"+idx+" cid:"+cid+"\naSize:"+_dAs.toFixed(3)+" d2r:"+_dD2r+"\nworldSz:"+_dWs.toFixed(4)+" hitR:"+_dR.toFixed(4)+"\ncamDist:"+bestHit.distance.toFixed(3)+"\nhits:"+hits.length+" thresh:"+raycaster.params.Points.threshold.toFixed(4)+"\nray: "+raycaster.ray.origin.x.toFixed(2)+","+raycaster.ray.origin.y.toFixed(2)+","+raycaster.ray.origin.z.toFixed(2)+" → "+raycaster.ray.direction.x.toFixed(3)+","+raycaster.ray.direction.y.toFixed(3)+","+raycaster.ray.direction.z.toFixed(3)+"\nview:"+(viewIs3d?"3D":"2D")+" zoom2:"+zoom2.toFixed(2);
+        }
       }
     }else{
       tooltipEl.style.display="none";
+      if(_dbgRaycast&&_dbgMarker)_dbgMarker.visible=false;
+      if(_dbgRaycast||_dbgShowRay){
+        var _di=document.getElementById("dbg-info");
+        if(_di)_di.textContent="NO HITS\nthresh:"+raycaster.params.Points.threshold.toFixed(4)+"\nray: "+raycaster.ray.origin.x.toFixed(2)+","+raycaster.ray.origin.y.toFixed(2)+","+raycaster.ray.origin.z.toFixed(2)+" → "+raycaster.ray.direction.x.toFixed(3)+","+raycaster.ray.direction.y.toFixed(3)+","+raycaster.ray.direction.z.toFixed(3)+"\nview:"+(viewIs3d?"3D":"2D")+" zoom2:"+zoom2.toFixed(2);
+      }
     }
   }
 
@@ -2934,11 +3220,12 @@ function setupCtrl(){
       }
       if(dragging){sph.theta-=dx*.005;sph.phi-=dy*.005;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
       else if(dollying){
-        /* Move orbit center forward/backward along view direction */
+        /* Move orbit center forward/backward along view direction.
+           Exponential speed: perceptually constant regardless of distance. */
         var fwd=new THREE.Vector3();
         cam3d.getWorldDirection(fwd);
-        var speed=Math.max(0.5,sph.radius*0.008);
-        tgt3.addScaledVector(fwd,-dy*speed);
+        var efactor=Math.exp(-dy*0.006)-1;
+        tgt3.addScaledVector(fwd,sph.radius*efactor);
       }
       else if(panning){var ps=sph.radius*.001;var up=new THREE.Vector3(0,1,0);var cd=new THREE.Vector3().subVectors(cam3d.position,tgt3).normalize();var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();tgt3.addScaledVector(rt,-dx*ps);tgt3.addScaledVector(cu,dy*ps);}
     }else{if(dragging){var s=(frustum2*2)/(zoom2*canvasW);pan2.x-=dx*s;pan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);crosshairEl.classList.add("show");}}}
@@ -2958,20 +3245,17 @@ function setupCtrl(){
   cv.addEventListener("wheel",function(e){e.preventDefault();
     introAnim=null;_flyAnim=null;
     if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
-    /* Scale zoom speed with scroll magnitude (acceleration) */
+    /* Scale zoom speed with scroll magnitude (acceleration) — symmetric in/out */
     var absD=Math.min(Math.abs(e.deltaY),150);
-    var speed=1+0.002*absD; /* 1.01 at tiny scroll, 1.3 at fast flick */
+    var factor=Math.exp(0.002*absD*(e.deltaY>0?1:-1));
     if(viewIs3d){
-      var factor=e.deltaY>0?speed:1/speed;
       var newRadius=sph.radius*factor;
-      /* Ensure minimum step so zoom-out isn't stuck at small radii */
-      if(e.deltaY>0&&newRadius-sph.radius<0.3)newRadius=sph.radius+0.3;
       sph.radius=Math.max(0.5,Math.min(5000,newRadius));
       /* Show pivot during zoom */
       if(pivotMarker){clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;pivotTimer=setTimeout(function(){pivotMarker.visible=false;},400);}
     }
     else{
-      var f=e.deltaY<0?speed:1/speed;
+      var f=Math.exp(0.002*absD*(e.deltaY<0?1:-1));
       var newZoom=Math.max(zoom2Min(),Math.min(500,zoom2*f));
       if(zoomMode==="cursor"){
         var _ndc=canvasNDC(e.clientX, e.clientY);
@@ -3025,34 +3309,41 @@ function setupCtrl(){
     clearTimeout(crosshairTimer);crosshairEl.classList.add("show");
     crosshairTimer=setTimeout(function(){crosshairEl.classList.remove("show");},dur+400);
   }
-  /* Double-click on a cell point: center navcross and zoom to neighborhood.
-     Smart minimum distance: the camera won't zoom closer than a default floor
-     (15% of cloud radius). BUT if you're already closer than that floor when
-     you double-click, that closer distance becomes the new floor — preserving
-     your current depth. The floor resets to the default when you next double-click
-     a point while farther than the default. */
+  /* Double-click zoom-focus: center on a cell and zoom to it.
+     Rules:
+     1. Default distance = cloudBounds.radius*0.35 (3D) / zoom2Min()*8 (2D)
+     2. If camera is at or beyond default distance → use default
+     3. If camera is closer than default (user zoomed in):
+        a. Next point within default-distance of previous focus → keep current distance
+        b. Next point farther away → reset to default */
   cv.addEventListener("dblclick",function(e){
     if(e.shiftKey||e.altKey||e.ctrlKey||e.metaKey)return;
-    if(!pts||!D){console.warn("fly-to: no pts/D");return;}
-    var rect=cv.getBoundingClientRect();
-    var z=currentUIScale;
-    var mx=(e.clientX-rect.left)/z, my=(e.clientY-rect.top)/z;
-    var ndc=new THREE.Vector2((mx/canvasW)*2-1,-(my/canvasH)*2+1);
+    if(!pts||!D)return;
+    var _ndc=canvasNDC(e.clientX, e.clientY);
+    var ndc=new THREE.Vector2(_ndc.x, _ndc.y);
     raycaster.params.Points.threshold=pickThreshold();
     var cam=viewIs3d?cam3d:cam2d;
     if(viewIs3d){update3dCam();}else{update2dCam();}
     raycaster.setFromCamera(ndc,cam);
     var hits=raycaster.intersectObject(pts);
-    if(hits.length===0){console.warn("fly-to: no hits at",ndc.x.toFixed(3),ndc.y.toFixed(3),"thresh=",raycaster.params.Points.threshold.toFixed(4));return;}
+    if(hits.length===0)return;
     var bestHit=_bestVisibleHit(hits);
-    if(!bestHit){console.warn("fly-to: no visible hit");return;}
+    if(!bestHit)return;
     var pos=new THREE.Vector3();
     pos.fromBufferAttribute(pts.geometry.attributes.position,bestHit.index);
-    _flyAnim=null; /* clear any stale animation before starting new one */
+    if(pos.x>=EXILE-1)return;
+    _flyAnim=null;
     if(viewIs3d){
-      _flyTo3d(pos,cloudBounds.radius*0.35,500);
+      var rDef=cloudBounds.radius*0.35;
+      var dist=Math.sqrt(Math.pow(pos.x-tgt3.x,2)+Math.pow(pos.y-tgt3.y,2)+Math.pow(pos.z-tgt3.z,2));
+      var useR=(sph.radius<rDef&&dist<rDef)?sph.radius:rDef;
+      _flyTo3d(pos,useR,500);
     }else{
-      _flyTo2d(pos.x,pos.y,zoom2Min()*8,500);
+      var zDef=zoom2Min()*8;
+      var dist=Math.sqrt(Math.pow(pos.x-pan2.x,2)+Math.pow(pos.y-pan2.y,2));
+      var defVisH=2*frustum2/zDef;
+      var useZ=(zoom2>zDef&&dist<defVisH)?zoom2:zDef;
+      _flyTo2d(pos.x,pos.y,useZ,500);
     }
   });
   new ResizeObserver(function(){syncCanvasSize();}).observe(document.getElementById("cw"));
@@ -3162,6 +3453,13 @@ function setupCtrl(){
     if(e.key==="g"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("gene");_flashAction("Gene Expression","G");}
     /* h = hide/restore all selection group highlights */
     if(e.key==="h"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();_flashAction("Toggle All Groups","H");}
+    /* a = toggle show all / restore hidden */
+    if(e.key==="a"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+      var _wasRestore=!!_preShowAllVis;
+      _toggleShowAll();
+      var anyVis=false;for(var _ak=0;_ak<D.header.n_clusters;_ak++){if(visibleClusters[_ak]!==false){anyVis=true;break;}}
+      _flashAction(_wasRestore?"Restore Hidden":anyVis?"Show All":"Hide All","A");
+    }
     /* r = reset view */
     if(e.key==="r"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){resetView();_flashAction("Reset View","R");}
     /* d = toggle 2D/3D */
@@ -3190,6 +3488,8 @@ function setupCtrl(){
 
 /* ── View switching ── */
 function setView(v){
+  /* Save current 2D camera before switching away */
+  if(D&&!viewIs3d)window._saved2dCam={px:pan2.x,py:pan2.y,z:zoom2};
   viewIs3d=(v==="3d");
   var _onBg="rgba(99,102,241,0.12)",_offBg="transparent";
   var _onC="var(--accent2)",_offC="var(--text2)";
@@ -3211,8 +3511,11 @@ function setView(v){
     var td=viewIs3d?3:2;
     if(emb&&emb[td]){
       positionPts(D,td);
-      /* Recompute 2D fit after positionPts updates cloudBounds */
-      if(!viewIs3d){zoom2=zoom2Fit();pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};}
+      if(!viewIs3d){
+        /* Restore saved 2D camera, or fit if first time in 2D */
+        if(window._saved2dCam){pan2.x=window._saved2dCam.px;pan2.y=window._saved2dCam.py;zoom2=window._saved2dCam.z;}
+        else{zoom2=zoom2Fit();pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};}
+      }
     }
   }
   if(pts){pts.material.sizeAttenuation=viewIs3d;pts.material.needsUpdate=true;}
@@ -3224,6 +3527,7 @@ function setView(v){
 
 function setEmbMethod(m){
   if(!D)return;
+  window._saved2dCam=null; /* clear saved 2D camera — positions differ per embedding */
   /* If embedding not loaded yet, check if computing or compute on demand */
   if(!D.embeddings[m]){
     /* PaCMAP computes in background — just wait */
@@ -3339,6 +3643,7 @@ function _computeAndLoadEmbedding(m){
       if(sel.options[i].value===m){sel.options[i].textContent=labels[m]||m.toUpperCase();break;}
     }
     sel.disabled=false;
+    if(_lastLoadSettings){_lastLoadSettings[m+"_cached"]=true;showLoadBadges(_lastLoadSettings);}
     setEmbMethod(m);
   })
   .catch(function(err){
@@ -3373,6 +3678,7 @@ function _fetchPacmapCoords(){
     for(var i=0;i<sel.options.length;i++){
       if(sel.options[i].value==="pacmap"){sel.options[i].textContent="PaCMAP";sel.options[i].disabled=false;sel.options[i].style.color="";break;}
     }
+    if(_lastLoadSettings){_lastLoadSettings.pacmap_cached=true;showLoadBadges(_lastLoadSettings);}
   })
   .catch(function(err){
     console.warn("PaCMAP fetch failed:",err);
@@ -3412,6 +3718,7 @@ function loadGene(name){
         selGene=null;mode="cluster";
         var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="cluster";
         document.getElementById("expr-legend").style.display="none";
+        document.getElementById("expr-controls").style.display="none";
         recolor();
       }
     });
@@ -3686,38 +3993,104 @@ function _fetchAllGeneVar(){
 }
 
 /* ── Cluster gene ranking mode handlers ── */
-function _gvPopulateClusterDropdown(){
-  var sel=document.getElementById("gv-cluster");
-  var names=D&&D.header&&D.header.cluster_names?D.header.cluster_names:null;
-  if(!sel||!names||names.length===0)return;
-  sel.innerHTML="";
-  for(var i=0;i<names.length;i++){
-    var raw=names[i];
-    var label=raw;
-    /* Use Claude-inferred name if available */
-    if(llmAnnotations&&llmAnnotations[i]&&llmAnnotations[i].length>0){
-      var ai=llmAnnotations[i][0].cell_type;
-      if(ai&&ai!==raw) label=ai+" ("+raw+")";
-    }
-    var opt=document.createElement("option");
-    opt.value=i;
-    opt.textContent=label;
-    sel.appendChild(opt);
+function _gvClusterLabel(i){
+  var names=D&&D.header?D.header.cluster_names:[];
+  var raw=names[i]||"Cluster "+i;
+  if(llmAnnotations&&llmAnnotations[i]&&llmAnnotations[i].length>0){
+    var ai=llmAnnotations[i][0].cell_type;
+    if(ai&&ai!==raw)return ai+" ("+raw+")";
   }
-  sel.value=_gvClusterId;
+  return raw;
+}
+function _gvDotHtml(cid,sz){
+  var c=cc(cid);
+  return '<span class="gv-dd-dot" style="width:'+sz+'px;height:'+sz+'px;background:rgb('+(c[0]*255|0)+','+(c[1]*255|0)+','+(c[2]*255|0)+');"><\/span>';
+}
+function _gvDdToggle(btn){
+  var dd=btn.parentNode;
+  var list=document.getElementById("gv-dd-list");
+  if(dd.classList.contains("open")){
+    dd.classList.remove("open");
+    return;
+  }
+  dd.classList.add("open");
+  var r=btn.getBoundingClientRect();
+  list.style.left=r.left+"px";
+  list.style.top=r.bottom+"px";
+  requestAnimationFrame(function(){
+    var lr=list.getBoundingClientRect();
+    if(lr.right>window.innerWidth-4)list.style.left=Math.max(4,window.innerWidth-lr.width-4)+"px";
+    if(lr.bottom>window.innerHeight-4)list.style.top=Math.max(4,r.top-lr.height-2)+"px";
+  });
+}
+function _gvDdSelect(cid){
+  _gvClusterId=parseInt(cid);
+  var dd=document.getElementById("gv-cluster-dd");
+  if(dd)dd.classList.remove("open");
+  /* Update button label (no dot — the standalone dot is beside the selector) */
+  var lbl=document.getElementById("gv-dd-label");
+  if(lbl)lbl.textContent=_gvClusterLabel(_gvClusterId);
+  /* Mark active item */
+  var items=document.querySelectorAll("#gv-dd-list .gv-dd-item");
+  for(var i=0;i<items.length;i++)items[i].classList.toggle("active",items[i].getAttribute("data-cid")===""+_gvClusterId);
+  _gvClusterChanged(_gvClusterId);
+}
+function _gvPopulateClusterDropdown(){
+  var list=document.getElementById("gv-dd-list");
+  var names=D&&D.header&&D.header.cluster_names?D.header.cluster_names:null;
+  if(!list||!names||names.length===0)return;
+  list.innerHTML="";
+  function _addItem(cid,depth){
+    var c=cc(cid);
+    var html='<div class="gv-dd-item'+(cid===_gvClusterId?' active':'')+'" data-cid="'+cid+'" onclick="_gvDdSelect('+cid+')" style="padding-left:'+(6+depth*12)+'px;">'
+      +_gvDotHtml(cid,7)
+      +'<span style="margin-left:4px;overflow:hidden;text-overflow:ellipsis;">'+_gvClusterLabel(cid)+'<\/span>'
+      +'<\/div>';
+    return html;
+  }
+  var h="";
+  if(lineageTree){
+    function _addNode(node,depth){
+      var cids=node.cluster_ids||[];
+      /* Non-leaf node label */
+      if(node.children&&node.children.length>0&&depth>0){
+        h+='<div class="gv-dd-group" style="padding-left:'+(6+depth*12-8)+'px;">'+node.name+'<\/div>';
+      }
+      for(var k=0;k<cids.length;k++)h+=_addItem(cids[k],depth);
+      if(node.children){
+        var sorted=node.children.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+        for(var i=0;i<sorted.length;i++)_addNode(sorted[i],depth+1);
+      }
+    }
+    _addNode(lineageTree,0);
+  }else{
+    var indices=[];
+    for(var i=0;i<names.length;i++)indices.push(i);
+    indices.sort(function(a,b){return _gvClusterLabel(a).localeCompare(_gvClusterLabel(b));});
+    for(var j=0;j<indices.length;j++)h+=_addItem(indices[j],0);
+  }
+  list.innerHTML=h;
+  /* Update button label */
+  var lbl=document.getElementById("gv-dd-label");
+  if(lbl)lbl.textContent=_gvClusterLabel(_gvClusterId);
+  /* Close on outside click */
+  if(!list._outsideHandler){
+    list._outsideHandler=true;
+    document.addEventListener("mousedown",function(e){
+      var dd=document.getElementById("gv-cluster-dd");
+      if(dd&&dd.classList.contains("open")&&!dd.contains(e.target))dd.classList.remove("open");
+    });
+  }
 }
 function _gvModeChanged(mode){
   _gvMode=mode;
-  var clSel=document.getElementById("gv-cluster");
-  var dot=document.getElementById("gv-dot");
+  var row=document.getElementById("gv-cluster-row");
   if(mode==="cluster"){
     _gvPopulateClusterDropdown();
-    if(clSel)clSel.style.display="";
-    if(dot)dot.style.display="";
+    if(row)row.style.display="flex";
     _gvClusterChanged(_gvClusterId);
   }else{
-    if(clSel)clSel.style.display="none";
-    if(dot)dot.style.display="none";
+    if(row)row.style.display="none";
     /* Switch back to global variability */
     var listEl=document.getElementById("hvg-list");
     if(listEl&&_allGeneVar){
@@ -3841,8 +4214,8 @@ function _renderClusterGeneList(listEl){
   if(_gvMaxVar<=0)_gvMaxVar=1;
   var totalH=sorted.length*_gvRowH;
   listEl.innerHTML='<div style="display:flex;font-size:9px;color:var(--text4);padding:2px 4px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:1;">'
-    +'<span style="width:28px;flex-shrink:0;">#<\/span><span style="flex:3;">Gene<\/span>'
-    +'<span style="flex:2;text-align:right;cursor:pointer;user-select:none;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;" onclick="_gvCycleSort()" title="Click to cycle: |Cohen\'s d| → log₂FC → −log₁₀(padj)">'+_gvMetricLabel+'<\/span><span style="flex:3;"><\/span>'
+    +'<span style="width:28px;flex-shrink:0;">#<\/span><span style="flex:3;padding-left:6px;">Gene<\/span>'
+    +'<span style="flex:2;text-align:right;white-space:nowrap;cursor:pointer;user-select:none;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;" onclick="_gvCycleSort()" title="Click to cycle: |Cohen\'s d| → log₂FC → −log₁₀(padj)">'+_gvMetricLabel+'<\/span><span style="flex:3;"><\/span>'
     +'<\/div>'
     +'<div id="gv-spacer" style="height:'+totalH+'px;position:relative;">'
     +'<div id="gv-viewport" style="position:absolute;left:0;right:0;top:0;"><\/div>'
@@ -3873,7 +4246,7 @@ function _gvRenderClusterRow(rank){
   return '<div style="position:absolute;left:0;right:0;top:'+(rank*_gvRowH)+'px;height:'+_gvRowH+'px;display:flex;align-items:center;font-size:9px;padding:0 4px;cursor:pointer;border-radius:2px;'+rowStyle
     +'" onclick="pickGene(\''+g.replace(/'/g,"\\'")+'\')" title="'+tip.replace(/"/g,'&quot;')+'">'
     +'<span style="width:28px;flex-shrink:0;color:var(--text4);font-size:9px;">'+(rank+1)+'<\/span>'
-    +'<span style="flex:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+g+'<\/span>'
+    +'<span style="flex:3;padding-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+g+'<\/span>'
     +'<span style="flex:2;text-align:right;font-variant-numeric:tabular-nums;font-size:9px;color:var(--text3);">'+displayVal+'<\/span>'
     +'<span style="flex:3;padding-left:4px;"><div style="height:3px;border-radius:1.5px;background:'+barColor+';opacity:'+barOp+';width:'+barW+'%;"><\/div><\/span>'
     +'<\/div>';
@@ -3896,6 +4269,7 @@ function setMode(m){
   if(cms)cms.value=m;
   /* Gene panel stays visible after data loads; only expression legend toggles */
   document.getElementById("expr-legend").style.display=(m==="gene"&&selGene)?"block":"none";
+  document.getElementById("expr-controls").style.display=(m==="gene")?"block":"none";
   _updateGeneCollapsedName();
   if(m==="gene")showRecentGenes();
   recolor();saveState();
@@ -3915,6 +4289,7 @@ function pickGene(g){
   var gsec=document.getElementById("gene-sec");
   if(gsec&&gsec.classList.contains("collapsed"))gsec.classList.remove("collapsed");
   document.getElementById("expr-legend").style.display="block";
+  document.getElementById("expr-controls").style.display="block";
   _updateGeneCollapsedName();
   /* If already cached, recolor immediately before loadGene */
   if(geneExprCache[g])recolor();
@@ -4234,9 +4609,8 @@ function runAnnotation(){
   var btn=document.getElementById("annotate-btn");
   if(_annotAbort){_annotAbort.abort();_annotAbort=null;_stopAnnotPoll();btn.textContent="Markers";btn.style.color="#34d399";btn.style.borderColor="rgba(52,211,153,0.3)";return;}
   _annotAbort=new AbortController();
-  btn.textContent="Starting...";
+  btn.textContent="Stop";
   btn.style.color="#f87171";btn.style.borderColor="#f87171";
-  _startAnnotPoll(btn);
   fetch("/api/annotate",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -4276,9 +4650,8 @@ function runAnnotationLLM(){
   var btn=document.getElementById("annotate-llm-btn");
   if(_llmAbort){_llmAbort.abort();_llmAbort=null;_stopAnnotPoll();btn.textContent="Claude";btn.style.color="#c4b5fd";btn.style.borderColor="rgba(196,181,253,0.3)";return;}
   _llmAbort=new AbortController();
-  btn.textContent="Starting...";
+  btn.textContent="Stop";
   btn.style.color="#f87171";btn.style.borderColor="#f87171";
-  _startAnnotPoll(btn);
   fetch("/api/annotate-llm",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -4306,6 +4679,7 @@ function runAnnotationLLM(){
     btn.title=data.cached?"Claude annotations loaded from cache":"Annotated by "+(data.model||"Claude")+" in "+data.elapsed+"s"+(tokInfo?" \u00b7 "+tokInfo:"");
     renderLeg();
     if(_lastLoadSettings){_lastLoadSettings.annot_llm_cached=true;showLoadBadges(_lastLoadSettings);}
+    if(_gvMode==="cluster")_gvPopulateClusterDropdown();
   })
   .catch(function(err){
     _llmAbort=null;_stopAnnotPoll();
@@ -4411,6 +4785,7 @@ function _fetchLineage(){
         }
         renderLeg();
         if(_lastLoadSettings){_lastLoadSettings.annot_llm_cached=true;showLoadBadges(_lastLoadSettings);}
+        if(_gvMode==="cluster")_gvPopulateClusterDropdown();
       }
       _setLinBtn(null,"Stop");
       _doFetchLineage();
@@ -4453,6 +4828,7 @@ function _doFetchLineage(){
     }
     lineageTree=data.tree;
     if(_lastLoadSettings){_lastLoadSettings.annot_lineage_cached=true;showLoadBadges(_lastLoadSettings);}
+    if(_gvMode==="cluster")_gvPopulateClusterDropdown();
     _showLineageView();
   })
   .catch(function(err){
@@ -4790,6 +5166,27 @@ function soloCluster(i){
   renderLeg();recolor();saveState();
   if(selGroups.length>0)renderSelPanel();
 }
+var _preShowAllVis=null;
+function _toggleShowAll(){
+  if(!D)return;
+  if(_preShowAllVis){
+    /* Restore previous visibility */
+    for(var k in _preShowAllVis)visibleClusters[k]=_preShowAllVis[k];
+    _preShowAllVis=null;
+  }else{
+    var anyHidden=false;
+    for(var k=0;k<D.header.n_clusters;k++){if(visibleClusters[k]===false){anyHidden=true;break;}}
+    _preShowAllVis=JSON.parse(JSON.stringify(visibleClusters));
+    if(anyHidden){
+      for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=true;
+    }else{
+      for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=false;
+    }
+  }
+  renderLeg();recolor();saveState();
+  if(selGroups.length>0)renderSelPanel();
+  if(lineageView)_renderLineageTree();
+}
 function showAllClusters(){
   _preSoloVis=null;_soloIdx=null;_soloPath=null;
   for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=true;
@@ -4809,25 +5206,58 @@ function hideL(){document.getElementById("loading").style.display="none";}
 
 /* Pick threshold: convert ~5 screen pixels to world units */
 function pickThreshold(){
-  /* Threshold in world units — should be ~1.5x the actual point world size */
+  /* Threshold in world units — must cover the full visual disk of the largest point */
   if(!cloudBounds||cloudBounds.radius<=0)return 0.5;
   var maxWorldSz=cloudBounds.radius*0.018;
   var worldSz=basePtSz/100*maxWorldSz;
-  return Math.max(0.01, worldSz*1.5);
+  var maxASize=showExprSize?1.8:1.0;
+  var r=worldSz*maxASize*(viewIs3d?0.5:0.25);
+  return Math.max(0.01, r*2.0);
 }
 
-/* Find the best visible hit — closest to the ray (not closest to camera).
-   Three.js sorts by camera distance, but in 3D perspective the point
-   nearest the cursor may be further from the camera than a neighbor. */
+/* Find the best visible hit — simulates pixel-perfect 2D picking.
+   Projects each candidate to screen, computes its screen-space disk radius.
+   If cursor is inside a disk: front-most cell (nearest camera) wins.
+   If cursor isn't inside any disk: nearest screen center as fallback. */
 function _bestVisibleHit(hits){
-  var best=null, bestDist=Infinity;
+  var posArr=pts.geometry.attributes.position.array;
+  var szArr=pts.geometry.attributes.aSize?pts.geometry.attributes.aSize.array:null;
+  var cam=viewIs3d?cam3d:cam2d;
+  var _projV=new THREE.Vector3();
+  var baseWorldSz=0;
+  if(cloudBounds&&cloudBounds.radius>0)baseWorldSz=basePtSz/100*cloudBounds.radius*0.018;
+  var frontHit=null,frontZ=Infinity; /* best "cursor inside disk" hit */
+  var nearHit=null,nearDist=Infinity; /* fallback nearest-center hit */
   for(var i=0;i<hits.length;i++){
     var ci=hits[i].index;
     if(visibleClusters[D.cluster_ids[ci]]===false)continue;
-    var d=hits[i].distanceToRay!==undefined?hits[i].distanceToRay:hits[i].distance;
-    if(d<bestDist){bestDist=d;best=hits[i];}
+    if(posArr[ci*3]>=EXILE-1)continue;
+    _projV.set(posArr[ci*3],posArr[ci*3+1],posArr[ci*3+2]);
+    _projV.project(cam);
+    var dx=_projV.x-mouseNDC.x;
+    var dy=_projV.y-mouseNDC.y;
+    var scrDist=dx*dx+dy*dy;
+    /* Estimate NDC radius of this point's visible disk */
+    var as=szArr?szArr[ci]:1.0;
+    var ndcR=0;
+    if(baseWorldSz>0&&as>0){
+      var wR=baseWorldSz*as*0.5;
+      if(viewIs3d){
+        var cd=hits[i].distance||1;
+        ndcR=wR/cd*canvasH/canvasW;
+      }else{
+        ndcR=wR*zoom2/frustum2*0.5;
+      }
+    }
+    var inside=ndcR>0&&scrDist<=ndcR*ndcR;
+    if(inside){
+      /* Among cells covering the cursor, front-most wins */
+      var z=_projV.z;
+      if(z<frontZ){frontZ=z;frontHit=hits[i];}
+    }
+    if(scrDist<nearDist){nearDist=scrDist;nearHit=hits[i];}
   }
-  return best;
+  return frontHit||nearHit;
 }
 
 var _pendingFile=null;
@@ -5544,8 +5974,7 @@ function unloadDataset(){
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
     _clusterGeneCache={};_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="global";
     var _modeDD=document.getElementById("gv-mode");if(_modeDD)_modeDD.value="global";
-    var _clDD=document.getElementById("gv-cluster");if(_clDD)_clDD.style.display="none";
-    var _gvD=document.getElementById("gv-dot");if(_gvD)_gvD.style.display="none";
+    var _clRow=document.getElementById("gv-cluster-row");if(_clRow)_clRow.style.display="none";
     /* Close DEG panel */
     if(degOpen)closeDEG();
     degData=null;degCache={};degGrpA=null;degGrpB=null;_degOrigGroups=null;
@@ -5701,8 +6130,8 @@ function showLoadBadges(ls){
   }
   /* Cache badges (deletable — hover reveals ×) */
   var cacheBadges=[];
-  function _cb(label,title,type,style){
-    return '<span class="load-badge cached" '+(style?'style="'+style+'" ':'')+' title="'+title+' \u00b7 Hover for \u00d7">'+'<span class="badge-x" onclick="event.stopPropagation();clearCache(\''+type+'\')" title="Delete cache">\u00d7</span>'+label+'</span>';
+  function _cb(label,title,type,cls){
+    return '<span class="load-badge cached'+(cls?' '+cls:'')+'" title="'+title+' \u00b7 Hover for \u00d7">'+'<span class="badge-x" onclick="event.stopPropagation();clearCache(\''+type+'\')" title="Delete cache">\u00d7<\/span>'+label+'<\/span>';
   }
   var umapLabel="UMAP"+(ls&&ls.umap_method==="quick"?" (quick)":"");
   var pacmapLabel="PaCMAP"+(ls&&ls.pacmap_method==="quick"?" (quick)":"");
@@ -5711,9 +6140,9 @@ function showLoadBadges(ls){
   if(ls&&ls.pacmap_cached)cacheBadges.push(_cb(pacmapLabel,"PaCMAP embedding loaded from cache","fleek",""));
   if(ls&&ls.csc_cached)cacheBadges.push(_cb("Gene index","Gene index loaded from cache","csc",""));
   if(ls&&ls.leiden_cached)cacheBadges.push(_cb("Leiden","Leiden clusters loaded from cache","fleek",""));
-  if(ls&&ls.annot_markers_cached)cacheBadges.push(_cb("Markers","Marker annotations loaded from cache","markers","color:#34d399;"));
-  if(ls&&ls.annot_llm_cached)cacheBadges.push(_cb("Claude","Claude annotations loaded from cache","claude","color:#c4b5fd;"));
-  if(ls&&ls.annot_lineage_cached)cacheBadges.push(_cb("Lineage","Lineage tree loaded from cache","lineage","color:#fbbf24;"));
+  if(ls&&ls.annot_markers_cached)cacheBadges.push(_cb("Markers","Marker annotations loaded from cache","markers",""));
+  if(ls&&ls.annot_llm_cached)cacheBadges.push(_cb("Claude","Claude annotations loaded from cache","claude","cb-claude"));
+  if(ls&&ls.annot_lineage_cached)cacheBadges.push(_cb("Lineage","Lineage tree loaded from cache","lineage","cb-lineage"));
   if(cacheBadges.length>0){
     badges.push('<span class="badge-sep">caches (hover to delete)</span>');
     badges=badges.concat(cacheBadges);
@@ -6426,6 +6855,7 @@ function _applySessionState(s){
   if(s.mode){mode=s.mode;}if(s.selGene)selGene=s.selGene;
   var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value=mode;
   document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
+  document.getElementById("expr-controls").style.display=(mode==="gene")?"block":"none";
   recolor();renderLeg();if(selGroups.length>0)renderSelPanel();showRecentGenes();
   /* Restore DEG results if present */
   if(s._deg){
@@ -6523,6 +6953,7 @@ function resetSession(){
   mode="cluster";selGene=null;
   var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="cluster";
   document.getElementById("expr-legend").style.display="none";
+  document.getElementById("expr-controls").style.display="none";
   /* Reset slice */
   if(sliceFilter){
     var cats=D&&D.header&&D.header.obs_categories||{};
@@ -7402,7 +7833,12 @@ function setupDegResize(){
 }
 
 /* ── Settings ── */
-function toggleSettings(){
+function toggleSettings(e){
+  if(e&&e.metaKey&&e.altKey&&e.shiftKey){
+    var dbg=document.getElementById("debug-popup");
+    dbg.style.display=dbg.style.display==="block"?"none":"block";
+    return;
+  }
   var el=document.getElementById("settings-popup");
   el.style.display=el.style.display==="block"?"none":"block";
 }
@@ -7426,6 +7862,14 @@ function applyTheme(t){
     pts.material.alphaTest=t==="light"?0.5:0.05;
     pts.material.depthWrite=true;
     pts.material.needsUpdate=true;
+  }
+  /* Update halo blend mode for theme */
+  if(haloPts){
+    var isL=t==="light";
+    haloPts.material.uniforms.uLight.value=isL?1.0:0.0;
+    haloPts.material.blendSrc=isL?THREE.SrcAlphaFactor:THREE.OneFactor;
+    haloPts.material.blendDst=isL?THREE.OneMinusSrcAlphaFactor:THREE.OneFactor;
+    haloPts.material.needsUpdate=true;
   }
   /* Update point cloud colors for theme */
   recolor();
@@ -7610,6 +8054,52 @@ function loadSettings(){
 }
 
 /* ── Boot: fetch from server ── */
+/* Scroll-trap prevention: sub-scrollable areas inside the sidebar don't
+   hijack scroll during active sidebar scrolling (B), and require a brief
+   hover dwell before activating (A). */
+function setupScrollTraps(){
+  var sb=document.getElementById("sidebar-upper");
+  if(!sb)return;
+  var scrollTimer=null;
+  var _sbScrolling=false;
+  var _dwellTimer=null;
+  var _activeTrap=null;
+  /* B: Lock traps while sidebar is scrolling */
+  sb.addEventListener("scroll",function(){
+    _sbScrolling=true;
+    sb.classList.add("sb-scrolling");
+    /* Re-lock whatever was unlocked */
+    if(_activeTrap){_activeTrap.classList.add("sb-locked");_activeTrap=null;}
+    clearTimeout(_dwellTimer);
+    clearTimeout(scrollTimer);
+    scrollTimer=setTimeout(function(){_sbScrolling=false;sb.classList.remove("sb-scrolling");},150);
+  });
+  /* A: Track mouse position on sidebar — unlock trap after dwell.
+     Uses bounding rect hit-test since locked traps have pointer-events:none. */
+  function _trapAtPoint(x,y){
+    var traps=sb.querySelectorAll(".sb-trap");
+    for(var i=0;i<traps.length;i++){
+      var r=traps[i].getBoundingClientRect();
+      if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom)return traps[i];
+    }
+    return null;
+  }
+  sb.addEventListener("mousemove",function(e){
+    if(_sbScrolling)return;
+    var el=_trapAtPoint(e.clientX,e.clientY);
+    if(el===_activeTrap)return;
+    clearTimeout(_dwellTimer);
+    if(_activeTrap){_activeTrap.classList.add("sb-locked");_activeTrap=null;}
+    if(!el)return;
+    _dwellTimer=setTimeout(function(){
+      if(!_sbScrolling){el.classList.remove("sb-locked");_activeTrap=el;}
+    },250);
+  });
+  sb.addEventListener("mouseleave",function(){
+    clearTimeout(_dwellTimer);
+    if(_activeTrap){_activeTrap.classList.add("sb-locked");_activeTrap=null;}
+  });
+}
 function setupCustomScrollbars(){
   /* Custom overlay scrollbars for macOS (which hides native scrollbars).
      Shows a draggable thumb on hover after a short delay. */
@@ -7734,7 +8224,7 @@ function _patchOS(){
 
 document.addEventListener("DOMContentLoaded",function(){
   try{var rg=sessionStorage.getItem("fleek_recent_genes");if(rg)recentGenes=JSON.parse(rg);}catch(e){}
-  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();_patchOS();animate();_checkKeyStatus();
+  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupScrollTraps();_patchOS();animate();_checkKeyStatus();
   showL("Connecting to server...");
   /* Recover load start time from before page reload, or start fresh */
   var _savedT0=null;
