@@ -514,8 +514,8 @@
       <span class="lbl" style="margin-bottom:0;">View</span>
       <div id="view-mini-btns" onclick="event.stopPropagation()">
         <span style="display:inline-flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;">
-          <button id="vb2m" onclick="setView('2d')" style="background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;transition:all 0.1s;">2D</button>
-          <button id="vb3m" onclick="setView('3d')" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;transition:all 0.1s;">3D</button>
+          <button id="vb2m" onclick="setView('2d')" title="2D view (D)" style="background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;transition:all 0.1s;">2D</button>
+          <button id="vb3m" onclick="setView('3d')" title="3D view (D)" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;transition:all 0.1s;">3D</button>
         </span>
         <span id="emb-mini-label" style="font-size:9px;color:var(--text4);display:none;"></span>
         <button id="view-reset-mini" onclick="resetView()" title="Reset camera to default (R)"><svg viewBox="0 0 16 16" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg></button>
@@ -525,8 +525,8 @@
     <div class="col-body">
       <div style="display:flex;align-items:center;margin-bottom:8px;">
         <span style="display:inline-flex;border:1px solid var(--border2);border-radius:4px;overflow:hidden;">
-          <button id="vb2" onclick="setView('2d')" style="background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:11px;font-family:inherit;padding:4px 12px;transition:all 0.1s;">2D</button>
-          <button id="vb3" onclick="setView('3d')" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:11px;font-family:inherit;padding:4px 12px;transition:all 0.1s;">3D</button>
+          <button id="vb2" onclick="setView('2d')" title="2D view (D)" style="background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:11px;font-family:inherit;padding:4px 12px;transition:all 0.1s;">2D</button>
+          <button id="vb3" onclick="setView('3d')" title="3D view (D)" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:11px;font-family:inherit;padding:4px 12px;transition:all 0.1s;">3D</button>
         </span>
         <div style="display:inline-flex;gap:2px;margin-left:auto;margin-right:4px;">
           <button class="btn" id="b-auto" onclick="toggleAuto()" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Toggle auto-rotation"><svg viewBox="0 0 1203 706" width="12" height="7" style="width:12px;height:7px;flex-shrink:0;fill:currentColor;"><path d="m 439.45,701.38 c -2.9,-1.7 -6.86,-5.75 -8.82,-9.02 -3.35,-5.59 -3.6,-8.39 -4.36,-48.71 l -0.8,-42.78 -32.88,-6.07 C 339.15,584.93 296.71,573.75 251.45,557.62 93.08,501.16 1.42,410.27 1.1,309.38 1.01,281.1 4.16,264.66 14.44,239.78 83.46,72.61 412.24,-31.01 745.4,9.4 c 180.62,21.9 330.05,84.62 403.99,169.56 33.54,38.52 50.28,76.86 52.53,120.24 5.92,114.45 -103.52,215.84 -294.45,272.79 -61.04,18.21 -144.19,32.96 -215.11,38.17 l -16.99,1.25 -1.04,-18.76 c -0.58,-10.32 -1.05,-49.88 -1.05,-87.91 l -0.01,-69.15 3.61,-0.04 c 8.5,-0.09 66.39,-7.71 87.01,-11.46 91.9,-16.7 170.49,-47.6 221,-86.89 20.93,-16.29 42.06,-41.09 49.42,-58.03 4.93,-11.35 5.39,-13.85 5.42,-29.59 0.03,-15.57 -0.46,-18.39 -5.15,-29.73 C 1008,155.56 901.7,98.55 761.16,73.21 665.73,56 539.63,55.99 441.5,73.18 384.1,83.24 326.75,100.64 283.58,121.11 210.36,155.82 165.21,201.55 162.16,244.09 c -2.64,36.75 25,74.88 79.66,109.92 39.43,25.27 102.27,49.75 160.39,62.47 10.14,2.22 19.71,4.48 21.25,5.03 2.61,0.92 2.81,-1.94 2.81,-41.61 0,-37.8 0.33,-43.35 2.97,-49.25 5.63,-12.61 17.51,-18.11 30.31,-14.03 4.79,1.53 166.87,169.6 171.57,177.91 4.33,7.66 4.88,20.47 1.25,28.83 -2.28,5.25 -156.88,167 -168.84,176.66 -6.67,5.38 -16.29,5.93 -24.07,1.37 z"/><\/svg><span>Rotate</span></button>
@@ -546,7 +546,7 @@
       <div class="lbl" style="margin-top:6px;">Unselected Brightness</div>
       <input type="range" id="bg-dim" min="0" max="100" step="5" value="100" oninput="setBgDim(100-this.value,true)" onchange="setBgDim(100-this.value);this.blur()" title="How bright non-selected cells appear. Slide left to fade, right for full brightness.">
       <div class="lbl" style="margin-top:6px;">Color</div>
-      <select id="color-mode-select" onchange="setMode(this.value)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
+      <select id="color-mode-select" onchange="setMode(this.value)" title="Color mode (C = cluster, G = gene expression)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
         <option value="cluster">Cell Type / Cluster</option>
         <option value="gene">Gene Expression</option>
       </select>
@@ -581,9 +581,9 @@
       <div id="sel-groups"></div>
       <button onclick="addSelGroup()" title="Add selection group (or press 1-9)" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;margin:4px 0;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
       <div class="sg-toolbar">
-        <button onclick="selAllVisible()" title="Select all visible cells into active group">Sel. Vis.</button>
-        <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)">Clear</button>
-        <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (H)">Hide All</button>
+        <button onclick="selAllVisible()" title="Select all visible cells into active group (Shift+V)">Sel. Vis.</button>
+        <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)" title="Clear visible cells from active group (Esc)">Clear</button>
+        <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (Shift+H)">Hide All</button>
         <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button>
       </div>
     </div>
@@ -1277,7 +1277,8 @@
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Groups</th></tr>
           <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
-          <tr><td><span class="help-key">H</span></td><td>Hide all group highlights (press again to restore)</td></tr>
+          <tr><td><span class="help-key">Shift</span>+<span class="help-key">H</span></td><td>Hide all group highlights (press again to restore)</td></tr>
+          <tr><td><span class="help-key">Delete</span></td><td>Hide selected cells and clear selection</td></tr>
           <tr><td><span class="help-key">Esc</span></td><td>Clear visible cells in active group / close help</td></tr>
           <tr><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td><td>Clear ALL cells in active group</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Lists (vim-style)</th></tr>
@@ -1289,7 +1290,7 @@
           <tr><td><span class="help-key">R</span></td><td>Reset view</td></tr>
           <tr><td><span class="help-key">D</span></td><td>Toggle 2D/3D view</td></tr>
           <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
-          <tr><td><span class="help-key">A</span></td><td>Show all cells / hide all cells (press again to restore)</td></tr>
+          <tr><td><span class="help-key">H</span></td><td>Show all cells / hide all cells (press again to restore)</td></tr>
           <tr><td><span class="help-key">T</span></td><td>Toggle dark/light theme</td></tr>
           <tr><td><span class="help-key">\</span></td><td>Toggle sidebar</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">General</th></tr>
@@ -3451,14 +3452,18 @@ function setupCtrl(){
     if(e.key==="c"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("cluster");_flashAction("Cell Type Colors","C");}
     /* g = gene expression color mode */
     if(e.key==="g"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("gene");_flashAction("Gene Expression","G");}
-    /* h = hide/restore all selection group highlights */
-    if(e.key==="h"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();_flashAction("Toggle All Groups","H");}
-    /* a = toggle show all / restore hidden */
-    if(e.key==="a"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+    /* Shift+H = toggle all selection group highlights */
+    if(e.key==="H"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();_flashAction("Toggle All Groups","Shift+H");}
+    /* h = show all / hide all / restore hidden */
+    if(e.key==="h"&&!e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
       var _wasRestore=!!_preShowAllVis;
       _toggleShowAll();
       var anyVis=false;for(var _ak=0;_ak<D.header.n_clusters;_ak++){if(visibleClusters[_ak]!==false){anyVis=true;break;}}
-      _flashAction(_wasRestore?"Restore Hidden":anyVis?"Show All":"Hide All","A");
+      _flashAction(_wasRestore?"Restore Hidden":anyVis?"Show All":"Hide All","H");
+    }
+    /* Delete/Backspace = hide selected cells and clear selection */
+    if((e.key==="Delete"||e.key==="Backspace")&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+      _hideSelectedCells();
     }
     /* r = reset view */
     if(e.key==="r"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){resetView();_flashAction("Reset View","R");}
@@ -5186,6 +5191,27 @@ function _toggleShowAll(){
   renderLeg();recolor();saveState();
   if(selGroups.length>0)renderSelPanel();
   if(lineageView)_renderLineageTree();
+}
+function _hideSelectedCells(){
+  if(!D||selGroups.length===0)return;
+  /* Collect cluster IDs of all selected cells across all groups */
+  var cidsToHide={};
+  var anyCells=false;
+  for(var g=0;g<selGroups.length;g++){
+    selGroups[g].cells.forEach(function(ci){
+      anyCells=true;
+      cidsToHide[D.cluster_ids[ci]]=true;
+    });
+  }
+  if(!anyCells)return;
+  /* Hide those clusters */
+  for(var k in cidsToHide)visibleClusters[k]=false;
+  /* Clear all selections */
+  for(var g=0;g<selGroups.length;g++)selGroups[g].cells.clear();
+  rebuildCellGroupMap();
+  renderLeg();renderSelPanel();recolor();saveState();
+  if(lineageView)_renderLineageTree();
+  _flashAction("Hide Selected","Del");
 }
 function showAllClusters(){
   _preSoloVis=null;_soloIdx=null;_soloPath=null;
