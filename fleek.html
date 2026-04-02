@@ -38,7 +38,7 @@
   .col-body{margin-top:6px;}
   .col-body .lbl{margin-bottom:4px;}  /* tighter label spacing inside body */
   .col-chev{font-size:10px;color:var(--text4);transition:transform 0.15s;flex-shrink:0;margin-left:4px;padding:3px 5px;border-radius:4px;}
-  .col-chev:hover{background:rgba(255,255,255,0.05);color:var(--text3);}
+  .col-chev:hover{background:rgba(255,255,255,0.05);color:var(--text2);}
   .light .col-chev:hover{background:rgba(0,0,0,0.06);color:var(--text2);}
   .sec.collapsed .col-body{display:none;}
   .sec.collapsed .col-chev{transform:rotate(-90deg);}
@@ -70,7 +70,14 @@
   #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
   #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;}
-  #hidden-count{position:absolute;bottom:12px;left:12px;font-size:9px;color:var(--text4);pointer-events:none;display:none;}
+  #hud{position:absolute;bottom:12px;left:12px;z-index:10;font-size:9px;color:var(--text3);max-width:220px;}
+  #hud-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:9px;color:var(--text4);display:inline-flex;align-items:center;gap:4px;user-select:none;}
+  #hud-toggle:hover{color:var(--text2);border-color:var(--border2);}
+  #hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
+  #hud.open #hud-body{display:block;}
+  #hud .hud-row{display:flex;justify-content:space-between;gap:8px;}
+  #hud .hud-label{color:var(--text4);}
+  #hud .hud-val{color:var(--text2);font-variant-numeric:tabular-nums;text-align:right;}
   #action-flash{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;pointer-events:none;opacity:0;transition:opacity 0.2s,transform 0.2s;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
   .light #action-flash{box-shadow:0 4px 16px rgba(0,0,0,0.08);}
   #action-flash.show{display:block;opacity:1;transform:translate(-50%,-50%) scale(1);}
@@ -118,6 +125,7 @@
   .light #annotate-btn{color:#059669!important;border-color:rgba(5,150,105,0.35)!important;background:rgba(5,150,105,0.06)!important;}
   .light .annot-tag{color:#059669!important;background:rgba(5,150,105,0.12)!important;}
   .light .fleek-option.active{color:#059669!important;border-color:rgba(5,150,105,0.45)!important;background:rgba(5,150,105,0.1)!important;}
+  .fleek-option.active.partial{background:var(--pill-partial-bg)!important;}
   .light #slice-active-badge{color:#059669!important;}
   .light #slice-footer .sf-count{color:#059669!important;}
   .light .load-badge.cached{color:#059669!important;border-color:rgba(5,150,105,0.2)!important;background:rgba(5,150,105,0.08)!important;}
@@ -139,7 +147,7 @@
   .browse-entry .browse-meta{font-size:9px;color:var(--text4);white-space:nowrap;}
   .load-badge.qm{background:rgba(99,102,241,0.12);color:#818cf8;border:1px dashed rgba(99,102,241,0.25);}
   .load-badge.bk{background:rgba(251,191,36,0.12);color:#fbbf24;border:1px dashed rgba(251,191,36,0.25);}
-  .load-badge.cached{background:rgba(52,211,153,0.12);color:#34d399;border:1px solid rgba(52,211,153,0.15);margin-right:2px;}
+  .load-badge.cached{background:rgba(52,211,153,0.12);color:#34d399;border:1px solid rgba(52,211,153,0.15);}
   .load-badge.cb-claude{color:#c4b5fd;background:rgba(196,181,253,0.12);border-color:rgba(196,181,253,0.2);}
   .load-badge.cb-lineage{color:#fbbf24;background:rgba(251,191,36,0.12);border-color:rgba(251,191,36,0.2);}
   .badge-sep{font-size:9px;color:var(--text4);opacity:0.5;flex-basis:100%;line-height:1;margin:2px 0 0 0;}
@@ -384,9 +392,9 @@
     <div class="col-hdr" onclick="toggleSec('data')">
       <span class="lbl" style="margin-bottom:0;">Data</span>
       <div style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px;" onclick="event.stopPropagation()">
-        <button class="icon-btn" id="unload-btn" onclick="unloadDataset()" title="Unload dataset and free memory" style="display:none;opacity:0.5;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:#f87171;stroke-width:2.2;stroke-linecap:round;"><line x1="12" y1="3" x2="12" y2="12"/><path d="M6.3 7.7A8 8 0 1 0 17.7 7.7" fill="none"/></svg></button>
-        <button class="icon-btn" id="browse-btn" onclick="openBrowser()" title="Browse server files"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
-        <button class="icon-btn" id="upload-btn" onclick="showUploadPopover()" title="Upload h5ad dataset (or drag &amp; drop)"><svg viewBox="0 0 24 24"><path d="M12 0l-8 8h5v7h6V8h5l-8-8z" fill="currentColor"/><path d="M4 19v2h16v-2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="icon-btn" id="unload-btn" onclick="unloadDataset()" title="Unload dataset and free memory" style="display:none;color:#f87171;opacity:0.5;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;"><line x1="12" y1="3" x2="12" y2="12"/><path d="M6.3 7.7A8 8 0 1 0 17.7 7.7" fill="none"/></svg></button>
+        <button class="icon-btn" id="browse-btn" onclick="openBrowser()" title="Browse server files"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
+        <button class="icon-btn" id="upload-btn" onclick="showUploadPopover()" title="Upload h5ad dataset (or drag &amp; drop)"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 0l-8 8h5v7h6V8h5l-8-8z" fill="currentColor"/><path d="M4 19v2h16v-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <input type="file" id="h5ad-upload" accept=".h5ad" style="display:none;" onchange="onFileSelected(this)">
       </div>
       <span class="col-chev">&#9660;</span>
@@ -399,14 +407,14 @@
       <div id="session-bar" style="display:none;margin-top:4px;align-items:center;gap:4px;font-size:9px;">
         <span style="color:var(--text4);">Session:</span>
         <select id="session-select" onchange="onSessionSelect()" style="flex:1;min-width:0;"></select>
-        <button class="icon-btn" onclick="saveSessionAs()" title="Save session as..." style="color:var(--text3);font-size:10px;padding:1px 3px;">
+        <button class="icon-btn" onclick="saveSessionAs()" title="Save session as..." style="color:var(--text4);font-size:10px;padding:1px 3px;">
           <svg viewBox="0 0 24 24" width="12" height="12" style="fill:currentColor;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
         </button>
         <button class="icon-btn" id="session-delete-btn" onclick="deleteSession()" title="Delete this session" style="color:var(--text4);font-size:10px;padding:1px 3px;display:none;">
-          <svg viewBox="0 0 24 24" width="11" height="11" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          <svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
         <button class="icon-btn" onclick="resetSession()" title="Reset to fresh session" style="color:var(--text4);font-size:10px;padding:1px 3px;">
-          <svg viewBox="0 0 16 16" width="11" height="11" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg>
+          <svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg>
         </button>
       </div>
     </div>
@@ -518,7 +526,7 @@
           <button id="vb3m" onclick="setView('3d')" title="3D view (D)" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;transition:all 0.1s;">3D</button>
         </span>
         <span id="emb-mini-label" style="font-size:9px;color:var(--text4);display:none;"></span>
-        <button id="view-reset-mini" onclick="resetView()" title="Reset camera to default (R)"><svg viewBox="0 0 16 16" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg></button>
+        <button id="view-reset-mini" onclick="resetView(event)" title="Reset camera to default (R) · Alt+click: reset + show all cells"><svg viewBox="0 0 16 16" style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg></button>
       </div>
       <span class="col-chev">&#9660;</span>
     </div>
@@ -530,7 +538,7 @@
         </span>
         <div style="display:inline-flex;gap:2px;margin-left:auto;margin-right:4px;">
           <button class="btn" id="b-auto" onclick="toggleAuto()" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Toggle auto-rotation"><svg viewBox="0 0 1203 706" width="12" height="7" style="width:12px;height:7px;flex-shrink:0;fill:currentColor;"><path d="m 439.45,701.38 c -2.9,-1.7 -6.86,-5.75 -8.82,-9.02 -3.35,-5.59 -3.6,-8.39 -4.36,-48.71 l -0.8,-42.78 -32.88,-6.07 C 339.15,584.93 296.71,573.75 251.45,557.62 93.08,501.16 1.42,410.27 1.1,309.38 1.01,281.1 4.16,264.66 14.44,239.78 83.46,72.61 412.24,-31.01 745.4,9.4 c 180.62,21.9 330.05,84.62 403.99,169.56 33.54,38.52 50.28,76.86 52.53,120.24 5.92,114.45 -103.52,215.84 -294.45,272.79 -61.04,18.21 -144.19,32.96 -215.11,38.17 l -16.99,1.25 -1.04,-18.76 c -0.58,-10.32 -1.05,-49.88 -1.05,-87.91 l -0.01,-69.15 3.61,-0.04 c 8.5,-0.09 66.39,-7.71 87.01,-11.46 91.9,-16.7 170.49,-47.6 221,-86.89 20.93,-16.29 42.06,-41.09 49.42,-58.03 4.93,-11.35 5.39,-13.85 5.42,-29.59 0.03,-15.57 -0.46,-18.39 -5.15,-29.73 C 1008,155.56 901.7,98.55 761.16,73.21 665.73,56 539.63,55.99 441.5,73.18 384.1,83.24 326.75,100.64 283.58,121.11 210.36,155.82 165.21,201.55 162.16,244.09 c -2.64,36.75 25,74.88 79.66,109.92 39.43,25.27 102.27,49.75 160.39,62.47 10.14,2.22 19.71,4.48 21.25,5.03 2.61,0.92 2.81,-1.94 2.81,-41.61 0,-37.8 0.33,-43.35 2.97,-49.25 5.63,-12.61 17.51,-18.11 30.31,-14.03 4.79,1.53 166.87,169.6 171.57,177.91 4.33,7.66 4.88,20.47 1.25,28.83 -2.28,5.25 -156.88,167 -168.84,176.66 -6.67,5.38 -16.29,5.93 -24.07,1.37 z"/><\/svg><span>Rotate</span></button>
-          <button class="btn" onclick="resetView()" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Reset camera to default (R)"><svg viewBox="0 0 16 16" style="width:12px;height:12px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/><\/svg><span>Reset</span></button>
+          <button class="btn" onclick="resetView(event)" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Reset camera to default (R) · Alt+click: reset + show all cells"><svg viewBox="0 0 16 16" style="width:12px;height:12px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/><\/svg><span>Reset</span></button>
         </div>
       </div>
       <div id="emb-row" style="display:none;margin-bottom:8px;">
@@ -564,7 +572,7 @@
           <span class="se-switch"><input type="checkbox" id="show-glow" checked onchange="showGlow=this.checked;if(haloPts)haloPts.visible=showGlow&&!!(mode==='gene'&&selGene&&geneExprCache[selGene]);"><span class="se-track"></span></span>
         </label>
         <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Slowly pulse expressing cells (and glow if enabled) brighter to help spot them.">
-          <span style="font-size:9px;color:var(--text3);flex:1;">Pulse cells</span>
+          <span style="font-size:9px;color:var(--text3);flex:1;">Pulse expressing cells</span>
           <span class="se-switch"><input type="checkbox" id="show-pulse-glow" onchange="pulseGlow=this.checked;"><span class="se-track"></span></span>
         </label>
       </div>
@@ -632,7 +640,7 @@
         <span class="lbl" style="margin-bottom:0;">Slice</span>
         <span id="slice-active-badge" style="font-size:9px;color:#34d399;"></span>
       </div>
-      <button id="slice-reset-btn" onclick="event.stopPropagation();resetSlice()" style="display:none;background:none;border:none;color:var(--text4);font-size:9px;font-family:inherit;cursor:pointer;padding:0 4px;">reset</button>
+      <button id="slice-reset-btn" onclick="event.stopPropagation();resetSlice()" style="display:none;background:none;border:none;color:var(--text4);font-size:9px;font-family:inherit;cursor:pointer;padding:0 4px;" title="Reset all slice filters to include all values">reset</button>
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body" id="slice-body">
@@ -641,7 +649,7 @@
         <span id="slice-total-count" style="color:var(--text4);"></span>
         <span style="flex:1;"></span>
         <label class="se-wrap" title="Show/hide empty values (0 cells) in all categories"><span class="se-label">Show<br>Empty</span><span class="se-switch"><input type="checkbox" id="slice-empty-global" onchange="toggleAllEmptySlices()"><span class="se-track"></span></span></label>
-        <button id="slice-save-btn" onclick="exportSlice()" class="icon-btn" style="color:var(--text3);padding:1px 3px;" title="Save all cells in current slice as h5ad subset"><svg viewBox="0 0 24 24" width="13" height="13" style="fill:currentColor;vertical-align:-2px;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
+        <button id="slice-save-btn" onclick="exportSlice()" class="icon-btn" style="color:var(--text4);padding:1px 3px;" title="Save all cells in current slice as h5ad subset"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:currentColor;vertical-align:-2px;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
       </div>
     </div>
   </div>
@@ -683,12 +691,20 @@
 <div id="cw">
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
-  <div id="fps-box" style="display:none;"><span id="fpsn" style="color:#4ade80">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
+  <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
   <div id="hist-btns" style="position:absolute;top:8px;right:44px;display:flex;gap:1px;z-index:15;">
-    <button id="hist-back" onclick="histUndo()" style="background:rgba(0,0,0,0.25);border:none;border-radius:4px 0 0 4px;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.35)'" onmouseleave="this.style.background='rgba(0,0,0,0.25)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
-    <button id="hist-fwd" onclick="histRedo()" style="background:rgba(0,0,0,0.25);border:none;border-radius:0 4px 4px 0;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.35)'" onmouseleave="this.style.background='rgba(0,0,0,0.25)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
+    <button id="hist-back" onclick="histUndo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px 0 0 4px;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
+    <button id="hist-fwd" onclick="histRedo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:0 4px 4px 0;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
-  <div id="hidden-count"></div>
+  <div id="hud" class="open">
+    <div id="hud-body">
+      <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-visible">—</span></div>
+      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-hidden">—</span></div>
+      <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-total">—</span></div>
+      <div class="hud-row" id="hud-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-group">—</span></div>
+    </div>
+    <span id="hud-toggle" onclick="document.getElementById('hud').classList.toggle('open')">&#9662; Info</span>
+  </div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="action-flash"></div>
   <div id="no-key-banner">
@@ -752,6 +768,10 @@
       <label class="s-toggle"><input type="checkbox" id="dbg-raycast" onchange="_dbgRaycast=this.checked;if(!this.checked&&_dbgMarker)_dbgMarker.visible=false;"><span class="s-slider"></span></label>
     </div>
     <div class="s-row">
+      <span>Show geodesic</span>
+      <label class="s-toggle"><input type="checkbox" id="dbg-geodesic" onchange="_dbgGeodesic=this.checked;if(boundaryShell){boundaryShell.visible=this.checked;boundaryShell.material.opacity=this.checked?0.15:0;}"><span class="s-slider"></span></label>
+    </div>
+    <div class="s-row">
       <span>Show ray</span>
       <label class="s-toggle"><input type="checkbox" id="dbg-ray" onchange="_dbgShowRay=this.checked;if(!this.checked&&_dbgRayLine)_dbgRayLine.visible=false;"><span class="s-slider"></span></label>
     </div>
@@ -813,14 +833,14 @@
     <span id="deg-status"></span>
     <select id="deg-history" onchange="loadDEGFromHistory()" title="Previously computed DEG analyses" style="display:none;margin-left:4px;color:var(--text3);max-width:140px;"></select>
     <button id="deg-clear-history" onclick="clearDEGHistory()" class="icon-btn" style="display:none;color:var(--text4);padding:1px 2px;margin-left:1px;" title="Clear DEG history">
-      <svg viewBox="0 0 24 24" width="10" height="10" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      <svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
     </button>
     <div style="flex:1;"></div>
     <select id="deg-yaxis" onchange="renderVolcano()" title="Volcano Y-axis">
       <option value="padj">-log₁₀ padj</option>
       <option value="cohens_d">|Cohen's d|</option>
     </select>
-    <button class="icon-btn" onclick="downloadDEG()" title="Download DEG table (TSV)"><svg viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
+    <button class="icon-btn" onclick="downloadDEG()" title="Download DEG table (TSV)"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
     <button class="deg-close" onclick="closeDEG()" title="Close">&times;</button>
   </div>
   <div id="deg-filter" style="display:flex;align-items:center;gap:6px;padding:3px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
@@ -1094,7 +1114,7 @@
           <li><strong>Non-expressing cells</strong> — toggle visibility of cells with zero detected expression. When on (default), they appear as subtle ghost dots; when off, they are hidden entirely.</li>
           <li><strong>Expression → size</strong> — scales point area proportionally to expression level. High-expressing cells appear larger; non-expressing cells shrink to tiny dots.</li>
           <li><strong>Expression glow</strong> — adds a halo glow around expressing cells, making them stand out at a distance. The glow size adapts with zoom level.</li>
-          <li><strong>Pulse cells</strong> — slowly pulses expressing cells and their glow brighter (towards white in dark mode, deep navy in light mode) to help spot them. The halo also breathes in size with the pulse.</li>
+          <li><strong>Pulse expressing cells</strong> — slowly pulses expressing cells and their glow brighter (towards white in dark mode, deep navy in light mode) to help spot them. The halo also breathes in size with the pulse.</li>
         </ul>
         <p>A hidden cell counter appears in the bottom-left corner of the canvas when any cells are invisible (hidden clusters, slice filter, or non-expressing toggle).</p>
         <p><strong>Gene Variability</strong> — a ranked list of all genes shown below the search box. A dropdown at the top switches between two modes:</p>
@@ -1259,14 +1279,15 @@
           <tr><td><span class="help-key">⌥ Opt</span>+drag</td><td>3D fly through</td></tr>
           <tr><td>Middle-drag</td><td>3D fly through</td></tr>
           <tr><td>Scroll</td><td>Zoom in/out</td></tr>
-          <tr><td>Double-click cell</td><td>Center view on that cell and zoom in to neighborhood</td></tr>
+          <tr><td>Double-click cell</td><td>Zoom-focus on cell (preserves distance for nearby clicks)</td></tr>
+          <tr><td>Hover over cell</td><td>Highlight cell, show tooltip with cluster &amp; expression info</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Selection</th></tr>
-          <tr><td><span class="help-key">Shift</span>+drag</td><td>Lasso select</td></tr>
+          <tr><td><span class="help-key">Shift</span>+drag</td><td>Lasso select cells into active group</td></tr>
           <tr><td><span class="help-key">Shift</span>+<span class="help-key">⌥</span>+drag</td><td>Lasso deselect</td></tr>
-          <tr><td><span class="help-key">Shift</span>+click (UMAP)</td><td>Toggle single cell</td></tr>
-          <tr><td><span class="help-key">Shift</span>+dblclick (UMAP)</td><td>Toggle entire cell type</td></tr>
-          <tr><td><span class="help-key">Shift</span>+click (Cell Types)</td><td>Select cell type into group</td></tr>
-          <tr><td><span class="help-key">⌥ Opt</span>+click (legend dot)</td><td>Solo / unsolo</td></tr>
+          <tr><td><span class="help-key">Shift</span>+click (UMAP)</td><td>Toggle single cell in active group</td></tr>
+          <tr><td><span class="help-key">Shift</span>+dblclick (UMAP)</td><td>Toggle entire cell type in active group</td></tr>
+          <tr><td><span class="help-key">Shift</span>+click (Cell Types)</td><td>Select cell type into active group</td></tr>
+          <tr><td><span class="help-key">⌥ Opt</span>+click (legend dot)</td><td>Solo / unsolo cell type</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Lineage View (dot = this node only, name = node + descendants)</th></tr>
           <tr><td>Click name</td><td>Toggle visibility of branch (node + descendants)</td></tr>
           <tr><td>Click dot</td><td>Toggle visibility of this node only</td></tr>
@@ -1274,29 +1295,38 @@
           <tr><td><span class="help-key">⌥</span>+dot</td><td>Solo this node only</td></tr>
           <tr><td><span class="help-key">Shift</span>+click</td><td>Select branch into group (dot = this only)</td></tr>
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+click</td><td>Select only this node (not descendants)</td></tr>
+          <tr><td>Caret (&#9656;/&#9662;)</td><td>Collapse/expand branch (<span class="help-key">⌥</span>+click: recursive)</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Groups</th></tr>
           <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
-          <tr><td><span class="help-key">Shift</span>+<span class="help-key">H</span></td><td>Hide all group highlights (press again to restore)</td></tr>
-          <tr><td><span class="help-key">Delete</span></td><td>Hide selected cells and clear selection</td></tr>
-          <tr><td><span class="help-key">Esc</span></td><td>Clear visible cells in active group / close help</td></tr>
-          <tr><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td><td>Clear ALL cells in active group</td></tr>
+          <tr><td><span class="help-key">Shift</span>+<span class="help-key">H</span></td><td>Hide/restore all group highlights</td></tr>
+          <tr><td><span class="help-key">Shift</span>+<span class="help-key">V</span></td><td>Select all visible cells into active group</td></tr>
+          <tr><td><span class="help-key">Delete</span></td><td>Hide individual selected cells in active group</td></tr>
+          <tr><td><span class="help-key">⌘</span>+<span class="help-key">Delete</span></td><td>Hide entire clusters containing selected cells</td></tr>
+          <tr><td><span class="help-key">Esc</span></td><td>Clear visible cells in active group / close dialogs</td></tr>
+          <tr><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td><td>Clear ALL cells in active group (including hidden)</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Lists (vim-style)</th></tr>
-          <tr><td><span class="help-key">J</span></td><td>Move down in gene list (hold to scroll continuously)</td></tr>
-          <tr><td><span class="help-key">K</span></td><td>Move up in gene list (hold to scroll continuously)</td></tr>
+          <tr><td><span class="help-key">J</span></td><td>Move down in gene/cell type list</td></tr>
+          <tr><td><span class="help-key">K</span></td><td>Move up in gene/cell type list</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Visibility</th></tr>
+          <tr><td><span class="help-key">H</span></td><td>Show all cells (press again to restore previous hidden state)</td></tr>
+          <tr><td><span class="help-key">R</span></td><td>Reset camera view</td></tr>
+          <tr><td><span class="help-key">⌥</span>+<span class="help-key">R</span></td><td>Reset camera + show all cells + show all groups</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Display</th></tr>
           <tr><td><span class="help-key">C</span></td><td>Color by cell type / cluster</td></tr>
           <tr><td><span class="help-key">G</span></td><td>Color by gene expression</td></tr>
-          <tr><td><span class="help-key">R</span></td><td>Reset view</td></tr>
           <tr><td><span class="help-key">D</span></td><td>Toggle 2D/3D view</td></tr>
           <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
-          <tr><td><span class="help-key">H</span></td><td>Show all cells / hide all cells (press again to restore)</td></tr>
           <tr><td><span class="help-key">T</span></td><td>Toggle dark/light theme</td></tr>
           <tr><td><span class="help-key">\</span></td><td>Toggle sidebar</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Slice Panel</th></tr>
+          <tr><td>Click pill</td><td>Toggle slice value</td></tr>
+          <tr><td><span class="help-key">⌥</span>+click pill</td><td>Solo this value (or restore all if already solo)</td></tr>
+          <tr><td><span class="help-key">⌘</span>+<span class="help-key">⌥</span>+click pill</td><td>Make all cells of this value fully visible</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">General</th></tr>
-          <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span></td><td>Undo</td></tr>
-          <tr><td><span class="help-key">⌘</span>+<span class="help-key">]</span></td><td>Redo</td></tr>
-          <tr><td><span class="help-key">Shift</span>+<span class="help-key">V</span></td><td>Select all visible cells</td></tr>
+          <tr><td><span class="help-key">⌘</span>+<span class="help-key">Z</span></td><td>Undo</td></tr>
+          <tr><td><span class="help-key">⌘</span>+<span class="help-key">Shift</span>+<span class="help-key">Z</span></td><td>Redo</td></tr>
+          <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span> / <span class="help-key">]</span></td><td>Undo / Redo (alternate)</td></tr>
           <tr><td><span class="help-key">Enter</span></td><td>Confirm dialog / load file</td></tr>
           <tr><td>Drag file onto Data panel</td><td>Upload .h5ad dataset</td></tr>
         </table>
@@ -1468,6 +1498,7 @@ var _hoverPrevColor=null; /* original RGB to restore when hover leaves */
 var _dbgRaycast=false; /* debug: show raycast hit marker */
 var _dbgMarker=null; /* debug: THREE.Mesh sphere at raycast hit */
 var _dbgShowRay=false; /* debug: show ray line */
+var _dbgGeodesic=false; /* debug: keep geodesic shell visible */
 var _dbgRayLine=null; /* debug: THREE.Line for ray visualization */
 var recentGenes=[]; /* most recently viewed genes, newest first */
 var hvgGenes=[]; /* highly variable genes from server */
@@ -1488,7 +1519,7 @@ var basePtSz=50; /* 1-100 normalized slider value — animate() converts to actu
 var tgt3=new THREE.Vector3(0,0,0);
 var pan2={x:0,y:0}, zoom2=1, frustum2=60;
 function zoom2Fit(){
-  var r=cloudBounds.radius*1.05;
+  var r=cloudBounds.radius*0.88;
   var a=canvasW/canvasH;
   return Math.min(frustum2/r, frustum2*a/r);
 }
@@ -1547,7 +1578,7 @@ var _restoring=false;
 /* ── Undo/redo history ── */
 var _history=[];
 var _histIdx=-1;
-var _maxHist=100;
+var _maxHist=1000;
 var _navigating=false; /* true when stepping through history */
 
 function snapState(){
@@ -1566,7 +1597,8 @@ function snapState(){
     pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
     selGroups:sg, activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
     groupVisible:JSON.parse(JSON.stringify(groupVisible)),
-    sliceFilter:sf
+    sliceFilter:sf,
+    deletedCells:_deletedCells?Array.from(_deletedCells):null
   });
 }
 
@@ -1660,6 +1692,8 @@ function applyHistEntry(snap){
     _syncSlicePills();
     _updateSliceUI();
   }
+  /* Restore individually deleted cells */
+  _deletedCells=s.deletedCells?new Set(s.deletedCells):null;
   /* Switch embedding/view without redundant recolors */
   var needReposition=false;
   if(s.embMethod&&D&&D.embeddings[s.embMethod]&&embMethod!==s.embMethod){
@@ -1739,7 +1773,8 @@ function saveState(){
       tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
       pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
       selGroups:_serializeSel(), activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
-      groupVisible:JSON.parse(JSON.stringify(groupVisible))
+      groupVisible:JSON.parse(JSON.stringify(groupVisible)),
+      deletedCells:_deletedCells?Array.from(_deletedCells):null
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
@@ -1760,7 +1795,8 @@ function saveCameraOnly(){
       tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
       pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
       selGroups:_serializeSel(), activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
-      groupVisible:JSON.parse(JSON.stringify(groupVisible))
+      groupVisible:JSON.parse(JSON.stringify(groupVisible)),
+      deletedCells:_deletedCells?Array.from(_deletedCells):null
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
@@ -1804,6 +1840,7 @@ function restoreState(preloaded){
     rebuildCellGroupMap();
     renderSelPanel();
   }
+  _deletedCells=s.deletedCells?new Set(s.deletedCells):null;
   if(s.embMethod&&D&&D.embeddings[s.embMethod])setEmbMethod(s.embMethod);
   if(s.viewIs3d!==undefined)setView(s.viewIs3d?"3d":"2d");
   if(s.mode==="gene"&&s.selGene){
@@ -1948,11 +1985,13 @@ function setActiveGroup(id){
   if(activeGroupId===id)return; /* already active — preserve DOM for dblclick */
   activeGroupId=id;
   renderSelPanel();
+  _updateHudGroup();
 }
 
 function renameGroup(id,newName){
   var g=selGroups.find(function(g){return g.id===id;});
   if(g)g.name=newName;
+  _updateHudGroup();
   saveState();
 }
 
@@ -2539,10 +2578,10 @@ function _computeHomeCamera(){
   var _vH=_fovRad/2;
   var _hH=Math.atan(Math.tan(_vH)*(canvasW/canvasH));
   var _halfA=Math.min(_vH,_hH);
-  var fullR=_r/Math.sin(_halfA)*1.05;
+  var fullR=_r/Math.sin(_halfA)*0.88;
   var _a=canvasW/canvasH;
-  var _zV=frustum2/(_r*1.05);
-  var _zH=frustum2*_a/(_r*1.05);
+  var _zV=frustum2/(_r*0.88);
+  var _zH=frustum2*_a/(_r*0.88);
   return{theta:0.3+Math.PI,phi:1.0,radius:fullR,
     tgt:{x:cloudBounds.center.x,y:cloudBounds.center.y,z:cloudBounds.center.z},
     pan2:{x:cloudBounds.center.x,y:cloudBounds.center.y},zoom2:Math.min(_zV,_zH)};
@@ -2603,7 +2642,7 @@ function buildPts(data){
   markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
   selGene="";mode="cluster";
   _preHideGroupVis=null;
-  bgDimPct=0;_hadSelection=false;
+  bgDimPct=0;_hadSelection=false;_deletedCells=null;
   document.getElementById("bg-dim").value=100;
   _history=[];_histIdx=-1;
   try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_slice");}catch(e){}
@@ -2724,24 +2763,40 @@ function buildPts(data){
   var _vH=_fovRad/2;
   var _hH=Math.atan(Math.tan(_vH)*(canvasW/canvasH));
   var _halfA=Math.min(_vH,_hH);
-  var fullR=_r/Math.sin(_halfA)*1.05;
-  var introR=fullR*0.8;
+  var fullR=_r/Math.sin(_halfA)*0.88;
+  var introR=fullR*0.7;
   /* 2D fit: account for aspect ratio */
   var _a=canvasW/canvasH;
-  var _zV=frustum2/(_r*1.05);
-  var _zH=frustum2*_a/(_r*1.05);
+  var _zV=frustum2/(_r*0.88);
+  var _zH=frustum2*_a/(_r*0.88);
   sph={theta:0.3,phi:1.0,radius:introR};tgt3.copy(cloudBounds.center);
   pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};zoom2=Math.min(_zV,_zH);
   /* Remember the "home" camera state (post-intro position) for resetView() */
   _homeCamera={theta:0.3+Math.PI,phi:1.0,radius:fullR,tgt:{x:cloudBounds.center.x,y:cloudBounds.center.y,z:cloudBounds.center.z},
     pan2:{x:cloudBounds.center.x,y:cloudBounds.center.y},zoom2:Math.min(_zV,_zH)};
   _homeCameras={};_homeCameras["umap"]=_homeCamera;
-  /* Start intro orbit animation (overridden if state is restored) */
-  introAnim={startTime:performance.now(),startTheta:0.3,startRadius:introR,endRadius:fullR,duration:2800};
+  /* Start intro orbit animation after GPU settles */
+  var _introR=introR,_fullR=fullR;
+  introAnim=null;
+  setTimeout(function(){
+    if(!introAnim&&!_flyAnim)introAnim={startTime:performance.now(),startTheta:0.3,startRadius:_introR,endRadius:_fullR,duration:2800};
+  },300);
 }
 
 function getBG(){return document.body.classList.contains("light")?[0.96,0.97,0.98]:[0.031,0.031,0.055];}
 var EXILE=99999; // off-screen position for hidden cells
+function _updateHudGroup(){
+  var _hudGR=document.getElementById("hud-group-row");
+  var _hudG=document.getElementById("hud-group");
+  var _ag=getActiveGroup();
+  if(!_hudGR||!_hudG)return;
+  if(_ag){
+    var _gc=_ag.color;
+    var _grgb="rgb("+(_gc[0]*255|0)+","+(_gc[1]*255|0)+","+(_gc[2]*255|0)+")";
+    _hudG.innerHTML='<span style="color:'+_grgb+';">\u25CF<\/span> '+_ag.name+' <span style="color:var(--text4);">'+_ag.cells.size.toLocaleString()+'<\/span>';
+    _hudGR.style.display="flex";
+  }else{_hudGR.style.display="none";}
+}
 function recolor(){
   if(!D||!pts)return;
   _hoverIdx=-1;_hoverPrevColor=null; /* recolor overwrites buffer, clear hover state */
@@ -2806,7 +2861,7 @@ function recolor(){
   var _nHidden=0;
   for(var i=0;i<n;i++){
     var cid=D.cluster_ids[i];
-    if(visibleClusters[cid]===false||(sliceMask&&!sliceMask[i])){
+    if(visibleClusters[cid]===false||(sliceMask&&!sliceMask[i])||(_deletedCells&&_deletedCells.has(i))){
       _nHidden++;
       col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
       pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
@@ -2829,6 +2884,8 @@ function recolor(){
       }
       var _bs=_getBgScheme();
       c=isZero?_bs.ghostColor:ec(ex[i]);
+    }else if(mode==="gene"&&!useGene){
+      c=_getBgScheme().ghostColor;
     }else{c=cc(cid);}
     if(inGroup&&!useRing){
       var sc=selGroups[sg].color;
@@ -2861,12 +2918,15 @@ function recolor(){
     _szAttr.needsUpdate=true;
     _alAttr.needsUpdate=true;
   }
-  /* Update hidden cell count display */
-  var _hcEl=document.getElementById("hidden-count");
-  if(_hcEl){
-    if(_nHidden>0){_hcEl.textContent=_nHidden.toLocaleString()+" / "+n.toLocaleString()+" cells hidden";_hcEl.style.display="block";}
-    else{_hcEl.style.display="none";}
-  }
+  /* Update HUD cell counts */
+  var _hudV=document.getElementById("hud-visible");
+  var _hudH=document.getElementById("hud-hidden");
+  var _hudT=document.getElementById("hud-total");
+  if(_hudV){_hudV.textContent=(n-_nHidden).toLocaleString();}
+  if(_hudH){_hudH.textContent=_nHidden>0?_nHidden.toLocaleString():"0";}
+  if(_hudT){_hudT.textContent=n.toLocaleString();}
+  _updateHudGroup();
+  _scheduleVisStats();
   pts.geometry.attributes.color.needsUpdate=true;
   pts.geometry.attributes.position.needsUpdate=true;
   if(ringPts){
@@ -2899,7 +2959,7 @@ function _tickFly(){
     pan2.y=_flyAnim.fromPan.y+(_flyAnim.toPan.y-_flyAnim.fromPan.y)*ease;
     zoom2=_flyAnim.fromZoom+(_flyAnim.toZoom-_flyAnim.fromZoom)*ease;
   }
-  if(t>=1){var _noHist=_flyAnim._noHist;_flyAnim=null;if(_noHist){try{var _s={viewIs3d:viewIs3d,embMethod:embMethod,mode:mode,selGene:selGene,visibleClusters:visibleClusters,autoRotate:autoRotate,ptSize:basePtSz,ptOpacity:pts?pts.material.opacity:0.7,bgDim:bgDimPct,sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2,selGroups:_serializeSel(),activeGroupId:activeGroupId,selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible))};sessionStorage.setItem("fleek_state",JSON.stringify(_s));}catch(e){}}else{saveCameraOnly();}}
+  if(t>=1){var _noHist=_flyAnim._noHist;_flyAnim=null;if(_noHist){try{var _s={viewIs3d:viewIs3d,embMethod:embMethod,mode:mode,selGene:selGene,visibleClusters:visibleClusters,autoRotate:autoRotate,ptSize:basePtSz,ptOpacity:pts?pts.material.opacity:0.7,bgDim:bgDimPct,sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2,selGroups:_serializeSel(),activeGroupId:activeGroupId,selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),deletedCells:_deletedCells?Array.from(_deletedCells):null};sessionStorage.setItem("fleek_state",JSON.stringify(_s));}catch(e){}}else{saveCameraOnly();}}
 }
 function animate(){
   requestAnimationFrame(animate);
@@ -2926,15 +2986,15 @@ function animate(){
     /* Boundary shell — visible when user pushes against cloud edge */
     if(boundaryShell&&cloudBounds.radius>0){
       if(_clamped){
-        _boundaryOpacity=0.25;
+        _boundaryOpacity=0.45;
       }else{
         if(_boundaryOpacity>0){
           _boundaryOpacity*=0.97;
           if(_boundaryOpacity<0.005)_boundaryOpacity=0;
         }
       }
-      boundaryShell.material.opacity=_boundaryOpacity;
-      boundaryShell.visible=_boundaryOpacity>0.001;
+      if(_dbgGeodesic){boundaryShell.material.opacity=0.45;boundaryShell.visible=true;}
+      else{boundaryShell.material.opacity=_boundaryOpacity;boundaryShell.visible=_boundaryOpacity>0.001;}
     }
     renderer.render(scene,cam3d);}
   else{update2dCam();renderer.render(scene,cam2d);}
@@ -3394,6 +3454,8 @@ function setupCtrl(){
   document.addEventListener("keydown",function(e){
     if((e.metaKey||e.ctrlKey)&&e.key==="["){e.preventDefault();histUndo();_flashAction("Undo",_MOD+"[");}
     if((e.metaKey||e.ctrlKey)&&e.key==="]"){e.preventDefault();histRedo();_flashAction("Redo",_MOD+"]");}
+    if((e.metaKey||e.ctrlKey)&&e.key==="z"&&!e.shiftKey){e.preventDefault();histUndo();_flashAction("Undo",_MOD+"Z");}
+    if((e.metaKey||e.ctrlKey)&&e.key==="z"&&e.shiftKey){e.preventDefault();histRedo();_flashAction("Redo",_MOD+"+Shift+Z");}
     /* Escape: always works, even when a slider has focus */
     if(e.key==="Escape"){
       if(document.activeElement)document.activeElement.blur();
@@ -3445,6 +3507,7 @@ function setupCtrl(){
       var idx=parseInt(e.key)-1;
       while(idx>=selGroups.length)addSelGroup();
       setActiveGroup(selGroups[idx].id);
+      _updateHudGroup();
       _flashAction("Group "+(idx+1),(idx+1)+"");
     }
     if(inInput)return; /* remaining shortcuts only outside inputs */
@@ -3453,20 +3516,27 @@ function setupCtrl(){
     /* g = gene expression color mode */
     if(e.key==="g"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("gene");_flashAction("Gene Expression","G");}
     /* Shift+H = toggle all selection group highlights */
-    if(e.key==="H"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVisH();_flashAction("Toggle All Groups","Shift+H");}
+    if(e.key==="H"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVis();_flashAction("Toggle All Groups","Shift+H");}
     /* h = show all / hide all / restore hidden */
     if(e.key==="h"&&!e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
-      var _wasRestore=!!_preShowAllVis;
+      var _hadSaved=!!_preShowAllVis;
       _toggleShowAll();
-      var anyVis=false;for(var _ak=0;_ak<D.header.n_clusters;_ak++){if(visibleClusters[_ak]!==false){anyVis=true;break;}}
-      _flashAction(_wasRestore?"Restore Hidden":anyVis?"Show All":"Hide All","H");
+      _flashAction(_hadSaved?"Restore Hidden":"Show All","H");
     }
-    /* Delete/Backspace = hide selected cells and clear selection */
-    if((e.key==="Delete"||e.key==="Backspace")&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+    /* Delete/Backspace = hide individual selected cells */
+    if((e.key==="Delete"||e.key==="Backspace")&&!e[_MOD_KEY]&&!e.altKey){
+      _deleteSelectedCells();
+    }
+    /* Cmd/Ctrl+Delete = hide entire clusters of selected cells */
+    if((e.key==="Delete"||e.key==="Backspace")&&e[_MOD_KEY]&&!e.altKey){
+      e.preventDefault();
       _hideSelectedCells();
     }
     /* r = reset view */
-    if(e.key==="r"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){resetView();_flashAction("Reset View","R");}
+    if((e.key==="r"||e.key==="®"||e.code==="KeyR")&&!e.metaKey&&!e.ctrlKey){
+      if(e.altKey){resetView({altKey:true});_flashAction("Reset + Show All",_ALT+"+R");}
+      else{resetView();_flashAction("Reset View","R");}
+    }
     /* d = toggle 2D/3D */
     if(e.key==="d"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setView(viewIs3d?"2d":"3d");_flashAction(viewIs3d?"3D View":"2D View","D");}
     /* e = cycle embeddings */
@@ -4009,7 +4079,16 @@ function _gvClusterLabel(i){
 }
 function _gvDotHtml(cid,sz){
   var c=cc(cid);
-  return '<span class="gv-dd-dot" style="width:'+sz+'px;height:'+sz+'px;background:rgb('+(c[0]*255|0)+','+(c[1]*255|0)+','+(c[2]*255|0)+');"><\/span>';
+  var rgb='rgb('+(c[0]*255|0)+','+(c[1]*255|0)+','+(c[2]*255|0)+')';
+  var vis=visibleClusters[cid]!==false;
+  var _vn=_visStats?_visStats.clusterVis[cid]:(clusterCounts[cid]||0);
+  var _tn=clusterCounts[cid]||0;
+  var partial=vis&&_tn>0&&_vn<_tn;
+  var bg;
+  if(!vis){bg='transparent;border:1.5px solid '+rgb;}
+  else if(partial){var fp=Math.max(5,Math.min(95,Math.round(_vn/_tn*100)));bg='linear-gradient(to top,'+rgb+' '+fp+'%,transparent '+fp+'%);border:1.5px solid '+rgb;}
+  else{bg=rgb;}
+  return '<span class="gv-dd-dot" style="width:'+sz+'px;height:'+sz+'px;background:'+bg+';"><\/span>';
 }
 function _gvDdToggle(btn){
   var dd=btn.parentNode;
@@ -4110,12 +4189,23 @@ function _gvUpdateDot(){
   var c=cc(i);
   var rgb="rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")";
   var vis=visibleClusters[i]!==false;
-  if(vis){
-    dot.style.background=rgb;
-    dot.style.border="none";
-  }else{
+  var _vn=_visStats?_visStats.clusterVis[i]:(clusterCounts[i]||0);
+  var _tn=clusterCounts[i]||0;
+  var partial=vis&&_tn>0&&_vn<_tn;
+  var pct=_tn>0?Math.round(_vn/_tn*100):0;
+  if(!vis){
     dot.style.background="transparent";
     dot.style.border="1.5px solid "+rgb;
+    dot.title="Hidden \u00b7 Click: toggle \u00b7 Alt: solo \u00b7 Shift: select";
+  }else if(partial){
+    var fp=Math.max(5,Math.min(95,pct));
+    dot.style.border="1.5px solid "+rgb;
+    dot.style.background="linear-gradient(to top,"+rgb+" "+fp+"%,transparent "+fp+"%)";
+    dot.title=_vn.toLocaleString()+" / "+_tn.toLocaleString()+" visible ("+pct+"%) \u00b7 Click: toggle \u00b7 Alt: solo \u00b7 Shift: select";
+  }else{
+    dot.style.background=rgb;
+    dot.style.border="none";
+    dot.title=_tn.toLocaleString()+" cells \u00b7 Click: toggle \u00b7 Alt: solo \u00b7 Shift: select";
   }
 }
 function _gvDotClick(ev){
@@ -4179,7 +4269,36 @@ function _gvApplyClusterSort(){
   }
   _clusterGeneSorted=idx;
 }
+var _clusterGenesFetching=false;
 function _fetchClusterGenes(clusterId){
+  /* If we haven't fetched all clusters yet, do a bulk fetch */
+  if(!_clusterGenesFetching&&Object.keys(_clusterGeneCache).length===0){
+    _clusterGenesFetching=true;
+    fetch("/api/cluster-genes?id=all")
+    .then(function(r){return r.json();})
+    .then(function(data){
+      _clusterGenesFetching=false;
+      if(data.error){console.error("Cluster genes:",data.error);return;}
+      if(data.all&&data.clusters){
+        for(var k in data.clusters)_clusterGeneCache[parseInt(k)]=data.clusters[k];
+        /* Render current cluster if it was waiting */
+        if(_clusterGeneCache[_gvClusterId]){
+          _clusterGeneData=_clusterGeneCache[_gvClusterId];
+          _gvApplyClusterSort();
+          var listEl=document.getElementById("hvg-list");
+          if(listEl)_renderClusterGeneList(listEl);
+        }
+      }
+    })
+    .catch(function(err){
+      _clusterGenesFetching=false;
+      console.error("Cluster genes bulk fetch failed:",err);
+      var listEl=document.getElementById("hvg-list");
+      if(listEl)listEl.innerHTML='<div style="padding:8px;font-size:9px;color:#d45;">Error loading cluster genes<\/div>';
+    });
+    return;
+  }
+  /* Single cluster fetch (fallback or cache miss) */
   fetch("/api/cluster-genes?id="+clusterId)
   .then(function(r){return r.json();})
   .then(function(data){
@@ -4195,7 +4314,7 @@ function _fetchClusterGenes(clusterId){
   .catch(function(err){
     console.error("Cluster genes fetch failed:",err);
     var listEl=document.getElementById("hvg-list");
-    if(listEl)listEl.innerHTML='<div style="padding:8px;font-size:9px;color:#d45;">Error loading cluster genes</div>';
+    if(listEl)listEl.innerHTML='<div style="padding:8px;font-size:9px;color:#d45;">Error loading cluster genes<\/div>';
   });
 }
 function _renderClusterGeneList(listEl){
@@ -4362,7 +4481,7 @@ function helpJump(id){
   var body=document.getElementById("help-body");
   body.scrollTop=sec.offsetTop-body.offsetTop;
 }
-function resetView(){
+function resetView(e){
   var hc=_homeCameras[embMethod]||_homeCamera;
   if(viewIs3d){
     if(hc){
@@ -4378,9 +4497,18 @@ function resetView(){
       sph={theta:0.5,phi:1.0,radius:fitDist};tgt3.copy(cloudBounds.center);
     }
   }else{
-    /* Always recompute 2D fit from current canvas size + cloud bounds */
     zoom2=zoom2Fit();
     pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};
+  }
+  /* Alt+click/Alt+R: also show all cells and all selection groups */
+  if(e&&e.altKey&&D){
+    for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=true;
+    _deletedCells=null;_preShowAllVis=null;_preDeletedCells=null;
+    for(var gi=0;gi<selGroups.length;gi++)groupVisible[selGroups[gi].id]=true;
+    _preHideGroupVis=null;
+    renderLeg();recolor();
+    if(lineageView)_renderLineageTree();
+    if(selGroups.length>0)renderSelPanel();
   }
   syncCanvasSize();
   saveCameraOnly();
@@ -4390,6 +4518,7 @@ function buildLeg(){
   /* Compute per-cluster cell counts */
   clusterCounts=new Array(D.header.n_clusters).fill(0);
   for(var i=0;i<D.header.n_cells;i++)clusterCounts[D.cluster_ids[i]]++;
+  _buildSliceTotals();
   for(var i=0;i<D.header.n_clusters;i++){if(visibleClusters[i]===undefined)visibleClusters[i]=true;}
   var countEl=document.getElementById("type-count");
   if(countEl)countEl.textContent="("+D.header.n_clusters+")";
@@ -4514,9 +4643,14 @@ function _legRenderRow(j){
   var c=cc(i);
   var rgb="rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")";
   var vis=visibleClusters[i]!==false;
-  var dotStyle=vis
-    ?"background:"+rgb+";"
-    :"background:transparent;border:1.5px solid "+rgb+";";
+  var _vn=_visStats?_visStats.clusterVis[i]:cnt;
+  var _tn=cnt;
+  var partial=vis&&_tn>0&&_vn<_tn;
+  var pct=_tn>0?Math.round(_vn/_tn*100):0;
+  var dotStyle;
+  if(!vis){dotStyle="background:transparent;border:1.5px solid "+rgb+";";}
+  else if(partial){var fillPct=Math.max(5,Math.min(95,pct));dotStyle="border:1.5px solid "+rgb+";background:linear-gradient(to top,"+rgb+" "+fillPct+"%,transparent "+fillPct+"%);";}
+  else{dotStyle="background:"+rgb+";";}
   var textColor=vis?"var(--text2)":"var(--text4)";
   var annot="";
   if(markerAnnotations&&markerAnnotations[i]&&markerAnnotations[i].length>0){
@@ -4538,12 +4672,15 @@ function _legRenderRow(j){
       +'<span class="annot-score">'+(conf||"")+'<\/span>'
       +'<\/div>';
   }
-  return '<div class="li leg-item" style="position:absolute;left:0;right:0;top:'+_legRowY[j]+'px;height:'+_legRowH[j]+'px;cursor:pointer;user-select:none;" data-ci="'+i+'" onclick="toggleCluster('+i+',event)" title="Click: toggle \u00b7 '+_ALT+': solo \u00b7 Shift: select">'
+  var _visTip=_vn.toLocaleString()+" / "+_tn.toLocaleString()+" visible ("+pct+"%)";
+  var _tip="Click: toggle \u00b7 "+_ALT+": solo \u00b7 Shift: select\n"+_visTip;
+  var _cntText=partial?_vn.toLocaleString()+" / "+cnt.toLocaleString():cnt.toLocaleString();
+  return '<div class="li leg-item" style="position:absolute;left:0;right:0;top:'+_legRowY[j]+'px;height:'+_legRowH[j]+'px;cursor:pointer;user-select:none;" data-ci="'+i+'" onclick="toggleCluster('+i+',event)" title="'+_tip+'">'
     +'<div class="leg-row">'
     +'<div class="dot" style="'+dotStyle+'"><\/div>'
     +'<span class="nm" style="color:'+textColor+'">'+nm+'<\/span>'
     +'<span style="flex:1;"><\/span>'
-    +'<span style="font-size:9px;color:'+(vis?"var(--text4)":"var(--border2)")+';font-variant-numeric:tabular-nums;margin-left:4px;flex-shrink:0;">'+cnt.toLocaleString()+'<\/span>'
+    +'<span style="font-size:9px;color:'+(vis?"var(--text4)":"var(--border2)")+';font-variant-numeric:tabular-nums;margin-left:4px;flex-shrink:0;">'+_cntText+'<\/span>'
     +'<\/div>'
     +annot
     +'<\/div>';
@@ -4696,7 +4833,7 @@ function runAnnotationLLM(){
 var lineageTree=null; /* tree object from server */
 var lineageView=false; /* true when tree view is active */
 var _lineageCollapsed={}; /* node path -> collapsed state */
-var _linIconTree='<svg viewBox="0 0 12 12" width="13" height="13" style="width:13px;height:13px;min-width:13px;vertical-align:-2px;fill:currentColor;margin-right:2px;flex-shrink:0;"><circle cx="6" cy="1.8" r="1.6"/><circle cx="2.5" cy="10.2" r="1.6"/><circle cx="9.5" cy="10.2" r="1.6"/><line x1="6" y1="3.4" x2="6" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="2.5" y1="6" x2="2.5" y2="8.6" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="6" x2="9.5" y2="8.6" stroke="currentColor" stroke-width="1.3"/><\/svg>';
+var _linIconTree='<svg viewBox="0 0 12 12" width="12" height="12" style="width:12px;height:12px;min-width:12px;vertical-align:-2px;fill:currentColor;margin-right:2px;flex-shrink:0;"><circle cx="6" cy="1.8" r="1.6"/><circle cx="2.5" cy="10.2" r="1.6"/><circle cx="9.5" cy="10.2" r="1.6"/><line x1="6" y1="3.4" x2="6" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="2.5" y1="6" x2="2.5" y2="8.6" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="6" x2="9.5" y2="8.6" stroke="currentColor" stroke-width="1.3"/><\/svg>';
 var _linIconFlat='<svg viewBox="0 0 12 12" width="12" height="12" style="width:12px;height:12px;min-width:12px;vertical-align:-2px;fill:currentColor;margin-right:2px;flex-shrink:0;"><line x1="2" y1="2.5" x2="10" y2="2.5" stroke="currentColor" stroke-width="1.3"/><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="2" y1="9.5" x2="10" y2="9.5" stroke="currentColor" stroke-width="1.3"/><\/svg>';
 
 function _setLinBtn(btn,mode){
@@ -4933,7 +5070,11 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
   }else{
     tipParts.push("[Inferred] "+node.name);
   }
-  tipParts.push(cellCount.toLocaleString()+" cells");
+  var _allVis=0,_allTot=cellCount;
+  if(_visStats){for(var _ai=0;_ai<allCids.length;_ai++)_allVis+=_visStats.clusterVis[allCids[_ai]];}
+  else{_allVis=cellCount;}
+  var _allPct=_allTot>0?Math.round(_allVis/_allTot*100):0;
+  tipParts.push(_allVis.toLocaleString()+" / "+_allTot.toLocaleString()+" visible ("+_allPct+"%)");
   if(hasChildren){
     tipParts.push("Click name: toggle branch · "+_ALT+": solo branch · Shift: select branch · "+_ALT+"+Shift: select this only");
   }
@@ -4950,10 +5091,18 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
   }
 
   /* Dot for visibility — dotOnly=true means "this node only, not descendants" */
+  var _ldVis=0,_ldTot=0;
+  if(_visStats){for(var _lk=0;_lk<cids.length;_lk++){_ldVis+=_visStats.clusterVis[cids[_lk]];_ldTot+=(clusterCounts[cids[_lk]]||0);}}
+  var _ldPartial=directVis&&_ldTot>0&&_ldVis<_ldTot;
+  var _ldPct=_ldTot>0?Math.round(_ldVis/_ldTot*100):0;
   var dotVis=directVis?"vis-on":"vis-off";
-  html+='<span class="lin-dot '+dotVis+'" style="color:'+dotColor+';"'
+  var _ldDotExtra="";
+  if(_ldPartial){var _fp=Math.max(5,Math.min(95,_ldPct));dotVis="vis-off";_ldDotExtra="background:linear-gradient(to top,"+dotColor+" "+_fp+"%,transparent "+_fp+"%) !important;";}
+  var _ldTip="Click: toggle this only \u00b7 "+_ALT+": solo this only";
+  if(_ldTot>0)_ldTip+="\n"+_ldVis.toLocaleString()+" / "+_ldTot.toLocaleString()+" visible ("+_ldPct+"%)";
+  html+='<span class="lin-dot '+dotVis+'" style="color:'+dotColor+';'+_ldDotExtra+'"'
     +' onclick="event.stopPropagation();lineageClick(event,\''+path+'\',true)"'
-    +' title="Click: toggle this only · '+_ALT+': solo this only"></span>';
+    +' title="'+_ldTip.replace(/"/g,"&quot;")+'"></span>';
 
   /* Name */
   html+='<span class="lin-name'+(present?'':' inferred')+'">'+node.name+'</span>';
@@ -5172,25 +5321,99 @@ function soloCluster(i){
   if(selGroups.length>0)renderSelPanel();
 }
 var _preShowAllVis=null;
-function _toggleShowAll(){
+var _deletedCells=null; /* Set of individually hidden cell indices, or null */
+var _visStats=null; /* {clusterVis:Int32Array, sliceVis:{col:Int32Array}} */
+var _visStatsTimer=null;
+var _sliceTotals=null; /* pre-computed per-slice-value totals, rebuilt on dataset load */
+function _buildSliceTotals(){
+  _sliceTotals=null;
   if(!D)return;
-  if(_preShowAllVis){
-    /* Restore previous visibility */
-    for(var k in _preShowAllVis)visibleClusters[k]=_preShowAllVis[k];
-    _preShowAllVis=null;
-  }else{
-    var anyHidden=false;
-    for(var k=0;k<D.header.n_clusters;k++){if(visibleClusters[k]===false){anyHidden=true;break;}}
-    _preShowAllVis=JSON.parse(JSON.stringify(visibleClusters));
-    if(anyHidden){
-      for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=true;
-    }else{
-      for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=false;
+  var obsCats=D.header.obs_categories||{};
+  var cols=Object.keys(obsCats);
+  if(cols.length===0)return;
+  _sliceTotals={};
+  var n=D.header.n_cells;
+  for(var oc=0;oc<cols.length;oc++){
+    var col=cols[oc];
+    var nCats=obsCats[col].categories.length;
+    var arr=new Int32Array(nCats);
+    var codes=D.obs_codes[col];
+    if(codes){for(var i=0;i<n;i++){var c=codes[i];if(c>=0)arr[c]++;}}
+    _sliceTotals[col]=arr;
+  }
+}
+function _scheduleVisStats(){
+  if(_visStatsTimer)return;
+  _visStatsTimer=setTimeout(function(){_visStatsTimer=null;_computeVisStats();},60);
+}
+function _computeVisStats(){
+  if(!D||!pts)return;
+  var n=D.header.n_cells,nc=D.header.n_clusters;
+  var posArr=pts.geometry.attributes.position.array;
+  /* Cluster visible counts — use position buffer: EXILE = hidden */
+  var cvs=new Int32Array(nc);
+  for(var i=0;i<n;i++){
+    if(posArr[i*3]<EXILE-1)cvs[D.cluster_ids[i]]++;
+  }
+  /* Slice visible counts — only if slice panel exists and has columns */
+  var svs=null;
+  var sliceSec=document.getElementById("slice-sec");
+  if(_sliceTotals&&sliceSec&&sliceSec.style.display!=="none"){
+    svs={};
+    var obsCats=D.header.obs_categories||{};
+    var cols=Object.keys(obsCats);
+    for(var oc=0;oc<cols.length;oc++){
+      var col=cols[oc];
+      var nCats=obsCats[col].categories.length;
+      var arr=new Int32Array(nCats);
+      var codes=D.obs_codes[col];
+      if(codes){for(var i=0;i<n;i++){if(posArr[i*3]<EXILE-1){var c=codes[i];if(c>=0)arr[c]++;}}}
+      svs[col]=arr;
     }
   }
+  _visStats={clusterVis:cvs,clusterTotal:null,sliceVis:svs,sliceTotal:_sliceTotals};
+  _legLastS=-1;_legLastE=-1;_legVirtualRender();
+  _syncSlicePills();
+  if(lineageView)_renderLineageTree();
+}
+var _preDeletedCells=null;
+function _toggleShowAll(){
+  if(!D)return;
+  var anyHidden=false;
+  for(var k=0;k<D.header.n_clusters;k++){if(visibleClusters[k]===false){anyHidden=true;break;}}
+  if(!anyHidden&&_deletedCells&&_deletedCells.size>0)anyHidden=true;
+  if(anyHidden){
+    /* Save current state, then show all */
+    _preShowAllVis=JSON.parse(JSON.stringify(visibleClusters));
+    _preDeletedCells=_deletedCells;
+    for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=true;
+    _deletedCells=null;
+  }else if(_preShowAllVis){
+    /* Restore previous hidden state */
+    for(var k in _preShowAllVis)visibleClusters[k]=_preShowAllVis[k];
+    _preShowAllVis=null;
+    _deletedCells=_preDeletedCells;_preDeletedCells=null;
+  }
+  /* else: everything visible with no saved state — no-op */
   renderLeg();recolor();saveState();
   if(selGroups.length>0)renderSelPanel();
   if(lineageView)_renderLineageTree();
+}
+function _deleteSelectedCells(){
+  if(!D||selGroups.length===0)return;
+  var ag=getActiveGroup();
+  if(!ag||ag.cells.size===0)return;
+  if(!_deletedCells)_deletedCells=new Set();
+  var count=0;
+  ag.cells.forEach(function(ci){
+    _deletedCells.add(ci);
+    count++;
+  });
+  ag.cells.clear();
+  if(count===0)return;
+  rebuildCellGroupMap();
+  renderSelPanel();recolor();saveState();
+  _flashAction(count.toLocaleString()+" cells hidden","Del");
 }
 function _hideSelectedCells(){
   if(!D||selGroups.length===0)return;
@@ -5998,7 +6221,7 @@ function unloadDataset(){
     /* Clear client state */
     D=null;mode="cluster";selGene="";geneExprCache={};
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
-    _clusterGeneCache={};_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="global";
+    _clusterGeneCache={};_clusterGenesFetching=false;_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="global";
     var _modeDD=document.getElementById("gv-mode");if(_modeDD)_modeDD.value="global";
     var _clRow=document.getElementById("gv-cluster-row");if(_clRow)_clRow.style.display="none";
     /* Close DEG panel */
@@ -6176,6 +6399,23 @@ function showLoadBadges(ls){
   if(badges.length>0){
     el.innerHTML=badges.join("");
     el.style.display="flex";
+    /* Ensure cache badges have room to expand on hover (9px extra padding).
+       If a badge's right edge is within 12px of the container edge, insert
+       a flex line-break before it to push it to the next line. */
+    requestAnimationFrame(function(){
+      el.querySelectorAll(".badge-br").forEach(function(b){b.remove();});
+      var cRight=el.getBoundingClientRect().right;
+      var cBadges=el.querySelectorAll(".load-badge.cached");
+      for(var i=0;i<cBadges.length;i++){
+        var bRight=cBadges[i].getBoundingClientRect().right;
+        if(cRight-bRight<12){
+          var br=document.createElement("span");
+          br.className="badge-br";
+          br.style.cssText="flex-basis:100%;height:0;";
+          cBadges[i].parentNode.insertBefore(br,cBadges[i]);
+        }
+      }
+    });
   }else{
     el.style.display="none";
   }
@@ -6542,6 +6782,11 @@ function buildSlicePanel(){
       pill.addEventListener("click",function(e){
         var c=this.getAttribute("data-col");
         var idx=parseInt(this.getAttribute("data-idx"));
+        if(e[_MOD_KEY]&&e.altKey){
+          /* Cmd/Ctrl+Alt+click: make all cells of this slice value fully visible */
+          _makeSliceValueVisible(c,idx);
+          return;
+        }
         if(e.altKey){
           /* Solo: only this value active in column, or restore all if already solo */
           var cats2=D&&D.header&&D.header.obs_categories||{};
@@ -6575,8 +6820,33 @@ function buildSlicePanel(){
   _updateSliceUI();
 }
 
+function _makeSliceValueVisible(col,idx){
+  /* Show all clusters that contain cells matching this slice value */
+  if(!D||!D.obs_codes[col])return;
+  var codes=D.obs_codes[col];
+  var n=D.header.n_cells;
+  var cidsToShow={};
+  for(var i=0;i<n;i++){
+    if(codes[i]===idx)cidsToShow[D.cluster_ids[i]]=true;
+  }
+  for(var k in cidsToShow)visibleClusters[k]=true;
+  /* Also ensure this value is active in the slice filter */
+  if(sliceFilter[col])sliceFilter[col].add(idx);
+  /* Clear deleted cells that match this slice value */
+  if(_deletedCells){
+    for(var i=0;i<n;i++){
+      if(codes[i]===idx)_deletedCells.delete(i);
+    }
+    if(_deletedCells.size===0)_deletedCells=null;
+  }
+  renderLeg();recolor();saveState();
+  _syncSlicePills();
+  _updateSliceUI();
+  if(lineageView)_renderLineageTree();
+  if(selGroups.length>0)renderSelPanel();
+}
 function _syncSlicePills(onlyCol){
-  /* Update .active class on all slice pills to match sliceFilter state */
+  /* Update .active class and partial visibility on all slice pills */
   var body=document.getElementById("slice-body");
   if(!body)return;
   var pills=body.querySelectorAll(".fleek-option[data-col]");
@@ -6584,7 +6854,29 @@ function _syncSlicePills(onlyCol){
     var c=pills[i].getAttribute("data-col");
     if(onlyCol&&c!==onlyCol)continue;
     var idx=parseInt(pills[i].getAttribute("data-idx"));
-    pills[i].classList.toggle("active",!sliceFilter[c]||sliceFilter[c].has(idx));
+    var isActive=!sliceFilter[c]||sliceFilter[c].has(idx);
+    /* Partial visibility: pill is active but some/all cells hidden by other filters */
+    var sv=_visStats&&_visStats.sliceVis&&_visStats.sliceVis[c]?(_visStats.sliceVis[c][idx]||0):0;
+    var st=_sliceTotals&&_sliceTotals[c]?(_sliceTotals[c][idx]||0):0;
+    pills[i].classList.toggle("active",isActive);
+    var partial=isActive&&st>0&&sv<st;
+    var pct=st>0?Math.round(sv/st*100):0;
+    var isLight=document.body.classList.contains("light");
+    if(partial||( isActive&&st>0&&sv===0)){
+      var fp=sv===0?0:Math.max(5,Math.min(95,pct));
+      var onColor=isLight?"rgba(5,150,105,0.25)":"rgba(52,211,153,0.25)";
+      var offColor=isLight?"rgba(5,150,105,0.05)":"rgba(255,255,255,0.02)";
+      if(fp===0){
+        pills[i].style.setProperty("--pill-partial-bg",offColor);
+      }else{
+        pills[i].style.setProperty("--pill-partial-bg","linear-gradient(135deg,"+onColor+" "+fp+"%,"+offColor+" "+fp+"%)");
+      }
+      pills[i].classList.add("partial");
+      pills[i].title=sv.toLocaleString()+" / "+st.toLocaleString()+" visible ("+pct+"%) \u00b7 "+_MOD+"+"+_ALT+"+click: show all";
+    }else{
+      pills[i].classList.remove("partial");
+      pills[i].title=isActive?(st.toLocaleString()+" cells"):"(excluded)";
+    }
   }
 }
 
@@ -8362,6 +8654,8 @@ document.addEventListener("DOMContentLoaded",function(){
           updateHistBtn();
         }
         hideL();
+        /* Prefetch all cluster gene rankings in background (triggers shared DEG if needed) */
+        setTimeout(function(){if(D&&Object.keys(_clusterGeneCache).length===0)_fetchClusterGenes(0);},2000);
         /* Load session list and try auto-saved session if no sessionStorage state */
         _loadSessionList("_auto");
         if(!saved){

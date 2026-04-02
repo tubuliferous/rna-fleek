@@ -2589,38 +2589,56 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.wfile.write(err)
 
     def _serve_cluster_genes(self, params):
-        """Return full gene rankings for a specific cluster from the shared one-vs-rest DEG.
+        """Return full gene rankings for a specific cluster (or all clusters) from the shared one-vs-rest DEG.
         Each gene has: name, log2fc, padj, cohens_d.  Triggers DEG computation if not cached."""
         try:
             if ADATA is None or CLUSTER_NAMES is None:
                 raise ValueError("No dataset loaded")
-            cluster_id = int(params.get("id", [0])[0])
-            if cluster_id < 0 or cluster_id >= len(CLUSTER_NAMES):
-                raise ValueError(f"Invalid cluster id {cluster_id}")
-            cname = CLUSTER_NAMES[cluster_id]
             # Ensure shared DEG is computed (may trigger computation)
             if _DEG_CACHE.get("full_rankings") is None:
                 print(f"  Cluster genes: computing shared DEG for full rankings...")
                 _get_shared_deg(top_n=50, test="wilcoxon")
             rankings = _DEG_CACHE.get("full_rankings", {})
-            cdata = rankings.get(cname)
-            if cdata is None:
-                from collections import Counter
-                counts = Counter(CLUSTER_IDS.tolist())
-                n_cells = counts.get(cluster_id, 0)
-                result = {"genes": [], "log2fc": [], "padj": [], "cohens_d": [],
-                          "cluster": cname, "cluster_id": cluster_id, "n_cells": n_cells,
-                          "n_genes": 0, "small": True}
+            from collections import Counter
+            counts = Counter(CLUSTER_IDS.tolist())
+            id_param = params.get("id", ["0"])[0]
+            if id_param == "all":
+                # Return all clusters in one response
+                all_results = {}
+                for cluster_id in range(len(CLUSTER_NAMES)):
+                    cname = CLUSTER_NAMES[cluster_id]
+                    cdata = rankings.get(cname)
+                    n_cells = counts.get(cluster_id, 0)
+                    if cdata is None:
+                        all_results[str(cluster_id)] = {"genes": [], "log2fc": [], "padj": [], "cohens_d": [],
+                                                         "cluster": cname, "cluster_id": cluster_id, "n_cells": n_cells,
+                                                         "n_genes": 0, "small": True}
+                    else:
+                        all_results[str(cluster_id)] = {
+                            "genes": cdata["genes"], "log2fc": cdata["log2fc"],
+                            "padj": cdata["padj"], "cohens_d": cdata["cohens_d"],
+                            "cluster": cname, "cluster_id": cluster_id,
+                            "n_cells": n_cells, "n_genes": len(cdata["genes"]),
+                        }
+                result = {"all": True, "clusters": all_results}
             else:
-                from collections import Counter
-                counts = Counter(CLUSTER_IDS.tolist())
+                cluster_id = int(id_param)
+                if cluster_id < 0 or cluster_id >= len(CLUSTER_NAMES):
+                    raise ValueError(f"Invalid cluster id {cluster_id}")
+                cname = CLUSTER_NAMES[cluster_id]
+                cdata = rankings.get(cname)
                 n_cells = counts.get(cluster_id, 0)
-                result = {
-                    "genes": cdata["genes"], "log2fc": cdata["log2fc"],
-                    "padj": cdata["padj"], "cohens_d": cdata["cohens_d"],
-                    "cluster": cname, "cluster_id": cluster_id,
-                    "n_cells": n_cells, "n_genes": len(cdata["genes"]),
-                }
+                if cdata is None:
+                    result = {"genes": [], "log2fc": [], "padj": [], "cohens_d": [],
+                              "cluster": cname, "cluster_id": cluster_id, "n_cells": n_cells,
+                              "n_genes": 0, "small": True}
+                else:
+                    result = {
+                        "genes": cdata["genes"], "log2fc": cdata["log2fc"],
+                        "padj": cdata["padj"], "cohens_d": cdata["cohens_d"],
+                        "cluster": cname, "cluster_id": cluster_id,
+                        "n_cells": n_cells, "n_genes": len(cdata["genes"]),
+                    }
             data = json.dumps(result, separators=(",", ":")).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
