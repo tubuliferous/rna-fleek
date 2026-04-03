@@ -549,7 +549,7 @@
       </div>
       <div class="lbl" style="margin-top:6px;">Point Size</div>
       <input type="range" id="pt-size" min="1" max="100" step="1" value="50" oninput="setPtSz(this.value,true)" onchange="setPtSz(this.value);this.blur()">
-      <div class="lbl" style="margin-top:6px;">Unselected Opacity</div>
+      <div class="lbl" style="margin-top:6px;">Opacity</div>
       <input type="range" id="pt-opacity" min="0.05" max="1" step="0.05" value="0.7" oninput="setPtOpacity(this.value,true)" onchange="setPtOpacity(this.value);this.blur()">
       <div class="lbl" style="margin-top:6px;">Unselected Brightness</div>
       <input type="range" id="bg-dim" min="0" max="100" step="5" value="100" oninput="setBgDim(100-this.value,true)" onchange="setBgDim(100-this.value);this.blur()" title="How bright non-selected cells appear. Slide left to fade, right for full brightness.">
@@ -569,7 +569,7 @@
         </label>
         <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Show a glow halo around expressing cells. Visible especially when zoomed out.">
           <span style="font-size:9px;color:var(--text3);flex:1;">Expression glow</span>
-          <span class="se-switch"><input type="checkbox" id="show-glow" checked onchange="showGlow=this.checked;if(haloPts)haloPts.visible=showGlow&&!!(mode==='gene'&&selGene&&geneExprCache[selGene]);"><span class="se-track"></span></span>
+          <span class="se-switch"><input type="checkbox" id="show-glow" checked onchange="showGlow=this.checked;var _ha=showGlow&&!!(mode==='gene'&&selGene&&geneExprCache[selGene]);if(haloPts)haloPts.visible=_ha;if(pts&&pts.material.uniforms&&pts.material.uniforms.uHaloOn)pts.material.uniforms.uHaloOn.value=_ha?1:0;"><span class="se-track"></span></span>
         </label>
         <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Slowly pulse expressing cells (and glow if enabled) brighter to help spot them.">
           <span style="font-size:9px;color:var(--text3);flex:1;">Pulse expressing cells</span>
@@ -1131,7 +1131,10 @@
         <p>In both modes, clicking a gene loads its expression on the UMAP. Selecting a gene auto-scrolls the ranked list to that gene's position.</p>
         <p><strong>Red-flagged genes:</strong> Genes shown in <span style="color:#dd4455;">red</span> in the ranked list are ones that <em>would have been excluded</em> by traditional cutoff-based methods (scanpy's <code>highly_variable_genes</code>). The specific reason is shown in the hover tooltip — either low mean expression (&lt; 0.0125), high mean expression (above the adaptive ceiling), or low detection rate (&lt; 0.5% of cells expressing). These genes are <strong>not excluded</strong> from FLEEK's ranking — the locally standardized z-score handles them naturally. The red flag is a transparency feature: it lets you evaluate whether high-ranking red-flagged genes represent genuine biological signal that traditional methods would have missed, or artifacts that the model hasn't fully corrected for. If many red genes appear near the top, treat the rankings with extra scrutiny.</p>
         <p><strong>Gene index</strong> — on load, a CSC (compressed sparse column) index is built in the background for fast per-gene lookups. A spinner in the Data panel shows progress. Before the index completes, gene lookups use a slower row-scan fallback but still work. The index is cached to disk (<code>.csc_cache.npz</code>) — subsequent loads skip the build entirely.</p>
-        <p><strong>View controls:</strong> Point Size, Unselected Opacity, and Unselected Brightness sliders in the View panel let you fine-tune the visualization. Point Size is normalized 1–100 and auto-scaled to the dataset on load. Opacity controls transparency of non-selected cells. Brightness fades non-selected cells toward the background.</p>
+        <p><strong>View controls:</strong> Point Size, Opacity, and Unselected Brightness sliders in the View panel let you fine-tune the visualization. Point Size is normalized 1–100 (default 7%). Opacity controls global transparency of cells. Unselected Brightness fades non-selected cells toward the background — this value is <strong>maintained separately</strong> per color mode: Gene Expression mode defaults to ~2/3 brightness so expressing cells remain visible through unselected ones, while Cell Type/Cluster mode defaults to ~1/3 brightness for stronger contrast. Both values are set automatically when the first selection is made, and switching color modes swaps to the appropriate brightness. Manual slider adjustment is saved per mode.</p>
+        <p><strong>Partial visibility indicators:</strong> Cell type dots, lineage tree dots, and slice pills all show proportional fill when some of their cells are hidden by other filters. A dot that's half-filled means roughly half of that cluster's cells are visible. Hover over any dot or pill for exact counts. A hidden-cell counter appears in the bottom-left HUD.</p>
+        <p><strong>Selection highlight rings:</strong> scale proportionally with cell size — they get thinner when zoomed out and thicker when zoomed in, always sitting on the cell's visual circumference.</p>
+        <p><strong>Expression rendering:</strong> In Gene Expression mode, expressing cells can optionally have their gradient edge removed for a flat disc appearance when halos are active, reducing visual noise. Non-expressing cells retain the soft gradient. This switches automatically when Expression Glow is toggled.</p>
       </div>
     </div>
 
@@ -1480,10 +1483,10 @@ var pulseGlow=false; /* pulse expression halo on/off */
 var _bgSchemes={
   background01:{
     label:"background01",
-    dark:{ghostColor:[.18,.19,.26],ghostAlpha:0.45,ghostSize:0.10,
+    dark:{ghostColor:[.18,.19,.26],ghostAlpha:0.45,ghostSize:0.25,
           haloBase:[null],haloPulseTarget:[1,1,1],
           cellPulseTarget:[1,1,1]},
-    light:{ghostColor:[.72,.74,.80],ghostAlpha:0.45,ghostSize:0.10,
+    light:{ghostColor:[.72,.74,.80],ghostAlpha:0.45,ghostSize:0.25,
            haloBase:[0.05,0.25,0.55],haloPulseTarget:[0.02,0.05,0.18],
            cellPulseTarget:[0.02,0.05,0.18]}
   }
@@ -2434,6 +2437,8 @@ var ringPts=null; /* second point cloud for ring highlights */
 var haloPts=null; /* third point cloud for expression halos */
 var highlightMode="ring"; /* "fill" or "ring" */
 var bgDimPct=0; /* 0-100: how much non-selected cells are dimmed */
+var _bgDimCluster=0; /* saved dim for cluster mode */
+var _bgDimGene=0; /* saved dim for gene mode */
 var _hadSelection=false; /* tracks whether selections existed last recolor */
 
 function makeCircleTexture(light){
@@ -2642,7 +2647,7 @@ function buildPts(data){
   markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
   selGene="";mode="cluster";
   _preHideGroupVis=null;
-  bgDimPct=0;_hadSelection=false;_deletedCells=null;
+  bgDimPct=0;_bgDimCluster=0;_bgDimGene=0;_hadSelection=false;_deletedCells=null;
   document.getElementById("bg-dim").value=100;
   _history=[];_histIdx=-1;
   try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_slice");}catch(e){}
@@ -2662,7 +2667,7 @@ function buildPts(data){
   circleTexture=makeCircleTexture(document.body.classList.contains("light"));
   /* Auto-scale point size: slider 1-100, actual size computed per-frame in animate().
      Default position depends on cell count — fewer cells = bigger points. */
-  var autoSlider=n<5000?70:n<20000?55:n<50000?45:n<200000?35:n<500000?25:18;
+  var autoSlider=7;
   var autoOpacity=n<50000?0.95:n<200000?0.85:0.75;
   basePtSz=autoSlider;
   document.getElementById("pt-size").value=autoSlider;
@@ -2671,8 +2676,8 @@ function buildPts(data){
   var _bsInit=_getBgScheme();
   /* Per-vertex size ShaderMaterial — proxies PointsMaterial interface */
   var _pvs='attribute float aSize;\nattribute float aAlpha;\nvarying vec3 vColor;\nvarying float vAlpha;\nuniform float uSize;\nuniform float uVpH;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat sz=uSize*aSize;\nif(uVpH>0.0)sz*=uVpH/(-mv.z);\nvAlpha=aAlpha;\ngl_PointSize=max(sz,0.5);\ngl_Position=projectionMatrix*mv;\n}';
-  var _pfs='uniform sampler2D uMap;\nuniform float uOpa;\nuniform float uAT;\nuniform float uPulse;\nuniform vec3 uCellPulse;\nvarying vec3 vColor;\nvarying float vAlpha;\nvoid main(){\nvec4 t=texture2D(uMap,gl_PointCoord);\nif(t.a<uAT)discard;\nif(vAlpha>=1.0&&uPulse>1.0){\nfloat w=clamp((uPulse-1.0)/1.5,0.0,0.35);\nvec3 pt=uCellPulse;\nvec3 pc=mix(vColor,pt,w);\ngl_FragColor=vec4(pc,vAlpha*uOpa*t.a);\n}else{\ngl_FragColor=vec4(vColor,vAlpha*uOpa*t.a);\n}\n}';
-  var mat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uMap:{value:circleTexture},uOpa:{value:autoOpacity},uAT:{value:_isLight?0.5:0.05},uPulse:{value:1.0},uCellPulse:{value:new THREE.Vector3(_bsInit.cellPulseTarget[0],_bsInit.cellPulseTarget[1],_bsInit.cellPulseTarget[2])}},vertexShader:_pvs,fragmentShader:_pfs,transparent:true,vertexColors:true,depthWrite:true});
+  var _pfs='uniform sampler2D uMap;\nuniform float uOpa;\nuniform float uAT;\nuniform float uPulse;\nuniform float uHaloOn;\nuniform vec3 uCellPulse;\nvarying vec3 vColor;\nvarying float vAlpha;\nvoid main(){\nvec4 t=texture2D(uMap,gl_PointCoord);\nif(t.a<uAT)discard;\nfloat ta=t.a;\nif(uHaloOn>0.5&&vAlpha>=1.0&&uAT<0.3){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nta=d<0.82?1.0:0.0;\nif(ta<0.5)discard;\n}\nif(vAlpha>=1.0&&uPulse>1.0){\nfloat w=clamp((uPulse-1.0)/1.5,0.0,0.35);\nvec3 pt=uCellPulse;\nvec3 pc=mix(vColor,pt,w);\ngl_FragColor=vec4(pc,vAlpha*uOpa*ta);\n}else{\ngl_FragColor=vec4(vColor,vAlpha*uOpa*ta);\n}\n}';
+  var mat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uMap:{value:circleTexture},uOpa:{value:autoOpacity},uAT:{value:_isLight?0.5:0.05},uPulse:{value:1.0},uHaloOn:{value:0},uCellPulse:{value:new THREE.Vector3(_bsInit.cellPulseTarget[0],_bsInit.cellPulseTarget[1],_bsInit.cellPulseTarget[2])}},vertexShader:_pvs,fragmentShader:_pfs,transparent:true,vertexColors:true,depthWrite:true});
   Object.defineProperty(mat,'size',{get:function(){return mat.uniforms.uSize.value;},set:function(v){mat.uniforms.uSize.value=v;}});
   Object.defineProperty(mat,'opacity',{get:function(){return mat.uniforms.uOpa.value;},set:function(v){mat.uniforms.uOpa.value=v;}});
   Object.defineProperty(mat,'alphaTest',{get:function(){return mat.uniforms.uAT.value;},set:function(v){mat.uniforms.uAT.value=v;}});
@@ -2692,9 +2697,9 @@ function buildPts(data){
   var ringSzArr=new Float32Array(n).fill(1.0);
   ringGeo.setAttribute('aSize',new THREE.BufferAttribute(ringSzArr,1));
   /* Procedural ring shader — fixed pixel-width band regardless of point size */
-  var _rvs='attribute float aSize;\nvarying vec3 vColor;\nvarying float vCF;\nvarying float vTsz;\nuniform float uSize;\nuniform float uVpH;\nuniform float uRPx;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat csz=uSize*aSize;\nif(uVpH>0.0)csz*=uVpH/(-mv.z);\nfloat tsz=csz+uRPx*2.0;\ngl_PointSize=max(tsz,0.5);\nvCF=csz/max(tsz,0.5);\nvTsz=gl_PointSize;\ngl_Position=projectionMatrix*mv;\n}';
-  var _rfs='varying vec3 vColor;\nvarying float vCF;\nvarying float vTsz;\nuniform float uOpa;\nuniform float uRPx;\nvoid main(){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat ce=vCF*0.92;\nfloat rw=uRPx*2.0/max(vTsz,1.0);\nfloat a=smoothstep(ce-rw*0.3,ce,d)*(1.0-smoothstep(ce+rw*0.8,ce+rw,d));\nif(a<0.05)discard;\ngl_FragColor=vec4(vColor,a*uOpa);\n}';
-  var ringMat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uRPx:{value:5.0},uOpa:{value:0.85}},vertexShader:_rvs,fragmentShader:_rfs,transparent:true,vertexColors:true,depthWrite:false,depthTest:false});
+  var _rvs='attribute float aSize;\nvarying vec3 vColor;\nuniform float uSize;\nuniform float uVpH;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat sz=uSize*aSize*1.15;\nif(uVpH>0.0)sz*=uVpH/(-mv.z);\ngl_PointSize=max(sz,0.5);\ngl_Position=projectionMatrix*mv;\n}';
+  var _rfs='varying vec3 vColor;\nuniform float uOpa;\nvoid main(){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat inner=0.7;\nfloat outer=0.95;\nfloat a=smoothstep(inner-0.05,inner,d)*(1.0-smoothstep(outer,1.0,d));\nif(a<0.05)discard;\ngl_FragColor=vec4(vColor,a*uOpa);\n}';
+  var ringMat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uOpa:{value:0.85}},vertexShader:_rvs,fragmentShader:_rfs,transparent:true,vertexColors:true,depthWrite:false,depthTest:false});
   Object.defineProperty(ringMat,'size',{get:function(){return ringMat.uniforms.uSize.value;},set:function(v){ringMat.uniforms.uSize.value=v;}});
   Object.defineProperty(ringMat,'sizeAttenuation',{get:function(){return ringMat.uniforms.uVpH.value>0;},set:function(v){}});
   Object.defineProperty(ringMat,'needsUpdate',{get:function(){return false;},set:function(v){}});
@@ -2827,9 +2832,15 @@ function recolor(){
      Transition has-visible-selection → none visible: auto-reset dim
      "All hidden" is treated the same as "no selections" for dimming. */
   if(hasAnyVisible&&!_hadSelection){
-    /* Just gained visible selections — auto-set a visible dim */
-    bgDimPct=isLight?80:55;
+    /* Just gained visible selections — set both modes */
+    _bgDimGene=isLight?45:33;
+    _bgDimCluster=isLight?90:75;
+    bgDimPct=mode==="gene"?_bgDimGene:_bgDimCluster;
     document.getElementById("bg-dim").value=100-bgDimPct;
+  }else if(hasAnyVisible){
+    /* Selections exist — apply the saved dim for the current mode */
+    var _modeDim=mode==="gene"?_bgDimGene:_bgDimCluster;
+    if(_modeDim>0&&bgDimPct!==_modeDim){bgDimPct=_modeDim;document.getElementById("bg-dim").value=100-bgDimPct;}
   }
   if(!hasAnyVisible&&_hadSelection){
     /* Just lost all visible selections — reset to full brightness */
@@ -2848,7 +2859,9 @@ function recolor(){
   /* Determine color source: gene expression if available, else cluster */
   var useGene=mode==="gene"&&selGene&&geneExprCache[selGene];
   var ex=useGene?geneExprCache[selGene]:null;
-  if(haloPts)haloPts.visible=showGlow&&!!useGene;
+  var _haloActive=showGlow&&!!useGene;
+  if(haloPts)haloPts.visible=_haloActive;
+  if(pts.material.uniforms&&pts.material.uniforms.uHaloOn)pts.material.uniforms.uHaloOn.value=_haloActive?1.0:0.0;
   /* Update scheme uniforms */
   var _bsu=_getBgScheme();
   if(pts.material.uniforms&&pts.material.uniforms.uCellPulse)pts.material.uniforms.uCellPulse.value.set(_bsu.cellPulseTarget[0],_bsu.cellPulseTarget[1],_bsu.cellPulseTarget[2]);
@@ -4196,16 +4209,16 @@ function _gvUpdateDot(){
   if(!vis){
     dot.style.background="transparent";
     dot.style.border="1.5px solid "+rgb;
-    dot.title="Hidden \u00b7 Click: toggle \u00b7 Alt: solo \u00b7 Shift: select";
+    dot.title="Hidden \u00b7 Click: toggle \u00b7 "+_ALT+": solo \u00b7 Shift: select";
   }else if(partial){
     var fp=Math.max(5,Math.min(95,pct));
     dot.style.border="1.5px solid "+rgb;
     dot.style.background="linear-gradient(to top,"+rgb+" "+fp+"%,transparent "+fp+"%)";
-    dot.title=_vn.toLocaleString()+" / "+_tn.toLocaleString()+" visible ("+pct+"%) \u00b7 Click: toggle \u00b7 Alt: solo \u00b7 Shift: select";
+    dot.title=_vn.toLocaleString()+" / "+_tn.toLocaleString()+" visible ("+pct+"%) \u00b7 Click: toggle \u00b7 "+_ALT+": solo \u00b7 Shift: select";
   }else{
     dot.style.background=rgb;
     dot.style.border="none";
-    dot.title=_tn.toLocaleString()+" cells \u00b7 Click: toggle \u00b7 Alt: solo \u00b7 Shift: select";
+    dot.title=_tn.toLocaleString()+" cells \u00b7 Click: toggle \u00b7 "+_ALT+": solo \u00b7 Shift: select";
   }
 }
 function _gvDotClick(ev){
@@ -4464,6 +4477,7 @@ function setPtOpacity(v,noSave){
 }
 function setBgDim(v,noSave){
   bgDimPct=parseInt(v);
+  if(mode==="gene")_bgDimGene=bgDimPct;else _bgDimCluster=bgDimPct;
   document.getElementById("bg-dim").value=100-bgDimPct;
   recolor();
   if(!noSave)saveState();
@@ -8509,10 +8523,23 @@ function setupCustomScrollbars(){
 
 function _patchOS(){
   /* Set OS-specific button titles */
-  document.getElementById("hist-back").title="Undo ("+_MOD+"+[)";
-  document.getElementById("hist-fwd").title="Redo ("+_MOD+"+])";
+  document.getElementById("hist-back").title="Undo ("+_MOD+"+Z or "+_MOD+"+[)";
+  document.getElementById("hist-fwd").title="Redo ("+_MOD+"+Shift+Z or "+_MOD+"+])";
   var _clrBtn=document.getElementById("sel-clear-btn");
   if(_clrBtn)_clrBtn.title="Clear visible cells from active group (Esc)\nHold "+_ALT+" to clear ALL cells including hidden/sliced ("+_ALT+"+Esc)";
+  /* Patch static tooltips with platform-aware modifier labels */
+  var _vrm=document.getElementById("view-reset-mini");
+  if(_vrm)_vrm.title="Reset camera to default (R) \u00b7 "+_ALT+"+click: reset + show all cells";
+  var _vrb=document.querySelector("[onclick='resetView(event)'].btn");
+  if(_vrb)_vrb.title="Reset camera to default (R) \u00b7 "+_ALT+"+click: reset + show all cells";
+  var _gvd=document.getElementById("gv-dot");
+  if(_gvd)_gvd.title="Click: toggle \u00b7 "+_ALT+": solo \u00b7 Shift: select";
+  var _cms=document.getElementById("color-mode-select");
+  if(_cms)_cms.title="Color mode (C = cluster, G = gene expression)";
+  var _svb=document.querySelector("[onclick='selAllVisible()']");
+  if(_svb)_svb.title="Select all visible cells into active group (Shift+V)";
+  var _shb=document.getElementById("sel-vis-btn");
+  if(_shb)_shb.title="Toggle all selection visibility (Shift+H)";
   var _dHdr=document.getElementById("deg-d-hdr");
   if(_dHdr)_dHdr.title="Cohen\u2019s d effect size \u2014 magnitude of expression difference normalized by variance\nClick to sort \u00b7 "+_ALT+"+click to toggle |d| (absolute value)";
   /* Patch help panel text for current OS */
