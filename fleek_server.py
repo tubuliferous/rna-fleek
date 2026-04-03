@@ -73,6 +73,9 @@ CSC_TIME = 0          # seconds taken to build/load CSC index
 LOAD_SETTINGS = {}  # Sent to client so it knows what options were active
 LOADED_PATH = ""    # path to currently loaded h5ad, for annotation caching
 MARKER_DB = None    # {cell_type: [genes]} — loaded from file or built-in
+GO_DB = None        # Gene Ontology lookup: {terms, gene_to_terms, synonyms, ...}
+GO_DATASET_GENES = None  # Set of gene names in current dataset (for intersection)
+GO_SYNONYM_MAP = None    # synonym -> canonical gene symbol (for dataset matching)
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
 
 # ── Cache location management ──
@@ -243,6 +246,67 @@ def load_marker_db(marker_path=None):
     print(f"  (Run download_markers.py for the full CellMarker2 database)")
 
 
+def _detect_organism():
+    """Try to detect organism from gene name casing."""
+    if GENE_NAMES_LIST is None or len(GENE_NAMES_LIST) == 0:
+        return "human"
+    # Sample first 100 genes
+    sample = [g for g in GENE_NAMES_LIST[:100] if g.isalpha()]
+    if not sample:
+        return "human"
+    upper = sum(1 for g in sample if g == g.upper())
+    title = sum(1 for g in sample if g == g.title())
+    if upper > len(sample) * 0.7:
+        return "human"  # UPPERCASE = human
+    if title > len(sample) * 0.5:
+        return "mouse"  # Titlecase = mouse
+    return "human"  # default
+
+
+def load_go_db():
+    """Load Gene Ontology database if available."""
+    global GO_DB, GO_DATASET_GENES, GO_SYNONYM_MAP
+    GO_DB = None
+    GO_DATASET_GENES = None
+    GO_SYNONYM_MAP = None
+
+    organism = _detect_organism()
+    script_dir = Path(__file__).parent
+    paths_to_try = [
+        _BUNDLE_DIR / "rna_fleek" / f"go_{organism}.json",
+        _BUNDLE_DIR / f"go_{organism}.json",
+        script_dir / f"go_{organism}.json",
+        Path(f"go_{organism}.json"),
+    ]
+
+    for p in paths_to_try:
+        if Path(p).exists():
+            try:
+                with open(p) as f:
+                    GO_DB = json.load(f)
+                print(f"  Loaded GO database: {GO_DB.get('n_terms', '?')} terms, {GO_DB.get('n_genes', '?')} genes ({organism}) from {p}")
+                break
+            except Exception as e:
+                print(f"  Warning: Failed to load GO from {p}: {e}")
+
+    if GO_DB is None:
+        print(f"  No GO database found for {organism} (run: python download_go.py --organism {organism})")
+        return
+
+    # Build dataset gene set and synonym reverse map for fast intersection
+    if GENE_NAMES_LIST:
+        GO_DATASET_GENES = set(GENE_NAMES_LIST)
+        # Also build a map: for each synonym, if the canonical gene is in the dataset
+        # OR if the synonym itself matches a dataset gene
+        synonyms = GO_DB.get("synonyms", {})
+        GO_SYNONYM_MAP = {}
+        for syn, canonical in synonyms.items():
+            if canonical in GO_DATASET_GENES:
+                GO_SYNONYM_MAP[syn] = canonical
+            elif syn in GO_DATASET_GENES:
+                GO_SYNONYM_MAP[syn] = syn
+
+
 def annotate_clusters(top_n=50, test="wilcoxon"):
     """Score clusters against marker database using shared DEG results."""
     from scipy.stats import fisher_exact
@@ -252,7 +316,9 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
     
     if not MARKER_DB:
         load_marker_db()
-    
+    if GO_DB is None:
+        load_go_db()
+
     # Check annotation cache (with parent stem fallback for subsets)
     _parent_stem = ADATA.uns.get("fleek_parent_stem") if ADATA is not None else None
     cache_path, _cw = _cache_read_path(".annot_markers.json")
@@ -1752,6 +1818,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
 
     # Load marker database for cell type annotation
     load_marker_db()
+    load_go_db()
 
     PROGRESS["status"] = "done"
     PROGRESS["pct"] = 100
@@ -1919,6 +1986,8 @@ def build_init_payload():
         "loaded_path": LOADED_PATH,
         "hvg_genes": HVG_NAMES[:200],  # top HVGs for quick-access UI
         "hvg_var": {g: round(HVG_VAR[g], 4) for g in HVG_NAMES[:200] if g in HVG_VAR},
+        "go_available": GO_DB is not None,
+        "go_organism": GO_DB.get("label", "") if GO_DB else "",
     }
 
     # Include cached annotations if available
@@ -2270,6 +2339,12 @@ class FleekHandler(SimpleHTTPRequestHandler):
         elif path == "/api/search":
             q = params.get("q", [""])[0]
             self._serve_search(q)
+        elif path == "/api/go-search":
+            q = params.get("q", [""])[0]
+            self._serve_go_search(q)
+        elif path == "/api/go-genes":
+            go_id = params.get("id", [""])[0]
+            self._serve_go_genes(go_id)
         elif path == "/api/progress":
             self._serve_progress()
         elif path == "/api/embedding":
@@ -2679,6 +2754,103 @@ class FleekHandler(SimpleHTTPRequestHandler):
             substr = [g for g in GENE_NAMES_LIST if q in g.upper() and not g.upper().startswith(q)]
             matches = (exact + prefix + substr)[:50]
         data = json.dumps(matches).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_go_search(self, query):
+        """Search GO term names, return matches with dataset gene counts."""
+        if GO_DB is None:
+            data = json.dumps({"error": "No GO database loaded", "results": []}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        q = query.strip().lower()
+        if not q or len(q) < 2:
+            data = json.dumps({"results": []}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        terms = GO_DB.get("terms", {})
+        dataset_genes = GO_DATASET_GENES or set()
+        results = []
+        for go_id, t in terms.items():
+            name = t.get("name", "")
+            if q in name.lower():
+                genes = t.get("genes", [])
+                # Count how many of this term's genes are in the dataset
+                n_dataset = sum(1 for g in genes if g in dataset_genes)
+                if n_dataset > 0:
+                    results.append({
+                        "id": go_id,
+                        "name": name,
+                        "ns": t.get("ns", ""),
+                        "n_total": len(genes),
+                        "n_dataset": n_dataset
+                    })
+        # Sort by dataset gene count descending, then by name
+        results.sort(key=lambda x: (-x["n_dataset"], x["name"]))
+        results = results[:30]
+        data = json.dumps({"results": results}, separators=(",", ":")).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_go_genes(self, go_id):
+        """Return genes for a GO term, intersected with the current dataset."""
+        if GO_DB is None:
+            data = json.dumps({"error": "No GO database loaded"}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        terms = GO_DB.get("terms", {})
+        t = terms.get(go_id)
+        if not t:
+            data = json.dumps({"error": f"Unknown GO term: {go_id}"}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        dataset_genes = GO_DATASET_GENES or set()
+        all_genes = t.get("genes", [])
+        # Intersect with dataset, also check synonyms
+        matched = []
+        for g in all_genes:
+            if g in dataset_genes:
+                matched.append(g)
+            elif GO_SYNONYM_MAP and g in GO_SYNONYM_MAP:
+                matched.append(GO_SYNONYM_MAP[g])
+        # Deduplicate while preserving order
+        seen = set()
+        unique = []
+        for g in matched:
+            if g not in seen:
+                seen.add(g)
+                unique.append(g)
+        result = {
+            "id": go_id,
+            "name": t.get("name", ""),
+            "ns": t.get("ns", ""),
+            "genes": sorted(unique),
+            "n_total": len(all_genes),
+            "n_dataset": len(unique)
+        }
+        data = json.dumps(result, separators=(",", ":")).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))

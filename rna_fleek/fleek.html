@@ -605,7 +605,11 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
-      <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()">
+      <div style="display:flex;gap:4px;align-items:center;">
+        <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:1;min-width:0;">
+        <button id="go-toggle" style="display:none;background:none;border:1px solid var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:8px;font-family:inherit;padding:2px 5px;white-space:nowrap;flex-shrink:0;" onclick="_goToggle()" title="Toggle Gene Ontology search — type GO terms instead of gene names">GO</button>
+      </div>
+      <div id="go-results" style="display:none;margin-top:4px;max-height:200px;overflow-y:auto;overflow-x:hidden;"></div>
       <div id="glist" style="margin-top:6px;"></div>
       <div id="hvg-section" style="display:none;margin-top:8px;">
         <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;flex-wrap:wrap;">
@@ -2632,6 +2636,12 @@ function buildPts(data){
   D=data;
   hvgGenes=data.header.hvg_genes||[];
   hvgVar=data.header.hvg_var||{};
+  /* Show GO button if server has GO database */
+  var _goBtn=document.getElementById("go-toggle");
+  if(_goBtn){
+    if(data.header.go_available){_goBtn.style.display="inline-block";_goBtn.title="Gene Ontology search ("+data.header.go_organism+")";}
+    else{_goBtn.style.display="none";}
+  }
   visibleClusters={}; // reset visibility for new data
   selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
   degData=null;degCache={};
@@ -3815,6 +3825,7 @@ function loadGene(name){
 function searchGenes(){
   clearTimeout(searchTimer);
   var q=document.getElementById("gsearch").value;
+  if(_goMode){_goSearch(q);return;}
   if(!q){showRecentGenes();return;}
   searchTimer=setTimeout(function(){
     fetch("/api/search?q="+encodeURIComponent(q))
@@ -3831,6 +3842,79 @@ function showRecentGenes(){
     renderGeneList(recentGenes);
   }
   renderHVGChips();
+}
+
+/* ── Gene Ontology search ── */
+var _goMode=false; /* true when GO search is active */
+var _goTimer=null;
+function _goToggle(){
+  _goMode=!_goMode;
+  var btn=document.getElementById("go-toggle");
+  var inp=document.getElementById("gsearch");
+  var goRes=document.getElementById("go-results");
+  if(_goMode){
+    btn.style.background="rgba(99,102,241,0.15)";btn.style.color="var(--accent2)";btn.style.borderColor="var(--accent)";
+    inp.placeholder="Search GO terms...";
+    inp.value="";
+    goRes.style.display="block";
+    goRes.innerHTML='<div style="font-size:9px;color:var(--text4);padding:4px;">Type a Gene Ontology term (e.g. "nuclear pore", "apoptosis", "kinase")<\/div>';
+    document.getElementById("glist").innerHTML="";
+  }else{
+    btn.style.background="none";btn.style.color="var(--text4)";btn.style.borderColor="var(--border)";
+    inp.placeholder="Search all genes...";
+    inp.value="";
+    goRes.style.display="none";
+    goRes.innerHTML="";
+    showRecentGenes();
+  }
+}
+function _goSearch(q){
+  clearTimeout(_goTimer);
+  var goRes=document.getElementById("go-results");
+  if(!q||q.length<2){goRes.innerHTML='<div style="font-size:9px;color:var(--text4);padding:4px;">Type at least 2 characters<\/div>';return;}
+  _goTimer=setTimeout(function(){
+    fetch("/api/go-search?q="+encodeURIComponent(q))
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(data.error){goRes.innerHTML='<div style="font-size:9px;color:var(--text4);padding:4px;">'+data.error+'<\/div>';return;}
+      var res=data.results||[];
+      if(res.length===0){goRes.innerHTML='<div style="font-size:9px;color:var(--text4);padding:4px;">No matching GO terms with genes in this dataset<\/div>';return;}
+      var nsColors={"BP":"#34d399","MF":"#818cf8","CC":"#fbbf24"};
+      var h="";
+      for(var i=0;i<res.length;i++){
+        var r=res[i];
+        var nsC=nsColors[r.ns]||"var(--text4)";
+        h+='<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;font-size:9px;cursor:pointer;border-radius:2px;" onmouseenter="this.style.background=\'var(--bg-hover)\'" onmouseleave="this.style.background=\'\'" onclick="_goSelectTerm(\''+r.id+'\')">'
+          +'<span style="color:'+nsC+';font-weight:700;font-size:8px;flex-shrink:0;width:16px;">'+r.ns+'<\/span>'
+          +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">'+r.name+'<\/span>'
+          +'<span style="color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;">'+r.n_dataset+'<\/span>'
+          +'<\/div>';
+      }
+      goRes.innerHTML=h;
+    })
+    .catch(function(){goRes.innerHTML='<div style="font-size:9px;color:#d45;padding:4px;">Search failed<\/div>';});
+  },250);
+}
+function _goSelectTerm(goId){
+  fetch("/api/go-genes?id="+encodeURIComponent(goId))
+  .then(function(r){return r.json();})
+  .then(function(data){
+    if(data.error){return;}
+    var genes=data.genes||[];
+    if(genes.length===0)return;
+    /* Show term name in results */
+    var goRes=document.getElementById("go-results");
+    var nsColors={"BP":"#34d399","MF":"#818cf8","CC":"#fbbf24"};
+    var nsC=nsColors[data.ns]||"var(--text4)";
+    goRes.innerHTML='<div style="font-size:9px;padding:4px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:2px;">'
+      +'<span style="color:'+nsC+';font-weight:700;">'+data.ns+'<\/span> '
+      +data.name+' <span style="color:var(--text4);">('+data.n_dataset+' / '+data.n_total+' genes in dataset)<\/span>'
+      +' <span style="color:var(--text4);cursor:pointer;text-decoration:underline;" onclick="_goToggle()">clear<\/span>'
+      +'<\/div>';
+    /* Populate gene list with these genes */
+    renderGeneList(genes);
+  })
+  .catch(function(){});
 }
 
 var _allGeneVar=null; /* [{name,var},...] fetched from /api/gene-var */
