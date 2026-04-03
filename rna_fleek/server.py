@@ -2412,7 +2412,9 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.send_error(404)
 
     def _serve_html(self):
-        html_path = _BUNDLE_DIR / "rna_fleek" / "fleek.html"
+        html_path = Path(__file__).parent / "fleek.html"
+        if not html_path.exists():
+            html_path = _BUNDLE_DIR / "rna_fleek" / "fleek.html"
         if not html_path.exists():
             html_path = _BUNDLE_DIR / "fleek.html"
         if not html_path.exists():

@@ -124,8 +124,8 @@
   /* Green (#34d399) → deeper emerald */
   .light #annotate-btn{color:#059669!important;border-color:rgba(5,150,105,0.35)!important;background:rgba(5,150,105,0.06)!important;}
   .light .annot-tag{color:#059669!important;background:rgba(5,150,105,0.12)!important;}
-  .light .fleek-option.active{color:#059669!important;border-color:rgba(5,150,105,0.45)!important;background:rgba(5,150,105,0.1)!important;}
-  .fleek-option.active.partial{background:var(--pill-partial-bg)!important;}
+  .light .fleek-option.active{color:#059669!important;border-color:rgba(5,150,105,0.45)!important;}
+  /* partial class no longer used — all pill backgrounds set inline by _syncSlicePills */
   .light #slice-active-badge{color:#059669!important;}
   .light #slice-footer .sf-count{color:#059669!important;}
   .light .load-badge.cached{color:#059669!important;border-color:rgba(5,150,105,0.2)!important;background:rgba(5,150,105,0.08)!important;}
@@ -356,8 +356,8 @@
   .fleek-option{display:inline-flex;align-items:center;padding:1px 6px;border-radius:3px;font-size:9px;cursor:pointer;user-select:none;border:1px solid var(--border);color:var(--text4);white-space:nowrap;gap:3px;line-height:1.5;transition:background 0.1s,color 0.1s,border-color 0.1s;max-width:100%;}
   .fleek-option .sv-name{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto;}
   .fleek-option:hover{border-color:var(--text3);color:var(--text3);}
-  .fleek-option.active{background:rgba(52,211,153,0.12);color:#34d399;border-color:rgba(52,211,153,0.4);}
-  .fleek-option.active:hover{background:rgba(52,211,153,0.2);}
+  .fleek-option.active{color:#34d399;border-color:rgba(52,211,153,0.4);}
+  .fleek-option.active:hover{opacity:0.85;}
   .fleek-option input[type=checkbox]{display:none;}
   .fleek-option .sv-count{opacity:0.6;font-size:9px;flex-shrink:0;}
   #slice-footer{font-size:9px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;}
@@ -607,11 +607,11 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
-      <div style="display:flex;gap:4px;align-items:center;">
-        <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:3;min-width:0;">
-        <span id="go-split" style="display:none;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex:1;min-width:0;">
-          <button id="go-btn-gene" onclick="_goSetMode(false)" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 0;transition:all 0.1s;width:50%;" title="Search by gene name">Gene</button>
-          <button id="go-btn-go" onclick="_goSetMode(true)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 0;transition:all 0.1s;width:50%;" title="Filter genes by Gene Ontology term">GO</button>
+      <div style="display:flex;gap:3px;align-items:center;">
+        <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:1;min-width:0;">
+        <span id="go-split" style="display:none;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
+          <button id="go-btn-gene" onclick="_goSetMode(false)" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 6px;transition:all 0.1s;" title="Search by gene name">Gene</button>
+          <button id="go-btn-go" onclick="_goSetMode(true)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 6px;transition:all 0.1s;" title="Filter genes by Gene Ontology term">GO</button>
         </span>
       </div>
       <div id="go-results" style="display:none;margin-top:4px;max-height:160px;overflow-y:auto;overflow-x:hidden;"></div>
@@ -3131,30 +3131,8 @@ function animate(){
           var lp=llmAnnotations[cid][0];
           annotLines+='<div style="font-size:9px;color:#c4b5fd;margin-top:1px;">AI: '+lp.cell_type+' ('+(lp.confidence||"")+')</div>';
         }
-        /* GO terms for hovered gene */
-        var goLines="";
-        if(mode==="gene"&&selGene&&D.header.go_available){
-          var _goCache=_goTermCache[selGene];
-          if(_goCache){
-            var nsColors={"BP":"#34d399","MF":"#818cf8","CC":"#fbbf24"};
-            var _maxGo=5;
-            for(var _gi=0;_gi<Math.min(_goCache.length,_maxGo);_gi++){
-              var _gt=_goCache[_gi];
-              goLines+='<div style="font-size:8px;color:var(--text4);margin-top:1px;"><span style="color:'+(nsColors[_gt.ns]||"var(--text4)")+';font-weight:700;">'+_gt.ns+'<\/span> '+_gt.name+'<\/div>';
-            }
-            if(_goCache.length>_maxGo)goLines+='<div style="font-size:8px;color:var(--text4);margin-top:1px;">+'+(_goCache.length-_maxGo)+' more<\/div>';
-          }else if(!_goTermFetching[selGene]){
-            _goTermFetching[selGene]=true;
-            fetch("/api/go-gene-terms?gene="+encodeURIComponent(selGene))
-            .then(function(r){return r.json();})
-            .then(function(terms){_goTermCache[selGene]=terms;delete _goTermFetching[selGene];})
-            .catch(function(){delete _goTermFetching[selGene];});
-          }
-        }
-        var hasExtra=annotLines||goLines;
-        tooltipEl.style.whiteSpace=hasExtra?"normal":"nowrap";
-        if(hasExtra)tooltipEl.style.maxWidth="300px";else tooltipEl.style.maxWidth="350px";
-        tooltipEl.innerHTML=dotHtml+text+annotLines+goLines;
+        tooltipEl.style.whiteSpace=annotLines?"normal":"nowrap";
+        tooltipEl.innerHTML=dotHtml+text+annotLines;
         tooltipEl.style.display="block";
         tooltipEl.style.left=(mouseScreenX+12)+"px";
         tooltipEl.style.top=(mouseScreenY-8)+"px";
@@ -3879,6 +3857,7 @@ var _goMode=false; /* true when GO search is active */
 var _goTimer=null;
 var _goFilterGenes=null; /* Set of gene names (union of all active terms), null = no filter */
 var _goActiveTerms=[]; /* [{id,name,ns,genes:[]},...] */
+var _goSetMode_op="union"; /* "union" or "intersection" */
 function _goSetMode(on){
   _goMode=on;
   var btnGene=document.getElementById("go-btn-gene");
@@ -3887,8 +3866,8 @@ function _goSetMode(on){
   var goRes=document.getElementById("go-results");
   var goAct=document.getElementById("go-active");
   if(on){
-    btnGo.style.background="rgba(99,102,241,0.12)";btnGo.style.color="var(--accent2)";
-    btnGene.style.background="transparent";btnGene.style.color="var(--text2)";
+    btnGo.style.background="rgba(99,102,241,0.12)";btnGo.style.color="var(--accent2)";btnGo.style.fontWeight="600";
+    btnGene.style.background="transparent";btnGene.style.color="var(--text2)";btnGene.style.fontWeight="400";
     inp.placeholder="Search GO terms...";
     inp.value="";
     goRes.style.display="block";
@@ -3897,8 +3876,8 @@ function _goSetMode(on){
     /* Restore GO filter if terms were saved */
     if(_goActiveTerms.length>0){_goRebuildFilter();_goRenderBadges();_refreshGvList();}
   }else{
-    btnGene.style.background="rgba(99,102,241,0.12)";btnGene.style.color="var(--accent2)";
-    btnGo.style.background="transparent";btnGo.style.color="var(--text2)";
+    btnGene.style.background="rgba(99,102,241,0.12)";btnGene.style.color="var(--accent2)";btnGene.style.fontWeight="600";
+    btnGo.style.background="transparent";btnGo.style.color="var(--text2)";btnGo.style.fontWeight="400";
     inp.placeholder="Search all genes...";
     inp.value="";
     goRes.style.display="none";
@@ -3972,11 +3951,25 @@ function _goClearFilter(){
 }
 function _goRebuildFilter(){
   if(_goActiveTerms.length===0){_goFilterGenes=null;return;}
-  _goFilterGenes=new Set();
-  for(var t=0;t<_goActiveTerms.length;t++){
-    var genes=_goActiveTerms[t].genes;
-    for(var g=0;g<genes.length;g++)_goFilterGenes.add(genes[g]);
+  if(_goSetMode_op==="intersection"&&_goActiveTerms.length>1){
+    _goFilterGenes=new Set(_goActiveTerms[0].genes);
+    for(var t=1;t<_goActiveTerms.length;t++){
+      var s=new Set(_goActiveTerms[t].genes);
+      _goFilterGenes.forEach(function(g){if(!s.has(g))_goFilterGenes.delete(g);});
+    }
+  }else{
+    _goFilterGenes=new Set();
+    for(var t=0;t<_goActiveTerms.length;t++){
+      var genes=_goActiveTerms[t].genes;
+      for(var g=0;g<genes.length;g++)_goFilterGenes.add(genes[g]);
+    }
   }
+}
+function _goToggleOp(){
+  _goSetMode_op=_goSetMode_op==="union"?"intersection":"union";
+  _goRebuildFilter();
+  _goRenderBadges();
+  _refreshGvList();
 }
 function _goRenderBadges(){
   var goAct=document.getElementById("go-active");
@@ -3994,10 +3987,18 @@ function _goRenderBadges(){
       +'<\/span>';
   }
   if(_goActiveTerms.length>1){
+    var _isUnion=_goSetMode_op==="union";
+    h+='<span style="display:inline-flex;border:1px solid var(--border);border-radius:3px;overflow:hidden;font-size:8px;margin-left:2px;">'
+      +'<span style="padding:0 4px;cursor:pointer;'+(_isUnion?'background:rgba(99,102,241,0.12);color:var(--accent2);font-weight:600;':'color:var(--text4);')+'" onclick="_goToggleOp()" title="Union: genes in ANY selected term">\u222a<\/span>'
+      +'<span style="padding:0 4px;cursor:pointer;border-left:1px solid var(--border);'+(!_isUnion?'background:rgba(99,102,241,0.12);color:var(--accent2);font-weight:600;':'color:var(--text4);')+'" onclick="_goToggleOp()" title="Intersection: genes in ALL selected terms">\u2229<\/span>'
+      +'<\/span>';
     h+='<span style="color:var(--text4);cursor:pointer;font-size:9px;padding:1px 4px;text-decoration:underline;" onclick="_goClearFilter()">clear all<\/span>';
   }
   h+='<\/div>';
-  if(_goFilterGenes)h+='<div style="font-size:8px;color:var(--text4);margin-top:2px;">'+_goFilterGenes.size+' genes total (union)<\/div>';
+  if(_goFilterGenes){
+    var _opLabel=_goActiveTerms.length>1?(_goSetMode_op==="union"?"union":"intersection"):"";
+    h+='<div style="font-size:8px;color:var(--text4);margin-top:2px;">'+_goFilterGenes.size+' genes'+(_opLabel?' ('+_opLabel+')':'')+'<\/div>';
+  }
   goAct.innerHTML=h;
   goAct.style.display="block";
 }
@@ -4712,12 +4713,21 @@ function resetView(e){
     zoom2=zoom2Fit();
     pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};
   }
-  /* Alt+click/Alt+R: also show all cells and all selection groups */
+  /* Alt+click/Alt+R: show everything — clusters, groups, slices, deleted cells */
   if(e&&e.altKey&&D){
     for(var k=0;k<D.header.n_clusters;k++)visibleClusters[k]=true;
     _deletedCells=null;_preShowAllVis=null;_preDeletedCells=null;
     for(var gi=0;gi<selGroups.length;gi++)groupVisible[selGroups[gi].id]=true;
     _preHideGroupVis=null;
+    /* Reset slice filters to include all values */
+    var _cats=D.header.obs_categories||{};
+    var _cols=Object.keys(_cats);
+    for(var ci=0;ci<_cols.length;ci++){
+      var _col=_cols[ci];var _n=_cats[_col].categories.length;
+      sliceFilter[_col]=new Set();for(var si=0;si<_n;si++)sliceFilter[_col].add(si);
+    }
+    sliceMask=null;
+    _syncSlicePills();_updateSliceUI();
     renderLeg();recolor();
     if(lineageView)_renderLineageTree();
     if(selGroups.length>0)renderSelPanel();
@@ -7071,23 +7081,28 @@ function _syncSlicePills(onlyCol){
     var sv=_visStats&&_visStats.sliceVis&&_visStats.sliceVis[c]?(_visStats.sliceVis[c][idx]||0):0;
     var st=_sliceTotals&&_sliceTotals[c]?(_sliceTotals[c][idx]||0):0;
     pills[i].classList.toggle("active",isActive);
-    var partial=isActive&&st>0&&sv<st;
     var pct=st>0?Math.round(sv/st*100):0;
     var isLight=document.body.classList.contains("light");
-    if(partial||( isActive&&st>0&&sv===0)){
-      var fp=sv===0?0:Math.max(5,Math.min(95,pct));
-      var onColor=isLight?"rgba(5,150,105,0.25)":"rgba(52,211,153,0.25)";
-      var offColor=isLight?"rgba(5,150,105,0.05)":"rgba(255,255,255,0.02)";
-      if(fp===0){
-        pills[i].style.setProperty("--pill-partial-bg",offColor);
+    var onColor=isLight?"rgba(5,150,105,0.25)":"rgba(52,211,153,0.25)";
+    var offColor=isLight?"rgba(5,150,105,0.05)":"rgba(255,255,255,0.02)";
+    if(isActive&&st>0){
+      var fp=sv===0?0:sv>=st?100:Math.max(5,Math.min(95,pct));
+      if(fp===100){
+        pills[i].style.background=onColor;
+      }else if(fp===0){
+        pills[i].style.background=offColor;
       }else{
-        pills[i].style.setProperty("--pill-partial-bg","linear-gradient(135deg,"+onColor+" "+fp+"%,"+offColor+" "+fp+"%)");
+        pills[i].style.background="linear-gradient(135deg,"+onColor+" "+fp+"%,"+offColor+" "+fp+"%)";
       }
-      pills[i].classList.add("partial");
-      pills[i].title=sv.toLocaleString()+" / "+st.toLocaleString()+" visible ("+pct+"%) \u00b7 "+_MOD+"+"+_ALT+"+click: show all";
+      pills[i].classList.remove("partial");
+      pills[i].style.removeProperty("--pill-partial-bg");
+      if(sv<st)pills[i].title=sv.toLocaleString()+" / "+st.toLocaleString()+" visible ("+pct+"%) \u00b7 "+_MOD+"+"+_ALT+"+click: show all";
+      else pills[i].title=st.toLocaleString()+" cells (100% visible)";
     }else{
       pills[i].classList.remove("partial");
-      pills[i].title=isActive?(st.toLocaleString()+" cells"):"(excluded)";
+      pills[i].style.removeProperty("--pill-partial-bg");
+      pills[i].style.background="";
+      pills[i].title=isActive?"(no cells)":"(excluded)";
     }
   }
 }
