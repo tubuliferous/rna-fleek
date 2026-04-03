@@ -293,18 +293,33 @@ def load_go_db():
         print(f"  No GO database found for {organism} (run: python download_go.py --organism {organism})")
         return
 
-    # Build dataset gene set and synonym reverse map for fast intersection
+    # Build dataset gene set and case-insensitive lookup for robust matching
     if GENE_NAMES_LIST:
         GO_DATASET_GENES = set(GENE_NAMES_LIST)
-        # Also build a map: for each synonym, if the canonical gene is in the dataset
-        # OR if the synonym itself matches a dataset gene
-        synonyms = GO_DB.get("synonyms", {})
+        # Case-insensitive map: uppercase -> actual dataset gene name
+        _gene_upper = {}
+        for g in GENE_NAMES_LIST:
+            _gene_upper[g.upper()] = g
+        # GO->dataset resolver: maps GO gene symbol to dataset gene name
         GO_SYNONYM_MAP = {}
+        # First: direct GO gene names -> dataset (case-insensitive)
+        go_gene_to_terms = GO_DB.get("gene_to_terms", {})
+        for go_gene in go_gene_to_terms:
+            if go_gene in GO_DATASET_GENES:
+                GO_SYNONYM_MAP[go_gene] = go_gene
+            elif go_gene.upper() in _gene_upper:
+                GO_SYNONYM_MAP[go_gene] = _gene_upper[go_gene.upper()]
+        # Second: synonyms -> dataset (case-insensitive)
+        synonyms = GO_DB.get("synonyms", {})
         for syn, canonical in synonyms.items():
-            if canonical in GO_DATASET_GENES:
-                GO_SYNONYM_MAP[syn] = canonical
-            elif syn in GO_DATASET_GENES:
-                GO_SYNONYM_MAP[syn] = syn
+            if canonical in GO_SYNONYM_MAP:
+                # canonical already resolved — map synonym to same dataset gene
+                if syn not in GO_SYNONYM_MAP:
+                    GO_SYNONYM_MAP[syn] = GO_SYNONYM_MAP[canonical]
+            elif syn.upper() in _gene_upper:
+                GO_SYNONYM_MAP[syn] = _gene_upper[syn.upper()]
+        n_resolved = sum(1 for v in GO_SYNONYM_MAP.values() if v in GO_DATASET_GENES)
+        print(f"  GO matching: {n_resolved} GO genes resolved to dataset genes")
 
 
 def annotate_clusters(top_n=50, test="wilcoxon"):
@@ -2785,14 +2800,14 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
             return
         terms = GO_DB.get("terms", {})
-        dataset_genes = GO_DATASET_GENES or set()
+        resolver = GO_SYNONYM_MAP or {}
         results = []
         for go_id, t in terms.items():
             name = t.get("name", "")
             if q in name.lower():
                 genes = t.get("genes", [])
-                # Count how many of this term's genes are in the dataset
-                n_dataset = sum(1 for g in genes if g in dataset_genes)
+                # Count how many of this term's genes resolve to dataset genes
+                n_dataset = sum(1 for g in genes if g in resolver)
                 if n_dataset > 0:
                     results.append({
                         "id": go_id,
@@ -2831,15 +2846,13 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
-        dataset_genes = GO_DATASET_GENES or set()
+        resolver = GO_SYNONYM_MAP or {}
         all_genes = t.get("genes", [])
-        # Intersect with dataset, also check synonyms
+        # Resolve GO gene names to dataset gene names
         matched = []
         for g in all_genes:
-            if g in dataset_genes:
-                matched.append(g)
-            elif GO_SYNONYM_MAP and g in GO_SYNONYM_MAP:
-                matched.append(GO_SYNONYM_MAP[g])
+            if g in resolver:
+                matched.append(resolver[g])
         # Deduplicate while preserving order
         seen = set()
         unique = []
@@ -2875,10 +2888,12 @@ class FleekHandler(SimpleHTTPRequestHandler):
         gene_to_terms = GO_DB.get("gene_to_terms", {})
         synonyms = GO_DB.get("synonyms", {})
         terms = GO_DB.get("terms", {})
-        # Try canonical name, then check if gene is a synonym
+        # Try exact, then uppercase, then synonym
         tids = gene_to_terms.get(gene)
         if not tids:
-            canonical = synonyms.get(gene)
+            tids = gene_to_terms.get(gene.upper())
+        if not tids:
+            canonical = synonyms.get(gene) or synonyms.get(gene.upper())
             if canonical:
                 tids = gene_to_terms.get(canonical)
         if not tids:
