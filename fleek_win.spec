@@ -24,10 +24,10 @@ except ImportError:
     pass
 
 a = Analysis(
-    ['rna_fleek/app.py'],
+    ['rna_fleek/server.py'],
     pathex=[],
     binaries=[],
-    datas=[('rna_fleek/fleek.html', 'rna_fleek')] + extra_datas,
+    datas=[('rna_fleek/fleek.html', 'rna_fleek'), ('rna_fleek/cell_markers.json', 'rna_fleek')] + extra_datas,
     hiddenimports=(
         ['h5py', 'tables', 'natsort', 'packaging', 'session_info',
          'joblib', 'pandas', 'networkx', 'tqdm', 'certifi', 'ssl']
