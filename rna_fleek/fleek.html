@@ -619,9 +619,9 @@
       <div id="glist" style="margin-top:6px;"></div>
       <div id="hvg-section" style="display:none;margin-top:8px;">
         <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;flex-wrap:wrap;">
-          <select id="gv-mode" style="color:var(--text2);" onchange="_gvModeChanged(this.value)">
-            <option value="global">Global Variability</option>
-            <option value="cluster">By Cell Type</option>
+          <select id="gv-mode" style="color:var(--text2);" onchange="_gvModeChanged(this.value)" title="Global: genes ranked by variability across all cells. By Cell Type: genes ranked by differential expression for a specific cluster.">
+            <option value="global" title="Genes ranked by how much more variable they are than expected for their expression level — highlights genes that differ across all cell types">Global Variability</option>
+            <option value="cluster" title="Genes ranked by differential expression (one-vs-rest) for a specific cell type — highlights marker genes that distinguish one cluster from all others">By Cell Type</option>
           </select>
         </div>
         <div id="gv-cluster-row" style="display:none;align-items:center;gap:4px;margin-bottom:3px;">
@@ -1507,6 +1507,8 @@ function _getBgScheme(){
   return document.body.classList.contains("light")?s.light:s.dark;
 }
 var _hoverIdx=-1; /* index of cell under cursor, -1 if none */
+var _goTermCache={}; /* gene -> [{id,name,ns},...] cached GO term lookups */
+var _goTermFetching={}; /* gene -> true while fetch in progress */
 var _hoverPrevColor=null; /* original RGB to restore when hover leaves */
 var _dbgRaycast=false; /* debug: show raycast hit marker */
 var _dbgMarker=null; /* debug: THREE.Mesh sphere at raycast hit */
@@ -3129,8 +3131,30 @@ function animate(){
           var lp=llmAnnotations[cid][0];
           annotLines+='<div style="font-size:9px;color:#c4b5fd;margin-top:1px;">AI: '+lp.cell_type+' ('+(lp.confidence||"")+')</div>';
         }
-        tooltipEl.style.whiteSpace=annotLines?"normal":"nowrap";
-        tooltipEl.innerHTML=dotHtml+text+annotLines;
+        /* GO terms for hovered gene */
+        var goLines="";
+        if(mode==="gene"&&selGene&&D.header.go_available){
+          var _goCache=_goTermCache[selGene];
+          if(_goCache){
+            var nsColors={"BP":"#34d399","MF":"#818cf8","CC":"#fbbf24"};
+            var _maxGo=5;
+            for(var _gi=0;_gi<Math.min(_goCache.length,_maxGo);_gi++){
+              var _gt=_goCache[_gi];
+              goLines+='<div style="font-size:8px;color:var(--text4);margin-top:1px;"><span style="color:'+(nsColors[_gt.ns]||"var(--text4)")+';font-weight:700;">'+_gt.ns+'<\/span> '+_gt.name+'<\/div>';
+            }
+            if(_goCache.length>_maxGo)goLines+='<div style="font-size:8px;color:var(--text4);margin-top:1px;">+'+(_goCache.length-_maxGo)+' more<\/div>';
+          }else if(!_goTermFetching[selGene]){
+            _goTermFetching[selGene]=true;
+            fetch("/api/go-gene-terms?gene="+encodeURIComponent(selGene))
+            .then(function(r){return r.json();})
+            .then(function(terms){_goTermCache[selGene]=terms;delete _goTermFetching[selGene];})
+            .catch(function(){delete _goTermFetching[selGene];});
+          }
+        }
+        var hasExtra=annotLines||goLines;
+        tooltipEl.style.whiteSpace=hasExtra?"normal":"nowrap";
+        if(hasExtra)tooltipEl.style.maxWidth="300px";else tooltipEl.style.maxWidth="350px";
+        tooltipEl.innerHTML=dotHtml+text+annotLines+goLines;
         tooltipEl.style.display="block";
         tooltipEl.style.left=(mouseScreenX+12)+"px";
         tooltipEl.style.top=(mouseScreenY-8)+"px";

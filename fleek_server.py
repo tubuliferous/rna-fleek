@@ -2345,6 +2345,9 @@ class FleekHandler(SimpleHTTPRequestHandler):
         elif path == "/api/go-genes":
             go_id = params.get("id", [""])[0]
             self._serve_go_genes(go_id)
+        elif path == "/api/go-gene-terms":
+            gene = params.get("gene", [""])[0]
+            self._serve_go_gene_terms(gene)
         elif path == "/api/progress":
             self._serve_progress()
         elif path == "/api/embedding":
@@ -2850,6 +2853,41 @@ class FleekHandler(SimpleHTTPRequestHandler):
             "n_total": len(all_genes),
             "n_dataset": len(unique)
         }
+        data = json.dumps(result, separators=(",", ":")).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_go_gene_terms(self, gene):
+        """Return GO terms for a specific gene."""
+        if GO_DB is None:
+            data = json.dumps([]).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        gene_to_terms = GO_DB.get("gene_to_terms", {})
+        synonyms = GO_DB.get("synonyms", {})
+        terms = GO_DB.get("terms", {})
+        # Try canonical name, then check if gene is a synonym
+        tids = gene_to_terms.get(gene)
+        if not tids:
+            canonical = synonyms.get(gene)
+            if canonical:
+                tids = gene_to_terms.get(canonical)
+        if not tids:
+            tids = []
+        result = []
+        for tid in tids:
+            t = terms.get(tid)
+            if t:
+                result.append({"id": tid, "name": t.get("name", ""), "ns": t.get("ns", "")})
+        # Sort by namespace then name
+        result.sort(key=lambda x: (x["ns"], x["name"]))
         data = json.dumps(result, separators=(",", ":")).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
