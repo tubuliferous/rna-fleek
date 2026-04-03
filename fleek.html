@@ -197,6 +197,8 @@
   #view-mini-btns{display:none;align-items:center;gap:4px;margin-left:12px;margin-right:auto;}
   #view-mini-btns .vbtn{padding:1px 6px;font-size:9px;margin-right:0;}
   #view-reset-mini{background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;line-height:1;display:inline-flex;align-items:center;}
+  /* Hover for split toggle buttons (2D/3D, Gene/GO, List/Lineage) */
+  #vb2m:hover,#vb3m:hover,#vb2:hover,#vb3:hover,#go-btn-gene:hover,#go-btn-go:hover{opacity:0.8;}
   #view-reset-mini:hover{color:var(--text2);}
   .sec.collapsed #view-mini-btns{display:flex;}
   /* Selection groups */
@@ -607,9 +609,13 @@
     <div class="col-body">
       <div style="display:flex;gap:4px;align-items:center;">
         <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:1;min-width:0;">
-        <button id="go-toggle" style="display:none;background:none;border:1px solid var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:8px;font-family:inherit;padding:2px 5px;white-space:nowrap;flex-shrink:0;" onclick="_goToggle()" title="Toggle Gene Ontology search — type GO terms instead of gene names">GO</button>
+        <span id="go-split" style="display:none;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
+          <button id="go-btn-gene" onclick="_goSetMode(false)" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:8px;font-family:inherit;padding:2px 6px;transition:all 0.1s;" title="Search by gene name">Gene</button>
+          <button id="go-btn-go" onclick="_goSetMode(true)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:8px;font-family:inherit;padding:2px 6px;transition:all 0.1s;" title="Filter genes by Gene Ontology term">GO</button>
+        </span>
       </div>
-      <div id="go-results" style="display:none;margin-top:4px;max-height:200px;overflow-y:auto;overflow-x:hidden;"></div>
+      <div id="go-results" style="display:none;margin-top:4px;max-height:160px;overflow-y:auto;overflow-x:hidden;"></div>
+      <div id="go-active" style="display:none;margin-top:4px;font-size:9px;color:var(--text2);padding:3px 4px;background:var(--bg3);border-radius:3px;"></div>
       <div id="glist" style="margin-top:6px;"></div>
       <div id="hvg-section" style="display:none;margin-top:8px;">
         <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;flex-wrap:wrap;">
@@ -2636,11 +2642,11 @@ function buildPts(data){
   D=data;
   hvgGenes=data.header.hvg_genes||[];
   hvgVar=data.header.hvg_var||{};
-  /* Show GO button if server has GO database */
-  var _goBtn=document.getElementById("go-toggle");
-  if(_goBtn){
-    if(data.header.go_available){_goBtn.style.display="inline-block";_goBtn.title="Gene Ontology search ("+data.header.go_organism+")";}
-    else{_goBtn.style.display="none";}
+  /* Show Gene/GO split button if server has GO database */
+  var _goSplit=document.getElementById("go-split");
+  if(_goSplit){
+    if(data.header.go_available){_goSplit.style.display="inline-flex";var _gob=document.getElementById("go-btn-go");if(_gob)_gob.title="Filter by Gene Ontology ("+data.header.go_organism+")";}
+    else{_goSplit.style.display="none";}
   }
   visibleClusters={}; // reset visibility for new data
   selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
@@ -3847,24 +3853,30 @@ function showRecentGenes(){
 /* ── Gene Ontology search ── */
 var _goMode=false; /* true when GO search is active */
 var _goTimer=null;
-function _goToggle(){
-  _goMode=!_goMode;
-  var btn=document.getElementById("go-toggle");
+var _goFilterGenes=null; /* Set of gene names when a GO term is selected, null = no filter */
+function _goSetMode(on){
+  _goMode=on;
+  var btnGene=document.getElementById("go-btn-gene");
+  var btnGo=document.getElementById("go-btn-go");
   var inp=document.getElementById("gsearch");
   var goRes=document.getElementById("go-results");
-  if(_goMode){
-    btn.style.background="rgba(99,102,241,0.15)";btn.style.color="var(--accent2)";btn.style.borderColor="var(--accent)";
+  var goAct=document.getElementById("go-active");
+  if(on){
+    btnGo.style.background="rgba(99,102,241,0.12)";btnGo.style.color="var(--accent2)";
+    btnGene.style.background="transparent";btnGene.style.color="var(--text2)";
     inp.placeholder="Search GO terms...";
     inp.value="";
     goRes.style.display="block";
     goRes.innerHTML='<div style="font-size:9px;color:var(--text4);padding:4px;">Type a Gene Ontology term (e.g. "nuclear pore", "apoptosis", "kinase")<\/div>';
     document.getElementById("glist").innerHTML="";
   }else{
-    btn.style.background="none";btn.style.color="var(--text4)";btn.style.borderColor="var(--border)";
+    btnGene.style.background="rgba(99,102,241,0.12)";btnGene.style.color="var(--accent2)";
+    btnGo.style.background="transparent";btnGo.style.color="var(--text2)";
     inp.placeholder="Search all genes...";
     inp.value="";
     goRes.style.display="none";
     goRes.innerHTML="";
+    if(_goFilterGenes){_goFilterGenes=null;goAct.style.display="none";_refreshGvList();}
     showRecentGenes();
   }
 }
@@ -3884,7 +3896,7 @@ function _goSearch(q){
       for(var i=0;i<res.length;i++){
         var r=res[i];
         var nsC=nsColors[r.ns]||"var(--text4)";
-        h+='<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;font-size:9px;cursor:pointer;border-radius:2px;" onmouseenter="this.style.background=\'var(--bg-hover)\'" onmouseleave="this.style.background=\'\'" onclick="_goSelectTerm(\''+r.id+'\')">'
+        h+='<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;font-size:9px;cursor:pointer;border-radius:2px;" onmouseenter="this.style.background=\'var(--bg-hover)\'" onmouseleave="this.style.background=\'\'" onclick="_goSelectTerm(\''+r.id+'\')" title="'+r.name+' ('+r.id+')">'
           +'<span style="color:'+nsC+';font-weight:700;font-size:8px;flex-shrink:0;width:16px;">'+r.ns+'<\/span>'
           +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">'+r.name+'<\/span>'
           +'<span style="color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;">'+r.n_dataset+'<\/span>'
@@ -3899,22 +3911,35 @@ function _goSelectTerm(goId){
   fetch("/api/go-genes?id="+encodeURIComponent(goId))
   .then(function(r){return r.json();})
   .then(function(data){
-    if(data.error){return;}
+    if(data.error)return;
     var genes=data.genes||[];
     if(genes.length===0)return;
-    /* Show term name in results */
-    var goRes=document.getElementById("go-results");
+    _goFilterGenes=new Set(genes);
+    /* Show active filter badge */
+    var goAct=document.getElementById("go-active");
     var nsColors={"BP":"#34d399","MF":"#818cf8","CC":"#fbbf24"};
     var nsC=nsColors[data.ns]||"var(--text4)";
-    goRes.innerHTML='<div style="font-size:9px;padding:4px;color:var(--text2);border-bottom:1px solid var(--border);margin-bottom:2px;">'
-      +'<span style="color:'+nsC+';font-weight:700;">'+data.ns+'<\/span> '
-      +data.name+' <span style="color:var(--text4);">('+data.n_dataset+' / '+data.n_total+' genes in dataset)<\/span>'
-      +' <span style="color:var(--text4);cursor:pointer;text-decoration:underline;" onclick="_goToggle()">clear<\/span>'
-      +'<\/div>';
-    /* Populate gene list with these genes */
-    renderGeneList(genes);
+    goAct.innerHTML='<span style="color:'+nsC+';font-weight:700;">'+data.ns+'<\/span> '
+      +data.name+' <span style="color:var(--text4);">('+data.n_dataset+' genes)<\/span>'
+      +' <span style="color:var(--accent2);cursor:pointer;margin-left:4px;" onclick="_goClearFilter()" title="Remove GO filter">\u00d7<\/span>';
+    goAct.style.display="block";
+    /* Hide search results, refresh variability list */
+    document.getElementById("go-results").style.display="none";
+    document.getElementById("gsearch").value="";
+    _refreshGvList();
   })
   .catch(function(){});
+}
+function _goClearFilter(){
+  _goFilterGenes=null;
+  document.getElementById("go-active").style.display="none";
+  _refreshGvList();
+}
+function _refreshGvList(){
+  var listEl=document.getElementById("hvg-list");
+  if(!listEl)return;
+  if(_gvMode==="cluster"&&_clusterGeneData){_renderClusterGeneList(listEl);}
+  else if(_allGeneVar){_renderGeneVarList(listEl);}
 }
 
 var _allGeneVar=null; /* [{name,var},...] fetched from /api/gene-var */
@@ -3927,6 +3952,7 @@ var _gvClusterId=0; /* selected cluster index */
 var _gvSortMetric="cohens_d"; /* "cohens_d","log2fc","padj" */
 var _clusterGeneCache={}; /* cluster_id -> {genes,log2fc,padj,cohens_d,...} */
 var _clusterGeneSorted=null; /* current sorted index array for cluster mode */
+var _clusterFilteredIdx=null; /* GO-filtered indices into _clusterGeneSorted */
 var _clusterGeneData=null; /* current cluster's raw data (from cache) */
 
 function renderHVGChips(){
@@ -3965,11 +3991,20 @@ var _gvHvgSet={}; /* cached HVG lookup */
 var _gvMetricLabel=""; /* cached metric label */
 var _gvMaxVar=1; /* cached max value for bar scaling */
 
+var _gvFilteredIdx=null; /* filtered indices into _allGeneVar when GO filter active */
 function _renderGeneVarList(listEl){
   if(!_allGeneVar||_allGeneVar.length===0){
     listEl.innerHTML='<div style="padding:8px;font-size:9px;color:var(--text4);">No variability data available</div>';
     return;
   }
+  /* Build filtered index if GO filter is active */
+  if(_goFilterGenes){
+    _gvFilteredIdx=[];
+    for(var fi=0;fi<_allGeneVar.length;fi++){
+      if(_goFilterGenes.has(_allGeneVar[fi][0]))_gvFilteredIdx.push(fi);
+    }
+  }else{_gvFilteredIdx=null;}
+  var nRows=_gvFilteredIdx?_gvFilteredIdx.length:_allGeneVar.length;
   _gvMaxVar=_allGeneVar[0][1];
   if(_gvMaxVar<=0)_gvMaxVar=1;
   _gvHvgSet={};
@@ -3978,7 +4013,7 @@ function _renderGeneVarList(listEl){
   _gvMetricLabel=metricLabels[_geneVarMetric]||_geneVarMetric;
 
   /* Header (sticky) + spacer for total height + viewport for visible rows */
-  var totalH=_allGeneVar.length*_gvRowH;
+  var totalH=nRows*_gvRowH;
   listEl.innerHTML='<div style="display:flex;font-size:9px;color:var(--text4);padding:2px 4px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:1;">'
     +'<span style="width:28px;flex-shrink:0;">#</span><span style="flex:3;padding-left:6px;">Gene</span>'
     +'<span style="flex:3;padding-left:6px;white-space:nowrap;" title="Locally standardized trend residual: (1) fit polynomial to log(mean) vs log(Fano) trend, (2) fit scatter envelope to get local sigma, then (3) z-score = residual / max(local_sigma, 0.1)">'+_gvMetricLabel+'</span><span style="flex:2;"></span>'
@@ -3991,9 +4026,10 @@ function _renderGeneVarList(listEl){
 }
 
 function _gvRenderRow(i){
-  var g=_allGeneVar[i][0];
-  var v=_allGeneVar[i][1];
-  var flagBits=(_allGeneVar[i].length>2)?_allGeneVar[i][2]:0;
+  var di=_gvFilteredIdx?_gvFilteredIdx[i]:i;
+  var g=_allGeneVar[di][0];
+  var v=_allGeneVar[di][1];
+  var flagBits=(_allGeneVar[di].length>2)?_allGeneVar[di][2]:0;
   var flagged=flagBits>0;
   var barW=Math.max(0,Math.round(v/_gvMaxVar*100));
   var isHvg=_gvHvgSet[g];
@@ -4097,7 +4133,7 @@ function _jkCellType(key){
 
 function _gvVirtualRender(){
   var isCluster=_gvMode==="cluster"&&_clusterGeneSorted;
-  var totalItems=isCluster?_clusterGeneSorted.length:(_allGeneVar?_allGeneVar.length:0);
+  var totalItems=isCluster?(_clusterFilteredIdx?_clusterFilteredIdx.length:_clusterGeneSorted.length):(_gvFilteredIdx?_gvFilteredIdx.length:(_allGeneVar?_allGeneVar.length:0));
   if(totalItems===0)return;
   var scroll=document.getElementById("hvg-scroll");
   var vp=document.getElementById("gv-viewport");
@@ -4433,7 +4469,15 @@ function _renderClusterGeneList(listEl){
     if(val>_gvMaxVar)_gvMaxVar=val;
   }
   if(_gvMaxVar<=0)_gvMaxVar=1;
-  var totalH=sorted.length*_gvRowH;
+  /* Build filtered index if GO filter active */
+  if(_goFilterGenes&&d){
+    _clusterFilteredIdx=[];
+    for(var fi=0;fi<sorted.length;fi++){
+      if(_goFilterGenes.has(d.genes[sorted[fi]]))_clusterFilteredIdx.push(fi);
+    }
+  }else{_clusterFilteredIdx=null;}
+  var nRows=_clusterFilteredIdx?_clusterFilteredIdx.length:sorted.length;
+  var totalH=nRows*_gvRowH;
   listEl.innerHTML='<div style="display:flex;font-size:9px;color:var(--text4);padding:2px 4px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:1;">'
     +'<span style="width:28px;flex-shrink:0;">#<\/span><span style="flex:3;padding-left:6px;">Gene<\/span>'
     +'<span style="flex:2;text-align:right;white-space:nowrap;cursor:pointer;user-select:none;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px;" onclick="_gvCycleSort()" title="Click to cycle: |Cohen\'s d| → log₂FC → −log₁₀(padj)">'+_gvMetricLabel+'<\/span><span style="flex:3;"><\/span>'
@@ -4446,7 +4490,8 @@ function _renderClusterGeneList(listEl){
   _scrollToSelectedGene(listEl);
 }
 function _gvRenderClusterRow(rank){
-  var idx=_clusterGeneSorted[rank];
+  var sortedRank=_clusterFilteredIdx?_clusterFilteredIdx[rank]:rank;
+  var idx=_clusterGeneSorted[sortedRank];
   var d=_clusterGeneData;
   var g=d.genes[idx];
   var lfc=d.log2fc[idx];
