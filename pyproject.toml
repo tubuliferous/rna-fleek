@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rna-fleek"
+version = "0.1.0"
+description = "Fast Lightweight Expression Exploration Kit — browser-based scRNA-seq visualization"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{name = "tubuliferous"}]
+keywords = ["single-cell", "rna-seq", "scRNA-seq", "visualization", "bioinformatics"]
+dependencies = [
+    "anndata>=0.9",
+    "numpy>=1.21",
+    "scipy>=1.7",
+    "scanpy>=1.9",
+    "matplotlib",
+    "scikit-learn",
+    "igraph",
+    "leidenalg",
+    "certifi",
+]
+
+[project.optional-dependencies]
+pacmap = ["pacmap<0.8"]
+all = ["pacmap<0.8"]
+
+[project.urls]
+Homepage = "https://github.com/tubuliferous/rna-fleek"
+
+[project.scripts]
+fleek = "rna_fleek.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["rna_fleek"]
