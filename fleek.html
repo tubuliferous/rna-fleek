@@ -608,14 +608,14 @@
     </div>
     <div class="col-body">
       <div style="display:flex;gap:4px;align-items:center;">
-        <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:1;min-width:0;">
-        <span id="go-split" style="display:none;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
-          <button id="go-btn-gene" onclick="_goSetMode(false)" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:8px;font-family:inherit;padding:2px 6px;transition:all 0.1s;" title="Search by gene name">Gene</button>
-          <button id="go-btn-go" onclick="_goSetMode(true)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:8px;font-family:inherit;padding:2px 6px;transition:all 0.1s;" title="Filter genes by Gene Ontology term">GO</button>
+        <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:3;min-width:0;">
+        <span id="go-split" style="display:none;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex:1;min-width:0;">
+          <button id="go-btn-gene" onclick="_goSetMode(false)" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 0;transition:all 0.1s;width:50%;" title="Search by gene name">Gene</button>
+          <button id="go-btn-go" onclick="_goSetMode(true)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 0;transition:all 0.1s;width:50%;" title="Filter genes by Gene Ontology term">GO</button>
         </span>
       </div>
       <div id="go-results" style="display:none;margin-top:4px;max-height:160px;overflow-y:auto;overflow-x:hidden;"></div>
-      <div id="go-active" style="display:none;margin-top:4px;font-size:9px;color:var(--text2);padding:3px 4px;background:var(--bg3);border-radius:3px;"></div>
+      <div id="go-active" style="display:none;margin-top:4px;font-size:9px;color:var(--text2);"></div>
       <div id="glist" style="margin-top:6px;"></div>
       <div id="hvg-section" style="display:none;margin-top:8px;">
         <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;flex-wrap:wrap;">
@@ -3853,14 +3853,14 @@ function showRecentGenes(){
 /* ── Gene Ontology search ── */
 var _goMode=false; /* true when GO search is active */
 var _goTimer=null;
-var _goFilterGenes=null; /* Set of gene names when a GO term is selected, null = no filter */
+var _goFilterGenes=null; /* Set of gene names (union of all active terms), null = no filter */
+var _goActiveTerms=[]; /* [{id,name,ns,genes:[]},...] */
 function _goSetMode(on){
   _goMode=on;
   var btnGene=document.getElementById("go-btn-gene");
   var btnGo=document.getElementById("go-btn-go");
   var inp=document.getElementById("gsearch");
   var goRes=document.getElementById("go-results");
-  var goAct=document.getElementById("go-active");
   if(on){
     btnGo.style.background="rgba(99,102,241,0.12)";btnGo.style.color="var(--accent2)";
     btnGene.style.background="transparent";btnGene.style.color="var(--text2)";
@@ -3876,7 +3876,6 @@ function _goSetMode(on){
     inp.value="";
     goRes.style.display="none";
     goRes.innerHTML="";
-    if(_goFilterGenes){_goFilterGenes=null;goAct.style.display="none";_refreshGvList();}
     showRecentGenes();
   }
 }
@@ -3896,7 +3895,9 @@ function _goSearch(q){
       for(var i=0;i<res.length;i++){
         var r=res[i];
         var nsC=nsColors[r.ns]||"var(--text4)";
-        h+='<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;font-size:9px;cursor:pointer;border-radius:2px;" onmouseenter="this.style.background=\'var(--bg-hover)\'" onmouseleave="this.style.background=\'\'" onclick="_goSelectTerm(\''+r.id+'\')" title="'+r.name+' ('+r.id+')">'
+        var already=_goActiveTerms.some(function(t){return t.id===r.id;});
+        h+='<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;font-size:9px;cursor:pointer;border-radius:2px;'+(already?'opacity:0.4;':'')
+          +'" onmouseenter="this.style.background=\'var(--bg-hover)\'" onmouseleave="this.style.background=\'\'" onclick="_goSelectTerm(\''+r.id+'\')" title="'+r.name+' ('+r.id+')">'
           +'<span style="color:'+nsC+';font-weight:700;font-size:8px;flex-shrink:0;width:16px;">'+r.ns+'<\/span>'
           +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">'+r.name+'<\/span>'
           +'<span style="color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;">'+r.n_dataset+'<\/span>'
@@ -3908,38 +3909,77 @@ function _goSearch(q){
   },250);
 }
 function _goSelectTerm(goId){
+  if(_goActiveTerms.some(function(t){return t.id===goId;}))return;
   fetch("/api/go-genes?id="+encodeURIComponent(goId))
   .then(function(r){return r.json();})
   .then(function(data){
     if(data.error)return;
     var genes=data.genes||[];
     if(genes.length===0)return;
-    _goFilterGenes=new Set(genes);
-    /* Show active filter badge */
-    var goAct=document.getElementById("go-active");
-    var nsColors={"BP":"#34d399","MF":"#818cf8","CC":"#fbbf24"};
-    var nsC=nsColors[data.ns]||"var(--text4)";
-    goAct.innerHTML='<span style="color:'+nsC+';font-weight:700;">'+data.ns+'<\/span> '
-      +data.name+' <span style="color:var(--text4);">('+data.n_dataset+' genes)<\/span>'
-      +' <span style="color:var(--accent2);cursor:pointer;margin-left:4px;" onclick="_goClearFilter()" title="Remove GO filter">\u00d7<\/span>';
-    goAct.style.display="block";
-    /* Hide search results, refresh variability list */
-    document.getElementById("go-results").style.display="none";
+    _goActiveTerms.push({id:data.id,name:data.name,ns:data.ns,genes:genes,n_total:data.n_total});
+    _goRebuildFilter();
+    _goRenderBadges();
+    /* Keep search results visible for adding more terms */
     document.getElementById("gsearch").value="";
+    document.getElementById("go-results").innerHTML='<div style="font-size:9px;color:var(--text4);padding:4px;">Term added. Search for more or switch to Gene mode.<\/div>';
     _refreshGvList();
+    /* Scroll filtered list to top */
+    var scroll=document.getElementById("hvg-scroll");
+    if(scroll)scroll.scrollTop=0;
   })
   .catch(function(){});
 }
+function _goRemoveTerm(goId){
+  _goActiveTerms=_goActiveTerms.filter(function(t){return t.id!==goId;});
+  _goRebuildFilter();
+  _goRenderBadges();
+  _refreshGvList();
+}
 function _goClearFilter(){
+  _goActiveTerms=[];
   _goFilterGenes=null;
   document.getElementById("go-active").style.display="none";
   _refreshGvList();
+}
+function _goRebuildFilter(){
+  if(_goActiveTerms.length===0){_goFilterGenes=null;return;}
+  _goFilterGenes=new Set();
+  for(var t=0;t<_goActiveTerms.length;t++){
+    var genes=_goActiveTerms[t].genes;
+    for(var g=0;g<genes.length;g++)_goFilterGenes.add(genes[g]);
+  }
+}
+function _goRenderBadges(){
+  var goAct=document.getElementById("go-active");
+  if(_goActiveTerms.length===0){goAct.style.display="none";return;}
+  var nsColors={"BP":"#34d399","MF":"#818cf8","CC":"#fbbf24"};
+  var h='<div style="display:flex;flex-wrap:wrap;gap:3px;">';
+  for(var i=0;i<_goActiveTerms.length;i++){
+    var t=_goActiveTerms[i];
+    var nsC=nsColors[t.ns]||"var(--text4)";
+    h+='<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:3px;font-size:9px;background:var(--bg3);border:1px solid var(--border);" title="'+t.name+' ('+t.id+') \u2014 '+t.genes.length+' / '+t.n_total+' genes in dataset">'
+      +'<span style="color:'+nsC+';font-weight:700;font-size:8px;">'+t.ns+'<\/span>'
+      +'<span style="color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">'+t.name+'<\/span>'
+      +'<span style="color:var(--text4);font-size:8px;">'+t.genes.length+'<\/span>'
+      +'<span style="color:var(--text3);cursor:pointer;font-size:12px;line-height:1;margin-left:2px;" onclick="_goRemoveTerm(\''+t.id+'\')" title="Remove this GO filter">\u00d7<\/span>'
+      +'<\/span>';
+  }
+  if(_goActiveTerms.length>1){
+    h+='<span style="color:var(--text4);cursor:pointer;font-size:9px;padding:1px 4px;text-decoration:underline;" onclick="_goClearFilter()">clear all<\/span>';
+  }
+  h+='<\/div>';
+  if(_goFilterGenes)h+='<div style="font-size:8px;color:var(--text4);margin-top:2px;">'+_goFilterGenes.size+' genes total (union)<\/div>';
+  goAct.innerHTML=h;
+  goAct.style.display="block";
 }
 function _refreshGvList(){
   var listEl=document.getElementById("hvg-list");
   if(!listEl)return;
   if(_gvMode==="cluster"&&_clusterGeneData){_renderClusterGeneList(listEl);}
   else if(_allGeneVar){_renderGeneVarList(listEl);}
+  /* Scroll to top when filter changes */
+  var scroll=document.getElementById("hvg-scroll");
+  if(scroll)scroll.scrollTop=0;
 }
 
 var _allGeneVar=null; /* [{name,var},...] fetched from /api/gene-var */
