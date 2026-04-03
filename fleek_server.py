@@ -33,6 +33,9 @@ from urllib.parse import urlparse, parse_qs
 
 import numpy as np
 
+# PyInstaller bundles data files into sys._MEIPASS; normal runs use script dir
+_BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
+
 # Globals set at startup
 ADATA = None
 UMAP_2D = None
@@ -212,9 +215,11 @@ def load_marker_db(marker_path=None):
     paths_to_try = []
     if marker_path:
         paths_to_try.append(marker_path)
-    # Look next to server script and in working directory
+    # Look in bundle dir, next to server script, and in working directory
     script_dir = Path(__file__).parent
     paths_to_try.extend([
+        _BUNDLE_DIR / "rna_fleek" / "cell_markers.json",
+        _BUNDLE_DIR / "cell_markers.json",
         script_dir / "cell_markers.json",
         Path("cell_markers.json"),
     ])
@@ -2329,7 +2334,9 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.send_error(404)
 
     def _serve_html(self):
-        html_path = Path(__file__).parent / "fleek.html"
+        html_path = _BUNDLE_DIR / "rna_fleek" / "fleek.html"
+        if not html_path.exists():
+            html_path = _BUNDLE_DIR / "fleek.html"
         if not html_path.exists():
             self.send_error(500, "fleek.html not found next to server script")
             return
