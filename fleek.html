@@ -3056,7 +3056,7 @@ function animate(){
 
   /* Hover raycast — adaptive throttle: more cells = less frequent */
   hoverFrameSkip++;
-  var hoverInterval=(!D)?4:D.header.n_cells<50000?4:D.header.n_cells<200000?8:15;
+  var hoverInterval=(!D)?2:D.header.n_cells<50000?2:D.header.n_cells<200000?4:8;
   if(hoverFrameSkip>=hoverInterval&&mouseOnCanvas&&!dragging&&!panning&&!dollying&&!lassoActive&&pts&&D&&tooltipEl){
     hoverFrameSkip=0;
     raycaster.params.Points.threshold=pickThreshold();
@@ -3861,6 +3861,7 @@ function _goSetMode(on){
   var btnGo=document.getElementById("go-btn-go");
   var inp=document.getElementById("gsearch");
   var goRes=document.getElementById("go-results");
+  var goAct=document.getElementById("go-active");
   if(on){
     btnGo.style.background="rgba(99,102,241,0.12)";btnGo.style.color="var(--accent2)";
     btnGene.style.background="transparent";btnGene.style.color="var(--text2)";
@@ -3869,6 +3870,8 @@ function _goSetMode(on){
     goRes.style.display="block";
     goRes.innerHTML='<div style="font-size:9px;color:var(--text4);padding:4px;">Type a Gene Ontology term (e.g. "nuclear pore", "apoptosis", "kinase")<\/div>';
     document.getElementById("glist").innerHTML="";
+    /* Restore GO filter if terms were saved */
+    if(_goActiveTerms.length>0){_goRebuildFilter();_goRenderBadges();_refreshGvList();}
   }else{
     btnGene.style.background="rgba(99,102,241,0.12)";btnGene.style.color="var(--accent2)";
     btnGo.style.background="transparent";btnGo.style.color="var(--text2)";
@@ -3876,6 +3879,8 @@ function _goSetMode(on){
     inp.value="";
     goRes.style.display="none";
     goRes.innerHTML="";
+    /* Hide GO filter but don't clear terms — they persist for when GO mode returns */
+    if(_goFilterGenes){_goFilterGenes=null;if(goAct)goAct.style.display="none";_refreshGvList();}
     showRecentGenes();
   }
 }
