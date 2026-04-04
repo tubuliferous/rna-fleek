@@ -6448,17 +6448,31 @@ function unloadDataset(){
     D=null;mode="cluster";selGene="";geneExprCache={};
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
     _clusterGeneCache={};_clusterGenesFetching=false;_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="global";
+    _gvFilteredIdx=null;_clusterFilteredIdx=null;
     var _modeDD=document.getElementById("gv-mode");if(_modeDD)_modeDD.value="global";
     var _clRow=document.getElementById("gv-cluster-row");if(_clRow)_clRow.style.display="none";
     /* Close DEG panel */
     if(degOpen)closeDEG();
     degData=null;degCache={};degGrpA=null;degGrpB=null;_degOrigGroups=null;
-    selGroups=[];activeGroupId=null;cellGroupMap=null;
-    _hadSelection=false;bgDimPct=0;
+    selGroups=[];activeGroupId=null;selGroupIdCounter=0;cellGroupMap=null;groupVisible={};
+    _hadSelection=false;bgDimPct=0;_bgDimCluster=0;_bgDimGene=0;
+    _deletedCells=null;_preShowAllVis=null;_preDeletedCells=null;
+    _visStats=null;
+    _hoverIdx=-1;_hoverPrevColor=null;
     markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
-    if(pts){scene.remove(pts);pts=null;}
-    if(ringPts){scene.remove(ringPts);ringPts=null;}
+    /* Remove Three.js objects */
+    if(pts){scene.remove(pts);pts.geometry.dispose();pts.material.dispose();pts=null;}
+    if(ringPts){scene.remove(ringPts);ringPts.geometry.dispose();ringPts.material.dispose();ringPts=null;}
+    if(haloPts){scene.remove(haloPts);haloPts.material.dispose();haloPts=null;}
     if(boundaryShell){scene.remove(boundaryShell);boundaryShell.geometry.dispose();boundaryShell.material.dispose();boundaryShell=null;_boundaryOpacity=0;}
+    if(_dbgMarker){scene.remove(_dbgMarker);_dbgMarker=null;}
+    if(_dbgRayLine){scene.remove(_dbgRayLine);_dbgRayLine=null;}
+    /* Clear GO filter */
+    _goActiveTerms=[];_goFilterGenes=null;_goMode=false;
+    var _goAct=document.getElementById("go-active");if(_goAct){_goAct.style.display="none";_goAct.innerHTML="";}
+    var _goRes=document.getElementById("go-results");if(_goRes){_goRes.style.display="none";_goRes.innerHTML="";}
+    var _goSplit=document.getElementById("go-split");if(_goSplit)_goSplit.style.display="none";
+    /* Reset UI elements */
     document.getElementById("loaded-file").style.display="none";
     document.getElementById("unload-btn").style.display="none";
     document.getElementById("info").textContent="No dataset loaded";
@@ -6467,14 +6481,34 @@ function unloadDataset(){
     document.getElementById("csc-status").style.display="none";
     document.getElementById("gene-sec").style.display="none";
     document.getElementById("session-bar").style.display="none";
+    document.getElementById("expr-legend").style.display="none";
+    document.getElementById("expr-controls").style.display="none";
+    document.getElementById("gsearch").value="";
+    document.getElementById("glist").innerHTML="";
     if(_sessionAutoTimer){clearTimeout(_sessionAutoTimer);_sessionAutoTimer=null;}
     document.getElementById("data-sec").classList.add("no-data");
     document.getElementById("lineage-tree").style.display="none";
     document.getElementById("lineage-tree").innerHTML="";
     document.getElementById("leg-scroll").style.display="";
     _setLinBtn(null,"flat");
+    /* Clear HUD */
+    var _hudV=document.getElementById("hud-visible");if(_hudV)_hudV.textContent="—";
+    var _hudH=document.getElementById("hud-hidden");if(_hudH)_hudH.textContent="—";
+    var _hudT=document.getElementById("hud-total");if(_hudT)_hudT.textContent="—";
+    var _hudGR=document.getElementById("hud-group-row");if(_hudGR)_hudGR.style.display="none";
+    /* Clear hidden count */
+    var _hcEl=document.getElementById("hidden-count");if(_hcEl)_hcEl.style.display="none";
+    /* Clear slice panel */
+    sliceFilter=null;sliceMask=null;_sliceTotals=null;
+    var _sliceSec=document.getElementById("slice-sec");if(_sliceSec)_sliceSec.style.display="none";
+    var _sliceBody=document.getElementById("slice-body");if(_sliceBody)_sliceBody.innerHTML="";
+    /* Clear color mode */
+    var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="cluster";
+    /* Clear history */
     _history=[];_histIdx=-1;
     try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_deg");sessionStorage.removeItem("fleek_slice");sessionStorage.removeItem("fleek_infoText");}catch(e){}
+    window._saved2dCam=null;window._embCameras={};
+    updateHistBtn();
     renderSelPanel();
     renderLeg();
   }).catch(function(err){
