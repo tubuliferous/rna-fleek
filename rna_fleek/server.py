@@ -223,7 +223,9 @@ def load_marker_db(marker_path=None):
     paths_to_try.extend([
         _BUNDLE_DIR / "rna_fleek" / "cell_markers.json",
         _BUNDLE_DIR / "cell_markers.json",
+        script_dir / "data" / "cell_markers.json",
         script_dir / "cell_markers.json",
+        Path("data") / "cell_markers.json",
         Path("cell_markers.json"),
     ])
     
@@ -275,7 +277,9 @@ def load_go_db():
     paths_to_try = [
         _BUNDLE_DIR / "rna_fleek" / f"go_{organism}.json",
         _BUNDLE_DIR / f"go_{organism}.json",
+        script_dir / "data" / f"go_{organism}.json",
         script_dir / f"go_{organism}.json",
+        Path("data") / f"go_{organism}.json",
         Path(f"go_{organism}.json"),
     ]
 

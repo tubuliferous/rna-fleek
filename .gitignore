@@ -1,6 +1,9 @@
 # Datasets
 datasets/
 
+# Downloaded data files (large, regeneratable via scripts/)
+data/go_*.json
+
 # macOS
 .DS_Store
 .AppleDouble

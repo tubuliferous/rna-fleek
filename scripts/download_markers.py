@@ -176,8 +176,9 @@ def download_cellmarker2(output_path="cell_markers.json"):
 
 def main():
     parser = argparse.ArgumentParser(description="Download CellMarker2 database")
-    parser.add_argument("--output", type=str, default="cell_markers.json",
-                        help="Output JSON file path")
+    from pathlib import Path
+    parser.add_argument("--output", type=str, default=str(Path(__file__).parent.parent / "data" / "cell_markers.json"),
+                        help="Output JSON file path (default: data/cell_markers.json)")
     args = parser.parse_args()
     download_cellmarker2(args.output)
 

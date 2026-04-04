@@ -250,8 +250,8 @@ def main():
     )
     parser.add_argument("--organism", type=str, default="human",
                         help="Organism to download (default: human). Use 'all' for all.")
-    parser.add_argument("--output-dir", type=str, default=".",
-                        help="Output directory for JSON files (default: current dir)")
+    parser.add_argument("--output-dir", type=str, default=str(Path(__file__).parent.parent / "data"),
+                        help="Output directory for JSON files (default: ../data/)")
     parser.add_argument("--list", action="store_true",
                         help="List available organisms and exit")
     args = parser.parse_args()
