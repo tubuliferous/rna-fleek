@@ -74,6 +74,13 @@
   #cw.comparing #c{width:50%!important;margin-left:50%;}
   #cw.comparing #hud{left:calc(50% + 12px);}
   #cw.comparing #hint{left:75%;}
+  #split-divider{display:none;position:absolute;top:0;left:50%;width:2px;height:100%;background:var(--accent);z-index:6;pointer-events:none;transform:translateX(-1px);}
+  #cw.split-active #split-divider{display:block;}
+  .split-view-label{display:none;position:absolute;top:8px;z-index:7;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:auto;user-select:none;white-space:nowrap;}
+  #cw.split-active .split-view-label{display:flex;align-items:center;gap:4px;}
+  .split-view-label .tether-btn{cursor:pointer;opacity:0.6;transition:opacity 0.15s;}
+  .split-view-label .tether-btn:hover{opacity:1;}
+  .split-view-label .tether-btn.tethered{opacity:1;color:var(--accent2);}
   #hud-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:9px;color:var(--text4);display:inline-flex;align-items:center;gap:4px;user-select:none;}
   #hud-toggle:hover{color:var(--text2);border-color:var(--border2);}
   #hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
@@ -660,7 +667,7 @@
       <div id="view-bar" style="display:flex;align-items:center;gap:4px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border);">
         <select id="view-select" onchange="_viewSwitch(parseInt(this.value))" style="flex:1;min-width:0;"></select>
         <button onclick="_viewAdd()" style="background:none;border:1px dashed var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;" title="Create a new view with the current slice configuration">+</button>
-        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;" title="Pin current view as a static image for side-by-side comparison">⧉</button>
+        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;" title="Toggle real-time split-screen comparison of two views">⧉</button>
         <button id="view-del-btn" onclick="_viewDelete()" style="display:none;background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 3px;" title="Delete this view">×</button>
       </div>
       <div id="slice-footer">
@@ -711,6 +718,9 @@
   <img id="compare-img" style="display:none;position:absolute;top:0;left:0;width:50%;height:100%;object-fit:cover;z-index:2;border-right:2px solid var(--accent);">
   <div id="compare-label" style="display:none;position:absolute;top:8px;left:8px;z-index:3;font-size:10px;color:var(--accent2);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:none;"></div>
   <div id="view-label" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);cursor:pointer;" onclick="_viewRename()" title="Click to rename this view"></div>
+  <div id="split-divider"></div>
+  <div id="split-label-L" class="split-view-label" style="left:8px;"><span class="split-view-name"></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
+  <div id="split-label-R" class="split-view-label" style="right:8px;left:auto;"><span class="split-view-name"></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
@@ -3010,6 +3020,12 @@ function recolor(){
       _rszAttr.needsUpdate=true;
     }
   }
+  /* Also recolor secondary split views */
+  if(_splitActive&&_liveViews.length>1){
+    for(var _rvi=1;_rvi<_liveViews.length;_rvi++){
+      _recolorView(_rvi);
+    }
+  }
 }
 
 /* ── Animation ── */
@@ -3066,8 +3082,61 @@ function animate(){
       if(_dbgGeodesic){boundaryShell.material.opacity=0.45;boundaryShell.visible=true;}
       else{boundaryShell.material.opacity=_boundaryOpacity;boundaryShell.visible=_boundaryOpacity>0.001;}
     }
-    renderer.render(scene,cam3d);}
-  else{update2dCam();renderer.render(scene,cam2d);}
+  }else{update2dCam();}
+  /* ── Render: split-screen or single ── */
+  if(_splitActive&&_liveViews.length===2){
+    /* Sync live view 0's camera from globals (which mouse input modifies) */
+    _liveViews[0].sph.theta=sph.theta;_liveViews[0].sph.phi=sph.phi;_liveViews[0].sph.radius=sph.radius;
+    _liveViews[0].tgt3.x=tgt3.x;_liveViews[0].tgt3.y=tgt3.y;_liveViews[0].tgt3.z=tgt3.z;
+    _liveViews[0].pan2.x=pan2.x;_liveViews[0].pan2.y=pan2.y;_liveViews[0].zoom2=zoom2;
+    /* Tethered views copy from master */
+    for(var _vi=0;_vi<2;_vi++){
+      if(_liveViews[_vi].tethered&&_vi!==_masterViewIdx){
+        _syncViewCamera(_liveViews[_masterViewIdx],_liveViews[_vi]);
+      }
+    }
+    var _halfW=Math.floor(canvasW/2);
+    var _dpr=renderer.getPixelRatio();
+    var _pxHalf=Math.floor(_halfW*_dpr);
+    var _pxH=Math.floor(canvasH*_dpr);
+    renderer.setScissorTest(true);
+    /* Hide boundary shell during split render — it's shared geometry */
+    var _bsVis=boundaryShell?boundaryShell.visible:false;
+    if(boundaryShell)boundaryShell.visible=false;
+    /* Left half: view 0 */
+    renderer.setViewport(0,0,_halfW,canvasH);
+    renderer.setScissor(0,0,_pxHalf,_pxH);
+    _showViewPts(0);_hideViewPts(1);
+    if(viewIs3d){
+      _liveViews[0].cam3d.aspect=_halfW/canvasH;_liveViews[0].cam3d.updateProjectionMatrix();
+      _update3dCamView(_liveViews[0]);
+      renderer.render(scene,_liveViews[0].cam3d);
+    }else{
+      _update2dCamView(_liveViews[0]);
+      renderer.render(scene,_liveViews[0].cam2d);
+    }
+    /* Right half: view 1 */
+    renderer.setViewport(_halfW,0,canvasW-_halfW,canvasH);
+    renderer.setScissor(_pxHalf,0,Math.floor((canvasW-_halfW)*_dpr),_pxH);
+    _showViewPts(1);_hideViewPts(0);
+    if(viewIs3d){
+      _liveViews[1].cam3d.aspect=(canvasW-_halfW)/canvasH;_liveViews[1].cam3d.updateProjectionMatrix();
+      _update3dCamView(_liveViews[1]);
+      renderer.render(scene,_liveViews[1].cam3d);
+    }else{
+      _update2dCamView(_liveViews[1]);
+      renderer.render(scene,_liveViews[1].cam2d);
+    }
+    /* Restore: show view 0 pts, hide view 1, reset viewport */
+    _showViewPts(0);_hideViewPts(1);
+    if(boundaryShell)boundaryShell.visible=_bsVis;
+    renderer.setScissorTest(false);
+    renderer.setViewport(0,0,canvasW,canvasH);
+  }else{
+    /* Single view (existing behavior) */
+    if(viewIs3d){renderer.render(scene,cam3d);}
+    else{renderer.render(scene,cam2d);}
+  }
   /* Point size: convert basePtSz (1-100 slider) to actual material.size.
      Both modes target the same pixel size at the default viewing distance/zoom.
      maxWorldSz = fraction of cloud radius at slider=100.
@@ -3093,6 +3162,14 @@ function animate(){
     var _pulse=(pulseGlow&&mode==="gene"&&selGene&&geneExprCache[selGene])?1.0+1.5*(0.5+0.5*Math.sin(performance.now()*0.002)):1.0;
     if(pts.material.uniforms&&pts.material.uniforms.uPulse)pts.material.uniforms.uPulse.value=_pulse;
     if(haloPts&&haloPts.material.uniforms){haloPts.material.uniforms.uVpH.value=_vpH;haloPts.material.uniforms.uSize.value=pts.material.size;haloPts.material.uniforms.uPulse.value=_pulse;}
+    /* Sync point size uniforms to secondary split view */
+    if(_splitActive&&_liveViews.length===2){
+      var _sv=_liveViews[1];
+      _sv.pts.material.size=pts.material.size;
+      if(_sv.pts.material.uniforms){_sv.pts.material.uniforms.uVpH.value=_vpH;_sv.pts.material.uniforms.uPulse.value=_pulse;}
+      if(_sv.ringPts){_sv.ringPts.material.size=pts.material.size;if(_sv.ringPts.material.uniforms)_sv.ringPts.material.uniforms.uVpH.value=_vpH;}
+      if(_sv.haloPts&&_sv.haloPts.material.uniforms){_sv.haloPts.material.uniforms.uVpH.value=_vpH;_sv.haloPts.material.uniforms.uSize.value=pts.material.size;_sv.haloPts.material.uniforms.uPulse.value=_pulse;}
+    }
   }
 
   /* Hover raycast — adaptive throttle: more cells = less frequent */
@@ -3102,7 +3179,16 @@ function animate(){
     hoverFrameSkip=0;
     raycaster.params.Points.threshold=pickThreshold();
     var cam=viewIs3d?cam3d:cam2d;
-    raycaster.setFromCamera(mouseNDC,cam);
+    var _hoverNDC=mouseNDC;
+    /* In split mode, convert full-canvas NDC to viewport-local NDC */
+    if(_splitActive&&_liveViews.length===2){
+      var _hv=_liveViews[_hoveredViewIdx];
+      cam=viewIs3d?_hv.cam3d:_hv.cam2d;
+      /* Remap mouseNDC.x from full-canvas [-1,1] to half-viewport [-1,1] */
+      var _localNdcX=_hoveredViewIdx===0?(mouseNDC.x*2+1):(mouseNDC.x*2-1);
+      _hoverNDC=new THREE.Vector2(_localNdcX,mouseNDC.y);
+    }
+    raycaster.setFromCamera(_hoverNDC,cam);
     /* Debug ray visualization */
     if(_dbgShowRay){
       if(!_dbgRayLine){
@@ -3343,23 +3429,31 @@ function setupCtrl(){
       return;
     }
     var dx=e.clientX-prev.x,dy=e.clientY-prev.y;prev={x:e.clientX,y:e.clientY};
+    /* Determine which camera state to modify: globals for single/master/tethered, per-view for untethered split */
+    var _cSph=sph,_cTgt3=tgt3,_cPan2=pan2,_cZoom2Ref=null;
+    if(_splitActive&&_liveViews.length===2){
+      var _tgtView=_liveViews[_hoveredViewIdx];
+      if(!_tgtView.tethered&&_hoveredViewIdx!==0){
+        _cSph=_tgtView.sph;_cTgt3=_tgtView.tgt3;_cPan2=_tgtView.pan2;_cZoom2Ref=_tgtView;
+      }
+    }
     if(viewIs3d){
       /* Show pivot cross only after meaningful movement (>4px total) */
       if(dragging||panning||dollying){_dragDist+=Math.abs(dx)+Math.abs(dy);}
       if(_dragDist>4&&pivotMarker&&!pivotMarker.visible){
         clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;
       }
-      if(dragging){sph.theta-=dx*.005;sph.phi-=dy*.005;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
+      if(dragging){_cSph.theta-=dx*.005;_cSph.phi-=dy*.005;_cSph.phi=Math.max(.05,Math.min(Math.PI-.05,_cSph.phi));}
       else if(dollying){
         /* Move orbit center forward/backward along view direction.
            Exponential speed: perceptually constant regardless of distance. */
         var fwd=new THREE.Vector3();
         cam3d.getWorldDirection(fwd);
         var efactor=Math.exp(-dy*0.006)-1;
-        tgt3.addScaledVector(fwd,sph.radius*efactor);
+        _cTgt3.x+=fwd.x*_cSph.radius*efactor;_cTgt3.y+=fwd.y*_cSph.radius*efactor;_cTgt3.z+=fwd.z*_cSph.radius*efactor;
       }
-      else if(panning){var ps=sph.radius*.001;var up=new THREE.Vector3(0,1,0);var cd=new THREE.Vector3().subVectors(cam3d.position,tgt3).normalize();var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();tgt3.addScaledVector(rt,-dx*ps);tgt3.addScaledVector(cu,dy*ps);}
-    }else{if(dragging){var s=(frustum2*2)/(zoom2*canvasW);pan2.x-=dx*s;pan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);crosshairEl.classList.add("show");}}}
+      else if(panning){var ps=_cSph.radius*.001;var up=new THREE.Vector3(0,1,0);var cd=new THREE.Vector3().subVectors(cam3d.position,tgt3).normalize();var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();_cTgt3.x+=rt.x*(-dx*ps)+cu.x*(dy*ps);_cTgt3.y+=rt.y*(-dx*ps)+cu.y*(dy*ps);_cTgt3.z+=rt.z*(-dx*ps)+cu.z*(dy*ps);}
+    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;var s=(frustum2*2)/(_zRef*canvasW);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);crosshairEl.classList.add("show");}}}
   });
   var pivotTimer=null;
   window.addEventListener("mouseup",function(){
@@ -3376,30 +3470,39 @@ function setupCtrl(){
   cv.addEventListener("wheel",function(e){e.preventDefault();
     introAnim=null;_flyAnim=null;
     if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
+    /* Determine target camera state for split-view routing */
+    var _wSph=sph,_wTgt3=tgt3,_wPan2=pan2,_wZoom2Ref=null;
+    if(_splitActive&&_liveViews.length===2){
+      var _wv=_liveViews[_hoveredViewIdx];
+      if(!_wv.tethered&&_hoveredViewIdx!==0){
+        _wSph=_wv.sph;_wTgt3=_wv.tgt3;_wPan2=_wv.pan2;_wZoom2Ref=_wv;
+      }
+    }
     /* Scale zoom speed with scroll magnitude (acceleration) — symmetric in/out */
     var absD=Math.min(Math.abs(e.deltaY),150);
     var factor=Math.exp(0.002*absD*(e.deltaY>0?1:-1));
     if(viewIs3d){
-      var newRadius=sph.radius*factor;
-      sph.radius=Math.max(0.5,Math.min(5000,newRadius));
+      var newRadius=_wSph.radius*factor;
+      _wSph.radius=Math.max(0.5,Math.min(5000,newRadius));
       /* Show pivot during zoom */
       if(pivotMarker){clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;pivotTimer=setTimeout(function(){pivotMarker.visible=false;},400);}
     }
     else{
+      var _wz=_wZoom2Ref?_wZoom2Ref.zoom2:zoom2;
       var f=Math.exp(0.002*absD*(e.deltaY<0?1:-1));
-      var newZoom=Math.max(zoom2Min(),Math.min(500,zoom2*f));
+      var newZoom=Math.max(zoom2Min(),Math.min(500,_wz*f));
       if(zoomMode==="cursor"){
         var _ndc=canvasNDC(e.clientX, e.clientY);
         var ndcX=_ndc.x, ndcY=_ndc.y;
         var a=canvasW/canvasH;
-        var wxBefore=ndcX*(frustum2*a)/zoom2+pan2.x;
-        var wyBefore=ndcY*frustum2/zoom2+pan2.y;
-        var wxAfter=ndcX*(frustum2*a)/newZoom+pan2.x;
-        var wyAfter=ndcY*frustum2/newZoom+pan2.y;
-        pan2.x+=wxBefore-wxAfter;
-        pan2.y+=wyBefore-wyAfter;
+        var wxBefore=ndcX*(frustum2*a)/_wz+_wPan2.x;
+        var wyBefore=ndcY*frustum2/_wz+_wPan2.y;
+        var wxAfter=ndcX*(frustum2*a)/newZoom+_wPan2.x;
+        var wyAfter=ndcY*frustum2/newZoom+_wPan2.y;
+        _wPan2.x+=wxBefore-wxAfter;
+        _wPan2.y+=wyBefore-wyAfter;
       }
-      zoom2=newZoom;
+      if(_wZoom2Ref){_wZoom2Ref.zoom2=newZoom;}else{zoom2=newZoom;}
     }
     clearTimeout(wheelSaveTimer);wheelSaveTimer=setTimeout(saveCameraOnly,300);
   },{passive:false});
@@ -3513,6 +3616,11 @@ function setupCtrl(){
     mouseScreenX=e.clientX;
     mouseScreenY=e.clientY;
     mouseOnCanvas=true;
+    /* Track which split-view half the mouse is over */
+    if(_splitActive&&_liveViews.length===2){
+      var localX=e.clientX-_cvRect.left;
+      _hoveredViewIdx=localX<_cvRect.width*0.5?0:1;
+    }else{_hoveredViewIdx=0;}
   });
 
   cv.addEventListener("mouseleave",function(){
@@ -3670,6 +3778,14 @@ function setView(v){
   }
   if(pts){pts.material.sizeAttenuation=viewIs3d;pts.material.needsUpdate=true;}
   if(ringPts){ringPts.material.sizeAttenuation=viewIs3d;ringPts.material.needsUpdate=true;}
+  /* Update split-view secondary point materials */
+  if(_splitActive&&_liveViews.length>1){
+    for(var _svi=1;_svi<_liveViews.length;_svi++){
+      var _svv=_liveViews[_svi];
+      if(_svv.pts){_svv.pts.material.sizeAttenuation=viewIs3d;_svv.pts.material.needsUpdate=true;}
+      if(_svv.ringPts){_svv.ringPts.material.sizeAttenuation=viewIs3d;_svv.ringPts.material.needsUpdate=true;}
+    }
+  }
   if(boundaryShell){boundaryShell.visible=false;_boundaryOpacity=0;}
   recolor();
   saveState();
@@ -6505,6 +6621,11 @@ function unloadDataset(){
     _visStats=null;
     _hoverIdx=-1;_hoverPrevColor=null;
     markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
+    /* Dispose live split views before removing globals */
+    if(_splitActive){_splitViewDeactivate();}
+    for(var _dvi=1;_dvi<_liveViews.length;_dvi++){_disposeLiveView(_liveViews[_dvi]);}
+    _liveViews=[];_splitActive=false;
+    var cw=document.getElementById("cw");if(cw)cw.classList.remove("split-active");
     /* Remove Three.js objects */
     if(pts){scene.remove(pts);pts.geometry.dispose();pts.material.dispose();pts=null;}
     if(ringPts){scene.remove(ringPts);ringPts.geometry.dispose();ringPts.material.dispose();ringPts=null;}
@@ -6546,7 +6667,9 @@ function unloadDataset(){
     /* Clear slice panel */
     sliceFilter=null;sliceMask=null;_sliceTotals=null;
     var _sliceSec=document.getElementById("slice-sec");if(_sliceSec)_sliceSec.style.display="none";
-    var _sliceBody=document.getElementById("slice-body");if(_sliceBody)_sliceBody.innerHTML="";
+    var _sliceBody=document.getElementById("slice-body");
+    if(_sliceBody){var _vb=document.getElementById("view-bar");if(_vb)_vb.remove();_sliceBody.innerHTML="";if(_vb)_sliceBody.appendChild(_vb);}
+    _views=[];_activeViewId=0;_viewIdCounter=0;_comparePinned=null;_viewUpdateUI();
     /* Clear color mode */
     var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="cluster";
     /* Clear history */
@@ -6907,15 +7030,401 @@ var _activeViewId=0;
 var _viewIdCounter=0;
 var _comparePinned=null; /* {imageData, viewName, viewId} or null */
 
+/* ── Live Dual-View Split-Screen ── */
+var _liveViews=[]; /* Array of view state objects — see _createLiveView */
+var _masterViewIdx=0; /* index of the "master" camera view */
+var _hoveredViewIdx=0; /* which half the mouse is over (0=left, 1=right) */
+var _splitActive=false; /* true when showing 2 views side by side */
+
+function _createLiveView(idx,name){
+  /* Build a live-view object. idx 0 reuses the global pts/ringPts/haloPts;
+     idx>=1 creates clones that share position data but have their own color/size/alpha. */
+  if(idx===0){
+    return {
+      id:idx,name:name||"View 1",
+      pts:pts,ringPts:ringPts,haloPts:haloPts,
+      cam3d:cam3d,cam2d:cam2d,
+      sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
+      tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
+      pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2,
+      tethered:false,
+      sliceMask:sliceMask,
+      visibleClusters:JSON.parse(JSON.stringify(visibleClusters)),
+      selGroups:selGroups,activeGroupId:activeGroupId,
+      selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),
+      _deletedCells:_deletedCells,
+      _hoverIdx:-1,_hoverPrevColor:null,
+      _dirty:true
+    };
+  }
+  /* Clone point clouds for secondary view */
+  var n=D.header.n_cells;
+  /* Main points: share position, clone color/aSize/aAlpha */
+  var srcGeo=pts.geometry;
+  var geo=new THREE.BufferGeometry();
+  geo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(srcGeo.getAttribute("position").array),3)); /* clone — each view exiles differently */
+  geo.setAttribute("color",new THREE.BufferAttribute(new Float32Array(srcGeo.getAttribute("color").array),3));
+  geo.setAttribute("aSize",new THREE.BufferAttribute(new Float32Array(srcGeo.getAttribute("aSize").array),1));
+  geo.setAttribute("aAlpha",new THREE.BufferAttribute(new Float32Array(srcGeo.getAttribute("aAlpha").array),1));
+  var mat=pts.material.clone();
+  /* Clone uniforms so each view can have independent pulse/opacity */
+  mat.uniforms=JSON.parse(JSON.stringify(pts.material.uniforms));
+  /* Restore non-serializable uniform values */
+  mat.uniforms.uMap={value:pts.material.uniforms.uMap.value};
+  mat.uniforms.uCellPulse={value:new THREE.Vector3().copy(pts.material.uniforms.uCellPulse.value)};
+  Object.defineProperty(mat,'size',{get:function(){return mat.uniforms.uSize.value;},set:function(v){mat.uniforms.uSize.value=v;}});
+  Object.defineProperty(mat,'opacity',{get:function(){return mat.uniforms.uOpa.value;},set:function(v){mat.uniforms.uOpa.value=v;}});
+  Object.defineProperty(mat,'alphaTest',{get:function(){return mat.uniforms.uAT.value;},set:function(v){mat.uniforms.uAT.value=v;}});
+  Object.defineProperty(mat,'map',{get:function(){return mat.uniforms.uMap.value;},set:function(v){mat.uniforms.uMap.value=v;}});
+  Object.defineProperty(mat,'sizeAttenuation',{get:function(){return mat.uniforms.uVpH.value>0;},set:function(v){}});
+  Object.defineProperty(mat,'needsUpdate',{get:function(){return false;},set:function(v){}});
+  var vPts=new THREE.Points(geo,mat);
+  scene.add(vPts);
+  vPts.visible=false;
+  /* Ring points */
+  var vRing=null;
+  if(ringPts){
+    var rGeo=new THREE.BufferGeometry();
+    rGeo.setAttribute("position",new THREE.BufferAttribute(new Float32Array(ringPts.geometry.getAttribute("position").array),3));
+    rGeo.setAttribute("color",new THREE.BufferAttribute(new Float32Array(ringPts.geometry.getAttribute("color").array),3));
+    rGeo.setAttribute("aSize",new THREE.BufferAttribute(new Float32Array(ringPts.geometry.getAttribute("aSize").array),1));
+    var rMat=ringPts.material.clone();
+    rMat.uniforms=JSON.parse(JSON.stringify(ringPts.material.uniforms));
+    Object.defineProperty(rMat,'size',{get:function(){return rMat.uniforms.uSize.value;},set:function(v){rMat.uniforms.uSize.value=v;}});
+    Object.defineProperty(rMat,'sizeAttenuation',{get:function(){return rMat.uniforms.uVpH.value>0;},set:function(v){}});
+    Object.defineProperty(rMat,'needsUpdate',{get:function(){return false;},set:function(v){}});
+    vRing=new THREE.Points(rGeo,rMat);
+    vRing.renderOrder=3;
+    vRing.visible=false;
+    scene.add(vRing);
+  }
+  /* Halo points */
+  var vHalo=null;
+  if(haloPts){
+    var hGeo=new THREE.BufferGeometry();
+    hGeo.setAttribute("position",geo.getAttribute("position")); /* shares with vPts clone */
+    hGeo.setAttribute("color",geo.getAttribute("color")); /* shares with vPts clone */
+    hGeo.setAttribute("aSize",geo.getAttribute("aSize"));
+    hGeo.setAttribute("aAlpha",geo.getAttribute("aAlpha"));
+    var hMat=haloPts.material.clone();
+    hMat.uniforms=JSON.parse(JSON.stringify(haloPts.material.uniforms));
+    hMat.uniforms.uHaloBase={value:new THREE.Vector3().copy(haloPts.material.uniforms.uHaloBase.value)};
+    hMat.uniforms.uHaloPulse={value:new THREE.Vector3().copy(haloPts.material.uniforms.uHaloPulse.value)};
+    vHalo=new THREE.Points(hGeo,hMat);
+    vHalo.renderOrder=1;
+    vHalo.visible=false;
+    scene.add(vHalo);
+  }
+  /* Per-view cameras */
+  var vc3=new THREE.PerspectiveCamera(cam3d.fov,cam3d.aspect,cam3d.near,cam3d.far);
+  var a=canvasW/canvasH;
+  var vc2=new THREE.OrthographicCamera(-frustum2*a,frustum2*a,frustum2,-frustum2,0.1,1000);
+  vc2.position.z=100;
+  return {
+    id:idx,name:name||("View "+(idx+1)),
+    pts:vPts,ringPts:vRing,haloPts:vHalo,
+    cam3d:vc3,cam2d:vc2,
+    sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
+    tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
+    pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2,
+    tethered:true,
+    sliceMask:sliceMask,
+    visibleClusters:JSON.parse(JSON.stringify(visibleClusters)),
+    selGroups:selGroups,activeGroupId:activeGroupId,
+    selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),
+    _deletedCells:_deletedCells,
+    _hoverIdx:-1,_hoverPrevColor:null,
+    _dirty:true
+  };
+}
+function _disposeLiveView(v){
+  /* Dispose GPU resources for a secondary live view (never view 0 — those are the globals) */
+  if(v.id===0)return;
+  if(v.pts){scene.remove(v.pts);v.pts.geometry.dispose();v.pts.material.dispose();}
+  if(v.ringPts){scene.remove(v.ringPts);v.ringPts.geometry.dispose();v.ringPts.material.dispose();}
+  if(v.haloPts){scene.remove(v.haloPts);v.haloPts.material.dispose();}
+}
+function _showViewPts(vIdx){
+  var v=_liveViews[vIdx];if(!v)return;
+  v.pts.visible=true;
+  /* Restore ring/halo visibility from last recolor state */
+  if(v.ringPts)v.ringPts.visible=!!v._ringVisible;
+  if(v.haloPts)v.haloPts.visible=!!v._haloVisible;
+}
+function _hideViewPts(vIdx){
+  var v=_liveViews[vIdx];if(!v)return;
+  v.pts.visible=false;
+  if(v.ringPts)v.ringPts.visible=false;
+  if(v.haloPts)v.haloPts.visible=false;
+}
+function _update3dCamView(v){
+  var s=v.sph;
+  v.cam3d.position.set(v.tgt3.x+s.radius*Math.sin(s.phi)*Math.cos(s.theta),v.tgt3.y+s.radius*Math.cos(s.phi),v.tgt3.z+s.radius*Math.sin(s.phi)*Math.sin(s.theta));
+  v.cam3d.lookAt(new THREE.Vector3(v.tgt3.x,v.tgt3.y,v.tgt3.z));
+}
+function _update2dCamView(v){
+  var a=(canvasW*0.5)/canvasH; /* split view uses half width */
+  v.cam2d.left=(-frustum2*a)/v.zoom2+v.pan2.x;
+  v.cam2d.right=(frustum2*a)/v.zoom2+v.pan2.x;
+  v.cam2d.top=frustum2/v.zoom2+v.pan2.y;
+  v.cam2d.bottom=-frustum2/v.zoom2+v.pan2.y;
+  v.cam2d.updateProjectionMatrix();
+}
+function _syncViewCamera(src,dst){
+  /* Copy camera state from src view to dst view */
+  dst.sph.theta=src.sph.theta;dst.sph.phi=src.sph.phi;dst.sph.radius=src.sph.radius;
+  dst.tgt3.x=src.tgt3.x;dst.tgt3.y=src.tgt3.y;dst.tgt3.z=src.tgt3.z;
+  dst.pan2.x=src.pan2.x;dst.pan2.y=src.pan2.y;dst.zoom2=src.zoom2;
+}
+
+function _recolorView(vIdx){
+  if(!D)return;
+  var v=_liveViews[vIdx];if(!v||!v.pts)return;
+  var vPts=v.pts,vRing=v.ringPts;
+  var col=vPts.geometry.attributes.color.array,n=D.header.n_cells;
+  var pos=vPts.geometry.attributes.position.array;
+  var BG=getBG();
+  var vSliceMask=v.sliceMask;
+  var vVisibleClusters=v.visibleClusters;
+  var vDeletedCells=v._deletedCells;
+  var vSelGroups=v.selGroups;
+  var vGroupVisible=v.groupVisible;
+  var hasAnyVisible=false,hasAnySelection=false;
+  var useRing=highlightMode==="ring";
+  if(cellGroupMap){
+    for(var gi=0;gi<vSelGroups.length&&!hasAnyVisible;gi++){
+      if(vSelGroups[gi].cells.size>0){
+        hasAnySelection=true;
+        if(vGroupVisible[vSelGroups[gi].id]!==false){
+          vSelGroups[gi].cells.forEach(function(ci){
+            if(!hasAnyVisible&&vVisibleClusters[D.cluster_ids[ci]]!==false&&!(vSliceMask&&!vSliceMask[ci])){
+              hasAnyVisible=true;
+            }
+          });
+        }
+      }
+    }
+  }
+  var isLight=document.body.classList.contains("light");
+  /* Use global dim state for simplicity; each view inherits from the active view context */
+  var dimFactor=1-bgDimPct/100;
+  var dimBias=bgDimPct/100;
+  var ringPos=vRing?vRing.geometry.attributes.position.array:null;
+  var ringCol=vRing?vRing.geometry.attributes.color.array:null;
+  var showRingLayer=useRing&&hasAnyVisible;
+  var useGene=mode==="gene"&&selGene&&geneExprCache[selGene];
+  var ex=useGene?geneExprCache[selGene]:null;
+  var _haloActive=showGlow&&!!useGene;
+  v._haloVisible=_haloActive;
+  if(v.haloPts)v.haloPts.visible=_haloActive;
+  if(vPts.material.uniforms&&vPts.material.uniforms.uHaloOn)vPts.material.uniforms.uHaloOn.value=_haloActive?1.0:0.0;
+  var _bsu=_getBgScheme();
+  if(vPts.material.uniforms&&vPts.material.uniforms.uCellPulse)vPts.material.uniforms.uCellPulse.value.set(_bsu.cellPulseTarget[0],_bsu.cellPulseTarget[1],_bsu.cellPulseTarget[2]);
+  if(v.haloPts&&v.haloPts.material.uniforms){
+    var _hu=v.haloPts.material.uniforms;
+    _hu.uHaloBase.value.set(_bsu.haloBase[0]||0,_bsu.haloBase[1]||0,_bsu.haloBase[2]||0);
+    _hu.uHaloPulse.value.set(_bsu.haloPulseTarget[0],_bsu.haloPulseTarget[1],_bsu.haloPulseTarget[2]);
+  }
+  var _nHidden=0;
+  for(var i=0;i<n;i++){
+    var cid=D.cluster_ids[i];
+    if(vVisibleClusters[cid]===false||(vSliceMask&&!vSliceMask[i])||(vDeletedCells&&vDeletedCells.has(i))){
+      _nHidden++;
+      col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
+      pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
+      if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+      continue;
+    }
+    pos[i*3]=D._cachedPos[i*3];pos[i*3+1]=D._cachedPos[i*3+1];pos[i*3+2]=D._cachedPos[i*3+2];
+    var sg=cellGroupMap?cellGroupMap[i]:-1;
+    var inGroup=sg>=0&&sg<vSelGroups.length&&vGroupVisible[vSelGroups[sg].id]!==false;
+    var c;
+    if(useGene){
+      var isZero=ex[i]<0.01;
+      if(isZero&&!showNonExpressing){
+        _nHidden++;
+        col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
+        pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
+        if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+        continue;
+      }
+      var _bs=_getBgScheme();
+      c=isZero?_bs.ghostColor:ec(ex[i]);
+    }else if(mode==="gene"&&!useGene){
+      c=_getBgScheme().ghostColor;
+    }else{c=cc(cid);}
+    if(inGroup&&!useRing){
+      var sc2=vSelGroups[sg].color;
+      col[i*3]=sc2[0];col[i*3+1]=sc2[1];col[i*3+2]=sc2[2];
+    }else if(inGroup&&useRing){
+      col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2];
+    }else{
+      col[i*3]=c[0]*dimFactor+BG[0]*dimBias;col[i*3+1]=c[1]*dimFactor+BG[1]*dimBias;col[i*3+2]=c[2]*dimFactor+BG[2]*dimBias;
+    }
+    if(ringPos){
+      if(inGroup&&useRing){
+        var sc2=vSelGroups[sg].color;
+        ringPos[i*3]=D._cachedPos[i*3];ringPos[i*3+1]=D._cachedPos[i*3+1];ringPos[i*3+2]=D._cachedPos[i*3+2];
+        ringCol[i*3]=sc2[0];ringCol[i*3+1]=sc2[1];ringCol[i*3+2]=sc2[2];
+      }else{
+        ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;
+      }
+    }
+  }
+  var _szAttr=vPts.geometry.attributes.aSize;
+  var _alAttr=vPts.geometry.attributes.aAlpha;
+  if(_szAttr&&_alAttr){
+    var _szArr=_szAttr.array,_alArr=_alAttr.array;
+    for(var _si=0;_si<n;_si++){
+      var _bss=_getBgScheme();
+      _szArr[_si]=(useGene&&showExprSize&&ex)?(ex[_si]<0.01?_bss.ghostSize:Math.max(0.38,Math.sqrt(ex[_si])*1.8)):1.0;
+      _alArr[_si]=(useGene&&ex&&ex[_si]<0.01)?_bss.ghostAlpha:1.0;
+    }
+    _szAttr.needsUpdate=true;
+    _alAttr.needsUpdate=true;
+  }
+  vPts.geometry.attributes.color.needsUpdate=true;
+  vPts.geometry.attributes.position.needsUpdate=true;
+  v._ringVisible=showRingLayer;
+  if(vRing){
+    vRing.visible=showRingLayer;
+    vRing.geometry.attributes.color.needsUpdate=true;
+    vRing.geometry.attributes.position.needsUpdate=true;
+    var _rszAttr=vRing.geometry.attributes.aSize;
+    if(_rszAttr&&_szAttr){
+      var _rszArr=_rszAttr.array,_mszArr=_szAttr.array;
+      for(var _ri=0;_ri<n;_ri++)_rszArr[_ri]=_mszArr[_ri];
+      _rszAttr.needsUpdate=true;
+    }
+  }
+  v._dirty=false;
+}
+
+function _splitViewActivate(){
+  /* Activate dual-view split screen */
+  if(_splitActive||!D||!pts)return;
+  /* Exit old compare mode if active */
+  var cw=document.getElementById("cw");
+  if(cw.classList.contains("comparing")){
+    cw.classList.remove("comparing");
+    var img=document.getElementById("compare-img");
+    var lbl=document.getElementById("compare-label");
+    if(img)img.style.display="none";
+    if(lbl)lbl.style.display="none";
+    _comparePinned=null;
+  }
+  /* Save current view state */
+  _viewSaveCurrent();
+  /* Get names from the two snapshot views if available */
+  var av=_views.find(function(v){return v.id===_activeViewId;});
+  var otherView=_views.find(function(v){return v.id!==_activeViewId;});
+  var nameL=av?av.name:"View 1";
+  var nameR=otherView?otherView.name:"View 2";
+  /* Create the two live views — view 0 reuses globals, view 1 is a clone */
+  var lv0=_createLiveView(0,nameL);
+  var lv1=_createLiveView(1,nameR);
+  /* If there's a second snapshot view, apply its state to view 1 */
+  if(otherView){
+    lv1.visibleClusters=JSON.parse(JSON.stringify(otherView.visibleClusters));
+    lv1._deletedCells=otherView.deletedCells?new Set(otherView.deletedCells):null;
+    /* Rebuild sliceMask for the other view */
+    if(D&&otherView.sliceFilter){
+      var cats=D.header.obs_categories||{};
+      var cols=Object.keys(cats);
+      var hasFilter=false;
+      for(var ci=0;ci<cols.length;ci++){
+        if(otherView.sliceFilter[cols[ci]]&&otherView.sliceFilter[cols[ci]].length<cats[cols[ci]].categories.length){hasFilter=true;break;}
+      }
+      if(hasFilter){
+        var n=D.header.n_cells;var sm=new Uint8Array(n);
+        for(var i=0;i<n;i++){
+          var ok=1;
+          for(var ci=0;ci<cols.length;ci++){
+            var c=cols[ci];var code=D.obs_codes[c]?D.obs_codes[c][i]:-1;
+            if(code<0)continue;
+            var sf=otherView.sliceFilter[c];
+            if(sf){var sfs=new Set(sf);if(!sfs.has(code)){ok=0;break;}}
+          }
+          sm[i]=ok;
+        }
+        lv1.sliceMask=sm;
+      }else{lv1.sliceMask=null;}
+    }
+  }
+  _liveViews=[lv0,lv1];
+  _masterViewIdx=0;
+  _splitActive=true;
+  /* Recolor both views */
+  _recolorView(0);
+  _recolorView(1);
+  /* Update UI */
+  cw.classList.add("split-active");
+  _splitUpdateLabels();
+  requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
+}
+
+function _splitViewDeactivate(){
+  if(!_splitActive)return;
+  _splitActive=false;
+  /* Dispose secondary view's GPU resources */
+  if(_liveViews.length>1)_disposeLiveView(_liveViews[1]);
+  _liveViews=[];
+  /* Remove split class */
+  var cw=document.getElementById("cw");
+  cw.classList.remove("split-active");
+  /* Restore global state from whatever snapshot view was active */
+  recolor();
+  requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
+}
+
+function _splitUpdateLabels(){
+  var lblL=document.getElementById("split-label-L");
+  var lblR=document.getElementById("split-label-R");
+  if(!lblL||!lblR)return;
+  if(!_splitActive||_liveViews.length<2){
+    lblL.style.display="none";lblR.style.display="none";
+    return;
+  }
+  var v0=_liveViews[0],v1=_liveViews[1];
+  lblL.querySelector(".split-view-name").textContent=v0.name;
+  lblR.querySelector(".split-view-name").textContent=v1.name;
+  var tb0=lblL.querySelector(".tether-btn");
+  var tb1=lblR.querySelector(".tether-btn");
+  tb0.textContent=v0.tethered?"\uD83D\uDD17":"\u26D3\uFE0F";
+  tb0.className="tether-btn"+(v0.tethered?" tethered":"");
+  tb0.title=v0.tethered?"Camera tethered to master — click to untether":"Camera independent — click to tether";
+  tb1.textContent=v1.tethered?"\uD83D\uDD17":"\u26D3\uFE0F";
+  tb1.className="tether-btn"+(v1.tethered?" tethered":"");
+  tb1.title=v1.tethered?"Camera tethered to master — click to untether":"Camera independent — click to tether";
+}
+
+function _toggleTether(vIdx){
+  if(!_splitActive||vIdx>=_liveViews.length)return;
+  var v=_liveViews[vIdx];
+  v.tethered=!v.tethered;
+  if(v.tethered){
+    /* Snap to master camera */
+    _syncViewCamera(_liveViews[_masterViewIdx],v);
+  }
+  _splitUpdateLabels();
+}
+
 function _viewInit(){
+  /* Tear down any active split view */
+  if(_splitActive){_splitViewDeactivate();}
+  for(var _dvi=1;_dvi<_liveViews.length;_dvi++){_disposeLiveView(_liveViews[_dvi]);}
+  _liveViews=[];_splitActive=false;
+  var cw=document.getElementById("cw");if(cw)cw.classList.remove("split-active");
   /* Create the default View 1 */
   _views=[];_viewIdCounter=0;_activeViewId=0;
   _viewAdd(true);
 }
 function _viewAdd(isDefault){
+  /* Save current view first */
+  if(!isDefault)_viewSaveCurrent();
   var id=_viewIdCounter++;
   var name=isDefault?"View 1":"View "+(id+1);
-  /* Snapshot current state */
+  /* Snapshot current state as the new view */
   var sf={};
   if(sliceFilter){for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
   var vc=JSON.parse(JSON.stringify(visibleClusters));
@@ -6924,8 +7433,9 @@ function _viewAdd(isDefault){
   _views.push({id:id,name:name,sliceFilter:sf,visibleClusters:vc,
     selGroups:sg,deletedCells:dc,activeGroupId:activeGroupId,
     selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible))});
-  if(!isDefault)_viewSwitch(id);
+  _activeViewId=id;
   _viewUpdateUI();
+  _flashAction(name,"New View");
 }
 function _viewSaveCurrent(){
   /* Save current state back to the active view */
@@ -6943,6 +7453,8 @@ function _viewSaveCurrent(){
 }
 function _viewSwitch(id){
   if(id===_activeViewId)return;
+  /* Deactivate split if active */
+  if(_splitActive)_splitViewDeactivate();
   /* Save current view state */
   _viewSaveCurrent();
   _activeViewId=id;
@@ -6990,6 +7502,8 @@ function _viewSwitch(id){
   renderLeg();renderSelPanel();recolor();
   if(lineageView)_renderLineageTree();
   _viewUpdateUI();
+  _updateHudGroup();
+  syncCanvasSize();
 }
 function _viewDelete(){
   if(_views.length<=1)return;
@@ -7019,7 +7533,11 @@ function _viewUpdateUI(){
     sel.appendChild(opt);
   }
   if(delBtn)delBtn.style.display=_views.length>1?"inline-block":"none";
-  if(cmpBtn)cmpBtn.style.display=_views.length>1?"inline-block":"none";
+  if(cmpBtn){
+    cmpBtn.style.display=_views.length>1?"inline-block":"none";
+    cmpBtn.style.background=_splitActive?"rgba(99,102,241,0.2)":"none";
+    cmpBtn.style.color=_splitActive?"var(--accent2)":"var(--text4)";
+  }
   /* Update canvas overlay label */
   if(label){
     if(_views.length>1){
@@ -7043,41 +7561,21 @@ function _viewUpdateUI(){
         }
         label.title=tip;
       }
-      label.style.display="block";
+      label.style.display=_splitActive?"none":"block";
     }else{label.style.display="none";}
   }
 }
 function _viewCompare(){
   if(_views.length<2||!renderer)return;
-  var cw=document.getElementById("cw");
-  var img=document.getElementById("compare-img");
-  var lbl=document.getElementById("compare-label");
-  if(cw.classList.contains("comparing")){
-    /* Exit compare mode */
-    cw.classList.remove("comparing");
-    img.style.display="none";
-    lbl.style.display="none";
-    _comparePinned=null;
-    syncCanvasSize();
+  if(_splitActive){
+    /* Toggle off split screen */
+    _splitViewDeactivate();
+    _viewUpdateUI();
     return;
   }
-  /* Pin current view as static image */
-  var av=_views.find(function(v){return v.id===_activeViewId;});
-  var canvas=document.getElementById("c");
-  /* Force a render to ensure canvas is current */
-  if(viewIs3d){update3dCam();renderer.render(scene,cam3d);}
-  else{update2dCam();renderer.render(scene,cam2d);}
-  var dataUrl=canvas.toDataURL("image/png");
-  _comparePinned={imageData:dataUrl,viewName:av?av.name:"",viewId:_activeViewId};
-  img.src=dataUrl;
-  img.style.display="block";
-  lbl.textContent=av?av.name:"Pinned";
-  lbl.style.display="block";
-  cw.classList.add("comparing");
-  syncCanvasSize();
-  /* Switch to the other view */
-  var other=_views.find(function(v){return v.id!==_activeViewId;});
-  if(other)_viewSwitch(other.id);
+  /* Activate real dual-view split screen */
+  _splitViewActivate();
+  _viewUpdateUI();
 }
 var vDragging=false, vPrev={x:0,y:0};
 var _volcanoPts=[]; /* cached rendered points [{x,y,g}] rebuilt each renderVolcano() */
@@ -7349,10 +7847,13 @@ function buildSlicePanel(){
     sliceFilter[col]=s;
   }
   sliceMask=null;
-  /* Build HTML — detach footer first so innerHTML="" doesn't destroy it */
+  /* Build HTML — detach footer and view-bar first so innerHTML="" doesn't destroy them */
   var footer=document.getElementById("slice-footer");
   if(footer&&footer.parentNode)footer.parentNode.removeChild(footer);
+  var viewBar=document.getElementById("view-bar");
+  if(viewBar&&viewBar.parentNode)viewBar.parentNode.removeChild(viewBar);
   body.innerHTML="";
+  if(viewBar)body.appendChild(viewBar);
   var _totalEmpty=0;
   for(var i=0;i<cols.length;i++){
     var col=cols[i];
