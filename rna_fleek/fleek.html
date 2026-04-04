@@ -71,6 +71,9 @@
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
   #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;}
   #hud{position:absolute;bottom:12px;left:12px;z-index:10;font-size:9px;color:var(--text3);max-width:220px;}
+  #cw.comparing #c{width:50%!important;margin-left:50%;}
+  #cw.comparing #hud{left:calc(50% + 12px);}
+  #cw.comparing #hint{left:75%;}
   #hud-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:9px;color:var(--text4);display:inline-flex;align-items:center;gap:4px;user-select:none;}
   #hud-toggle:hover{color:var(--text2);border-color:var(--border2);}
   #hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
@@ -654,6 +657,12 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body" id="slice-body">
+      <div id="view-bar" style="display:flex;align-items:center;gap:4px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border);">
+        <select id="view-select" onchange="_viewSwitch(parseInt(this.value))" style="flex:1;min-width:0;"></select>
+        <button onclick="_viewAdd()" style="background:none;border:1px dashed var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;" title="Create a new view with the current slice configuration">+</button>
+        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;" title="Pin current view as a static image for side-by-side comparison">⧉</button>
+        <button id="view-del-btn" onclick="_viewDelete()" style="display:none;background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 3px;" title="Delete this view">×</button>
+      </div>
       <div id="slice-footer">
         <span id="slice-cell-count" class="sf-count"></span>
         <span id="slice-total-count" style="color:var(--text4);"></span>
@@ -699,6 +708,9 @@
 </div>
 <div id="main-col" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 <div id="cw">
+  <img id="compare-img" style="display:none;position:absolute;top:0;left:0;width:50%;height:100%;object-fit:cover;z-index:2;border-right:2px solid var(--accent);">
+  <div id="compare-label" style="display:none;position:absolute;top:8px;left:8px;z-index:3;font-size:10px;color:var(--accent2);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:none;"></div>
+  <div id="view-label" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);cursor:pointer;" onclick="_viewRename()" title="Click to rename this view"></div>
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
@@ -3614,6 +3626,11 @@ function setupCtrl(){
     }
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
+    /* Ctrl+1-9 = switch views */
+    if(e[_MOD_KEY]&&!e.altKey&&!e.shiftKey&&e.key>="1"&&e.key<="9"&&_views.length>1){
+      var vi=parseInt(e.key)-1;
+      if(vi<_views.length){e.preventDefault();_viewSwitch(_views[vi].id);_flashAction(_views[vi].name,_MOD+"+"+(vi+1));}
+    }
     /* j/k = vim-style list navigation (works with key repeat for holding) */
     if((e.key==="j"||e.key==="k")&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();_jkNavigate(e.key);}
   });
@@ -4768,6 +4785,7 @@ function buildLeg(){
   clusterCounts=new Array(D.header.n_clusters).fill(0);
   for(var i=0;i<D.header.n_cells;i++)clusterCounts[D.cluster_ids[i]]++;
   _buildSliceTotals();
+  _viewInit();
   for(var i=0;i<D.header.n_clusters;i++){if(visibleClusters[i]===undefined)visibleClusters[i]=true;}
   var countEl=document.getElementById("type-count");
   if(countEl)countEl.textContent="("+D.header.n_clusters+")";
@@ -6882,6 +6900,185 @@ function _vScrollTick(){
 /* ── Slice state ── */
 var sliceFilter={};   /* {col: Set of included category indices} — all = no filter */
 var sliceMask=null;   /* null = no filter active; else Uint8Array[n_cells] 1=included */
+
+/* ── View Snapshots ── */
+var _views=[]; /* [{id, name, sliceFilter:{col:Array}, visibleClusters:{}, selGroups:[...], deletedCells:Array|null, activeGroupId, selGroupIdCounter, groupVisible:{}}] */
+var _activeViewId=0;
+var _viewIdCounter=0;
+var _comparePinned=null; /* {imageData, viewName, viewId} or null */
+
+function _viewInit(){
+  /* Create the default View 1 */
+  _views=[];_viewIdCounter=0;_activeViewId=0;
+  _viewAdd(true);
+}
+function _viewAdd(isDefault){
+  var id=_viewIdCounter++;
+  var name=isDefault?"View 1":"View "+(id+1);
+  /* Snapshot current state */
+  var sf={};
+  if(sliceFilter){for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
+  var vc=JSON.parse(JSON.stringify(visibleClusters));
+  var sg=selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:Array.from(g.cells)};});
+  var dc=_deletedCells?Array.from(_deletedCells):null;
+  _views.push({id:id,name:name,sliceFilter:sf,visibleClusters:vc,
+    selGroups:sg,deletedCells:dc,activeGroupId:activeGroupId,
+    selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible))});
+  if(!isDefault)_viewSwitch(id);
+  _viewUpdateUI();
+}
+function _viewSaveCurrent(){
+  /* Save current state back to the active view */
+  var v=_views.find(function(v){return v.id===_activeViewId;});
+  if(!v)return;
+  var sf={};
+  if(sliceFilter){for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
+  v.sliceFilter=sf;
+  v.visibleClusters=JSON.parse(JSON.stringify(visibleClusters));
+  v.selGroups=selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:Array.from(g.cells)};});
+  v.deletedCells=_deletedCells?Array.from(_deletedCells):null;
+  v.activeGroupId=activeGroupId;
+  v.selGroupIdCounter=selGroupIdCounter;
+  v.groupVisible=JSON.parse(JSON.stringify(groupVisible));
+}
+function _viewSwitch(id){
+  if(id===_activeViewId)return;
+  /* Save current view state */
+  _viewSaveCurrent();
+  _activeViewId=id;
+  var v=_views.find(function(v){return v.id===id;});
+  if(!v)return;
+  /* Restore slice filter */
+  if(D){
+    var cats=D.header.obs_categories||{};
+    sliceFilter={};
+    for(var col in v.sliceFilter)sliceFilter[col]=new Set(v.sliceFilter[col]);
+    /* Rebuild sliceMask */
+    var cols=Object.keys(cats);
+    var hasFilter=false;
+    for(var ci=0;ci<cols.length;ci++){
+      if(sliceFilter[cols[ci]]&&sliceFilter[cols[ci]].size<cats[cols[ci]].categories.length){hasFilter=true;break;}
+    }
+    if(!hasFilter){sliceMask=null;}
+    else{
+      var n=D.header.n_cells;sliceMask=new Uint8Array(n);
+      for(var i=0;i<n;i++){
+        var ok=1;
+        for(var ci=0;ci<cols.length;ci++){
+          var c=cols[ci];var code=D.obs_codes[c]?D.obs_codes[c][i]:-1;
+          if(code<0)continue;if(!sliceFilter[c].has(code)){ok=0;break;}
+        }
+        sliceMask[i]=ok;
+      }
+    }
+  }
+  /* Restore visibility */
+  visibleClusters={};
+  for(var k in v.visibleClusters)visibleClusters[k]=v.visibleClusters[k];
+  /* Restore selection groups */
+  selGroups=v.selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:new Set(g.cells)};});
+  activeGroupId=v.activeGroupId;
+  selGroupIdCounter=v.selGroupIdCounter;
+  groupVisible={};
+  for(var k in v.groupVisible)groupVisible[k]=v.groupVisible[k];
+  rebuildCellGroupMap();
+  /* Restore deleted cells */
+  _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
+  _preShowAllVis=null;_preDeletedCells=null;
+  /* Refresh everything */
+  _syncSlicePills();_updateSliceUI();
+  renderLeg();renderSelPanel();recolor();
+  if(lineageView)_renderLineageTree();
+  _viewUpdateUI();
+}
+function _viewDelete(){
+  if(_views.length<=1)return;
+  _views=_views.filter(function(v){return v.id!==_activeViewId;});
+  _activeViewId=_views[0].id;
+  _viewSwitch(_activeViewId);
+}
+function _viewRename(){
+  var v=_views.find(function(v){return v.id===_activeViewId;});
+  if(!v)return;
+  var name=prompt("Rename view:",v.name);
+  if(name&&name.trim()){v.name=name.trim();_viewUpdateUI();}
+}
+function _viewUpdateUI(){
+  var sel=document.getElementById("view-select");
+  var label=document.getElementById("view-label");
+  var delBtn=document.getElementById("view-del-btn");
+  var cmpBtn=document.getElementById("view-compare-btn");
+  if(!sel)return;
+  sel.innerHTML="";
+  for(var i=0;i<_views.length;i++){
+    var v=_views[i];
+    var opt=document.createElement("option");
+    opt.value=v.id;
+    opt.textContent=v.name;
+    if(v.id===_activeViewId)opt.selected=true;
+    sel.appendChild(opt);
+  }
+  if(delBtn)delBtn.style.display=_views.length>1?"inline-block":"none";
+  if(cmpBtn)cmpBtn.style.display=_views.length>1?"inline-block":"none";
+  /* Update canvas overlay label */
+  if(label){
+    if(_views.length>1){
+      var av=_views.find(function(v){return v.id===_activeViewId;});
+      label.textContent=av?av.name:"";
+      /* Build tooltip with slice config */
+      if(av){
+        var tip=av.name;
+        if(D){
+          var cats=D.header.obs_categories||{};
+          for(var col in av.sliceFilter){
+            var all=cats[col]?cats[col].categories.length:0;
+            var active=av.sliceFilter[col]?av.sliceFilter[col].length:0;
+            if(active<all){
+              var names=[];
+              var sf=new Set(av.sliceFilter[col]);
+              for(var j=0;j<cats[col].categories.length;j++){if(sf.has(j))names.push(cats[col].categories[j]);}
+              tip+="\n"+col+": "+names.join(", ");
+            }
+          }
+        }
+        label.title=tip;
+      }
+      label.style.display="block";
+    }else{label.style.display="none";}
+  }
+}
+function _viewCompare(){
+  if(_views.length<2||!renderer)return;
+  var cw=document.getElementById("cw");
+  var img=document.getElementById("compare-img");
+  var lbl=document.getElementById("compare-label");
+  if(cw.classList.contains("comparing")){
+    /* Exit compare mode */
+    cw.classList.remove("comparing");
+    img.style.display="none";
+    lbl.style.display="none";
+    _comparePinned=null;
+    syncCanvasSize();
+    return;
+  }
+  /* Pin current view as static image */
+  var av=_views.find(function(v){return v.id===_activeViewId;});
+  var canvas=document.getElementById("c");
+  /* Force a render to ensure canvas is current */
+  if(viewIs3d){update3dCam();renderer.render(scene,cam3d);}
+  else{update2dCam();renderer.render(scene,cam2d);}
+  var dataUrl=canvas.toDataURL("image/png");
+  _comparePinned={imageData:dataUrl,viewName:av?av.name:"",viewId:_activeViewId};
+  img.src=dataUrl;
+  img.style.display="block";
+  lbl.textContent=av?av.name:"Pinned";
+  lbl.style.display="block";
+  cw.classList.add("comparing");
+  syncCanvasSize();
+  /* Switch to the other view */
+  var other=_views.find(function(v){return v.id!==_activeViewId;});
+  if(other)_viewSwitch(other.id);
+}
 var vDragging=false, vPrev={x:0,y:0};
 var _volcanoPts=[]; /* cached rendered points [{x,y,g}] rebuilt each renderVolcano() */
 var _volcanoHoverRaf=0; /* rAF handle for throttled hover */
