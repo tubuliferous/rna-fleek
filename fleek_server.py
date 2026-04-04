@@ -76,6 +76,8 @@ MARKER_DB = None    # {cell_type: [genes]} — loaded from file or built-in
 GO_DB = None        # Gene Ontology lookup: {terms, gene_to_terms, synonyms, ...}
 GO_DATASET_GENES = None  # Set of gene names in current dataset (for intersection)
 GO_SYNONYM_MAP = None    # synonym -> canonical gene symbol (for dataset matching)
+COUNTS_MATRIX = None  # raw counts matrix reference (for pseudo-bulk DEG)
+COUNTS_LABEL = None   # where counts were found (e.g. "X", "layers['counts']")
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
 
 # ── Cache location management ──
@@ -326,6 +328,255 @@ def load_go_db():
         print(f"  GO matching: {n_resolved} GO genes resolved to dataset genes")
 
 
+def detect_counts():
+    """Auto-detect raw counts matrix from adata.X, .raw.X, or layers."""
+    global COUNTS_MATRIX, COUNTS_LABEL
+    COUNTS_MATRIX = None
+    COUNTS_LABEL = None
+    if ADATA is None:
+        return
+
+    import scipy.sparse as sp
+
+    candidates = [("X", ADATA.X)]
+    if ADATA.raw is not None:
+        candidates.append(("raw.X", ADATA.raw.X))
+    for name in ADATA.layers:
+        candidates.append((f"layers['{name}']", ADATA.layers[name]))
+
+    # Name hints — prioritize layers with count-like names
+    hint_names = {"counts", "raw_counts", "raw", "umi", "spliced"}
+
+    best = None
+    best_score = -1
+
+    for label, mat in candidates:
+        try:
+            sample = mat[:500, :500]
+            if sp.issparse(sample):
+                sample = sample.toarray()
+            elif hasattr(sample, 'toarray'):
+                sample = sample.toarray()
+            sample = np.asarray(sample, dtype=np.float64)
+
+            # Must be integers
+            if not np.allclose(sample, np.round(sample)):
+                continue
+
+            max_val = sample.max()
+            # Must have reasonable range (not binarized)
+            if max_val < 3:
+                continue
+
+            # Check total counts per cell
+            row_sums = np.array(mat[:200, :].sum(axis=1)).flatten()
+            median_total = np.median(row_sums)
+            if median_total < 50:
+                continue
+
+            # Score: higher max and median = more likely real counts
+            score = np.log1p(max_val) + np.log1p(median_total)
+
+            # Bonus for name hints
+            for hint in hint_names:
+                if hint in label.lower():
+                    score += 10
+                    break
+
+            if score > best_score:
+                best_score = score
+                best = (label, mat)
+        except Exception:
+            continue
+
+    if best:
+        COUNTS_LABEL, COUNTS_MATRIX = best
+        # Quick stats
+        row_sums = np.array(COUNTS_MATRIX[:1000, :].sum(axis=1)).flatten()
+        print(f"  Raw counts detected in: adata.{COUNTS_LABEL}")
+        print(f"    Median counts/cell: {np.median(row_sums):.0f}, max gene count in sample: {np.array(COUNTS_MATRIX[:500,:500].toarray() if hasattr(COUNTS_MATRIX[:500,:500],'toarray') else COUNTS_MATRIX[:500,:500]).max():.0f}")
+    else:
+        print("  ⚠ No raw counts detected — pseudo-bulk DEG will be unavailable")
+
+
+def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, cluster_col=None, cluster_id=None):
+    """Run pseudo-bulk DEG using pyDESeq2 or fallback to scipy t-test.
+
+    Args:
+        group_col: obs column defining biological replicates (e.g. 'organ')
+        condition_col: obs column defining conditions to compare (e.g. 'timepoint')
+        condition_a: value in condition_col for group A
+        condition_b: value in condition_col for group B
+        cluster_col: optional obs column to filter by cell type
+        cluster_id: value in cluster_col to filter for
+    Returns:
+        dict with: genes, log2fc, padj, method, n_samples_a, n_samples_b, ...
+    """
+    import scipy.sparse as sp
+    from collections import Counter
+
+    if ADATA is None or COUNTS_MATRIX is None:
+        raise ValueError("No dataset or counts matrix available")
+
+    obs = ADATA.obs
+
+    # Filter to specific cluster if requested
+    mask = np.ones(ADATA.n_obs, dtype=bool)
+    if cluster_col and cluster_id is not None:
+        mask &= (obs[cluster_col].astype(str) == str(cluster_id)).values
+
+    # Filter to the two conditions
+    mask_a = mask & (obs[condition_col].astype(str) == str(condition_a)).values
+    mask_b = mask & (obs[condition_col].astype(str) == str(condition_b)).values
+
+    if mask_a.sum() == 0 or mask_b.sum() == 0:
+        raise ValueError(f"No cells found for one or both conditions: {condition_a} ({mask_a.sum()}) vs {condition_b} ({mask_b.sum()})")
+
+    # Get sample labels for each cell
+    groups_a = obs.loc[mask_a, group_col].astype(str).values
+    groups_b = obs.loc[mask_b, group_col].astype(str).values
+    unique_a = sorted(set(groups_a))
+    unique_b = sorted(set(groups_b))
+
+    print(f"  Pseudo-bulk: {condition_a} ({len(unique_a)} samples, {mask_a.sum()} cells) vs {condition_b} ({len(unique_b)} samples, {mask_b.sum()} cells)")
+
+    if len(unique_a) < 2 or len(unique_b) < 2:
+        raise ValueError(f"Need at least 2 samples per condition for pseudo-bulk. Got {len(unique_a)} vs {len(unique_b)}.")
+
+    # Aggregate counts per sample
+    n_genes = ADATA.n_vars
+    all_samples = []
+    all_conditions = []
+
+    for sample_id in unique_a:
+        cell_mask = mask_a & (obs[group_col].astype(str) == sample_id).values
+        idx = np.where(cell_mask)[0]
+        if len(idx) == 0:
+            continue
+        counts = COUNTS_MATRIX[idx, :]
+        if sp.issparse(counts):
+            agg = np.asarray(counts.sum(axis=0)).flatten()
+        else:
+            agg = np.asarray(counts.sum(axis=0)).flatten()
+        all_samples.append(agg)
+        all_conditions.append(condition_a)
+
+    for sample_id in unique_b:
+        cell_mask = mask_b & (obs[group_col].astype(str) == sample_id).values
+        idx = np.where(cell_mask)[0]
+        if len(idx) == 0:
+            continue
+        counts = COUNTS_MATRIX[idx, :]
+        if sp.issparse(counts):
+            agg = np.asarray(counts.sum(axis=0)).flatten()
+        else:
+            agg = np.asarray(counts.sum(axis=0)).flatten()
+        all_samples.append(agg)
+        all_conditions.append(condition_b)
+
+    count_matrix = np.vstack(all_samples)  # samples × genes
+    conditions = np.array(all_conditions)
+    n_a = sum(1 for c in conditions if c == condition_a)
+    n_b = sum(1 for c in conditions if c == condition_b)
+
+    print(f"  Pseudo-bulk matrix: {count_matrix.shape[0]} samples × {count_matrix.shape[1]} genes")
+
+    # Filter low-count genes (at least 10 total counts across all samples)
+    gene_totals = count_matrix.sum(axis=0)
+    keep = gene_totals >= 10
+    n_kept = keep.sum()
+    print(f"  {n_kept} genes pass minimum count filter (≥10 total)")
+
+    gene_names = np.array(ADATA.var_names)
+
+    # Try pyDESeq2 first, fallback to scipy
+    method = "pydeseq2"
+    try:
+        from pydeseq2.dds import DeseqDataSet
+        from pydeseq2.ds import DeseqStats
+        import pandas as pd
+
+        # Build AnnData-like input for pyDESeq2
+        count_df = pd.DataFrame(count_matrix[:, keep], columns=gene_names[keep])
+        meta_df = pd.DataFrame({"condition": conditions}, index=[f"sample_{i}" for i in range(len(conditions))])
+        count_df.index = meta_df.index
+
+        dds = DeseqDataSet(counts=count_df, metadata=meta_df, design="~condition")
+        dds.deseq2()
+
+        stat = DeseqStats(dds, contrast=["condition", condition_a, condition_b])
+        stat.summary()
+
+        results_df = stat.results_df
+        genes_out = results_df.index.tolist()
+        log2fc = results_df["log2FoldChange"].fillna(0).tolist()
+        padj = results_df["padj"].fillna(1).tolist()
+
+        print(f"  pyDESeq2 complete: {len(genes_out)} genes tested")
+
+    except ImportError:
+        method = "ttest"
+        print("  pyDESeq2 not installed — falling back to t-test on CPM")
+
+        from scipy import stats
+
+        # CPM normalize
+        lib_sizes = count_matrix.sum(axis=1, keepdims=True)
+        lib_sizes[lib_sizes == 0] = 1
+        cpm = count_matrix / lib_sizes * 1e6
+        log_cpm = np.log2(cpm + 1)
+
+        mask_cond_a = conditions == condition_a
+        mask_cond_b = conditions == condition_b
+
+        genes_out = []
+        log2fc = []
+        padj = []
+        pvals = []
+
+        for gi in range(n_genes):
+            if not keep[gi]:
+                continue
+            vals_a = log_cpm[mask_cond_a, gi]
+            vals_b = log_cpm[mask_cond_b, gi]
+            mean_a = vals_a.mean()
+            mean_b = vals_b.mean()
+            fc = mean_a - mean_b  # already log2
+            try:
+                _, pv = stats.ttest_ind(vals_a, vals_b, equal_var=False)
+            except Exception:
+                pv = 1.0
+            if np.isnan(pv):
+                pv = 1.0
+            genes_out.append(gene_names[gi])
+            log2fc.append(float(fc))
+            pvals.append(float(pv))
+
+        # BH correction
+        from statsmodels.stats.multitest import multipletests
+        _, padj_arr, _, _ = multipletests(pvals, method="fdr_bh")
+        padj = padj_arr.tolist()
+
+        print(f"  t-test on CPM complete: {len(genes_out)} genes tested")
+
+    except Exception as e:
+        raise ValueError(f"DEG computation failed: {e}")
+
+    return {
+        "genes": genes_out,
+        "log2fc": log2fc,
+        "padj": padj,
+        "method": method,
+        "n_samples_a": n_a,
+        "n_samples_b": n_b,
+        "condition_a": condition_a,
+        "condition_b": condition_b,
+        "group_col": group_col,
+        "condition_col": condition_col,
+        "n_genes_tested": len(genes_out),
+    }
+
+
 def annotate_clusters(top_n=50, test="wilcoxon"):
     """Score clusters against marker database using shared DEG results."""
     from scipy.stats import fisher_exact
@@ -337,6 +588,7 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
         load_marker_db()
     if GO_DB is None:
         load_go_db()
+    detect_counts()
 
     # Check annotation cache (with parent stem fallback for subsets)
     _parent_stem = ADATA.uns.get("fleek_parent_stem") if ADATA is not None else None
@@ -965,6 +1217,7 @@ def _reset_all():
     HVG_NAMES = []; HVG_VAR = {}; ALL_GENE_VAR = None; GENE_CUTOFF_FLAG = None; GENE_INDEX = {}
     CSC_BUILDING = False; CSC_CACHED = False; CSC_TIME = 0
     LOADED_PATH = ""; LOAD_SETTINGS.clear()
+    COUNTS_MATRIX = None; COUNTS_LABEL = None
     ABORT_REQUESTED = False
     # Clear DEG cache (reinitialize with expected keys, not .clear())
     _DEG_CACHE["key"] = None
@@ -1838,6 +2091,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
     # Load marker database for cell type annotation
     load_marker_db()
     load_go_db()
+    detect_counts()
 
     PROGRESS["status"] = "done"
     PROGRESS["pct"] = 100
@@ -2007,6 +2261,8 @@ def build_init_payload():
         "hvg_var": {g: round(HVG_VAR[g], 4) for g in HVG_NAMES[:200] if g in HVG_VAR},
         "go_available": GO_DB is not None,
         "go_organism": GO_DB.get("label", "") if GO_DB else "",
+        "counts_available": COUNTS_MATRIX is not None,
+        "counts_label": COUNTS_LABEL or "",
     }
 
     # Include cached annotations if available
@@ -2395,6 +2651,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
         req = json.loads(body)
         if path == "/api/deg":
             self._serve_deg(req)
+        elif path == "/api/pseudobulk-deg":
+            self._serve_pseudobulk_deg(req)
         elif path == "/api/export":
             self._serve_export(req)
         elif path == "/api/load":
@@ -2915,6 +3173,45 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _serve_pseudobulk_deg(self, req):
+        """Run pseudo-bulk DEG between two conditions."""
+        try:
+            group_col = req.get("group_col")
+            condition_col = req.get("condition_col")
+            condition_a = req.get("condition_a")
+            condition_b = req.get("condition_b")
+            cluster_col = req.get("cluster_col")
+            cluster_id = req.get("cluster_id")
+
+            if not group_col or not condition_col or not condition_a or not condition_b:
+                raise ValueError("Missing required fields: group_col, condition_col, condition_a, condition_b")
+
+            t0 = time.time()
+            result = run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b,
+                                         cluster_col=cluster_col, cluster_id=cluster_id)
+            result["elapsed"] = round(time.time() - t0, 1)
+
+            data = json.dumps(result, separators=(",", ":")).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except BrokenPipeError:
+            pass
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            try:
+                err = json.dumps({"error": str(e)}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
+            except BrokenPipeError:
+                pass
 
     def _serve_deg(self, req):
         """Run DEG between two cell groups."""

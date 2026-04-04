@@ -20,6 +20,10 @@ certifi
 # PaCMAP embedding (optional — FLEEK works without it)
 pacmap<0.8
 
+# Pseudo-bulk DEG (optional — falls back to t-test without it)
+# pydeseq2
+# statsmodels  # needed for t-test fallback BH correction
+
 # Build only (not needed to run FLEEK)
 # hatchling
 # pyinstaller

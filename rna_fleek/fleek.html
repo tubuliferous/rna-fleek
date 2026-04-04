@@ -853,6 +853,33 @@
     <button class="icon-btn" onclick="downloadDEG()" title="Download DEG table (TSV)"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
     <button class="deg-close" onclick="closeDEG()" title="Close">&times;</button>
   </div>
+  <div id="pb-controls" style="display:none;padding:4px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
+    <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+      <span style="display:inline-flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
+        <button id="deg-mode-sc" onclick="_degSetMode('sc')" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;font-weight:600;transition:all 0.1s;">Single-cell</button>
+        <button id="deg-mode-pb" onclick="_degSetMode('pb')" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;font-weight:400;transition:all 0.1s;" title="Pseudo-bulk DEG: aggregates cells by sample, tests with DESeq2 or t-test">Pseudo-bulk</button>
+      </span>
+    </div>
+    <div id="pb-opts" style="display:none;margin-top:4px;">
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+        <span style="color:var(--text4);">Sample:</span>
+        <select id="pb-group" style="max-width:100px;" title="Column defining biological replicates (e.g. donor, organ)"></select>
+        <span style="color:var(--text4);">Condition:</span>
+        <select id="pb-condition" style="max-width:100px;" onchange="_pbUpdateValues()" title="Column defining the two conditions to compare"></select>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:3px;flex-wrap:wrap;">
+        <select id="pb-val-a" style="max-width:90px;"></select>
+        <span style="color:var(--text4);">vs</span>
+        <select id="pb-val-b" style="max-width:90px;"></select>
+        <span style="color:var(--text4);">in</span>
+        <select id="pb-cluster" style="max-width:120px;" title="Optional: run within a specific cell type only">
+          <option value="">All cell types</option>
+        </select>
+        <button id="pb-run-btn" onclick="_pbRun()" style="background:rgba(99,102,241,0.2);border:1px solid var(--accent);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:2px 10px;font-weight:600;">Run</button>
+        <span id="pb-status" style="color:var(--text4);"></span>
+      </div>
+    </div>
+  </div>
   <div id="deg-filter" style="display:flex;align-items:center;gap:6px;padding:3px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
     <span>Show top</span>
     <input type="range" id="volcano-pct" min="5" max="100" step="5" value="50" oninput="document.getElementById('volcano-pct-label').textContent=this.value+'%'" onchange="renderVolcano()" style="width:70px;">
@@ -6448,17 +6475,31 @@ function unloadDataset(){
     D=null;mode="cluster";selGene="";geneExprCache={};
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
     _clusterGeneCache={};_clusterGenesFetching=false;_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="global";
+    _gvFilteredIdx=null;_clusterFilteredIdx=null;
     var _modeDD=document.getElementById("gv-mode");if(_modeDD)_modeDD.value="global";
     var _clRow=document.getElementById("gv-cluster-row");if(_clRow)_clRow.style.display="none";
     /* Close DEG panel */
     if(degOpen)closeDEG();
     degData=null;degCache={};degGrpA=null;degGrpB=null;_degOrigGroups=null;
-    selGroups=[];activeGroupId=null;cellGroupMap=null;
-    _hadSelection=false;bgDimPct=0;
+    selGroups=[];activeGroupId=null;selGroupIdCounter=0;cellGroupMap=null;groupVisible={};
+    _hadSelection=false;bgDimPct=0;_bgDimCluster=0;_bgDimGene=0;
+    _deletedCells=null;_preShowAllVis=null;_preDeletedCells=null;
+    _visStats=null;
+    _hoverIdx=-1;_hoverPrevColor=null;
     markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
-    if(pts){scene.remove(pts);pts=null;}
-    if(ringPts){scene.remove(ringPts);ringPts=null;}
+    /* Remove Three.js objects */
+    if(pts){scene.remove(pts);pts.geometry.dispose();pts.material.dispose();pts=null;}
+    if(ringPts){scene.remove(ringPts);ringPts.geometry.dispose();ringPts.material.dispose();ringPts=null;}
+    if(haloPts){scene.remove(haloPts);haloPts.material.dispose();haloPts=null;}
     if(boundaryShell){scene.remove(boundaryShell);boundaryShell.geometry.dispose();boundaryShell.material.dispose();boundaryShell=null;_boundaryOpacity=0;}
+    if(_dbgMarker){scene.remove(_dbgMarker);_dbgMarker=null;}
+    if(_dbgRayLine){scene.remove(_dbgRayLine);_dbgRayLine=null;}
+    /* Clear GO filter */
+    _goActiveTerms=[];_goFilterGenes=null;_goMode=false;
+    var _goAct=document.getElementById("go-active");if(_goAct){_goAct.style.display="none";_goAct.innerHTML="";}
+    var _goRes=document.getElementById("go-results");if(_goRes){_goRes.style.display="none";_goRes.innerHTML="";}
+    var _goSplit=document.getElementById("go-split");if(_goSplit)_goSplit.style.display="none";
+    /* Reset UI elements */
     document.getElementById("loaded-file").style.display="none";
     document.getElementById("unload-btn").style.display="none";
     document.getElementById("info").textContent="No dataset loaded";
@@ -6467,14 +6508,34 @@ function unloadDataset(){
     document.getElementById("csc-status").style.display="none";
     document.getElementById("gene-sec").style.display="none";
     document.getElementById("session-bar").style.display="none";
+    document.getElementById("expr-legend").style.display="none";
+    document.getElementById("expr-controls").style.display="none";
+    document.getElementById("gsearch").value="";
+    document.getElementById("glist").innerHTML="";
     if(_sessionAutoTimer){clearTimeout(_sessionAutoTimer);_sessionAutoTimer=null;}
     document.getElementById("data-sec").classList.add("no-data");
     document.getElementById("lineage-tree").style.display="none";
     document.getElementById("lineage-tree").innerHTML="";
     document.getElementById("leg-scroll").style.display="";
     _setLinBtn(null,"flat");
+    /* Clear HUD */
+    var _hudV=document.getElementById("hud-visible");if(_hudV)_hudV.textContent="—";
+    var _hudH=document.getElementById("hud-hidden");if(_hudH)_hudH.textContent="—";
+    var _hudT=document.getElementById("hud-total");if(_hudT)_hudT.textContent="—";
+    var _hudGR=document.getElementById("hud-group-row");if(_hudGR)_hudGR.style.display="none";
+    /* Clear hidden count */
+    var _hcEl=document.getElementById("hidden-count");if(_hcEl)_hcEl.style.display="none";
+    /* Clear slice panel */
+    sliceFilter=null;sliceMask=null;_sliceTotals=null;
+    var _sliceSec=document.getElementById("slice-sec");if(_sliceSec)_sliceSec.style.display="none";
+    var _sliceBody=document.getElementById("slice-body");if(_sliceBody)_sliceBody.innerHTML="";
+    /* Clear color mode */
+    var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="cluster";
+    /* Clear history */
     _history=[];_histIdx=-1;
     try{sessionStorage.removeItem("fleek_state");sessionStorage.removeItem("fleek_deg");sessionStorage.removeItem("fleek_slice");sessionStorage.removeItem("fleek_infoText");}catch(e){}
+    window._saved2dCam=null;window._embCameras={};
+    updateHistBtn();
     renderSelPanel();
     renderLeg();
   }).catch(function(err){
@@ -6899,6 +6960,122 @@ function markDEGStale(){
   _updateDEGRunBtn();
 }
 
+/* ── Pseudo-bulk DEG ── */
+var _degMode="sc"; /* "sc" or "pb" */
+function _degSetMode(m){
+  _degMode=m;
+  var scBtn=document.getElementById("deg-mode-sc");
+  var pbBtn=document.getElementById("deg-mode-pb");
+  var scControls=document.querySelectorAll("#deg-grpA,#deg-grpB,#deg-test");
+  var pbOpts=document.getElementById("pb-opts");
+  if(m==="pb"){
+    pbBtn.style.background="rgba(99,102,241,0.12)";pbBtn.style.color="var(--accent2)";pbBtn.style.fontWeight="600";
+    scBtn.style.background="transparent";scBtn.style.color="var(--text2)";scBtn.style.fontWeight="400";
+    scControls.forEach(function(el){el.style.display="none";});
+    document.getElementById("deg-run-btn").style.display="none";
+    pbOpts.style.display="block";
+    _pbPopulate();
+  }else{
+    scBtn.style.background="rgba(99,102,241,0.12)";scBtn.style.color="var(--accent2)";scBtn.style.fontWeight="600";
+    pbBtn.style.background="transparent";pbBtn.style.color="var(--text2)";pbBtn.style.fontWeight="400";
+    scControls.forEach(function(el){el.style.display="";});
+    document.getElementById("deg-run-btn").style.display="";
+    pbOpts.style.display="none";
+  }
+}
+function _pbPopulate(){
+  if(!D)return;
+  var cats=D.header.obs_categories||{};
+  var cols=Object.keys(cats);
+  var groupSel=document.getElementById("pb-group");
+  var condSel=document.getElementById("pb-condition");
+  var clusterSel=document.getElementById("pb-cluster");
+  /* Populate group and condition dropdowns with obs columns that have 2-50 values */
+  groupSel.innerHTML="";condSel.innerHTML="";
+  for(var i=0;i<cols.length;i++){
+    var n=cats[cols[i]].categories.length;
+    if(n>=2&&n<=50){
+      groupSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
+      condSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
+    }
+  }
+  /* Default: condition = second column if available */
+  if(condSel.options.length>1)condSel.selectedIndex=1;
+  _pbUpdateValues();
+  /* Populate cluster dropdown */
+  clusterSel.innerHTML='<option value="">All cell types<\/option>';
+  var names=D.header.cluster_names||[];
+  for(var i=0;i<names.length;i++){
+    var label=names[i];
+    if(llmAnnotations&&llmAnnotations[i]&&llmAnnotations[i].length>0){
+      var ai=llmAnnotations[i][0].cell_type;
+      if(ai&&ai!==label)label=ai+" ("+label+")";
+    }
+    clusterSel.innerHTML+='<option value="'+i+'">'+label+'<\/option>';
+  }
+}
+function _pbUpdateValues(){
+  var condCol=document.getElementById("pb-condition").value;
+  if(!condCol||!D)return;
+  var cats=D.header.obs_categories[condCol];
+  if(!cats)return;
+  var valA=document.getElementById("pb-val-a");
+  var valB=document.getElementById("pb-val-b");
+  valA.innerHTML="";valB.innerHTML="";
+  for(var i=0;i<cats.categories.length;i++){
+    var c=cats.categories[i];
+    valA.innerHTML+='<option value="'+c+'">'+c+'<\/option>';
+    valB.innerHTML+='<option value="'+c+'">'+c+'<\/option>';
+  }
+  if(valB.options.length>1)valB.selectedIndex=1;
+}
+function _pbRun(){
+  var groupCol=document.getElementById("pb-group").value;
+  var condCol=document.getElementById("pb-condition").value;
+  var valA=document.getElementById("pb-val-a").value;
+  var valB=document.getElementById("pb-val-b").value;
+  var clusterVal=document.getElementById("pb-cluster").value;
+  if(!groupCol||!condCol||!valA||!valB){return;}
+  if(valA===valB){alert("Select two different conditions");return;}
+  var status=document.getElementById("pb-status");
+  var btn=document.getElementById("pb-run-btn");
+  btn.disabled=true;btn.textContent="Running...";
+  status.textContent="";
+  var body={group_col:groupCol,condition_col:condCol,condition_a:valA,condition_b:valB};
+  if(clusterVal)body.cluster_col="fleek_cluster";body.cluster_id=clusterVal;
+  fetch("/api/pseudobulk-deg",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+  .then(function(r){return r.json();})
+  .then(function(data){
+    btn.disabled=false;btn.textContent="Run";
+    if(data.error){status.textContent="Error: "+data.error;return;}
+    status.textContent=data.method+" · "+data.n_genes_tested+" genes · "+data.elapsed+"s";
+    /* Display in volcano plot — reuse existing DEG display */
+    _showPseudoBulkResult(data);
+  })
+  .catch(function(err){
+    btn.disabled=false;btn.textContent="Run";
+    status.textContent="Failed: "+err.message;
+  });
+}
+function _showPseudoBulkResult(data){
+  /* Convert pseudo-bulk result to the same format as single-cell DEG for the volcano plot */
+  var genes=data.genes,log2fc=data.log2fc,padj=data.padj;
+  var result={
+    genes:genes,log2fc:log2fc,padj:padj,
+    cohens_d:log2fc.map(function(){return 0;}), /* no Cohen's d for pseudo-bulk */
+    grpAName:data.condition_a,grpBName:data.condition_b,
+    grpASize:data.n_samples_a,grpBSize:data.n_samples_b,
+    method:data.method
+  };
+  degData=result;
+  document.getElementById("deg-note").textContent="Pseudo-bulk "+data.method+" · "+data.condition_a+" (n="+data.n_samples_a+") vs "+data.condition_b+" (n="+data.n_samples_b+") · "+data.n_genes_tested+" genes";
+  degSort={col:"padj",asc:true};
+  degHlGene=null;
+  vZoom={x:1,y:1};vPan={x:0,y:0};vGlobalZoom=1;_vScrollTarget=1;
+  renderVolcano();
+  _renderDEGTable();
+}
+
 function openDEG(){
   if(degOpen){closeDEG();return;} /* toggle */
   degOpen=true;
@@ -6925,6 +7102,9 @@ function openDEG(){
   if(filled.length>=2)selB.selectedIndex=1;
   syncCanvasSize();
   _updateDEGHistory();
+  /* Show pseudo-bulk controls if counts available */
+  var pbCtrl=document.getElementById("pb-controls");
+  if(pbCtrl)pbCtrl.style.display=(D&&D.header.counts_available)?"block":"none";
   /* If results already exist (e.g. restored from sessionStorage), render them */
   if(degData){
     renderDEGTable();

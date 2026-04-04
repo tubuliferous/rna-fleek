@@ -853,6 +853,33 @@
     <button class="icon-btn" onclick="downloadDEG()" title="Download DEG table (TSV)"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
     <button class="deg-close" onclick="closeDEG()" title="Close">&times;</button>
   </div>
+  <div id="pb-controls" style="display:none;padding:4px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
+    <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+      <span style="display:inline-flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
+        <button id="deg-mode-sc" onclick="_degSetMode('sc')" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;font-weight:600;transition:all 0.1s;">Single-cell</button>
+        <button id="deg-mode-pb" onclick="_degSetMode('pb')" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;font-weight:400;transition:all 0.1s;" title="Pseudo-bulk DEG: aggregates cells by sample, tests with DESeq2 or t-test">Pseudo-bulk</button>
+      </span>
+    </div>
+    <div id="pb-opts" style="display:none;margin-top:4px;">
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+        <span style="color:var(--text4);">Sample:</span>
+        <select id="pb-group" style="max-width:100px;" title="Column defining biological replicates (e.g. donor, organ)"></select>
+        <span style="color:var(--text4);">Condition:</span>
+        <select id="pb-condition" style="max-width:100px;" onchange="_pbUpdateValues()" title="Column defining the two conditions to compare"></select>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:3px;flex-wrap:wrap;">
+        <select id="pb-val-a" style="max-width:90px;"></select>
+        <span style="color:var(--text4);">vs</span>
+        <select id="pb-val-b" style="max-width:90px;"></select>
+        <span style="color:var(--text4);">in</span>
+        <select id="pb-cluster" style="max-width:120px;" title="Optional: run within a specific cell type only">
+          <option value="">All cell types</option>
+        </select>
+        <button id="pb-run-btn" onclick="_pbRun()" style="background:rgba(99,102,241,0.2);border:1px solid var(--accent);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:2px 10px;font-weight:600;">Run</button>
+        <span id="pb-status" style="color:var(--text4);"></span>
+      </div>
+    </div>
+  </div>
   <div id="deg-filter" style="display:flex;align-items:center;gap:6px;padding:3px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
     <span>Show top</span>
     <input type="range" id="volcano-pct" min="5" max="100" step="5" value="50" oninput="document.getElementById('volcano-pct-label').textContent=this.value+'%'" onchange="renderVolcano()" style="width:70px;">
@@ -6933,6 +6960,122 @@ function markDEGStale(){
   _updateDEGRunBtn();
 }
 
+/* ── Pseudo-bulk DEG ── */
+var _degMode="sc"; /* "sc" or "pb" */
+function _degSetMode(m){
+  _degMode=m;
+  var scBtn=document.getElementById("deg-mode-sc");
+  var pbBtn=document.getElementById("deg-mode-pb");
+  var scControls=document.querySelectorAll("#deg-grpA,#deg-grpB,#deg-test");
+  var pbOpts=document.getElementById("pb-opts");
+  if(m==="pb"){
+    pbBtn.style.background="rgba(99,102,241,0.12)";pbBtn.style.color="var(--accent2)";pbBtn.style.fontWeight="600";
+    scBtn.style.background="transparent";scBtn.style.color="var(--text2)";scBtn.style.fontWeight="400";
+    scControls.forEach(function(el){el.style.display="none";});
+    document.getElementById("deg-run-btn").style.display="none";
+    pbOpts.style.display="block";
+    _pbPopulate();
+  }else{
+    scBtn.style.background="rgba(99,102,241,0.12)";scBtn.style.color="var(--accent2)";scBtn.style.fontWeight="600";
+    pbBtn.style.background="transparent";pbBtn.style.color="var(--text2)";pbBtn.style.fontWeight="400";
+    scControls.forEach(function(el){el.style.display="";});
+    document.getElementById("deg-run-btn").style.display="";
+    pbOpts.style.display="none";
+  }
+}
+function _pbPopulate(){
+  if(!D)return;
+  var cats=D.header.obs_categories||{};
+  var cols=Object.keys(cats);
+  var groupSel=document.getElementById("pb-group");
+  var condSel=document.getElementById("pb-condition");
+  var clusterSel=document.getElementById("pb-cluster");
+  /* Populate group and condition dropdowns with obs columns that have 2-50 values */
+  groupSel.innerHTML="";condSel.innerHTML="";
+  for(var i=0;i<cols.length;i++){
+    var n=cats[cols[i]].categories.length;
+    if(n>=2&&n<=50){
+      groupSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
+      condSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
+    }
+  }
+  /* Default: condition = second column if available */
+  if(condSel.options.length>1)condSel.selectedIndex=1;
+  _pbUpdateValues();
+  /* Populate cluster dropdown */
+  clusterSel.innerHTML='<option value="">All cell types<\/option>';
+  var names=D.header.cluster_names||[];
+  for(var i=0;i<names.length;i++){
+    var label=names[i];
+    if(llmAnnotations&&llmAnnotations[i]&&llmAnnotations[i].length>0){
+      var ai=llmAnnotations[i][0].cell_type;
+      if(ai&&ai!==label)label=ai+" ("+label+")";
+    }
+    clusterSel.innerHTML+='<option value="'+i+'">'+label+'<\/option>';
+  }
+}
+function _pbUpdateValues(){
+  var condCol=document.getElementById("pb-condition").value;
+  if(!condCol||!D)return;
+  var cats=D.header.obs_categories[condCol];
+  if(!cats)return;
+  var valA=document.getElementById("pb-val-a");
+  var valB=document.getElementById("pb-val-b");
+  valA.innerHTML="";valB.innerHTML="";
+  for(var i=0;i<cats.categories.length;i++){
+    var c=cats.categories[i];
+    valA.innerHTML+='<option value="'+c+'">'+c+'<\/option>';
+    valB.innerHTML+='<option value="'+c+'">'+c+'<\/option>';
+  }
+  if(valB.options.length>1)valB.selectedIndex=1;
+}
+function _pbRun(){
+  var groupCol=document.getElementById("pb-group").value;
+  var condCol=document.getElementById("pb-condition").value;
+  var valA=document.getElementById("pb-val-a").value;
+  var valB=document.getElementById("pb-val-b").value;
+  var clusterVal=document.getElementById("pb-cluster").value;
+  if(!groupCol||!condCol||!valA||!valB){return;}
+  if(valA===valB){alert("Select two different conditions");return;}
+  var status=document.getElementById("pb-status");
+  var btn=document.getElementById("pb-run-btn");
+  btn.disabled=true;btn.textContent="Running...";
+  status.textContent="";
+  var body={group_col:groupCol,condition_col:condCol,condition_a:valA,condition_b:valB};
+  if(clusterVal)body.cluster_col="fleek_cluster";body.cluster_id=clusterVal;
+  fetch("/api/pseudobulk-deg",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+  .then(function(r){return r.json();})
+  .then(function(data){
+    btn.disabled=false;btn.textContent="Run";
+    if(data.error){status.textContent="Error: "+data.error;return;}
+    status.textContent=data.method+" · "+data.n_genes_tested+" genes · "+data.elapsed+"s";
+    /* Display in volcano plot — reuse existing DEG display */
+    _showPseudoBulkResult(data);
+  })
+  .catch(function(err){
+    btn.disabled=false;btn.textContent="Run";
+    status.textContent="Failed: "+err.message;
+  });
+}
+function _showPseudoBulkResult(data){
+  /* Convert pseudo-bulk result to the same format as single-cell DEG for the volcano plot */
+  var genes=data.genes,log2fc=data.log2fc,padj=data.padj;
+  var result={
+    genes:genes,log2fc:log2fc,padj:padj,
+    cohens_d:log2fc.map(function(){return 0;}), /* no Cohen's d for pseudo-bulk */
+    grpAName:data.condition_a,grpBName:data.condition_b,
+    grpASize:data.n_samples_a,grpBSize:data.n_samples_b,
+    method:data.method
+  };
+  degData=result;
+  document.getElementById("deg-note").textContent="Pseudo-bulk "+data.method+" · "+data.condition_a+" (n="+data.n_samples_a+") vs "+data.condition_b+" (n="+data.n_samples_b+") · "+data.n_genes_tested+" genes";
+  degSort={col:"padj",asc:true};
+  degHlGene=null;
+  vZoom={x:1,y:1};vPan={x:0,y:0};vGlobalZoom=1;_vScrollTarget=1;
+  renderVolcano();
+  _renderDEGTable();
+}
+
 function openDEG(){
   if(degOpen){closeDEG();return;} /* toggle */
   degOpen=true;
@@ -6959,6 +7102,9 @@ function openDEG(){
   if(filled.length>=2)selB.selectedIndex=1;
   syncCanvasSize();
   _updateDEGHistory();
+  /* Show pseudo-bulk controls if counts available */
+  var pbCtrl=document.getElementById("pb-controls");
+  if(pbCtrl)pbCtrl.style.display=(D&&D.header.counts_available)?"block":"none";
   /* If results already exist (e.g. restored from sessionStorage), render them */
   if(degData){
     renderDEGTable();
