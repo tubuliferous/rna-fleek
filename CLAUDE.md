@@ -4,8 +4,8 @@
 
 RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool. It consists of:
 
-- **`fleek.html`** — Single-file frontend (~6000 lines). Three.js WebGL renderer for 2D/3D point clouds of cells. All JS is inline inside `<script>` tags. No build system, no framework.
-- **`fleek_server.py`** — Python HTTP server (~3000 lines). Loads h5ad files, computes embeddings (UMAP/PCA/PaCMAP), DEG, clustering, serves binary data to the client.
+- **`fleek.html`** — Single-file frontend (~10000 lines). Three.js WebGL renderer for 2D/3D point clouds of cells. All JS is inline inside `<script>` tags. No build system, no framework.
+- **`fleek_server.py`** — Python HTTP server (~4000 lines). Loads h5ad files, computes embeddings (UMAP/PCA/PaCMAP), DEG (single-cell + pseudo-bulk), clustering, serves binary data to the client.
 - **Utility scripts**: `download_census.py`, `preprocess_census.py`, `download_markers.py`
 - **GitHub repo**: `tubuliferous/rna-fleek`
 
@@ -18,6 +18,10 @@ RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool
 - Virtual scrolling for gene variability list and cell type list
 - Session state persistence via `sessionStorage`
 - All UI in a left sidebar; canvas fills remaining space
+- Split Views panel for managing multiple named view splits
+- Split-screen mode: two views side-by-side with independent/tethered cameras
+- Custom dropdown menus (div-based) replacing native `<select>` popups for theme consistency
+- 2D point picking bypasses raycaster — pure pixel-space projection for accuracy
 
 ### Server (`fleek_server.py`)
 - stdlib `http.server` with `ThreadingMixIn` — no Flask/FastAPI
@@ -47,6 +51,8 @@ RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool
 | `/api/progress` | GET | Polling for load/compute progress |
 | `/api/abort` | POST | Cancel in-progress operation |
 | `/api/unload` | POST | Free dataset from memory |
+| `/api/pseudobulk-deg` | POST | Pseudo-bulk DEG (selection groups + replicate column) |
+| `/api/heartbeat` | POST | Client heartbeat for auto-unload |
 
 ## Critical Conventions
 
@@ -169,8 +175,34 @@ After editing `fleek.html`, always verify:
 2. No unescaped closing tags in script (see SVG section above)
 3. Server syntax: `python3 -c "import ast; ast.parse(open('fleek_server.py').read())"`
 
+### Pseudo-bulk DEG
+Uses selection groups as conditions (not obs columns). User selects a single "Replicate column" dropdown.
+- Server receives cell indices per group + replicate column name
+- Aggregates raw counts per (group × replicate) combination
+- Runs pyDESeq2 (preferred) or Welch's t-test on CPM (fallback)
+- Requires ≥2 replicates per group, ≥10 total counts per gene
+- Results displayed in same volcano plot + table as single-cell DEG
+
+### Split Views
+- `_views[]` array holds named snapshots (slice filter, visibility, deleted cells)
+- `_splitViewIds = [leftId, rightId]` tracks which views render in each half
+- `_liveViews[]` holds GPU resources only (pts, ringPts, haloPts, cameras)
+- `recolor()` in split mode: saves active → loops each view (load snapshot → `_recolorView`) → restores active
+- Selections are fully global — shared across all split views
+- Split Views panel in sidebar (between Selection Groups and Slice)
+
+### Auto-unload
+- Client sends heartbeat POST every `timeout/2` seconds when enabled
+- Server cancels/resets a `threading.Timer` on each heartbeat
+- If no heartbeat within `timeout + 0.5s`, server calls `_reset_all()` + `gc.collect()`
+
+### Organism Detection
+- `_detect_organism()` returns `(name, reason)` tuple
+- Primary: checks for 18 species-specific marker genes (human UPPERCASE, mouse Title case)
+- Fallback: gene name casing heuristic on first 200 alpha-only names
+- Used for GO database loading and displayed in Data panel info line
+
 ## Pending Features / Known Issues
-- Gene Ontology tagging system (download_go.py, gene-to-GO mappings, search integration)
 - Gene set analysis (GSEA/pathway scoring)
 - PLY export for Blender
 - Tissue hint input for Claude annotation

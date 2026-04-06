@@ -79,6 +79,11 @@ GO_SYNONYM_MAP = None    # synonym -> canonical gene symbol (for dataset matchin
 COUNTS_MATRIX = None  # raw counts matrix reference (for pseudo-bulk DEG)
 COUNTS_LABEL = None   # where counts were found (e.g. "X", "layers['counts']")
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
+_DETECTED_ORGANISM = None  # (name, reason) tuple from _detect_organism()
+AUTO_UNLOAD = False   # If True, unload dataset when no client heartbeat
+AUTO_UNLOAD_TIMEOUT = 1.0  # seconds without heartbeat before unload
+_LAST_HEARTBEAT = 0.0  # time.time() of last heartbeat
+_HEARTBEAT_TIMER = None  # threading.Timer for delayed unload
 
 # ── Cache location management ──
 # CACHE_MODE: "dataset" = store caches alongside .h5ad file (default)
@@ -251,20 +256,36 @@ def load_marker_db(marker_path=None):
 
 
 def _detect_organism():
-    """Try to detect organism from gene name casing."""
+    """Detect organism from gene names using marker genes + casing heuristic.
+    Returns (organism, reason) tuple."""
     if GENE_NAMES_LIST is None or len(GENE_NAMES_LIST) == 0:
-        return "human"
-    # Sample first 100 genes
-    sample = [g for g in GENE_NAMES_LIST[:100] if g.isalpha()]
+        return "human", "default (no gene names)"
+    genes = set(GENE_NAMES_LIST)
+    # Check for species-specific marker genes (case-sensitive)
+    human_markers = {"CD3D", "CD3E", "CD8A", "CD4", "MS4A1", "NKG7", "GZMB",
+                     "COL1A1", "EPCAM", "PECAM1", "PTPRC", "HBA1", "GAPDH",
+                     "ACTB", "MALAT1", "TMSB4X", "FTL", "FTH1", "S100A9"}
+    mouse_markers = {"Cd3d", "Cd3e", "Cd8a", "Cd4", "Ms4a1", "Nkg7", "Gzmb",
+                     "Col1a1", "Epcam", "Pecam1", "Ptprc", "Hba-a1", "Gapdh",
+                     "Actb", "Malat1", "Tmsb4x", "Ftl1", "Fth1", "S100a9"}
+    h_hits = genes & human_markers
+    m_hits = genes & mouse_markers
+    if len(h_hits) > len(m_hits) and len(h_hits) >= 3:
+        return "human", f"matched {len(h_hits)} human marker genes: {', '.join(sorted(h_hits)[:6])}"
+    if len(m_hits) > len(h_hits) and len(m_hits) >= 3:
+        return "mouse", f"matched {len(m_hits)} mouse marker genes: {', '.join(sorted(m_hits)[:6])}"
+    # Fallback: casing heuristic on alpha-only gene names
+    sample = [g for g in GENE_NAMES_LIST[:200] if g.isalpha() and len(g) > 1]
     if not sample:
-        return "human"
+        return "human", "default (no alpha gene names to analyze)"
     upper = sum(1 for g in sample if g == g.upper())
-    title = sum(1 for g in sample if g == g.title())
-    if upper > len(sample) * 0.7:
-        return "human"  # UPPERCASE = human
-    if title > len(sample) * 0.5:
-        return "mouse"  # Titlecase = mouse
-    return "human"  # default
+    title = sum(1 for g in sample if g[0].isupper() and g[1:] == g[1:].lower())
+    n = len(sample)
+    if upper > n * 0.7:
+        return "human", f"gene name casing: {upper}/{n} UPPERCASE (human convention)"
+    if title > n * 0.5:
+        return "mouse", f"gene name casing: {title}/{n} Title case (mouse convention)"
+    return "human", f"default (ambiguous casing: {upper}/{n} upper, {title}/{n} title)"
 
 
 def load_go_db():
@@ -274,7 +295,10 @@ def load_go_db():
     GO_DATASET_GENES = None
     GO_SYNONYM_MAP = None
 
-    organism = _detect_organism()
+    global _DETECTED_ORGANISM
+    organism, _org_reason = _detect_organism()
+    _DETECTED_ORGANISM = (organism.capitalize(), _org_reason)
+    print(f"  Organism: {_DETECTED_ORGANISM[0]} ({_org_reason})")
     script_dir = Path(__file__).parent
     paths_to_try = [
         _BUNDLE_DIR / "rna_fleek" / f"go_{organism}.json",
@@ -399,85 +423,79 @@ def detect_counts():
         print("  ⚠ No raw counts detected — pseudo-bulk DEG will be unavailable")
 
 
-def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, cluster_col=None, cluster_id=None):
+def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name="Group A", group_b_name="Group B"):
     """Run pseudo-bulk DEG using pyDESeq2 or fallback to scipy t-test.
 
+    Conditions are defined by selection groups (cell index arrays).
+    Replicates are defined by an obs column (e.g. 'donor', 'batch').
+    Counts are aggregated per (group × replicate) combination.
+
     Args:
-        group_col: obs column defining biological replicates (e.g. 'organ')
-        condition_col: obs column defining conditions to compare (e.g. 'timepoint')
-        condition_a: value in condition_col for group A
-        condition_b: value in condition_col for group B
-        cluster_col: optional obs column to filter by cell type
-        cluster_id: value in cluster_col to filter for
+        group_a_cells: list of cell indices for condition A
+        group_b_cells: list of cell indices for condition B
+        replicate_col: obs column defining biological replicates
+        group_a_name: display name for group A
+        group_b_name: display name for group B
     Returns:
         dict with: genes, log2fc, padj, method, n_samples_a, n_samples_b, ...
     """
     import scipy.sparse as sp
-    from collections import Counter
 
     if ADATA is None or COUNTS_MATRIX is None:
         raise ValueError("No dataset or counts matrix available")
+    if len(group_a_cells) == 0:
+        raise ValueError(f"{group_a_name} has no cells")
+    if len(group_b_cells) == 0:
+        raise ValueError(f"{group_b_name} has no cells")
 
     obs = ADATA.obs
+    if replicate_col not in obs.columns:
+        raise ValueError(f"Column '{replicate_col}' not found in obs")
 
-    # Filter to specific cluster if requested
-    mask = np.ones(ADATA.n_obs, dtype=bool)
-    if cluster_col and cluster_id is not None:
-        mask &= (obs[cluster_col].astype(str) == str(cluster_id)).values
+    # Get replicate labels for each group's cells
+    idx_a = np.array(group_a_cells, dtype=int)
+    idx_b = np.array(group_b_cells, dtype=int)
+    reps_a = obs.iloc[idx_a][replicate_col].astype(str).values
+    reps_b = obs.iloc[idx_b][replicate_col].astype(str).values
+    unique_a = sorted(set(reps_a))
+    unique_b = sorted(set(reps_b))
 
-    # Filter to the two conditions
-    mask_a = mask & (obs[condition_col].astype(str) == str(condition_a)).values
-    mask_b = mask & (obs[condition_col].astype(str) == str(condition_b)).values
+    print(f"  Pseudo-bulk: {group_a_name} ({len(unique_a)} replicates, {len(idx_a)} cells) vs {group_b_name} ({len(unique_b)} replicates, {len(idx_b)} cells)")
 
-    if mask_a.sum() == 0 or mask_b.sum() == 0:
-        raise ValueError(f"No cells found for one or both conditions: {condition_a} ({mask_a.sum()}) vs {condition_b} ({mask_b.sum()})")
+    if len(unique_a) < 2:
+        raise ValueError(f"Need ≥2 replicates per group. {group_a_name} has cells in {len(unique_a)} replicate(s) of '{replicate_col}'.")
+    if len(unique_b) < 2:
+        raise ValueError(f"Need ≥2 replicates per group. {group_b_name} has cells in {len(unique_b)} replicate(s) of '{replicate_col}'.")
 
-    # Get sample labels for each cell
-    groups_a = obs.loc[mask_a, group_col].astype(str).values
-    groups_b = obs.loc[mask_b, group_col].astype(str).values
-    unique_a = sorted(set(groups_a))
-    unique_b = sorted(set(groups_b))
-
-    print(f"  Pseudo-bulk: {condition_a} ({len(unique_a)} samples, {mask_a.sum()} cells) vs {condition_b} ({len(unique_b)} samples, {mask_b.sum()} cells)")
-
-    if len(unique_a) < 2 or len(unique_b) < 2:
-        raise ValueError(f"Need at least 2 samples per condition for pseudo-bulk. Got {len(unique_a)} vs {len(unique_b)}.")
-
-    # Aggregate counts per sample
+    # Aggregate counts per (group × replicate)
     n_genes = ADATA.n_vars
     all_samples = []
     all_conditions = []
+    COND_A = "A"
+    COND_B = "B"
 
-    for sample_id in unique_a:
-        cell_mask = mask_a & (obs[group_col].astype(str) == sample_id).values
-        idx = np.where(cell_mask)[0]
-        if len(idx) == 0:
+    for rep_id in unique_a:
+        cell_idx = idx_a[reps_a == rep_id]
+        if len(cell_idx) == 0:
             continue
-        counts = COUNTS_MATRIX[idx, :]
-        if sp.issparse(counts):
-            agg = np.asarray(counts.sum(axis=0)).flatten()
-        else:
-            agg = np.asarray(counts.sum(axis=0)).flatten()
+        counts = COUNTS_MATRIX[cell_idx, :]
+        agg = np.asarray(counts.sum(axis=0)).flatten()
         all_samples.append(agg)
-        all_conditions.append(condition_a)
+        all_conditions.append(COND_A)
 
-    for sample_id in unique_b:
-        cell_mask = mask_b & (obs[group_col].astype(str) == sample_id).values
-        idx = np.where(cell_mask)[0]
-        if len(idx) == 0:
+    for rep_id in unique_b:
+        cell_idx = idx_b[reps_b == rep_id]
+        if len(cell_idx) == 0:
             continue
-        counts = COUNTS_MATRIX[idx, :]
-        if sp.issparse(counts):
-            agg = np.asarray(counts.sum(axis=0)).flatten()
-        else:
-            agg = np.asarray(counts.sum(axis=0)).flatten()
+        counts = COUNTS_MATRIX[cell_idx, :]
+        agg = np.asarray(counts.sum(axis=0)).flatten()
         all_samples.append(agg)
-        all_conditions.append(condition_b)
+        all_conditions.append(COND_B)
 
     count_matrix = np.vstack(all_samples)  # samples × genes
     conditions = np.array(all_conditions)
-    n_a = sum(1 for c in conditions if c == condition_a)
-    n_b = sum(1 for c in conditions if c == condition_b)
+    n_a = sum(1 for c in conditions if c == COND_A)
+    n_b = sum(1 for c in conditions if c == COND_B)
 
     print(f"  Pseudo-bulk matrix: {count_matrix.shape[0]} samples × {count_matrix.shape[1]} genes")
 
@@ -496,7 +514,6 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
         from pydeseq2.ds import DeseqStats
         import pandas as pd
 
-        # Build AnnData-like input for pyDESeq2
         count_df = pd.DataFrame(count_matrix[:, keep], columns=gene_names[keep])
         meta_df = pd.DataFrame({"condition": conditions}, index=[f"sample_{i}" for i in range(len(conditions))])
         count_df.index = meta_df.index
@@ -504,7 +521,7 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
         dds = DeseqDataSet(counts=count_df, metadata=meta_df, design="~condition")
         dds.deseq2()
 
-        stat = DeseqStats(dds, contrast=["condition", condition_a, condition_b])
+        stat = DeseqStats(dds, contrast=["condition", COND_A, COND_B])
         stat.summary()
 
         results_df = stat.results_df
@@ -520,18 +537,16 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
 
         from scipy import stats
 
-        # CPM normalize
         lib_sizes = count_matrix.sum(axis=1, keepdims=True)
         lib_sizes[lib_sizes == 0] = 1
         cpm = count_matrix / lib_sizes * 1e6
         log_cpm = np.log2(cpm + 1)
 
-        mask_cond_a = conditions == condition_a
-        mask_cond_b = conditions == condition_b
+        mask_cond_a = conditions == COND_A
+        mask_cond_b = conditions == COND_B
 
         genes_out = []
         log2fc = []
-        padj = []
         pvals = []
 
         for gi in range(n_genes):
@@ -539,9 +554,7 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
                 continue
             vals_a = log_cpm[mask_cond_a, gi]
             vals_b = log_cpm[mask_cond_b, gi]
-            mean_a = vals_a.mean()
-            mean_b = vals_b.mean()
-            fc = mean_a - mean_b  # already log2
+            fc = vals_a.mean() - vals_b.mean()
             try:
                 _, pv = stats.ttest_ind(vals_a, vals_b, equal_var=False)
             except Exception:
@@ -552,7 +565,6 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
             log2fc.append(float(fc))
             pvals.append(float(pv))
 
-        # BH correction
         from statsmodels.stats.multitest import multipletests
         _, padj_arr, _, _ = multipletests(pvals, method="fdr_bh")
         padj = padj_arr.tolist()
@@ -569,10 +581,9 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
         "method": method,
         "n_samples_a": n_a,
         "n_samples_b": n_b,
-        "condition_a": condition_a,
-        "condition_b": condition_b,
-        "group_col": group_col,
-        "condition_col": condition_col,
+        "group_a_name": group_a_name,
+        "group_b_name": group_b_name,
+        "replicate_col": replicate_col,
         "n_genes_tested": len(genes_out),
     }
 
@@ -2259,6 +2270,8 @@ def build_init_payload():
         "loaded_path": LOADED_PATH,
         "hvg_genes": HVG_NAMES[:200],  # top HVGs for quick-access UI
         "hvg_var": {g: round(HVG_VAR[g], 4) for g in HVG_NAMES[:200] if g in HVG_VAR},
+        "organism": _DETECTED_ORGANISM[0] if _DETECTED_ORGANISM else "Human",
+        "organism_reason": _DETECTED_ORGANISM[1] if _DETECTED_ORGANISM else "",
         "go_available": GO_DB is not None,
         "go_organism": GO_DB.get("label", "") if GO_DB else "",
         "counts_available": COUNTS_MATRIX is not None,
@@ -2667,6 +2680,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_abort(req)
         elif path == "/api/unload":
             self._serve_unload(req)
+        elif path == "/api/heartbeat":
+            self._serve_heartbeat(req)
         elif path == "/api/lineage":
             self._serve_lineage(req)
         elif path == "/api/clear-cache":
@@ -3176,21 +3191,20 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def _serve_pseudobulk_deg(self, req):
-        """Run pseudo-bulk DEG between two conditions."""
+        """Run pseudo-bulk DEG between two selection groups."""
         try:
-            group_col = req.get("group_col")
-            condition_col = req.get("condition_col")
-            condition_a = req.get("condition_a")
-            condition_b = req.get("condition_b")
-            cluster_col = req.get("cluster_col")
-            cluster_id = req.get("cluster_id")
+            group_a_cells = req.get("group_a_cells")
+            group_b_cells = req.get("group_b_cells")
+            replicate_col = req.get("replicate_col")
+            group_a_name = req.get("group_a_name", "Group A")
+            group_b_name = req.get("group_b_name", "Group B")
 
-            if not group_col or not condition_col or not condition_a or not condition_b:
-                raise ValueError("Missing required fields: group_col, condition_col, condition_a, condition_b")
+            if not group_a_cells or not group_b_cells or not replicate_col:
+                raise ValueError("Missing required fields: group_a_cells, group_b_cells, replicate_col")
 
             t0 = time.time()
-            result = run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b,
-                                         cluster_col=cluster_col, cluster_id=cluster_id)
+            result = run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col,
+                                         group_a_name=group_a_name, group_b_name=group_b_name)
             result["elapsed"] = round(time.time() - t0, 1)
 
             data = json.dumps(result, separators=(",", ":")).encode("utf-8")
@@ -4047,6 +4061,43 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
         import gc; gc.collect()
         result = {"ok": True}
         data = json.dumps(result).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_heartbeat(self, req):
+        """Client heartbeat — resets the auto-unload timer."""
+        global AUTO_UNLOAD, AUTO_UNLOAD_TIMEOUT, _LAST_HEARTBEAT, _HEARTBEAT_TIMER
+        _LAST_HEARTBEAT = time.time()
+        print(f"  ♥ heartbeat (auto_unload={req.get('auto_unload') if req else '?'}, timeout={req.get('timeout') if req else '?'})")
+        # Cancel any pending unload timer
+        if _HEARTBEAT_TIMER:
+            _HEARTBEAT_TIMER.cancel()
+            _HEARTBEAT_TIMER = None
+        # Parse settings updates from client
+        if req:
+            if "auto_unload" in req:
+                AUTO_UNLOAD = bool(req["auto_unload"])
+            if "timeout" in req:
+                AUTO_UNLOAD_TIMEOUT = max(0.5, float(req["timeout"]))
+        # Schedule next unload check
+        if AUTO_UNLOAD and ADATA is not None:
+            def _check_unload():
+                global _HEARTBEAT_TIMER
+                _HEARTBEAT_TIMER = None
+                elapsed = time.time() - _LAST_HEARTBEAT
+                if elapsed >= AUTO_UNLOAD_TIMEOUT and AUTO_UNLOAD and ADATA is not None:
+                    print(f"  Auto-unloading dataset (no heartbeat for {elapsed:.1f}s)")
+                    _reset_all()
+                    PROGRESS["status"] = "idle"
+                    PROGRESS["message"] = "Dataset auto-unloaded"
+                    import gc; gc.collect()
+            _HEARTBEAT_TIMER = threading.Timer(AUTO_UNLOAD_TIMEOUT + 0.5, _check_unload)
+            _HEARTBEAT_TIMER.daemon = True
+            _HEARTBEAT_TIMER.start()
+        data = json.dumps({"ok": True, "auto_unload": AUTO_UNLOAD, "timeout": AUTO_UNLOAD_TIMEOUT}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))

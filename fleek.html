@@ -85,8 +85,8 @@
   .split-view-label{display:none;position:absolute;top:8px;z-index:7;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:auto;user-select:none;white-space:nowrap;}
   #cw.split-active .split-view-label{display:flex;align-items:center;gap:4px;}
   .split-view-select{background:transparent;border:none;color:inherit;font:inherit;font-size:10px;padding:0;cursor:pointer;outline:none;}
-  .split-view-label .tether-btn{cursor:pointer;opacity:0.6;transition:opacity 0.15s;}
-  .split-view-label .tether-btn:hover{opacity:1;}
+  .split-view-label .tether-btn{cursor:pointer;opacity:0.6;transition:opacity 0.15s,color 0.15s,transform 0.15s;}
+  .split-view-label .tether-btn:hover{opacity:1;color:var(--accent2);transform:scale(1.15);}
   .split-view-label .tether-btn.tethered{opacity:1;color:var(--accent2);}
   #hud-toggle,#hud-R-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:9px;color:var(--text4);display:inline-flex;align-items:center;gap:4px;user-select:none;}
   #hud-toggle:hover,#hud-R-toggle:hover{color:var(--text2);border-color:var(--border2);}
@@ -231,6 +231,16 @@
   .sg-del:hover{color:#f87171;}
   .sg-save{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;margin-right:8px;}
   .sg-save:hover{color:#6366f1;}
+  /* Split view panel rows — mirrors sg-item styling */
+  .sv-item{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:10px;color:var(--text2);transition:all 0.1s;user-select:none;margin-bottom:1px;}
+  .sv-item:hover{background:var(--bg-hover);}
+  .sv-item.active{background:var(--bg-active);color:var(--text);}
+  .sv-num{font-size:9px;font-weight:700;flex-shrink:0;width:10px;text-align:center;opacity:0.7;font-variant-numeric:tabular-nums;color:var(--text4);}
+  .sv-item.active .sv-num{color:var(--accent2);}
+  .sv-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sv-del{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;opacity:0;transition:opacity 0.1s;}
+  .sv-item:hover .sv-del{opacity:1;}
+  .sv-del:hover{color:#f87171!important;}
   /* sg-add-btn removed — replaced by + button in header */
   .sg-toolbar{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap;}
   .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:9px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;}
@@ -680,6 +690,20 @@
     </div>
   </div>
   <!-- Slice: metadata filter panel (hidden until dataset has obs columns) -->
+  <!-- Split Views -->
+  <div class="sec" id="split-sec" data-col="split">
+    <div class="col-hdr" onclick="toggleSec('split')">
+      <span class="lbl" style="margin-bottom:0;">Split Views</span>
+      <span class="col-chev">&#9660;</span>
+    </div>
+    <div class="col-body">
+      <div id="split-list"></div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+        <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split (or press 1-9)" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
+        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border2)';this.style.color=_splitActive?'var(--accent2)':'var(--text4)'">⧉</button>
+      </div>
+    </div>
+  </div>
   <div class="sec" id="slice-sec" data-col="slice" style="display:none;">
     <div class="col-hdr" onclick="toggleSec('slice')">
       <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:0;">
@@ -690,12 +714,7 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body" id="slice-body">
-      <div id="view-bar" style="display:flex;align-items:center;gap:4px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border);">
-        <select id="view-select" onchange="_viewSwitch(parseInt(this.value))" style="flex:1;min-width:0;"></select>
-        <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split with the current slice configuration" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
-        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border2)';this.style.color=_splitActive?'var(--accent2)':'var(--text4)'">⧉</button>
-        <button id="view-del-btn" onclick="_viewDelete()" style="display:none;background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 3px;transition:color 0.1s;" title="Delete this view split" onmouseenter="this.style.color='#f87171'" onmouseleave="this.style.color='var(--text4)'">×</button>
-      </div>
+      <!-- view-bar removed — split controls now in Split Views panel -->
       <div id="slice-footer">
         <span id="slice-cell-count" class="sf-count"></span>
         <span id="slice-total-count" style="color:var(--text4);"></span>
@@ -765,7 +784,7 @@
     </div>
     <span id="hud-toggle" onclick="document.getElementById('hud').classList.toggle('open')">&#9662; Info</span>
   </div>
-  <div id="hud-R" class="open" style="display:none;position:absolute;bottom:12px;right:12px;z-index:10;font-size:9px;color:var(--text3);max-width:220px;">
+  <div id="hud-R" class="open" style="display:none;position:absolute;bottom:12px;left:calc(50% + 12px);z-index:10;font-size:9px;color:var(--text3);max-width:220px;">
     <div id="hud-R-body">
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-R-visible">—</span></div>
       <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-R-hidden">—</span></div>
@@ -823,6 +842,10 @@
       <span class="s-key-status" id="api-key-status"></span>
     </div>
     <div class="s-row">
+      <span>Auto-unload on disconnect</span>
+      <label class="s-toggle"><input type="checkbox" id="set-auto-unload" onchange="_setAutoUnload(this.checked)"><span class="s-slider"></span></label>
+    </div>
+    <div class="s-row">
       <span>Cache location</span>
       <select id="set-cache-mode" onchange="setCacheMode(this.value)">
         <option value="dataset">With Dataset</option>
@@ -875,6 +898,10 @@
         <option value="background01">background01</option>
       </select>
     </div>
+    <div class="s-row">
+      <span>Unload timeout (s)</span>
+      <input type="number" id="dbg-unload-timeout" value="1" min="0.5" step="0.5" style="width:50px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 4px;" onchange="_setAutoUnloadTimeout(parseFloat(this.value)||1)">
+    </div>
     <div class="dbg-info" id="dbg-info"></div>
   </div>
   <svg id="crosshair" width="24" height="24" viewBox="0 0 24 24">
@@ -921,21 +948,10 @@
     </div>
     <div id="pb-opts" style="display:none;margin-top:4px;">
       <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-        <span style="color:var(--text4);">Sample:</span>
-        <select id="pb-group" style="max-width:100px;" title="Column defining biological replicates (e.g. donor, organ)"></select>
-        <span style="color:var(--text4);">Condition:</span>
-        <select id="pb-condition" style="max-width:100px;" onchange="_pbUpdateValues()" title="Column defining the two conditions to compare"></select>
-      </div>
-      <div style="display:flex;align-items:center;gap:4px;margin-top:3px;flex-wrap:wrap;">
-        <select id="pb-val-a" style="max-width:90px;"></select>
-        <span style="color:var(--text4);">vs</span>
-        <select id="pb-val-b" style="max-width:90px;"></select>
-        <span style="color:var(--text4);">in</span>
-        <select id="pb-cluster" style="max-width:120px;" title="Optional: run within a specific cell type only">
-          <option value="">All cell types</option>
-        </select>
+        <span style="color:var(--text4);">Replicate column:</span>
+        <select id="pb-replicate" style="max-width:120px;" title="Obs column defining biological replicates (e.g. donor, batch). Counts are aggregated per replicate within each selection group."></select>
         <button id="pb-run-btn" onclick="_pbRun()" style="background:rgba(99,102,241,0.2);border:1px solid var(--accent);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:2px 10px;font-weight:600;">Run</button>
-        <span id="pb-status" style="color:var(--text4);"></span>
+        <span id="pb-status" style="color:var(--text4);font-size:9px;"></span>
       </div>
     </div>
   </div>
@@ -1126,7 +1142,7 @@
       </div>
       <div class="help-sec-body">
         <p><strong>View splits</strong> are named snapshots of your current slice filter and cluster visibility. They let you save and switch between different "angles" on the data — for example, one split filtered to organ=heart, another to organ=liver — without losing state.</p>
-        <p>Create a new view split with the <strong>+</strong> button in the Slice panel, or press <span class="help-key">1</span>–<span class="help-key">9</span> to create/switch to "Split N" by number. You can create as many splits as you want. Switch between them using the sidebar dropdown, or press the number key matching the split name. Each split remembers its slice filter, cluster visibility, and deleted cells.</p>
+        <p>Create a new view split with the <strong>+</strong> button in the Split Views panel, or press <span class="help-key">1</span>–<span class="help-key">9</span> to create/switch to "Split N" by number. You can create as many splits as you want. Switch between them using the sidebar dropdown, or press the number key matching the split name. Each split remembers its slice filter, cluster visibility, and deleted cells.</p>
         <p><strong>Split-screen (<span style="font-size:13px;">⧉</span>):</strong> When you have two or more view splits, click the split-screen button to show two side by side in real time. Each half renders its own cell population based on its split's slice filter. Selection groups are shared across both halves — lasso in one half, see the highlights in both.</p>
         <p><strong>Reassigning halves:</strong> The split name in each half's label is a dropdown. Change it to show a different split in that half — if you pick a split already in the other half, they swap.</p>
         <table class="help-table">
@@ -1281,7 +1297,20 @@
         <p><strong>Download:</strong> Click the download button to export the full DEG table as a <strong>TSV file</strong> (tab-separated values), suitable for spreadsheets or downstream analysis tools.</p>
         <p><strong>Cohen's d</strong> is computed directly on the sparse matrix using E[X²]−E[X]² with Bessel correction, avoiding densification.</p>
         <p><strong>Caching &amp; history:</strong> Results are cached by test type + group combination. The <strong>History</strong> dropdown lists all previous DEG analyses for the current session — click any entry to restore its results instantly, including the volcano plot and gene table. Switching between Wilcoxon and t-test shows cached results instantly if available. A <strong>"stale"</strong> badge appears on a history entry when the selection groups have changed since that analysis was run — the results are still viewable but may no longer reflect the current cell assignments.</p>
-        <p><strong>Pseudoreplication caveat:</strong> Cells from the same donor/sample are not independent observations. P-values from single-cell comparisons are anti-conservative — they reflect intra-sample variability, not inter-donor. For publication-level results, use pseudobulk approaches.</p>
+        <p><strong>Pseudoreplication caveat:</strong> Cells from the same donor/sample are not independent observations. P-values from single-cell comparisons are anti-conservative — they reflect intra-sample variability, not inter-donor. For publication-level results, use the pseudo-bulk mode described below.</p>
+
+        <p><strong>Pseudo-bulk mode:</strong> Switch between <strong>Single-cell</strong> and <strong>Pseudo-bulk</strong> using the toggle at the top of the DEG panel. Pseudo-bulk aggregates raw counts per biological replicate within each selection group, then runs a bulk-level statistical test. This addresses the pseudoreplication problem.</p>
+        <p><strong>Workflow:</strong></p>
+        <ol style="margin:4px 0 6px 16px;font-size:11px;line-height:1.6;">
+          <li>Select cells into <strong>Group A</strong> and <strong>Group B</strong> (e.g., two cell types, two conditions, or any two subsets).</li>
+          <li>Open DEG panel and switch to <strong>Pseudo-bulk</strong> mode.</li>
+          <li>The Group A / Group B dropdowns remain visible — select which two groups to compare.</li>
+          <li>A single <strong>Replicate column</strong> dropdown appears. Select the <code>obs</code> column that defines biological replicates (e.g., <em>donor</em>, <em>batch</em>, <em>sample_id</em>). Columns with 2–50 unique values are listed.</li>
+          <li>Click <strong>Run</strong>. For each group, cells are split by replicate, raw counts are summed per replicate, and the resulting pseudo-bulk count matrix is tested.</li>
+        </ol>
+        <p><strong>Statistical tests:</strong> <strong>pyDESeq2</strong> is used when installed — it models count dispersion across replicates using a negative binomial GLM. If pyDESeq2 is not available, FLEEK falls back to a <strong>Welch's t-test on log₂-CPM</strong> values with Benjamini-Hochberg correction.</p>
+        <p><strong>Requirements:</strong> A raw counts matrix must be detected in the dataset (checked automatically on load — see the Data panel). Each group needs cells in <strong>at least 2 replicates</strong>. More replicates improve statistical power. Genes with fewer than 10 total counts across all samples are filtered out.</p>
+        <p><strong>Results:</strong> Displayed in the same volcano plot and gene table as single-cell DEG. The note above the plot shows the method used, group names, replicate counts, and number of genes tested. Cohen's d is not computed for pseudo-bulk (shown as 0).</p>
       </div>
     </div>
 
@@ -1307,6 +1336,7 @@
         <p>The Data panel is collapsible — click the header to expand/collapse. It auto-collapses after data loads to save space. The upload button is always accessible in the header row.</p>
         <p><strong>Uploads</strong> can be stopped mid-transfer with the Stop button. Starting a new upload automatically cancels any in-progress upload. When loading a new dataset, the old dataset's memory is fully freed.</p>
         <p><strong>Automatic clustering:</strong> If the dataset has no <code>cell_type</code> or <code>leiden</code> column, FLEEK automatically computes Leiden clustering using the igraph backend (building a neighbor graph and PCA first if needed). Results are cached for instant reload.</p>
+        <p><strong>Organism detection:</strong> FLEEK infers the organism (Human or Mouse) from gene names. It first checks for species-specific marker genes (e.g. <em>GAPDH</em>/<em>CD3D</em> for human, <em>Gapdh</em>/<em>Cd3d</em> for mouse) — if ≥3 markers match, the species is determined. Otherwise, it falls back to a gene-name casing heuristic (UPPERCASE → human, Title case → mouse). The inferred species is shown in the Data panel info line as "(inferred)" with a tooltip explaining the reasoning. It is used to load the correct Gene Ontology database.</p>
         <p><strong>Empty clusters:</strong> Some datasets contain cell type categories with zero cells. This typically happens when a dataset has been subsetted (e.g. filtered to a single tissue) without cleaning the categorical column — the original categories persist even though no cells remain for some types. It also occurs in concatenated datasets where certain types exist only in specific batches. FLEEK shows these as dimmed entries with an "empty" label — they are non-interactive since there are no cells to visualize or select.</p>
         <p><strong>Dual caching:</strong> Quick and full versions of embeddings are cached separately — switching between QuickMap on/off doesn't overwrite the other version. Both coexist in the cache file, and loading picks whichever matches your current setting. DEG results similarly coexist in memory (quick and full are separate cache entries). This means you can freely switch between fast and precise modes without recomputing anything after the first run of each.</p>
         <table class="help-table">
@@ -1374,16 +1404,15 @@
         <table class="help-table">
           <tr><th>Setting</th><th>Options</th><th>Description</th></tr>
           <tr><td><strong>Theme</strong></td><td>Dark / Light</td><td>Switches the entire UI and canvas between dark and light themes. Light mode uses a Blues sequential colorscale for gene expression (low expression fades into the white background). Dark mode uses Viridis. Press <span class="help-key">T</span> to toggle.</td></tr>
-          <tr><td><strong>Zoom target</strong></td><td>Cursor / Center</td><td>Controls where zoom is anchored. <em>Cursor</em> zooms toward/away from the mouse pointer (like a map). <em>Center</em> zooms toward the screen center (like a microscope).</td></tr>
           <tr><td><strong>UI scale</strong></td><td>75%–150%</td><td>Adjusts the size of all UI elements — sidebar, panels, text, buttons. Useful on high-DPI displays or when using FLEEK on a projector.</td></tr>
-          <tr><td><strong>FPS counter</strong></td><td>On / Off</td><td>Shows frames-per-second in the top-right corner of the canvas. Useful for checking rendering performance on large datasets.</td></tr>
-          <tr><td><strong>Selection highlight</strong></td><td>Ring / Fill</td><td><em>Ring</em> draws a colored outline around selected cells, preserving their cluster/expression color underneath — ideal for seeing how a selection relates to gene expression patterns. <em>Fill</em> replaces the cell color entirely with the group color — clearer for selection membership but hides expression.</td></tr>
           <tr><td><strong>Hint bar</strong></td><td>On / Off</td><td>The hint bar at the bottom of the canvas shows contextual tips about modifier keys and available actions. Disable for a cleaner view once you know the shortcuts.</td></tr>
           <tr><td><strong>Shortcut flash</strong></td><td>On / Off</td><td>Brief overlay that flashes on screen when you press a keyboard shortcut, showing the action name and key combination. Helps learn shortcuts. Disable for a quieter interface.</td></tr>
-          <tr><td><strong>Undo/Redo buttons</strong></td><td>On / Off</td><td>Show or hide the undo/redo arrow buttons in the top-right corner of the canvas. The keyboard shortcuts (<span class="help-key">⌘</span>+<span class="help-key">[</span>/<span class="help-key">]</span>) always work regardless.</td></tr>
+          <tr><td><strong>Undo/Redo buttons</strong></td><td>On / Off</td><td>Show or hide the undo/redo arrow buttons in the top-right corner of the canvas. The keyboard shortcuts (<span class="help-key">⌘</span>+<span class="help-key">[</span>/<span class="help-key">]</span>, or <span class="help-key">Ctrl</span>+<span class="help-key">[</span>/<span class="help-key">]</span> on Windows/Linux) always work regardless.</td></tr>
+          <tr><td><strong>Auto-unload on disconnect</strong></td><td>On / Off</td><td>When enabled, the server automatically frees the loaded dataset from memory if no browser tab is connected. Useful for liberating RAM when you close the FLEEK window. The timeout (default 1 second) can be adjusted in the Debug panel.</td></tr>
           <tr><td><strong>Claude API key</strong></td><td>Text input</td><td>Enter your Anthropic API key directly in the UI — it is saved to <code>~/.fleek.env</code> on the server. This is an alternative to setting the <code>ANTHROPIC_API_KEY</code> environment variable. A green check appears when a key is active.</td></tr>
           <tr><td><strong>Cache mode</strong></td><td>Dataset / Server</td><td><em>Dataset</em> stores caches alongside the .h5ad file (portable — cache moves with the data). <em>Server</em> stores caches in <code>~/.fleek_cache/</code> (works with read-only or networked data). If the dataset directory is not writable, FLEEK falls back to server mode automatically.</td></tr>
         </table>
+        <p><strong>Debug panel</strong> (click gear icon, then scroll down): Contains developer-oriented settings including <strong>Zoom target</strong> (Cursor/Center), <strong>FPS counter</strong>, <strong>Selection highlight</strong> mode (Ring/Fill), <strong>Unload timeout</strong> (seconds), raycast visualization, and background scheme. These are primarily for troubleshooting and advanced use.</p>
       </div>
     </div>
 
@@ -1956,7 +1985,9 @@ function saveState(){
       pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
       selGroups:_serializeSel(), activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
       groupVisible:JSON.parse(JSON.stringify(groupVisible)),
-      deletedCells:_deletedCells?Array.from(_deletedCells):null
+      deletedCells:_deletedCells?Array.from(_deletedCells):null,
+      views:_views.length>1?JSON.parse(JSON.stringify(_views)):null,
+      activeViewId:_activeViewId,viewIdCounter:_viewIdCounter
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
@@ -1968,6 +1999,7 @@ function saveState(){
 var _camHistTimer=null;
 function saveCameraOnly(){
   /* Persist camera for refresh + debounced undo entry */
+  if(_splitActive)_viewSaveCurrent();
   try{
     var s={
       viewIs3d:viewIs3d, embMethod:embMethod, mode:mode, selGene:selGene,
@@ -1978,7 +2010,9 @@ function saveCameraOnly(){
       pan2:{x:pan2.x,y:pan2.y}, zoom2:zoom2,
       selGroups:_serializeSel(), activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
       groupVisible:JSON.parse(JSON.stringify(groupVisible)),
-      deletedCells:_deletedCells?Array.from(_deletedCells):null
+      deletedCells:_deletedCells?Array.from(_deletedCells):null,
+      views:_views.length>1?JSON.parse(JSON.stringify(_views)):null,
+      activeViewId:_activeViewId,viewIdCounter:_viewIdCounter
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
@@ -2023,6 +2057,14 @@ function restoreState(preloaded){
     renderSelPanel();
   }
   _deletedCells=s.deletedCells?new Set(s.deletedCells):null;
+  /* Restore view splits */
+  if(s.views&&s.views.length>0){
+    _views=JSON.parse(JSON.stringify(s.views));
+    if(s.viewIdCounter!==undefined)_viewIdCounter=s.viewIdCounter;
+    else{_viewIdCounter=0;for(var _vi=0;_vi<_views.length;_vi++){if(_views[_vi].id>=_viewIdCounter)_viewIdCounter=_views[_vi].id+1;}}
+    if(s.activeViewId!==undefined)_activeViewId=s.activeViewId;
+    _viewUpdateUI();
+  }
   if(s.embMethod&&D&&D.embeddings[s.embMethod])setEmbMethod(s.embMethod);
   if(s.viewIs3d!==undefined)setView(s.viewIs3d?"3d":"2d");
   if(s.mode==="gene"&&s.selGene){
@@ -2094,6 +2136,7 @@ function toggleSec(key){
   _colState[key]=el.classList.contains("collapsed")?1:0;
   try{sessionStorage.setItem("fleek_col",JSON.stringify(_colState));}catch(e){}
   if(key==="gene")_updateGeneCollapsedName();
+  if(key==="data"&&!el.classList.contains("collapsed"))_relayoutBadges();
 }
 function _hexToRgb(h){var r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255;return[r,g,b];}
 function cc(id){
@@ -3292,30 +3335,29 @@ function animate(){
   if(pts&&cloudBounds.radius>0){
     var maxWorldSz=cloudBounds.radius*0.018; /* at slider=100, ~4% of cloud radius */
     var worldSz=basePtSz/100*maxWorldSz;
-    if(viewIs3d){
-      pts.material.size=worldSz;
-      if(ringPts)ringPts.material.size=worldSz;
-    }else{
-      /* Convert world units → pixels, then scale down for 2D (points don't need
-         to fill depth gaps like in 3D, so smaller looks better) */
-      var pxPerWorld=canvasH*zoom2/(2*frustum2);
-      var px=worldSz*pxPerWorld*0.5;
-      pts.material.size=px;
-      if(ringPts)ringPts.material.size=px;
-    }
     var _vpH=viewIs3d?(canvasH*Math.min(window.devicePixelRatio,2)*0.5):0;
-    if(pts.material.uniforms)pts.material.uniforms.uVpH.value=_vpH;
-    if(ringPts&&ringPts.material.uniforms)ringPts.material.uniforms.uVpH.value=_vpH;
     var _pulse=(pulseGlow&&mode==="gene"&&selGene&&geneExprCache[selGene])?1.0+1.5*(0.5+0.5*Math.sin(performance.now()*0.002)):1.0;
-    if(pts.material.uniforms&&pts.material.uniforms.uPulse)pts.material.uniforms.uPulse.value=_pulse;
-    if(haloPts&&haloPts.material.uniforms){haloPts.material.uniforms.uVpH.value=_vpH;haloPts.material.uniforms.uSize.value=pts.material.size;haloPts.material.uniforms.uPulse.value=_pulse;}
-    /* Sync point size uniforms to secondary split view */
+    function _applyPtSize(tPts,tRing,tHalo,z2){
+      if(viewIs3d){
+        tPts.material.size=worldSz;
+        if(tRing)tRing.material.size=worldSz;
+      }else{
+        var px=worldSz*(canvasH*z2/(2*frustum2))*0.5;
+        tPts.material.size=px;
+        if(tRing)tRing.material.size=px;
+      }
+      if(tPts.material.uniforms){tPts.material.uniforms.uVpH.value=_vpH;tPts.material.uniforms.uPulse.value=_pulse;}
+      if(tRing&&tRing.material.uniforms)tRing.material.uniforms.uVpH.value=_vpH;
+      if(tHalo&&tHalo.material.uniforms){tHalo.material.uniforms.uVpH.value=_vpH;tHalo.material.uniforms.uSize.value=tPts.material.size;tHalo.material.uniforms.uPulse.value=_pulse;}
+    }
     if(_splitActive&&_liveViews.length===2){
-      var _sv=_liveViews[1];
-      _sv.pts.material.size=pts.material.size;
-      if(_sv.pts.material.uniforms){_sv.pts.material.uniforms.uVpH.value=_vpH;_sv.pts.material.uniforms.uPulse.value=_pulse;}
-      if(_sv.ringPts){_sv.ringPts.material.size=pts.material.size;if(_sv.ringPts.material.uniforms)_sv.ringPts.material.uniforms.uVpH.value=_vpH;}
-      if(_sv.haloPts&&_sv.haloPts.material.uniforms){_sv.haloPts.material.uniforms.uVpH.value=_vpH;_sv.haloPts.material.uniforms.uSize.value=pts.material.size;_sv.haloPts.material.uniforms.uPulse.value=_pulse;}
+      /* Each split view uses its own zoom2 for 2D point size */
+      for(var _psi=0;_psi<2;_psi++){
+        var _sv=_liveViews[_psi];
+        _applyPtSize(_sv.pts,_sv.ringPts,_sv.haloPts,_sv.zoom2);
+      }
+    }else{
+      _applyPtSize(pts,ringPts,haloPts,zoom2);
     }
   }
 
@@ -3495,6 +3537,11 @@ function setupCtrl(){
     /* Release focus from any slider/input so keyboard shortcuts work */
     if(document.activeElement&&document.activeElement!==cv)document.activeElement.blur();
     introAnim=null;_flyAnim=null;
+    /* Click in split half → activate that split */
+    if(_splitActive&&_splitViewIds.length===2){
+      var _clickId=_splitViewIds[_hoveredViewIdx];
+      if(_clickId!==_activeViewId)_viewSwitch(_clickId);
+    }
     if(tooltipEl)tooltipEl.style.display="none";
     if(shiftHeld&&e.button===0){
       /* Capture NDC at aim time — camera is synced with what user sees */
@@ -3867,11 +3914,19 @@ function setupCtrl(){
     /* Bare 1-9: switch to or create split N */
     if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&!e.shiftKey&&e.key>="1"&&e.key<="9"&&!inInput){
       var _sn=parseInt(e.key);
-      /* Find split named "Split N" or create it */
+      /* Find split named "Split N" or create it (plus any intervening splits) */
       var _sv=_views.find(function(v){return v.name==="Split "+_sn;});
-      if(!_sv){_viewAdd();_views[_views.length-1].name="Split "+_sn;_sv=_views[_views.length-1];}
+      if(!_sv){
+        /* Find highest existing split number */
+        var _maxN=0;
+        for(var _si=0;_si<_views.length;_si++){var _m=_views[_si].name.match(/^Split (\d+)$/);if(_m)_maxN=Math.max(_maxN,parseInt(_m[1]));}
+        /* Create all intervening splits from _maxN+1 up to _sn */
+        for(var _ci=_maxN+1;_ci<=_sn;_ci++){
+          _viewAdd();_views[_views.length-1].name="Split "+_ci;
+        }
+        _sv=_views.find(function(v){return v.name==="Split "+_sn;});
+      }
       _viewSwitch(_sv.id);
-      var sel=document.getElementById("view-select");if(sel)sel.value=_sv.id;
       _viewUpdateUI();
       _flashAction(_sv.name,_sn+"");
     }
@@ -6054,7 +6109,13 @@ function _pick2DScreen(ndc,targetPts){
      gl_PointSize = uSize * aSize (in framebuffer pixels, NOT CSS pixels)
      Visual CSS-pixel radius = gl_PointSize / 2 / DPR */
   var dpr=Math.min(window.devicePixelRatio||1,2);
-  var pxDiamBase=baseWSz*(canvasH*zoom2/(2*frustum2))*0.5; /* material.size (fb pixels) */
+  var _z2=_splitActive&&_liveViews.length>_hoveredViewIdx?_liveViews[_hoveredViewIdx].zoom2:zoom2;
+  var pxDiamBase=baseWSz*(canvasH*_z2/(2*frustum2))*0.5; /* material.size (fb pixels) */
+  /* Zoom-dependent pick bonus: when zoomed out, points are tiny so add a
+     minimum clickable radius. Scales as 1/sqrt(zoom) so it fades as you zoom in. */
+  var _zFit=zoom2Fit?zoom2Fit():1;
+  var _zRatio=_zFit/Math.max(_z2,0.01); /* >1 when zoomed out, <1 when zoomed in */
+  var _pickBonus=Math.max(0,15*Math.sqrt(Math.max(0,_zRatio-1))); /* 0 at fit, grows when zoomed out */
   /* Mouse in CSS pixels relative to canvas */
   var mPx=(ndc.x+1)*0.5*canvasW;
   var mPy=(1-ndc.y)*0.5*canvasH;
@@ -6069,8 +6130,8 @@ function _pick2DScreen(ndc,targetPts){
     var dx=px-mPx,dy=py-mPy;
     var d2=dx*dx+dy*dy;
     var as=szArr?szArr[i]:1.0;
-    /* CSS pixel radius = (material.size * aSize) / 2 / dpr */
-    var r=pxDiamBase*as*0.5/dpr;
+    /* CSS pixel radius = (material.size * aSize) / 2 / dpr + zoom-out bonus */
+    var r=pxDiamBase*as*0.5/dpr+_pickBonus;
     /* Last (highest index) overlapping point wins — matches GPU draw order */
     if(r>0&&d2<=r*r)bestIdx=i;
   }
@@ -6135,12 +6196,16 @@ function openBrowser(){
   if(pop.style.display==="block"){closeBrowser();return;}
   document.getElementById("upload-popover").style.display="none";
   pop.style.display="block";
+  var btn=document.getElementById("browse-btn");
+  if(btn){btn.style.color="var(--accent2)";btn.style.background="rgba(99,102,241,0.15)";}
   _browseColumns=[];
   _browseGoTo("");
   _browsePollStart();
 }
 
 function closeBrowser(){
+  var btn=document.getElementById("browse-btn");
+  if(btn){btn.style.color="";btn.style.background="";}
   document.getElementById("browse-popover").style.display="none";
   document.getElementById("browse-selected").style.display="none";
   _browseSelectedPath="";
@@ -7001,6 +7066,41 @@ function updateDegLabel(){
 
 var _lastLoadSettings=null;
 var _loadT0=0; /* wall-clock start time for load timing */
+function _relayoutBadges(){
+  /* Re-measure cache badges and insert line breaks so hover expansion doesn't overflow.
+     Safe to call any time — no-ops if panel is collapsed (zero width). */
+  var el=document.getElementById("load-badges");
+  if(!el||el.style.display==="none")return;
+  requestAnimationFrame(function(){
+    el.querySelectorAll(".badge-br").forEach(function(b){b.remove();});
+    var cW=el.getBoundingClientRect().width;
+    if(cW<=0)return; /* panel collapsed — skip, will re-run on expand */
+    var gap=4;
+    var hoverExtra=13;
+    var cBadges=el.querySelectorAll(".load-badge.cached");
+    if(!cBadges.length)return;
+    var widths=[];
+    for(var i=0;i<cBadges.length;i++)widths.push(cBadges[i].getBoundingClientRect().width);
+    var breakBefore=[];
+    var rowUsed=cBadges[0].getBoundingClientRect().left-el.getBoundingClientRect().left;
+    for(var i=0;i<widths.length;i++){
+      var needed=widths[i]+hoverExtra+(i>0?gap:0);
+      if(rowUsed+needed>cW&&i>0){
+        breakBefore.push(i);
+        rowUsed=widths[i]+hoverExtra;
+      }else{
+        rowUsed+=needed;
+      }
+    }
+    for(var j=breakBefore.length-1;j>=0;j--){
+      var br=document.createElement("span");
+      br.className="badge-br";
+      br.style.cssText="flex-basis:100%;height:0;";
+      cBadges[breakBefore[j]].parentNode.insertBefore(br,cBadges[breakBefore[j]]);
+    }
+  });
+}
+
 function showLoadBadges(ls){
   _lastLoadSettings=ls;
   /* Sync cache mode dropdown from server */
@@ -7042,31 +7142,12 @@ function showLoadBadges(ls){
   if(cacheBadges.length>0||annotBadges.length>0){
     badges.push('<span class="badge-sep">caches (hover to delete)<\/span>');
     badges=badges.concat(cacheBadges);
-    if(annotBadges.length>0){
-      badges.push('<span style="flex-basis:100%;height:0;"><\/span>');
-      badges=badges.concat(annotBadges);
-    }
+    badges=badges.concat(annotBadges);
   }
   if(badges.length>0){
     el.innerHTML=badges.join("");
     el.style.display="flex";
-    /* Ensure cache badges have room to expand on hover (9px extra padding).
-       If a badge's right edge is within 12px of the container edge, insert
-       a flex line-break before it to push it to the next line. */
-    requestAnimationFrame(function(){
-      el.querySelectorAll(".badge-br").forEach(function(b){b.remove();});
-      var cRight=el.getBoundingClientRect().right;
-      var cBadges=el.querySelectorAll(".load-badge.cached");
-      for(var i=0;i<cBadges.length;i++){
-        var bRight=cBadges[i].getBoundingClientRect().right;
-        if(cRight-bRight<12){
-          var br=document.createElement("span");
-          br.className="badge-br";
-          br.style.cssText="flex-basis:100%;height:0;";
-          cBadges[i].parentNode.insertBefore(br,cBadges[i]);
-        }
-      }
-    });
+    _relayoutBadges();
   }else{
     el.style.display="none";
   }
@@ -7643,13 +7724,9 @@ function _splitUpdateLabels(){
 }
 
 function _splitReassign(half,newId){
-  /* Reassign which split is shown in the given half (0=left, 1=right) */
+  /* Reassign which split is shown in the given half (0=left, 1=right).
+     The same split can be shown in both halves (e.g. for comparing camera angles). */
   if(!_splitActive||half<0||half>1)return;
-  var otherhalf=1-half;
-  /* If the other half already shows this split, swap them */
-  if(_splitViewIds[otherhalf]===newId){
-    _splitViewIds[otherhalf]=_splitViewIds[half];
-  }
   _splitViewIds[half]=newId;
   /* Update live view names */
   var vL=_splitViewById(_splitViewIds[0]);
@@ -7835,14 +7912,19 @@ function _viewSwitch(id){
   _updateHudGroup();
   syncCanvasSize();
 }
-function _viewDelete(){
+function _viewDeleteById(id){
   if(_views.length<=1)return;
-  /* Deactivate split screen first if active (can't split with <2 views) */
-  if(_splitActive)_splitViewDeactivate();
+  /* If deleting a view shown in split screen, deactivate split first */
+  if(_splitActive&&_splitViewIds.indexOf(id)>=0)_splitViewDeactivate();
   _viewSaveCurrent();
-  _views=_views.filter(function(v){return v.id!==_activeViewId;});
-  _activeViewId=_views[0].id;
-  _restoreViewState(_views[0]);
+  var wasActive=id===_activeViewId;
+  _views=_views.filter(function(v){return v.id!==id;});
+  if(wasActive){
+    _activeViewId=_views[0].id;
+    _restoreViewState(_views[0]);
+  }
+  /* If only 1 view left and split was active, deactivate */
+  if(_views.length<2&&_splitActive)_splitViewDeactivate();
   _syncSlicePills();_updateSliceUI();
   renderLeg();renderSelPanel();recolor();
   if(lineageView)_renderLineageTree();
@@ -7857,52 +7939,55 @@ function _viewRename(){
   if(name&&name.trim()){v.name=name.trim();_viewUpdateUI();}
 }
 function _viewUpdateUI(){
-  var sel=document.getElementById("view-select");
-  var label=document.getElementById("view-label");
-  var delBtn=document.getElementById("view-del-btn");
+  var listEl=document.getElementById("split-list");
   var cmpBtn=document.getElementById("view-compare-btn");
-  if(!sel)return;
-  sel.innerHTML="";
-  for(var i=0;i<_views.length;i++){
-    var v=_views[i];
-    var opt=document.createElement("option");
-    opt.value=v.id;
-    opt.textContent=v.name;
-    if(v.id===_activeViewId)opt.selected=true;
-    sel.appendChild(opt);
+  var label=document.getElementById("view-label");
+  /* Render split rows */
+  if(listEl){
+    var html="";
+    for(var i=0;i<_views.length;i++){
+      var v=_views[i];
+      var isActive=v.id===_activeViewId;
+      /* Extract split number from name for display */
+      var m=v.name.match(/^Split (\d+)$/);
+      var num=m?m[1]:(i+1);
+      /* Build a compact slice summary for the tooltip */
+      var tip=v.name;
+      if(D){
+        var cats=D.header.obs_categories||{};
+        for(var col in v.sliceFilter){
+          var all=cats[col]?cats[col].categories.length:0;
+          var active=v.sliceFilter[col]?v.sliceFilter[col].length:0;
+          if(active<all){
+            var names=[];var sf=new Set(v.sliceFilter[col]);
+            for(var j=0;j<cats[col].categories.length;j++){if(sf.has(j))names.push(cats[col].categories[j]);}
+            tip+="\n"+col+": "+names.join(", ");
+          }
+        }
+      }
+      /* In-split indicator */
+      var inSplit=_splitActive&&_splitViewIds.indexOf(v.id)>=0;
+      var splitBadge=inSplit?'<span style="font-size:7px;color:var(--accent2);margin-left:2px;" title="Shown in split-screen">⧉<\/span>':"";
+      html+='<div class="sv-item'+(isActive?" active":"")+'" onclick="_viewSwitch('+v.id+')" title="'+tip.replace(/"/g,"&quot;")+'">'
+        +'<span class="sv-num">'+num+'<\/span>'
+        +'<span class="sv-name">'+v.name.replace(/</g,"&lt;")+splitBadge+'<\/span>'
+        +(_views.length>1?'<button class="sv-del" onclick="event.stopPropagation();_viewDeleteById('+v.id+')" title="Delete split">&times;<\/button>':"")
+        +'<\/div>';
+    }
+    listEl.innerHTML=html;
   }
-  if(delBtn)delBtn.style.display=_views.length>1?"inline-block":"none";
-  var addBtn=document.getElementById("view-add-btn");
-  if(addBtn)addBtn.style.display="flex";
+  /* Compare button */
   if(cmpBtn){
-    cmpBtn.style.display=_views.length>1?"inline-block":"none";
+    cmpBtn.style.display=_views.length>1?"inline-flex":"none";
     cmpBtn.style.background=_splitActive?"rgba(99,102,241,0.2)":"none";
     cmpBtn.style.color=_splitActive?"var(--accent2)":"var(--text4)";
   }
-  /* Update canvas overlay label */
+  /* Canvas overlay label */
   if(label){
-    if(_views.length>1){
+    if(_views.length>1&&!_splitActive){
       var av=_views.find(function(v){return v.id===_activeViewId;});
       label.textContent=av?av.name:"";
-      /* Build tooltip with slice config */
-      if(av){
-        var tip=av.name;
-        if(D){
-          var cats=D.header.obs_categories||{};
-          for(var col in av.sliceFilter){
-            var all=cats[col]?cats[col].categories.length:0;
-            var active=av.sliceFilter[col]?av.sliceFilter[col].length:0;
-            if(active<all){
-              var names=[];
-              var sf=new Set(av.sliceFilter[col]);
-              for(var j=0;j<cats[col].categories.length;j++){if(sf.has(j))names.push(cats[col].categories[j]);}
-              tip+="\n"+col+": "+names.join(", ");
-            }
-          }
-        }
-        label.title=tip;
-      }
-      label.style.display=_splitActive?"none":"block";
+      label.style.display="block";
     }else{label.style.display="none";}
   }
 }
@@ -7998,20 +8083,22 @@ function _degSetMode(m){
   _degMode=m;
   var scBtn=document.getElementById("deg-mode-sc");
   var pbBtn=document.getElementById("deg-mode-pb");
-  var scControls=document.querySelectorAll("#deg-grpA,#deg-grpB,#deg-test");
+  var scTest=document.getElementById("deg-test");
+  var scRunBtn=document.getElementById("deg-run-btn");
   var pbOpts=document.getElementById("pb-opts");
   if(m==="pb"){
     pbBtn.style.background="rgba(99,102,241,0.12)";pbBtn.style.color="var(--accent2)";pbBtn.style.fontWeight="600";
     scBtn.style.background="transparent";scBtn.style.color="var(--text2)";scBtn.style.fontWeight="400";
-    scControls.forEach(function(el){el.style.display="none";});
-    document.getElementById("deg-run-btn").style.display="none";
+    /* Hide single-cell test selector and run button, keep Group A/B visible */
+    if(scTest)scTest.style.display="none";
+    if(scRunBtn)scRunBtn.style.display="none";
     pbOpts.style.display="block";
     _pbPopulate();
   }else{
     scBtn.style.background="rgba(99,102,241,0.12)";scBtn.style.color="var(--accent2)";scBtn.style.fontWeight="600";
     pbBtn.style.background="transparent";pbBtn.style.color="var(--text2)";pbBtn.style.fontWeight="400";
-    scControls.forEach(function(el){el.style.display="";});
-    document.getElementById("deg-run-btn").style.display="";
+    if(scTest)scTest.style.display="";
+    if(scRunBtn)scRunBtn.style.display="";
     pbOpts.style.display="none";
   }
 }
@@ -8019,69 +8106,49 @@ function _pbPopulate(){
   if(!D)return;
   var cats=D.header.obs_categories||{};
   var cols=Object.keys(cats);
-  var groupSel=document.getElementById("pb-group");
-  var condSel=document.getElementById("pb-condition");
-  var clusterSel=document.getElementById("pb-cluster");
-  /* Populate group and condition dropdowns with obs columns that have 2-50 values */
-  groupSel.innerHTML="";condSel.innerHTML="";
+  var repSel=document.getElementById("pb-replicate");
+  if(!repSel)return;
+  repSel.innerHTML="";
   for(var i=0;i<cols.length;i++){
     var n=cats[cols[i]].categories.length;
     if(n>=2&&n<=50){
-      groupSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
-      condSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
+      repSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
     }
   }
-  /* Default: condition = second column if available */
-  if(condSel.options.length>1)condSel.selectedIndex=1;
-  _pbUpdateValues();
-  /* Populate cluster dropdown */
-  clusterSel.innerHTML='<option value="">All cell types<\/option>';
-  var names=D.header.cluster_names||[];
-  for(var i=0;i<names.length;i++){
-    var label=names[i];
-    if(llmAnnotations&&llmAnnotations[i]&&llmAnnotations[i].length>0){
-      var ai=llmAnnotations[i][0].cell_type;
-      if(ai&&ai!==label)label=ai+" ("+label+")";
-    }
-    clusterSel.innerHTML+='<option value="'+i+'">'+label+'<\/option>';
-  }
-}
-function _pbUpdateValues(){
-  var condCol=document.getElementById("pb-condition").value;
-  if(!condCol||!D)return;
-  var cats=D.header.obs_categories[condCol];
-  if(!cats)return;
-  var valA=document.getElementById("pb-val-a");
-  var valB=document.getElementById("pb-val-b");
-  valA.innerHTML="";valB.innerHTML="";
-  for(var i=0;i<cats.categories.length;i++){
-    var c=cats.categories[i];
-    valA.innerHTML+='<option value="'+c+'">'+c+'<\/option>';
-    valB.innerHTML+='<option value="'+c+'">'+c+'<\/option>';
-  }
-  if(valB.options.length>1)valB.selectedIndex=1;
 }
 function _pbRun(){
-  var groupCol=document.getElementById("pb-group").value;
-  var condCol=document.getElementById("pb-condition").value;
-  var valA=document.getElementById("pb-val-a").value;
-  var valB=document.getElementById("pb-val-b").value;
-  var clusterVal=document.getElementById("pb-cluster").value;
-  if(!groupCol||!condCol||!valA||!valB){return;}
-  if(valA===valB){alert("Select two different conditions");return;}
+  /* Read which selection groups to compare from the Group A/B dropdowns */
+  var selA=document.getElementById("deg-grpA");
+  var selB=document.getElementById("deg-grpB");
+  var repCol=document.getElementById("pb-replicate").value;
+  if(!selA||!selB||!repCol)return;
+  var idA=parseInt(selA.value),idB=parseInt(selB.value);
+  var grpA=null,grpB=null;
+  for(var i=0;i<selGroups.length;i++){
+    if(selGroups[i].id===idA)grpA=selGroups[i];
+    if(selGroups[i].id===idB)grpB=selGroups[i];
+  }
+  if(!grpA||!grpB){document.getElementById("pb-status").textContent="Select two groups";return;}
+  if(grpA.cells.size===0){document.getElementById("pb-status").textContent="Group A has no cells";return;}
+  if(grpB.cells.size===0){document.getElementById("pb-status").textContent="Group B has no cells";return;}
+  if(idA===idB){document.getElementById("pb-status").textContent="Select two different groups";return;}
   var status=document.getElementById("pb-status");
   var btn=document.getElementById("pb-run-btn");
   btn.disabled=true;btn.textContent="Running...";
   status.textContent="";
-  var body={group_col:groupCol,condition_col:condCol,condition_a:valA,condition_b:valB};
-  if(clusterVal)body.cluster_col="fleek_cluster";body.cluster_id=clusterVal;
+  var body={
+    group_a_cells:Array.from(grpA.cells),
+    group_b_cells:Array.from(grpB.cells),
+    replicate_col:repCol,
+    group_a_name:grpA.name,
+    group_b_name:grpB.name
+  };
   fetch("/api/pseudobulk-deg",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
   .then(function(r){return r.json();})
   .then(function(data){
     btn.disabled=false;btn.textContent="Run";
     if(data.error){status.textContent="Error: "+data.error;return;}
-    status.textContent=data.method+" · "+data.n_genes_tested+" genes · "+data.elapsed+"s";
-    /* Display in volcano plot — reuse existing DEG display */
+    status.textContent=data.method+" \u00b7 "+data.n_genes_tested+" genes \u00b7 "+data.elapsed+"s";
     _showPseudoBulkResult(data);
   })
   .catch(function(err){
@@ -8090,22 +8157,23 @@ function _pbRun(){
   });
 }
 function _showPseudoBulkResult(data){
-  /* Convert pseudo-bulk result to the same format as single-cell DEG for the volcano plot */
-  var genes=data.genes,log2fc=data.log2fc,padj=data.padj;
-  var result={
-    genes:genes,log2fc:log2fc,padj:padj,
-    cohens_d:log2fc.map(function(){return 0;}), /* no Cohen's d for pseudo-bulk */
-    grpAName:data.condition_a,grpBName:data.condition_b,
+  /* Convert parallel arrays to per-gene objects (same format as single-cell DEG) */
+  var geneObjs=[];
+  for(var i=0;i<data.genes.length;i++){
+    geneObjs.push({gene:data.genes[i],log2fc:data.log2fc[i],padj:data.padj[i],cohens_d:0});
+  }
+  degData={
+    genes:geneObjs,
+    grpAName:data.group_a_name,grpBName:data.group_b_name,
     grpASize:data.n_samples_a,grpBSize:data.n_samples_b,
     method:data.method
   };
-  degData=result;
-  document.getElementById("deg-note").textContent="Pseudo-bulk "+data.method+" · "+data.condition_a+" (n="+data.n_samples_a+") vs "+data.condition_b+" (n="+data.n_samples_b+") · "+data.n_genes_tested+" genes";
+  document.getElementById("deg-note").textContent="Pseudo-bulk "+data.method+" \u00b7 "+data.group_a_name+" ("+data.n_samples_a+" replicates) vs "+data.group_b_name+" ("+data.n_samples_b+" replicates) \u00b7 "+data.n_genes_tested+" genes";
   degSort={col:"padj",asc:true};
   degHlGene=null;
   vZoom={x:1,y:1};vPan={x:0,y:0};vGlobalZoom=1;_vScrollTarget=1;
   renderVolcano();
-  _renderDEGTable();
+  renderDEGTable();
 }
 
 function openDEG(){
@@ -9771,7 +9839,7 @@ function saveSettings(){
   var showHistBtns=document.getElementById("set-hist-btns").checked;
   var showFlash=document.getElementById("set-flash").checked;
   applyTheme(theme);
-  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns,showFlash:showFlash}));}catch(e){}
+  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns,showFlash:showFlash,autoUnload:_autoUnload,autoUnloadTimeout:_autoUnloadTimeout}));}catch(e){}
 }
 function applyUIScale(v){
   var s=parseFloat(v);
@@ -9818,6 +9886,15 @@ function loadSettings(){
       }
       if(o.showFlash===false){
         document.getElementById("set-flash").checked=false;
+      }
+      if(o.autoUnload){
+        _autoUnload=true;
+        document.getElementById("set-auto-unload").checked=true;
+        _startHeartbeat();
+      }
+      if(o.autoUnloadTimeout){
+        _autoUnloadTimeout=o.autoUnloadTimeout;
+        document.getElementById("dbg-unload-timeout").value=_autoUnloadTimeout;
       }
     }
     document.getElementById("set-zoom-mode").value=zoomMode;
@@ -9966,6 +10043,43 @@ function setupCustomScrollbars(){
       },1000);
     });
   });
+}
+
+/* ── Auto-unload heartbeat ── */
+var _autoUnload=false;
+var _autoUnloadTimeout=1;
+var _heartbeatInterval=null;
+function _startHeartbeat(){
+  _stopHeartbeat();
+  if(!_autoUnload)return;
+  /* Send heartbeat at half the timeout interval */
+  var ms=Math.max(200,(_autoUnloadTimeout*1000)/2);
+  _heartbeatInterval=setInterval(function(){
+    fetch("/api/heartbeat",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({auto_unload:_autoUnload,timeout:_autoUnloadTimeout})}).catch(function(){});
+  },ms);
+  /* Send one immediately */
+  fetch("/api/heartbeat",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({auto_unload:_autoUnload,timeout:_autoUnloadTimeout})}).catch(function(){});
+}
+function _stopHeartbeat(){
+  if(_heartbeatInterval){clearInterval(_heartbeatInterval);_heartbeatInterval=null;}
+}
+function _setAutoUnload(on){
+  _autoUnload=on;
+  if(on)_startHeartbeat();
+  else{
+    _stopHeartbeat();
+    /* Tell server to disable auto-unload */
+    fetch("/api/heartbeat",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({auto_unload:false})}).catch(function(){});
+  }
+  saveSettings();
+}
+function _setAutoUnloadTimeout(secs){
+  _autoUnloadTimeout=Math.max(0.5,secs);
+  document.getElementById("dbg-unload-timeout").value=_autoUnloadTimeout;
+  if(_autoUnload)_startHeartbeat(); /* restart with new interval */
 }
 
 /* ── Custom dropdown system: intercepts native <select> popups ── */
@@ -10149,16 +10263,18 @@ document.addEventListener("DOMContentLoaded",function(){
         if(markerAnnotations||llmAnnotations)renderLeg();
         if(data.header.cached_lineage){lineageTree=data.header.cached_lineage;}
         _setLinBtn(null,lineageView?"tree":"flat");
-        var _infoBase=data.header.n_cells.toLocaleString()+" cells \u00b7 "+data.header.n_clusters+" types \u00b7 "+(data.header.total_genes||"?").toLocaleString()+" genes";
+        var _org=data.header.organism||"";
+        var _orgReason=data.header.organism_reason||"";
+        var _orgHtml=_org?(' \u00b7 <span style="cursor:help;border-bottom:1px dotted var(--text4);" title="Inferred: '+_orgReason.replace(/"/g,'&quot;')+'">'+_org+' (inferred)<\/span>'):"";
+        var _infoText=data.header.n_cells.toLocaleString()+" cells \u00b7 "+data.header.n_clusters+" types \u00b7 "+(data.header.total_genes||"?").toLocaleString()+" genes";
         if(_loadT0>0){
           var _loadElapsed=((Date.now()-_loadT0)/1000);
-          var _infoFull=_infoBase+" \u00b7 "+_loadElapsed.toFixed(1)+"s";
-          document.getElementById("info").textContent=_infoFull;
-          try{sessionStorage.setItem("fleek_infoText",_infoFull);}catch(e){}
+          document.getElementById("info").innerHTML=_infoText+_orgHtml+" \u00b7 "+_loadElapsed.toFixed(1)+"s";
+          try{sessionStorage.setItem("fleek_infoText",_infoText+" \u00b7 "+_org+" (inferred) \u00b7 "+_loadElapsed.toFixed(1)+"s");}catch(e){}
         }else{
-          /* Restore from session if available (survives page refresh) */
           var _saved=null;try{_saved=sessionStorage.getItem("fleek_infoText");}catch(e){}
-          document.getElementById("info").textContent=_saved||_infoBase;
+          if(_saved){document.getElementById("info").textContent=_saved;}
+          else{document.getElementById("info").innerHTML=_infoText+_orgHtml;}
         }
         /* Show loaded file name and top Claude annotations if available */
         var lfEl=document.getElementById("loaded-file");
