@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta id="color-scheme-meta" name="color-scheme" content="dark light">
 <title>RNA-FLEEK — Fast Lightweight Expression Exploration Kit</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
@@ -14,6 +15,7 @@
     --accent:#6366f1;--accent2:#a5b4fc;
     --canvas-bg:#08080e;
   }
+  body{color-scheme:dark;}
   .light{
     --bg:#f0f2f5;--bg2:#ffffff;--bg3:#f5f7fa;--bg-hover:#e8eaef;--bg-active:#dde1f3;
     --border:#d0d4dc;--border2:#bcc0cc;
@@ -21,6 +23,7 @@
     --accent:#4f46e5;--accent2:#4338ca;
     --canvas-bg:#f5f7fa;
   }
+  body.light{color-scheme:light;}
   body{background:var(--bg);color:var(--text);overflow:hidden;font-family:'JetBrains Mono','SF Mono',monospace;font-size:12px;}
   #app{display:flex;width:100vw;height:100vh;}
   #sidebar{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:margin-left 0.25s ease,opacity 0.25s ease;}
@@ -69,25 +72,29 @@
   #c:active{cursor:grabbing;}
   #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
-  #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;}
+  #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:10px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;z-index:15;}
   #hud{position:absolute;bottom:12px;left:12px;z-index:10;font-size:9px;color:var(--text3);max-width:220px;}
   #cw.comparing #c{width:50%!important;margin-left:50%;}
   #cw.comparing #hud{left:calc(50% + 12px);}
   #cw.comparing #hint{left:75%;}
-  #split-divider{display:none;position:absolute;top:0;left:50%;width:2px;height:100%;background:var(--accent);z-index:6;pointer-events:none;transform:translateX(-1px);}
-  #cw.split-active #split-divider{display:block;}
+  #split-divider{display:none;}
+  .split-focus-box{display:none;position:absolute;top:0;height:100%;border:2px solid var(--accent);pointer-events:none;z-index:5;box-sizing:border-box;opacity:0.6;}
+  #split-focus-L{left:0;width:50%;}
+  #split-focus-R{left:50%;width:50%;}
+  #cw.split-active .split-focus-box.active{display:block;}
   .split-view-label{display:none;position:absolute;top:8px;z-index:7;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:auto;user-select:none;white-space:nowrap;}
   #cw.split-active .split-view-label{display:flex;align-items:center;gap:4px;}
+  .split-view-select{background:transparent;border:none;color:inherit;font:inherit;font-size:10px;padding:0;cursor:pointer;outline:none;}
   .split-view-label .tether-btn{cursor:pointer;opacity:0.6;transition:opacity 0.15s;}
   .split-view-label .tether-btn:hover{opacity:1;}
   .split-view-label .tether-btn.tethered{opacity:1;color:var(--accent2);}
-  #hud-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:9px;color:var(--text4);display:inline-flex;align-items:center;gap:4px;user-select:none;}
-  #hud-toggle:hover{color:var(--text2);border-color:var(--border2);}
-  #hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
-  #hud.open #hud-body{display:block;}
-  #hud .hud-row{display:flex;justify-content:space-between;gap:8px;}
-  #hud .hud-label{color:var(--text4);}
-  #hud .hud-val{color:var(--text2);font-variant-numeric:tabular-nums;text-align:right;}
+  #hud-toggle,#hud-R-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:9px;color:var(--text4);display:inline-flex;align-items:center;gap:4px;user-select:none;}
+  #hud-toggle:hover,#hud-R-toggle:hover{color:var(--text2);border-color:var(--border2);}
+  #hud-body,#hud-R-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
+  #hud.open #hud-body,#hud-R.open #hud-R-body{display:block;}
+  #hud .hud-row,#hud-R .hud-row{display:flex;justify-content:space-between;gap:8px;}
+  #hud .hud-label,#hud-R .hud-label{color:var(--text4);}
+  #hud .hud-val,#hud-R .hud-val{color:var(--text2);font-variant-numeric:tabular-nums;text-align:right;}
   #action-flash{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;pointer-events:none;opacity:0;transition:opacity 0.2s,transform 0.2s;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
   .light #action-flash{box-shadow:0 4px 16px rgba(0,0,0,0.08);}
   #action-flash.show{display:block;opacity:1;transform:translate(-50%,-50%) scale(1);}
@@ -263,8 +270,16 @@
   @keyframes btn-pulse{0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,0.4);}50%{box-shadow:0 0 0 6px rgba(99,102,241,0);}}
   @keyframes spin{to{transform:rotate(360deg);}}
   .rna-spin{display:inline-block;animation:spin 1.2s linear infinite;vertical-align:middle;color:var(--accent);}
-  /* Standard dropdown styling */
-  select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:4px 6px;outline:none;cursor:pointer;}
+  /* Standard dropdown styling — native popup is hidden; custom overlay used instead */
+  select{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:4px 6px;outline:none;cursor:pointer;-webkit-appearance:none;-moz-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%23999' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 5px center;padding-right:16px;}
+  /* Custom dropdown popup */
+  .fleek-dropdown{position:fixed;z-index:400;background:var(--bg2);border:1px solid var(--border);border-radius:5px;box-shadow:0 8px 24px rgba(0,0,0,0.4);padding:3px;max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;min-width:60px;}
+  .light .fleek-dropdown{box-shadow:0 8px 24px rgba(0,0,0,0.12);}
+  .fleek-dropdown-item{padding:4px 10px;border-radius:3px;cursor:pointer;font-size:10px;font-family:inherit;color:var(--text2);white-space:nowrap;line-height:1.5;}
+  .fleek-dropdown-item:hover{background:var(--bg-hover);}
+  .fleek-dropdown-item.selected{color:var(--accent2);font-weight:600;}
+  .fleek-dropdown-item.disabled{color:var(--text4);cursor:default;opacity:0.5;}
+  .fleek-dropdown-item.disabled:hover{background:transparent;}
   /* Help panel */
   #help-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.55);}
   .light #help-overlay{background:rgba(0,0,0,0.3);}
@@ -309,6 +324,16 @@
   .help-key{display:inline-block;padding:1px 5px;border-radius:3px;background:var(--bg3);border:1px solid var(--border);font-size:9px;font-weight:600;color:var(--text2);font-family:inherit;}
   .deg-close{background:none!important;border:none!important;color:var(--text4)!important;font-size:14px;cursor:pointer;padding:0 4px!important;line-height:1;}
   .deg-close:hover{color:#f87171!important;}
+  /* Universal hover for small text/icon buttons without a class-specific rule */
+  #upload-stop-btn:hover{background:rgba(248,113,113,0.12)!important;}
+  #slice-reset-btn:hover{color:var(--text2)!important;}
+  #ct-sec .col-hdr button:hover{color:var(--text)!important;}
+  #annotate-btn:hover{background:rgba(52,211,153,0.15)!important;border-color:rgba(52,211,153,0.5)!important;}
+  #annotate-llm-btn:hover{background:rgba(196,181,253,0.15)!important;border-color:rgba(196,181,253,0.5)!important;}
+  .nbr-close:hover{color:var(--text2)!important;}
+  #deg-mode-sc:hover,#deg-mode-pb:hover{opacity:0.8;}
+  #pb-run-btn:hover{background:rgba(99,102,241,0.35)!important;}
+  #prompt-overlay button:hover{opacity:0.8;}
   /* Save icons */
   .icon-btn{background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text4);line-height:1;font-size:10px;display:inline-flex;align-items:center;}
   .icon-btn:hover{color:var(--text2);}
@@ -419,13 +444,13 @@
       <div id="session-bar" style="display:none;margin-top:4px;align-items:center;gap:4px;font-size:9px;">
         <span style="color:var(--text4);">Session:</span>
         <select id="session-select" onchange="onSessionSelect()" style="flex:1;min-width:0;"></select>
-        <button class="icon-btn" onclick="saveSessionAs()" title="Save session as..." style="color:var(--text4);font-size:10px;padding:1px 3px;">
+        <button class="icon-btn" onclick="saveSessionAs()" title="Save session as...">
           <svg viewBox="0 0 24 24" width="12" height="12" style="fill:currentColor;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
         </button>
-        <button class="icon-btn" id="session-delete-btn" onclick="deleteSession()" title="Delete this session" style="color:var(--text4);font-size:10px;padding:1px 3px;display:none;">
+        <button class="icon-btn" id="session-delete-btn" onclick="deleteSession()" title="Delete this session" style="display:none;">
           <svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
-        <button class="icon-btn" onclick="resetSession()" title="Reset to fresh session" style="color:var(--text4);font-size:10px;padding:1px 3px;">
+        <button class="icon-btn" onclick="resetSession()" title="Reset to fresh session">
           <svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg>
         </button>
       </div>
@@ -599,7 +624,7 @@
     </div>
     <div class="col-body">
       <div id="sel-groups"></div>
-      <button onclick="addSelGroup()" title="Add selection group (or press 1-9)" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;margin:4px 0;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
+      <button onclick="addSelGroup()" title="Add selection group (or press Shift+1-9)" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;margin:4px 0;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
       <div class="sg-toolbar">
         <button onclick="selAllVisible()" title="Select all visible cells into active group (Shift+V)">Sel. Vis.</button>
         <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)" title="Clear visible cells from active group (Esc)">Clear</button>
@@ -629,12 +654,13 @@
       <div id="glist" style="margin-top:6px;"></div>
       <div id="hvg-section" style="display:none;margin-top:8px;">
         <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;flex-wrap:wrap;">
-          <select id="gv-mode" style="color:var(--text2);" onchange="_gvModeChanged(this.value)" title="Global: genes ranked by variability across all cells. By Cell Type: genes ranked by differential expression for a specific cluster.">
-            <option value="global" title="Genes ranked by how much more variable they are than expected for their expression level — highlights genes that differ across all cell types">Global Variability</option>
-            <option value="cluster" title="Genes ranked by differential expression (one-vs-rest) for a specific cell type — highlights marker genes that distinguish one cluster from all others">By Cell Type</option>
+          <span style="font-size:9px;color:var(--text4);">Ranking of gene variability in:</span>
+          <select id="gv-mode" style="color:var(--text2);" onchange="_gvModeChanged(this.value)" title="Cell Type / Cluster: genes ranked by differential expression for a specific cluster. All Cells (Global): genes ranked by variability across all cells.">
+            <option value="cluster" title="Genes ranked by differential expression (one-vs-rest) for a specific cell type — highlights marker genes that distinguish one cluster from all others">Cell Type / Cluster</option>
+            <option value="global" title="Genes ranked by how much more variable they are than expected for their expression level — highlights genes that differ across all cell types">All Cells (Global)</option>
           </select>
         </div>
-        <div id="gv-cluster-row" style="display:none;align-items:center;gap:4px;margin-bottom:3px;">
+        <div id="gv-cluster-row" style="display:flex;align-items:center;gap:4px;margin-bottom:3px;">
           <div id="gv-cluster-dd" class="gv-dd">
             <button class="gv-dd-btn" onclick="_gvDdToggle(this)"><span id="gv-dd-label" style="display:flex;align-items:center;gap:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">Select cluster...</span></button>
             <div class="gv-dd-list" id="gv-dd-list"></div>
@@ -666,9 +692,9 @@
     <div class="col-body" id="slice-body">
       <div id="view-bar" style="display:flex;align-items:center;gap:4px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border);">
         <select id="view-select" onchange="_viewSwitch(parseInt(this.value))" style="flex:1;min-width:0;"></select>
-        <button onclick="_viewAdd()" style="background:none;border:1px dashed var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:9px;font-family:inherit;padding:1px 6px;" title="Create a new view with the current slice configuration">+</button>
-        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;" title="Toggle real-time split-screen comparison of two views">⧉</button>
-        <button id="view-del-btn" onclick="_viewDelete()" style="display:none;background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 3px;" title="Delete this view">×</button>
+        <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split with the current slice configuration" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
+        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border2)';this.style.color=_splitActive?'var(--accent2)':'var(--text4)'">⧉</button>
+        <button id="view-del-btn" onclick="_viewDelete()" style="display:none;background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 3px;transition:color 0.1s;" title="Delete this view split" onmouseenter="this.style.color='#f87171'" onmouseleave="this.style.color='var(--text4)'">×</button>
       </div>
       <div id="slice-footer">
         <span id="slice-cell-count" class="sf-count"></span>
@@ -717,10 +743,12 @@
 <div id="cw">
   <img id="compare-img" style="display:none;position:absolute;top:0;left:0;width:50%;height:100%;object-fit:cover;z-index:2;border-right:2px solid var(--accent);">
   <div id="compare-label" style="display:none;position:absolute;top:8px;left:8px;z-index:3;font-size:10px;color:var(--accent2);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:none;"></div>
-  <div id="view-label" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);cursor:pointer;" onclick="_viewRename()" title="Click to rename this view"></div>
+  <div id="view-label" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);cursor:pointer;" onclick="_viewRename()" title="Click to rename this view split"></div>
   <div id="split-divider"></div>
-  <div id="split-label-L" class="split-view-label" style="left:8px;"><span class="split-view-name"></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
-  <div id="split-label-R" class="split-view-label" style="right:8px;left:auto;"><span class="split-view-name"></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
+  <div id="split-focus-L" class="split-focus-box"></div>
+  <div id="split-focus-R" class="split-focus-box"></div>
+  <div id="split-label-L" class="split-view-label" style="left:8px;"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
+  <div id="split-label-R" class="split-view-label" style="left:calc(50% + 8px);"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:9px;color:var(--text4);margin-left:4px;">FPS</span></div>
@@ -737,6 +765,15 @@
     </div>
     <span id="hud-toggle" onclick="document.getElementById('hud').classList.toggle('open')">&#9662; Info</span>
   </div>
+  <div id="hud-R" class="open" style="display:none;position:absolute;bottom:12px;right:12px;z-index:10;font-size:9px;color:var(--text3);max-width:220px;">
+    <div id="hud-R-body">
+      <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-R-visible">—</span></div>
+      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-R-hidden">—</span></div>
+      <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-R-total">—</span></div>
+      <div class="hud-row" id="hud-R-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-R-group">—</span></div>
+    </div>
+    <span id="hud-R-toggle" onclick="document.getElementById('hud-R').classList.toggle('open')">&#9662; Info</span>
+  </div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="action-flash"></div>
   <div id="no-key-banner">
@@ -752,7 +789,7 @@
     <div class="s-title">Settings</div>
     <div class="s-row">
       <span>Theme</span>
-      <select id="set-theme" onchange="saveSettings()">
+      <select id="set-theme" onchange="saveSettings()" style="min-width:70px;">
         <option value="dark">Dark</option>
         <option value="light">Light</option>
       </select>
@@ -939,6 +976,7 @@
       <a href="#" onclick="event.preventDefault();helpJump('help-sel')">Selection</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-celltypes')">Cell Types</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-slice')">Slice</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-views')">View Splits</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-annot')">Annotation</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-lineage')">Lineage</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-gene')">Gene Expression</a>
@@ -1019,13 +1057,13 @@
           <tr><td>Lasso deselect</td><td><span class="help-key">Shift</span>+<span class="help-key">⌥ Opt</span>+drag</td></tr>
           <tr><td>Single cell</td><td><span class="help-key">Shift</span>+click on UMAP</td></tr>
           <tr><td>Entire cell type</td><td><span class="help-key">Shift</span>+double-click on UMAP, or<br><span class="help-key">Shift</span>+click in Cell Types panel</td></tr>
-          <tr><td>Activate/create group</td><td>Click group row, or <span class="help-key">1</span>–<span class="help-key">9</span> (creates if needed)</td></tr>
-          <tr><td>Toggle visibility</td><td>Click the color dot, or <span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td></tr>
+          <tr><td>Activate/create group</td><td>Click group row, or <span class="help-key">Shift</span>+<span class="help-key">1</span>–<span class="help-key">9</span> (creates if needed)</td></tr>
+          <tr><td>Toggle visibility</td><td>Click the color dot, or <span class="help-key">⌥ Opt</span>+<span class="help-key">Shift</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td></tr>
           <tr><td>Hide/restore all</td><td><span class="help-key">H</span> (press again to restore previously visible)</td></tr>
           <tr><td>Solo group</td><td><span class="help-key">⌥ Opt</span>+click the dot (click again to restore)</td></tr>
           <tr><td>Select all visible cells</td><td><span class="help-key">Shift</span>+<span class="help-key">V</span></td></tr>
           <tr><td>Clear visible cells</td><td><span class="help-key">Esc</span></td></tr>
-          <tr><td>Clear ALL cells</td><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td></tr>
+          <tr><td>Clear ALL cells (all groups)</td><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td></tr>
           <tr><td>Rename</td><td>Double-click the name</td></tr>
           <tr><td>Export subset</td><td>Click the save icon (downloads .h5ad)</td></tr>
         </table>
@@ -1077,6 +1115,29 @@
         <p>Cells that fall outside the current filter are exiled from the visualization — they are not just faded, they are removed entirely. All downstream tools (selection, DEG analysis, cell type visibility) respect the active slice.</p>
         <p><strong>Save slice:</strong> Click the save button to export all cells matching the current filter as an .h5ad file.</p>
         <p>Session auto-save captures the current slice state, so your filter persists across browser sessions.</p>
+      </div>
+    </div>
+
+    <!-- View Splits & Split-Screen -->
+    <div class="help-sec" id="help-views">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">View Splits</span>
+      </div>
+      <div class="help-sec-body">
+        <p><strong>View splits</strong> are named snapshots of your current slice filter and cluster visibility. They let you save and switch between different "angles" on the data — for example, one split filtered to organ=heart, another to organ=liver — without losing state.</p>
+        <p>Create a new view split with the <strong>+</strong> button in the Slice panel, or press <span class="help-key">1</span>–<span class="help-key">9</span> to create/switch to "Split N" by number. You can create as many splits as you want. Switch between them using the sidebar dropdown, or press the number key matching the split name. Each split remembers its slice filter, cluster visibility, and deleted cells.</p>
+        <p><strong>Split-screen (<span style="font-size:13px;">⧉</span>):</strong> When you have two or more view splits, click the split-screen button to show two side by side in real time. Each half renders its own cell population based on its split's slice filter. Selection groups are shared across both halves — lasso in one half, see the highlights in both.</p>
+        <p><strong>Reassigning halves:</strong> The split name in each half's label is a dropdown. Change it to show a different split in that half — if you pick a split already in the other half, they swap.</p>
+        <table class="help-table">
+          <tr><th>Feature</th><th>Details</th></tr>
+          <tr><td>Camera tethering</td><td>By default both cameras are tethered (they move together). Click the chain-link icon to untether a half — it then has its own independent camera. Both halves can be untethered.</td></tr>
+          <tr><td>Focus</td><td>Click a split in the sidebar dropdown or use the number keys to focus a half. The focused half gets a highlight border.</td></tr>
+          <tr><td>Navigation</td><td>Mouse interactions (rotate, zoom, pan, lasso) affect the half the cursor is over. Dragging across the divider stays locked to the original half.</td></tr>
+          <tr><td>Double-click</td><td>Zoom-focus works in each half independently (untethered only).</td></tr>
+          <tr><td>HUD</td><td>Each half has its own cell-count HUD in the bottom corner showing visible/hidden/total for that half's split.</td></tr>
+          <tr><td>Undo</td><td>Entering and exiting split-screen is captured in undo history. All changes within split-screen are undoable.</td></tr>
+        </table>
       </div>
     </div>
 
@@ -1176,10 +1237,10 @@
           <li><strong>Pulse expressing cells</strong> — slowly pulses expressing cells and their glow brighter (towards white in dark mode, deep navy in light mode) to help spot them. The halo also breathes in size with the pulse.</li>
         </ul>
         <p>A hidden cell counter appears in the bottom-left corner of the canvas when any cells are invisible (hidden clusters, slice filter, or non-expressing toggle).</p>
-        <p><strong>Gene Variability</strong> — a ranked list of all genes shown below the search box. A dropdown at the top switches between two modes:</p>
+        <p><strong>Gene Variability</strong> — a ranked list of all genes shown below the search box. The label "Ranking of gene variability in:" precedes a dropdown that switches between two modes:</p>
         <ul style="margin:4px 0 6px 16px;font-size:11px;line-height:1.5;">
-          <li><strong>Global variability</strong> (default) — genes ranked by variability score, measuring how much more (or less) variable each gene is than expected for its expression level. <strong>When a dataset already contains a variability metric</strong> (e.g. <code>dispersions_norm</code> from scanpy), that metric is used directly. <strong>When no pre-computed metric exists</strong>, FLEEK computes its own using the <em>locally standardized trend residual</em> method — see <strong>Methods &amp; Statistics</strong> below for full details. HVG genes appear bold with accent-colored bars.</li>
-          <li><strong>By cell type</strong> — shows per-cluster gene rankings from the shared one-vs-rest DEG analysis (the same computation used by Claude annotation). A dropdown selects the cell type (showing Claude-inferred names when available). A colored dot to the left of the dropdown reflects that cluster's visibility — click it to toggle, Alt+click to solo, Shift+click to select into a group. The column header shows the current sort metric and <strong>clicks to cycle</strong> through: <strong>|Cohen's d|</strong> → <strong>log&#x2082;FC</strong> → <strong>&minus;log&#x2081;&#x2080;(padj)</strong>. Bars are colored by direction: accent for upregulated genes, red for downregulated. Hovering over any gene shows all three metrics in the tooltip. The DEG computation triggers automatically on first use and is cached for the session.</li>
+          <li><strong>Cell Type / Cluster</strong> (default) — shows per-cluster gene rankings from the shared one-vs-rest DEG analysis (the same computation used by Claude annotation). A dropdown selects the cell type (showing Claude-inferred names when available). A colored dot to the left of the dropdown reflects that cluster's visibility — click it to toggle, Alt+click to solo, Shift+click to select into a group. The column header shows the current sort metric and <strong>clicks to cycle</strong> through: <strong>|Cohen's d|</strong> → <strong>log&#x2082;FC</strong> → <strong>&minus;log&#x2081;&#x2080;(padj)</strong>. Bars are colored by direction: accent for upregulated genes, red for downregulated. Hovering over any gene shows all three metrics in the tooltip. The DEG computation triggers automatically on first use and is cached for the session.</li>
+          <li><strong>All Cells (Global)</strong> — genes ranked by variability score, measuring how much more (or less) variable each gene is than expected for its expression level. <strong>When a dataset already contains a variability metric</strong> (e.g. <code>dispersions_norm</code> from scanpy), that metric is used directly. <strong>When no pre-computed metric exists</strong>, FLEEK computes its own using the <em>locally standardized trend residual</em> method — see <strong>Methods &amp; Statistics</strong> below for full details. HVG genes appear bold with accent-colored bars.</li>
         </ul>
         <p><strong>When to use each metric:</strong></p>
         <ul style="margin:4px 0 6px 16px;font-size:11px;line-height:1.5;">
@@ -1312,7 +1373,7 @@
         <p>Click the <strong>gear icon</strong> in the top-right corner to open the Settings popup. Changes take effect immediately and are persisted in the browser.</p>
         <table class="help-table">
           <tr><th>Setting</th><th>Options</th><th>Description</th></tr>
-          <tr><td><strong>Theme</strong></td><td>Dark / Light</td><td>Switches the entire UI and canvas between dark and light themes. Light mode uses a Blues sequential colorscale for gene expression (low expression fades into the white background). Dark mode uses Viridis.</td></tr>
+          <tr><td><strong>Theme</strong></td><td>Dark / Light</td><td>Switches the entire UI and canvas between dark and light themes. Light mode uses a Blues sequential colorscale for gene expression (low expression fades into the white background). Dark mode uses Viridis. Press <span class="help-key">T</span> to toggle.</td></tr>
           <tr><td><strong>Zoom target</strong></td><td>Cursor / Center</td><td>Controls where zoom is anchored. <em>Cursor</em> zooms toward/away from the mouse pointer (like a map). <em>Center</em> zooms toward the screen center (like a microscope).</td></tr>
           <tr><td><strong>UI scale</strong></td><td>75%–150%</td><td>Adjusts the size of all UI elements — sidebar, panels, text, buttons. Useful on high-DPI displays or when using FLEEK on a projector.</td></tr>
           <tr><td><strong>FPS counter</strong></td><td>On / Off</td><td>Shows frames-per-second in the top-right corner of the canvas. Useful for checking rendering performance on large datasets.</td></tr>
@@ -1333,6 +1394,7 @@
         <span class="help-sec-title">Quick Reference</span>
       </div>
       <div class="help-sec-body">
+        <p style="font-size:9px;color:var(--text4);margin-bottom:6px;"><span class="help-key">⌘</span> = Cmd (Mac) / Ctrl (Windows/Linux) &nbsp;&middot;&nbsp; <span class="help-key">⌥</span> = Option (Mac) / Alt (Windows/Linux)</p>
         <table class="help-table">
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Navigation</th></tr>
           <tr><td>Left-drag</td><td>3D rotate / 2D pan</td></tr>
@@ -1358,15 +1420,18 @@
           <tr><td><span class="help-key">Shift</span>+click</td><td>Select branch into group (dot = this only)</td></tr>
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+click</td><td>Select only this node (not descendants)</td></tr>
           <tr><td>Caret (&#9656;/&#9662;)</td><td>Collapse/expand branch (<span class="help-key">⌥</span>+click: recursive)</td></tr>
+          <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">View Splits</th></tr>
+          <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Switch to Split N (creates if needed)</td></tr>
+          <tr><td><span class="help-key">⧉</span> button</td><td>Toggle split-screen (requires 2+ splits)</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Groups</th></tr>
-          <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
-          <tr><td><span class="help-key">⌥</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
+          <tr><td><span class="help-key">Shift</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
+          <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
           <tr><td><span class="help-key">Shift</span>+<span class="help-key">H</span></td><td>Hide/restore all group highlights</td></tr>
           <tr><td><span class="help-key">Shift</span>+<span class="help-key">V</span></td><td>Select all visible cells into active group</td></tr>
           <tr><td><span class="help-key">Delete</span></td><td>Hide individual selected cells in active group</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">Delete</span></td><td>Hide entire clusters containing selected cells</td></tr>
           <tr><td><span class="help-key">Esc</span></td><td>Clear visible cells in active group / close dialogs</td></tr>
-          <tr><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td><td>Clear ALL cells in active group (including hidden)</td></tr>
+          <tr><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td><td>Clear ALL cells in ALL groups</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Lists (vim-style)</th></tr>
           <tr><td><span class="help-key">J</span></td><td>Move down in gene/cell type list</td></tr>
           <tr><td><span class="help-key">K</span></td><td>Move up in gene/cell type list</td></tr>
@@ -1607,13 +1672,39 @@ var raycaster=null, mouseNDC=new THREE.Vector2();
    getBoundingClientRect() per-event — it can disagree with the renderer size
    due to sub-pixel rounding between the canvas and its wrapper. */
 function canvasNDC(clientX, clientY){
-  return {
-    x: ((clientX - _cvRect.left) / _cvRect.width) * 2 - 1,
-    y: -((clientY - _cvRect.top) / _cvRect.height) * 2 + 1
-  };
+  var nx=((clientX - _cvRect.left) / _cvRect.width) * 2 - 1;
+  var ny=-((clientY - _cvRect.top) / _cvRect.height) * 2 + 1;
+  /* In split mode, remap x to viewport-local NDC */
+  if(_splitActive&&_liveViews.length===2){
+    var frac=(clientX-_cvRect.left)/_cvRect.width;
+    if(frac<0.5){nx=frac*4-1;} /* left half: 0..0.5 → -1..+1 */
+    else{nx=(frac-0.5)*4-1;} /* right half: 0.5..1 → -1..+1 */
+  }
+  return {x:nx, y:ny};
 }
 function canvasLocal(clientX, clientY){
   return {x: clientX - _cvRect.left, y: clientY - _cvRect.top};
+}
+function _splitCam(){
+  /* Return the correct camera for raycasting in split mode */
+  if(!_splitActive||_liveViews.length<2)return viewIs3d?cam3d:cam2d;
+  var v=_liveViews[_hoveredViewIdx];
+  if(!v)return viewIs3d?cam3d:cam2d;
+  /* Update the hovered view's camera with correct aspect for its viewport */
+  if(viewIs3d){
+    v.cam3d.aspect=(canvasW*0.5)/canvasH;v.cam3d.updateProjectionMatrix();
+    _update3dCamView(v);
+    return v.cam3d;
+  }else{
+    _update2dCamView(v);
+    return v.cam2d;
+  }
+}
+function _splitPts(){
+  /* Return the correct pts object for raycasting in split mode */
+  if(!_splitActive||_liveViews.length<2)return pts;
+  var v=_liveViews[_hoveredViewIdx];
+  return v?v.pts:pts;
 }
 var hoverTimer=null, tooltipEl=null, crosshairEl=null, crosshairTimer=null;
 var mouseScreenX=0, mouseScreenY=0, mouseOnCanvas=false;
@@ -1646,9 +1737,9 @@ var _maxHist=1000;
 var _navigating=false; /* true when stepping through history */
 
 function snapState(){
-  /* Capture current state including camera position */
+  /* Capture current state including camera position + split state */
+  if(_splitActive)_viewSaveCurrent(); /* ensure active snapshot is fresh */
   var sg=selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:Array.from(g.cells)};});
-  /* Capture slice filter state */
   var sf=null;
   if(sliceFilter){sf={};for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
   return JSON.stringify({
@@ -1662,7 +1753,11 @@ function snapState(){
     selGroups:sg, activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
     groupVisible:JSON.parse(JSON.stringify(groupVisible)),
     sliceFilter:sf,
-    deletedCells:_deletedCells?Array.from(_deletedCells):null
+    deletedCells:_deletedCells?Array.from(_deletedCells):null,
+    splitActive:_splitActive,
+    activeViewId:_activeViewId,
+    splitViewIds:_splitViewIds.length?_splitViewIds.slice():null,
+    views:_views.length>1?JSON.parse(JSON.stringify(_views)):null
   });
 }
 
@@ -1804,10 +1899,32 @@ function applyHistEntry(snap){
   document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
   document.getElementById("expr-controls").style.display=(mode==="gene")?"block":"none";
 
-  /* Single recolor + UI updates at the end */
-  recolor();
+  /* ── Restore split-screen state ── */
+  var wantSplit=!!s.splitActive;
+  /* Restore view snapshots if present */
+  if(s.views){
+    _views=JSON.parse(JSON.stringify(s.views));
+    _viewIdCounter=0;
+    for(var _vi=0;_vi<_views.length;_vi++){if(_views[_vi].id>=_viewIdCounter)_viewIdCounter=_views[_vi].id+1;}
+  }
+  if(s.activeViewId!==undefined)_activeViewId=s.activeViewId;
+  if(s.splitViewIds)_splitViewIds=s.splitViewIds.slice();
+  /* Handle split mode transitions */
+  if(wantSplit&&!_splitActive&&_views.length>=2){
+    /* Tear down is safe even if not active — activate creates GPU + renders */
+    _splitViewActivate();
+  }else if(!wantSplit&&_splitActive){
+    _splitViewDeactivate();
+  }else{
+    /* Same mode — just recolor */
+    recolor();
+  }
+  /* UI updates */
   renderLeg();
   if(selGroups.length>0)renderSelPanel();
+  _syncSlicePills();_updateSliceUI();
+  _viewUpdateUI();
+  if(_splitActive)_splitUpdateLabels();
   _restoring=false;
   _navigating=false;
   updateHistBtn();
@@ -1828,6 +1945,7 @@ function _serializeSel(){
 }
 function saveState(){
   if(_restoring)return;
+  if(_splitActive)_viewSaveCurrent();
   try{
     var s={
       viewIs3d:viewIs3d, embMethod:embMethod, mode:mode, selGene:selGene,
@@ -2069,21 +2187,18 @@ function getActiveGroupIndex(){
 }
 
 function selToggleCell(cellIdx){
+  if(selGroups.length===0)addSelGroup();
+  if(!cellGroupMap)initCellGroupMap();
   var ag=getActiveGroup();
   if(!ag)return;
   var agi=getActiveGroupIndex();
   if(ag.cells.has(cellIdx)){
-    ag.cells.delete(cellIdx);
-    cellGroupMap[cellIdx]=-1;
+    ag.cells.delete(cellIdx);cellGroupMap[cellIdx]=-1;
   }else{
-    /* Remove from any other group first (non-overlapping) */
     for(var i=0;i<selGroups.length;i++){selGroups[i].cells.delete(cellIdx);}
-    ag.cells.add(cellIdx);
-    cellGroupMap[cellIdx]=agi;
+    ag.cells.add(cellIdx);cellGroupMap[cellIdx]=agi;
   }
-  renderSelPanel();
-  recolor();
-  saveState();
+  renderSelPanel();recolor();saveState();
 }
 
 function selToggleCellType(clusterIdx){
@@ -2135,14 +2250,14 @@ function selAllVisible(){
 }
 
 function clearActiveGroup(allCells){
-  var ag=getActiveGroup();
-  if(!ag)return;
   if(allCells){
-    /* Clear ALL cells from active group */
-    ag.cells.forEach(function(ci){cellGroupMap[ci]=-1;});
-    ag.cells.clear();
+    /* Clear ALL cells from ALL groups */
+    for(var gi=0;gi<selGroups.length;gi++)selGroups[gi].cells.clear();
+    if(cellGroupMap)for(var i=0;i<cellGroupMap.length;i++)cellGroupMap[i]=-1;
   }else{
-    /* Clear only VISIBLE cells (not hidden by cluster visibility or slice) */
+    /* Clear only VISIBLE cells from active group */
+    var ag=getActiveGroup();
+    if(!ag)return;
     var toRemove=[];
     ag.cells.forEach(function(ci){
       var hidden=visibleClusters[D.cluster_ids[ci]]===false||(sliceMask&&!sliceMask[ci]);
@@ -2275,36 +2390,50 @@ function lassoSelect(){
   if(!D||!pts||lassoPoints.length<3)return;
   if(selGroups.length===0)addSelGroup();
   if(!cellGroupMap)initCellGroupMap();
-
   var ag=getActiveGroup();
   if(!ag)return;
   var agi=getActiveGroupIndex();
 
-  /* Use cached canvas rect for projection (matches canvasLocal used by lasso points) */
-
-  /* Project every cell to screen coords and test against lasso polygon */
-  var cam=viewIs3d?cam3d:cam2d;
-  if(viewIs3d){update3dCam();}else{update2dCam();}
+  var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
+  if(!_splitActive){if(viewIs3d){update3dCam();}else{update2dCam();}}
   cam.updateMatrixWorld();
 
-  var pos=pts.geometry.attributes.position.array;
+  var _lPts=_splitActive?_splitPts():pts;
+  var pos=_lPts.geometry.attributes.position.array;
   var n=D.header.n_cells;
   var v=new THREE.Vector3();
   var count=0;
 
-  for(var i=0;i<n;i++){
-    /* Skip hidden or slice-excluded cells */
-    if(visibleClusters[D.cluster_ids[i]]===false)continue;
-    if(sliceMask&&!sliceMask[i])continue;
+  var _lw=_cvRect.width,_lxOff=0;
+  if(_splitActive&&_liveViews.length===2){
+    _lw=_cvRect.width/2;
+    if(_hoveredViewIdx===1)_lxOff=_lw;
+  }
 
-    /* Project to screen */
+  /* In split mode, use the hovered view's SNAPSHOT for slice filtering
+     so only cells visible in THAT split get selected */
+  var _selSM=sliceMask,_selVC=visibleClusters;
+  if(_splitActive&&_splitViewIds.length===2){
+    /* Use the hovered half's assigned split snapshot for filtering */
+    var _hovId=_splitViewIds[_hoveredViewIdx];
+    if(_hovId!==_activeViewId){
+      var _hovSnap=_splitViewById(_hovId);
+      if(_hovSnap){
+        _selSM=_buildSliceMask(_hovSnap.sliceFilter);
+        _selVC=_hovSnap.visibleClusters;
+      }
+    }
+  }
+
+  for(var i=0;i<n;i++){
+    if(_selVC[D.cluster_ids[i]]===false)continue;
+    if(_selSM&&!_selSM[i])continue;
     v.set(pos[i*3],pos[i*3+1],pos[i*3+2]);
     v.project(cam);
-    var sx=((v.x+1)/2)*_cvRect.width;
+    if(v.z>1.0||v.z<-1.0)continue;
+    var sx=((v.x+1)/2)*_lw+_lxOff;
     var sy=((-v.y+1)/2)*_cvRect.height;
-
     if(pointInPoly(sx,sy,lassoPoints)){
-      /* Remove from other groups (non-overlapping) */
       for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(i);}
       ag.cells.add(i);
       cellGroupMap[i]=agi;
@@ -2312,9 +2441,7 @@ function lassoSelect(){
     }
   }
 
-  renderSelPanel();
-  recolor();
-  saveState();
+  renderSelPanel();recolor();saveState();
 }
 
 function lassoDeselect(){
@@ -2322,29 +2449,35 @@ function lassoDeselect(){
   var ag=getActiveGroup();
   if(!ag)return;
 
-  var cam=viewIs3d?cam3d:cam2d;
-  if(viewIs3d){update3dCam();}else{update2dCam();}
+  var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
+  if(!_splitActive){if(viewIs3d){update3dCam();}else{update2dCam();}}
   cam.updateMatrixWorld();
 
-  var pos=pts.geometry.attributes.position.array;
+  var _lPts=_splitActive?_splitPts():pts;
+  var pos=_lPts.geometry.attributes.position.array;
   var n=D.header.n_cells;
   var v=new THREE.Vector3();
+
+  var _lw=_cvRect.width,_lxOff=0;
+  if(_splitActive&&_liveViews.length===2){
+    _lw=_cvRect.width/2;
+    if(_hoveredViewIdx===1)_lxOff=_lw;
+  }
 
   for(var i=0;i<n;i++){
     if(!ag.cells.has(i))continue;
     v.set(pos[i*3],pos[i*3+1],pos[i*3+2]);
     v.project(cam);
-    var sx=((v.x+1)/2)*_cvRect.width;
+    if(v.z>1.0||v.z<-1.0)continue;
+    var sx=((v.x+1)/2)*_lw+_lxOff;
     var sy=((-v.y+1)/2)*_cvRect.height;
     if(pointInPoly(sx,sy,lassoPoints)){
       ag.cells.delete(i);
-      cellGroupMap[i]=-1;
+      if(cellGroupMap)cellGroupMap[i]=-1;
     }
   }
 
-  renderSelPanel();
-  recolor();
-  saveState();
+  renderSelPanel();recolor();saveState();
 }
 
 function selGroupColor(idx){return SEL_COLORS[idx%SEL_COLORS.length];}
@@ -2733,9 +2866,10 @@ function buildPts(data){
   geo.setAttribute('aAlpha',new THREE.BufferAttribute(alArr,1));
   circleTexture=makeCircleTexture(document.body.classList.contains("light"));
   /* Auto-scale point size: slider 1-100, actual size computed per-frame in animate().
-     Default position depends on cell count — fewer cells = bigger points. */
-  var autoSlider=7;
-  var autoOpacity=n<50000?0.95:n<200000?0.85:0.75;
+     Default scales with 1/sqrt(n) so points fill space proportionally.
+     Calibrated so n=50k → slider≈42; fewer cells → bigger; more cells → smaller. */
+  var autoSlider=Math.max(8,Math.min(75,Math.round(9400/Math.sqrt(n))));
+  var autoOpacity=1.0;
   basePtSz=autoSlider;
   document.getElementById("pt-size").value=autoSlider;
   document.getElementById("pt-opacity").value=autoOpacity;
@@ -2858,19 +2992,43 @@ function buildPts(data){
 function getBG(){return document.body.classList.contains("light")?[0.96,0.97,0.98]:[0.031,0.031,0.055];}
 var EXILE=99999; // off-screen position for hidden cells
 function _updateHudGroup(){
-  var _hudGR=document.getElementById("hud-group-row");
-  var _hudG=document.getElementById("hud-group");
   var _ag=getActiveGroup();
-  if(!_hudGR||!_hudG)return;
+  var _html="",_show=false;
   if(_ag){
     var _gc=_ag.color;
     var _grgb="rgb("+(_gc[0]*255|0)+","+(_gc[1]*255|0)+","+(_gc[2]*255|0)+")";
-    _hudG.innerHTML='<span style="color:'+_grgb+';">\u25CF<\/span> '+_ag.name+' <span style="color:var(--text4);">'+_ag.cells.size.toLocaleString()+'<\/span>';
-    _hudGR.style.display="flex";
-  }else{_hudGR.style.display="none";}
+    _html='<span style="color:'+_grgb+';">\u25CF<\/span> '+_ag.name+' <span style="color:var(--text4);">'+_ag.cells.size.toLocaleString()+'<\/span>';
+    _show=true;
+  }
+  /* Update both HUDs */
+  var ids=[["hud-group-row","hud-group"],["hud-R-group-row","hud-R-group"]];
+  for(var _hi=0;_hi<ids.length;_hi++){
+    var _gr=document.getElementById(ids[_hi][0]);
+    var _gv=document.getElementById(ids[_hi][1]);
+    if(!_gr||!_gv)continue;
+    if(_show){_gv.innerHTML=_html;_gr.style.display="flex";}
+    else{_gr.style.display="none";}
+  }
 }
 function recolor(){
   if(!D||!pts)return;
+  /* ── Split mode: save active snapshot, then load each view's snapshot
+       into globals before calling _recolorView (which reads globals) ── */
+  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+    _hoverIdx=-1;_hoverPrevColor=null;
+    _viewSaveCurrent(); /* save active's latest state */
+    for(var _svi=0;_svi<2;_svi++){
+      var _svSnap=_splitViewById(_splitViewIds[_svi]);
+      if(_svSnap){_restoreSplitViewState(_svSnap);_recolorView(_svi);}
+    }
+    /* Restore globals to the active split's state */
+    var _activeSnap=_views.find(function(v){return v.id===_activeViewId;});
+    if(_activeSnap)_restoreSplitViewState(_activeSnap);
+    _updateHudGroup();
+    _scheduleVisStats();
+    return;
+  }
+  /* ── Single view mode ── */
   _hoverIdx=-1;_hoverPrevColor=null; /* recolor overwrites buffer, clear hover state */
   var col=pts.geometry.attributes.color.array,n=D.header.n_cells;
   var pos=pts.geometry.attributes.position.array;
@@ -2883,7 +3041,6 @@ function recolor(){
       if(selGroups[gi].cells.size>0){
         hasAnySelection=true;
         if(groupVisible[selGroups[gi].id]!==false){
-          /* Check if at least one cell in this group is actually rendered */
           selGroups[gi].cells.forEach(function(ci){
             if(!hasAnyVisible&&visibleClusters[D.cluster_ids[ci]]!==false&&!(sliceMask&&!sliceMask[ci])){
               hasAnyVisible=true;
@@ -3020,12 +3177,6 @@ function recolor(){
       _rszAttr.needsUpdate=true;
     }
   }
-  /* Also recolor secondary split views */
-  if(_splitActive&&_liveViews.length>1){
-    for(var _rvi=1;_rvi<_liveViews.length;_rvi++){
-      _recolorView(_rvi);
-    }
-  }
 }
 
 /* ── Animation ── */
@@ -3085,28 +3236,24 @@ function animate(){
   }else{update2dCam();}
   /* ── Render: split-screen or single ── */
   if(_splitActive&&_liveViews.length===2){
-    /* Sync live view 0's camera from globals (which mouse input modifies) */
-    _liveViews[0].sph.theta=sph.theta;_liveViews[0].sph.phi=sph.phi;_liveViews[0].sph.radius=sph.radius;
-    _liveViews[0].tgt3.x=tgt3.x;_liveViews[0].tgt3.y=tgt3.y;_liveViews[0].tgt3.z=tgt3.z;
-    _liveViews[0].pan2.x=pan2.x;_liveViews[0].pan2.y=pan2.y;_liveViews[0].zoom2=zoom2;
-    /* Tethered views copy from master */
+    /* Sync globals → tethered views. Untethered views keep their own camera state. */
     for(var _vi=0;_vi<2;_vi++){
-      if(_liveViews[_vi].tethered&&_vi!==_masterViewIdx){
-        _syncViewCamera(_liveViews[_masterViewIdx],_liveViews[_vi]);
+      if(_liveViews[_vi].tethered){
+        _liveViews[_vi].sph.theta=sph.theta;_liveViews[_vi].sph.phi=sph.phi;_liveViews[_vi].sph.radius=sph.radius;
+        _liveViews[_vi].tgt3.x=tgt3.x;_liveViews[_vi].tgt3.y=tgt3.y;_liveViews[_vi].tgt3.z=tgt3.z;
+        _liveViews[_vi].pan2.x=pan2.x;_liveViews[_vi].pan2.y=pan2.y;_liveViews[_vi].zoom2=zoom2;
       }
     }
     var _halfW=Math.floor(canvasW/2);
-    var _dpr=renderer.getPixelRatio();
-    var _pxHalf=Math.floor(_halfW*_dpr);
-    var _pxH=Math.floor(canvasH*_dpr);
+    var _rightW=canvasW-_halfW;
     renderer.setScissorTest(true);
     /* Hide boundary shell during split render — it's shared geometry */
     var _bsVis=boundaryShell?boundaryShell.visible:false;
     if(boundaryShell)boundaryShell.visible=false;
     /* Left half: view 0 */
+    _hideViewPts(1);_showViewPts(0);
     renderer.setViewport(0,0,_halfW,canvasH);
-    renderer.setScissor(0,0,_pxHalf,_pxH);
-    _showViewPts(0);_hideViewPts(1);
+    renderer.setScissor(0,0,_halfW,canvasH);
     if(viewIs3d){
       _liveViews[0].cam3d.aspect=_halfW/canvasH;_liveViews[0].cam3d.updateProjectionMatrix();
       _update3dCamView(_liveViews[0]);
@@ -3116,11 +3263,11 @@ function animate(){
       renderer.render(scene,_liveViews[0].cam2d);
     }
     /* Right half: view 1 */
-    renderer.setViewport(_halfW,0,canvasW-_halfW,canvasH);
-    renderer.setScissor(_pxHalf,0,Math.floor((canvasW-_halfW)*_dpr),_pxH);
-    _showViewPts(1);_hideViewPts(0);
+    _hideViewPts(0);_showViewPts(1);
+    renderer.setViewport(_halfW,0,_rightW,canvasH);
+    renderer.setScissor(_halfW,0,_rightW,canvasH);
     if(viewIs3d){
-      _liveViews[1].cam3d.aspect=(canvasW-_halfW)/canvasH;_liveViews[1].cam3d.updateProjectionMatrix();
+      _liveViews[1].cam3d.aspect=_rightW/canvasH;_liveViews[1].cam3d.updateProjectionMatrix();
       _update3dCamView(_liveViews[1]);
       renderer.render(scene,_liveViews[1].cam3d);
     }else{
@@ -3128,13 +3275,13 @@ function animate(){
       renderer.render(scene,_liveViews[1].cam2d);
     }
     /* Restore: show view 0 pts, hide view 1, reset viewport */
-    _showViewPts(0);_hideViewPts(1);
+    _hideViewPts(1);_showViewPts(0);
     if(boundaryShell)boundaryShell.visible=_bsVis;
     renderer.setScissorTest(false);
     renderer.setViewport(0,0,canvasW,canvasH);
   }else{
     /* Single view (existing behavior) */
-    if(viewIs3d){renderer.render(scene,cam3d);}
+    if(viewIs3d){cam3d.aspect=canvasW/canvasH;cam3d.updateProjectionMatrix();renderer.render(scene,cam3d);}
     else{renderer.render(scene,cam2d);}
   }
   /* Point size: convert basePtSz (1-100 slider) to actual material.size.
@@ -3178,17 +3325,9 @@ function animate(){
   if(hoverFrameSkip>=hoverInterval&&mouseOnCanvas&&!dragging&&!panning&&!dollying&&!lassoActive&&pts&&D&&tooltipEl){
     hoverFrameSkip=0;
     raycaster.params.Points.threshold=pickThreshold();
-    var cam=viewIs3d?cam3d:cam2d;
-    var _hoverNDC=mouseNDC;
-    /* In split mode, convert full-canvas NDC to viewport-local NDC */
-    if(_splitActive&&_liveViews.length===2){
-      var _hv=_liveViews[_hoveredViewIdx];
-      cam=viewIs3d?_hv.cam3d:_hv.cam2d;
-      /* Remap mouseNDC.x from full-canvas [-1,1] to half-viewport [-1,1] */
-      var _localNdcX=_hoveredViewIdx===0?(mouseNDC.x*2+1):(mouseNDC.x*2-1);
-      _hoverNDC=new THREE.Vector2(_localNdcX,mouseNDC.y);
-    }
-    raycaster.setFromCamera(_hoverNDC,cam);
+    var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
+    if(!_splitActive){if(viewIs3d){update3dCam();}else{update2dCam();}}
+    raycaster.setFromCamera(mouseNDC,cam);
     /* Debug ray visualization */
     if(_dbgShowRay){
       if(!_dbgRayLine){
@@ -3208,11 +3347,18 @@ function animate(){
       _dbgRayLine.geometry.attributes.position.needsUpdate=true;
       _dbgRayLine.visible=true;
     }else if(_dbgRayLine){_dbgRayLine.visible=false;}
-    var hits=raycaster.intersectObject(pts);
-    /* Hover highlight — brighten hovered cell */
-    var _col=pts.geometry.attributes.color.array;
+    var _hPts=_splitActive?_splitPts():pts;
+    /* 2D: pure pixel-space picking. 3D: raycaster + _bestVisibleHit */
     var _newHover=-1;
-    if(hits.length>0){var _bh=_bestVisibleHit(hits);if(_bh)_newHover=_bh.index;}
+    if(!viewIs3d){
+      var _p2d=_pick2DScreen(mouseNDC,_hPts);
+      if(_p2d)_newHover=_p2d.index;
+    }else{
+      var hits=raycaster.intersectObject(_hPts);
+      if(hits.length>0){var _bh=_bestVisibleHit(hits);if(_bh)_newHover=_bh.index;}
+    }
+    /* Hover highlight — brighten hovered cell */
+    var _col=_hPts.geometry.attributes.color.array;
     if(_newHover!==_hoverIdx){
       if(_hoverIdx>=0&&_hoverPrevColor){
         _col[_hoverIdx*3]=_hoverPrevColor[0];_col[_hoverIdx*3+1]=_hoverPrevColor[1];_col[_hoverIdx*3+2]=_hoverPrevColor[2];
@@ -3228,12 +3374,10 @@ function animate(){
       _hoverIdx=_newHover;
       pts.geometry.attributes.color.needsUpdate=true;
     }
-    if(hits.length>0){
-      var bestHit=_bestVisibleHit(hits);
-      var idx=bestHit?bestHit.index:-1;
-      var cid=idx>=0?D.cluster_ids[idx]:-1;
-      if(idx<0){tooltipEl.style.display="none";}
-      else{
+    if(_newHover>=0){
+      var idx=_newHover;
+      var cid=D.cluster_ids[idx];
+      {
         var name=D.header.cluster_names[cid]||"Unknown";
         var c=cc(cid);
         var dotHtml='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:rgb('+(c[0]*255|0)+','+(c[1]*255|0)+','+(c[2]*255|0)+');margin-right:4px;vertical-align:middle;"></span>';
@@ -3278,19 +3422,13 @@ function animate(){
           var _dSzMul=parseFloat(document.getElementById("dbg-marker-sz").value)||0.6;
           _dbgMarker.scale.setScalar(_dWs*_dAs*_dSzMul);
           _dbgMarker.visible=true;
-          var _dD2r=bestHit.distanceToRay!==undefined?bestHit.distanceToRay.toFixed(4):"n/a";
-          var _dR=_dWs*Math.max(_dAs,0.3)*(viewIs3d?0.5:0.25);
           var _di=document.getElementById("dbg-info");
-          if(_di)_di.textContent="idx:"+idx+" cid:"+cid+"\naSize:"+_dAs.toFixed(3)+" d2r:"+_dD2r+"\nworldSz:"+_dWs.toFixed(4)+" hitR:"+_dR.toFixed(4)+"\ncamDist:"+bestHit.distance.toFixed(3)+"\nhits:"+hits.length+" thresh:"+raycaster.params.Points.threshold.toFixed(4)+"\nray: "+raycaster.ray.origin.x.toFixed(2)+","+raycaster.ray.origin.y.toFixed(2)+","+raycaster.ray.origin.z.toFixed(2)+" → "+raycaster.ray.direction.x.toFixed(3)+","+raycaster.ray.direction.y.toFixed(3)+","+raycaster.ray.direction.z.toFixed(3)+"\nview:"+(viewIs3d?"3D":"2D")+" zoom2:"+zoom2.toFixed(2);
+          if(_di)_di.textContent="idx:"+idx+" cid:"+cid+"\naSize:"+_dAs.toFixed(3)+"\nworldSz:"+_dWs.toFixed(4)+"\nview:"+(viewIs3d?"3D":"2D")+" zoom2:"+zoom2.toFixed(2);
         }
       }
     }else{
       tooltipEl.style.display="none";
       if(_dbgRaycast&&_dbgMarker)_dbgMarker.visible=false;
-      if(_dbgRaycast||_dbgShowRay){
-        var _di=document.getElementById("dbg-info");
-        if(_di)_di.textContent="NO HITS\nthresh:"+raycaster.params.Points.threshold.toFixed(4)+"\nray: "+raycaster.ray.origin.x.toFixed(2)+","+raycaster.ray.origin.y.toFixed(2)+","+raycaster.ray.origin.z.toFixed(2)+" → "+raycaster.ray.direction.x.toFixed(3)+","+raycaster.ray.direction.y.toFixed(3)+","+raycaster.ray.direction.z.toFixed(3)+"\nview:"+(viewIs3d?"3D":"2D")+" zoom2:"+zoom2.toFixed(2);
-      }
     }
   }
 
@@ -3302,6 +3440,14 @@ function animate(){
 function setupCtrl(){
   var cv=document.getElementById("c");
   crosshairEl=document.getElementById("crosshair");
+  function _posCrosshair(){
+    /* In split mode, center crosshair in the hovered half; otherwise canvas center */
+    if(_splitActive&&_liveViews.length===2){
+      crosshairEl.style.left=_hoveredViewIdx===0?"25%":"75%";
+    }else{
+      crosshairEl.style.left="50%";
+    }
+  }
   cv.addEventListener("contextmenu",function(e){e.preventDefault();});
   cv.addEventListener("auxclick",function(e){e.preventDefault();}); /* prevent middle-click paste */
 
@@ -3394,15 +3540,18 @@ function setupCtrl(){
     if(!selClickNDC)return;
     var ndc=selClickNDC;
     selClickNDC=null;
-    raycaster.params.Points.threshold=pickThreshold();
-    var cam=viewIs3d?cam3d:cam2d;
-    if(viewIs3d){update3dCam();}else{update2dCam();}
-    raycaster.setFromCamera(ndc,cam);
-    var hits=raycaster.intersectObject(pts);
-    if(hits.length===0)return;
-
-    /* Find closest visible hit to ray (not camera) */
-    var bestHit=_bestVisibleHit(hits);
+    var _rPts=_splitActive?_splitPts():pts;
+    var bestHit;
+    if(!viewIs3d){
+      bestHit=_pick2DScreen(ndc,_rPts);
+    }else{
+      raycaster.params.Points.threshold=pickThreshold();
+      var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
+      if(!_splitActive){update3dCam();}
+      raycaster.setFromCamera(ndc,cam);
+      var hits=raycaster.intersectObject(_rPts);
+      bestHit=hits.length>0?_bestVisibleHit(hits):null;
+    }
     if(!bestHit)return;
     var idx=bestHit.index;
     var cid=D.cluster_ids[idx];
@@ -3433,7 +3582,7 @@ function setupCtrl(){
     var _cSph=sph,_cTgt3=tgt3,_cPan2=pan2,_cZoom2Ref=null;
     if(_splitActive&&_liveViews.length===2){
       var _tgtView=_liveViews[_hoveredViewIdx];
-      if(!_tgtView.tethered&&_hoveredViewIdx!==0){
+      if(!_tgtView.tethered){
         _cSph=_tgtView.sph;_cTgt3=_tgtView.tgt3;_cPan2=_tgtView.pan2;_cZoom2Ref=_tgtView;
       }
     }
@@ -3453,7 +3602,7 @@ function setupCtrl(){
         _cTgt3.x+=fwd.x*_cSph.radius*efactor;_cTgt3.y+=fwd.y*_cSph.radius*efactor;_cTgt3.z+=fwd.z*_cSph.radius*efactor;
       }
       else if(panning){var ps=_cSph.radius*.001;var up=new THREE.Vector3(0,1,0);var cd=new THREE.Vector3().subVectors(cam3d.position,tgt3).normalize();var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();_cTgt3.x+=rt.x*(-dx*ps)+cu.x*(dy*ps);_cTgt3.y+=rt.y*(-dx*ps)+cu.y*(dy*ps);_cTgt3.z+=rt.z*(-dx*ps)+cu.z*(dy*ps);}
-    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;var s=(frustum2*2)/(_zRef*canvasW);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);crosshairEl.classList.add("show");}}}
+    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;var s=(frustum2*2)/(_zRef*canvasW);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");}}}
   });
   var pivotTimer=null;
   window.addEventListener("mouseup",function(){
@@ -3474,7 +3623,7 @@ function setupCtrl(){
     var _wSph=sph,_wTgt3=tgt3,_wPan2=pan2,_wZoom2Ref=null;
     if(_splitActive&&_liveViews.length===2){
       var _wv=_liveViews[_hoveredViewIdx];
-      if(!_wv.tethered&&_hoveredViewIdx!==0){
+      if(!_wv.tethered){
         _wSph=_wv.sph;_wTgt3=_wv.tgt3;_wPan2=_wv.pan2;_wZoom2Ref=_wv;
       }
     }
@@ -3511,7 +3660,7 @@ function setupCtrl(){
   cv.addEventListener("touchmove",function(e){e.preventDefault();
     if(e.touches.length===1&&dragging){var dx=e.touches[0].clientX-prev.x,dy=e.touches[0].clientY-prev.y;
       if(viewIs3d){sph.theta-=dx*.005;sph.phi-=dy*.005;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
-      else{var s=(frustum2*2)/(zoom2*canvasW);pan2.x-=dx*s;pan2.y+=dy*s;if(!viewIs3d){clearTimeout(crosshairTimer);crosshairEl.classList.add("show");}}
+      else{var s=(frustum2*2)/(zoom2*canvasW);pan2.x-=dx*s;pan2.y+=dy*s;if(!viewIs3d){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");}}
       prev={x:e.touches[0].clientX,y:e.touches[0].clientY};
     }else if(e.touches.length===2){var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
       if(ltd>0){if(viewIs3d){var nr=sph.radius*(ltd/d);if(nr>sph.radius&&nr-sph.radius<0.3)nr=sph.radius+0.3;sph.radius=Math.max(0.5,Math.min(5000,nr));}else zoom2=Math.max(zoom2Min(),Math.min(500,zoom2*(d/ltd)));}ltd=d;}
@@ -3540,7 +3689,7 @@ function setupCtrl(){
       fromZoom:zoom2,toZoom:z,
       mode:"2d"
     };
-    clearTimeout(crosshairTimer);crosshairEl.classList.add("show");
+    clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");
     crosshairTimer=setTimeout(function(){crosshairEl.classList.remove("show");},dur+400);
   }
   /* Double-click zoom-focus: center on a cell and zoom to it.
@@ -3555,17 +3704,38 @@ function setupCtrl(){
     if(!pts||!D)return;
     var _ndc=canvasNDC(e.clientX, e.clientY);
     var ndc=new THREE.Vector2(_ndc.x, _ndc.y);
-    raycaster.params.Points.threshold=pickThreshold();
-    var cam=viewIs3d?cam3d:cam2d;
-    if(viewIs3d){update3dCam();}else{update2dCam();}
-    raycaster.setFromCamera(ndc,cam);
-    var hits=raycaster.intersectObject(pts);
-    if(hits.length===0)return;
-    var bestHit=_bestVisibleHit(hits);
+    var _rPts=_splitActive?_splitPts():pts;
+    var bestHit;
+    if(!viewIs3d){
+      bestHit=_pick2DScreen(ndc,_rPts);
+    }else{
+      raycaster.params.Points.threshold=pickThreshold();
+      var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
+      if(!_splitActive){update3dCam();}
+      raycaster.setFromCamera(ndc,cam);
+      var hits=raycaster.intersectObject(_rPts);
+      bestHit=hits.length>0?_bestVisibleHit(hits):null;
+    }
     if(!bestHit)return;
+    var _rPts2=_splitActive?_splitPts():pts;
     var pos=new THREE.Vector3();
-    pos.fromBufferAttribute(pts.geometry.attributes.position,bestHit.index);
+    pos.fromBufferAttribute(_rPts2.geometry.attributes.position,bestHit.index);
     if(pos.x>=EXILE-1)return;
+    /* For untethered split views, directly set that view's camera */
+    if(_splitActive&&_liveViews.length>_hoveredViewIdx&&!_liveViews[_hoveredViewIdx].tethered){
+      var _uv=_liveViews[_hoveredViewIdx];
+      if(viewIs3d){
+        var rDef=cloudBounds.radius*0.35;
+        var dist=Math.sqrt(Math.pow(pos.x-_uv.tgt3.x,2)+Math.pow(pos.y-_uv.tgt3.y,2)+Math.pow(pos.z-_uv.tgt3.z,2));
+        _uv.tgt3.x=pos.x;_uv.tgt3.y=pos.y;_uv.tgt3.z=pos.z;
+        _uv.sph.radius=(_uv.sph.radius<rDef&&dist<rDef)?_uv.sph.radius:rDef;
+      }else{
+        var zDef=zoom2Min()*8;
+        _uv.pan2.x=pos.x;_uv.pan2.y=pos.y;
+        _uv.zoom2=(_uv.zoom2>zDef)?_uv.zoom2:zDef;
+      }
+      return;
+    }
     _flyAnim=null;
     if(viewIs3d){
       var rDef=cloudBounds.radius*0.35;
@@ -3616,10 +3786,14 @@ function setupCtrl(){
     mouseScreenX=e.clientX;
     mouseScreenY=e.clientY;
     mouseOnCanvas=true;
-    /* Track which split-view half the mouse is over */
+    /* Track which split-view half the mouse is over — lock during drag */
     if(_splitActive&&_liveViews.length===2){
-      var localX=e.clientX-_cvRect.left;
-      _hoveredViewIdx=localX<_cvRect.width*0.5?0:1;
+      if(!dragging&&!panning&&!dollying&&!lassoActive){
+        var localX=e.clientX-_cvRect.left;
+        var _prevHov=_hoveredViewIdx;
+        _hoveredViewIdx=localX<_cvRect.width*0.5?0:1;
+        if(_prevHov!==_hoveredViewIdx)_splitUpdateLabels();
+      }
     }else{_hoveredViewIdx=0;}
   });
 
@@ -3671,22 +3845,35 @@ function setupCtrl(){
     /* Skip letter/number shortcuts when typing in inputs */
     var inInput=document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA";
     /* Option+Number: toggle group visibility (use e.code because macOS remaps opt+digit) */
-    if(e.altKey&&!e.metaKey&&!e.ctrlKey&&e.code>="Digit1"&&e.code<="Digit9"&&!inInput){
+    /* Alt+Shift+1-9: toggle group visibility */
+    if(e.altKey&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&e.code>="Digit1"&&e.code<="Digit9"&&!inInput){
       e.preventDefault();
       var idx=parseInt(e.code.charAt(5))-1;
       if(idx<selGroups.length){
         toggleGroupVis(selGroups[idx].id);
-        _flashAction("Toggle Group "+(idx+1),_ALT+"+"+(idx+1));
+        _flashAction("Toggle Group "+(idx+1),_ALT+"+Shift+"+(idx+1));
       }
       return;
     }
-    /* Number keys 1-9: create group if needed, then activate */
-    if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.key>="1"&&e.key<="9"&&!inInput){
-      var idx=parseInt(e.key)-1;
+    /* Shift+1-9: create/activate selection group */
+    if(e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.code>="Digit1"&&e.code<="Digit9"&&!inInput){
+      var idx=parseInt(e.code.charAt(5))-1;
       while(idx>=selGroups.length)addSelGroup();
       setActiveGroup(selGroups[idx].id);
       _updateHudGroup();
-      _flashAction("Group "+(idx+1),(idx+1)+"");
+      _flashAction("Group "+(idx+1),"Shift+"+(idx+1));
+      return;
+    }
+    /* Bare 1-9: switch to or create split N */
+    if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&!e.shiftKey&&e.key>="1"&&e.key<="9"&&!inInput){
+      var _sn=parseInt(e.key);
+      /* Find split named "Split N" or create it */
+      var _sv=_views.find(function(v){return v.name==="Split "+_sn;});
+      if(!_sv){_viewAdd();_views[_views.length-1].name="Split "+_sn;_sv=_views[_views.length-1];}
+      _viewSwitch(_sv.id);
+      var sel=document.getElementById("view-select");if(sel)sel.value=_sv.id;
+      _viewUpdateUI();
+      _flashAction(_sv.name,_sn+"");
     }
     if(inInput)return; /* remaining shortcuts only outside inputs */
     /* c = cluster color mode */
@@ -4005,7 +4192,7 @@ function searchGenes(){
 
 function showRecentGenes(){
   if(recentGenes.length===0){
-    document.getElementById("glist").innerHTML='<div style="font-size:9px;color:var(--text4);padding:4px 0;">Search for a gene above</div>';
+    document.getElementById("glist").innerHTML='';
   }else{
     renderGeneList(recentGenes);
   }
@@ -4177,7 +4364,7 @@ var _allGeneVarMap={}; /* gene->var lookup */
 var _geneVarMetric="dispersions_norm"; /* metric name from server */
 
 /* ── Cluster gene ranking mode ── */
-var _gvMode="global"; /* "global" or "cluster" */
+var _gvMode="cluster"; /* "cluster" or "global" */
 var _gvClusterId=0; /* selected cluster index */
 var _gvSortMetric="cohens_d"; /* "cohens_d","log2fc","padj" */
 var _clusterGeneCache={}; /* cluster_id -> {genes,log2fc,padj,cohens_d,...} */
@@ -4194,6 +4381,7 @@ function renderHVGChips(){
 
   /* In cluster mode, use cluster rendering path */
   if(_gvMode==="cluster"){
+    _gvPopulateClusterDropdown();
     var listHasContent=document.getElementById("gv-spacer");
     if(listHasContent){_updateGeneVarHighlight();}
     else if(_clusterGeneData){_renderClusterGeneList(listEl);}
@@ -4531,6 +4719,7 @@ function _gvPopulateClusterDropdown(){
 }
 function _gvModeChanged(mode){
   _gvMode=mode;
+  _gvLastStart=-1;_gvLastEnd=-1; /* reset virtual scroll cache so rows re-render */
   var row=document.getElementById("gv-cluster-row");
   if(mode==="cluster"){
     _gvPopulateClusterDropdown();
@@ -4538,10 +4727,15 @@ function _gvModeChanged(mode){
     _gvClusterChanged(_gvClusterId);
   }else{
     if(row)row.style.display="none";
-    /* Switch back to global variability */
+    /* Switch to global variability */
     var listEl=document.getElementById("hvg-list");
-    if(listEl&&_allGeneVar){
-      _renderGeneVarList(listEl);
+    if(listEl){
+      if(_allGeneVar){
+        _renderGeneVarList(listEl);
+      }else{
+        listEl.innerHTML='<div style="padding:8px;font-size:9px;color:var(--text4);">Loading gene variability...</div>';
+        _fetchAllGeneVar();
+      }
     }
   }
 }
@@ -5216,7 +5410,7 @@ function runAnnotationLLM(){
 var lineageTree=null; /* tree object from server */
 var lineageView=false; /* true when tree view is active */
 var _lineageCollapsed={}; /* node path -> collapsed state */
-var _linIconTree='<svg viewBox="0 0 12 12" width="12" height="12" style="width:12px;height:12px;min-width:12px;vertical-align:-2px;fill:currentColor;margin-right:2px;flex-shrink:0;"><circle cx="6" cy="1.8" r="1.6"/><circle cx="2.5" cy="10.2" r="1.6"/><circle cx="9.5" cy="10.2" r="1.6"/><line x1="6" y1="3.4" x2="6" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="2.5" y1="6" x2="2.5" y2="8.6" stroke="currentColor" stroke-width="1.3"/><line x1="9.5" y1="6" x2="9.5" y2="8.6" stroke="currentColor" stroke-width="1.3"/><\/svg>';
+var _linIconTree='<svg viewBox="93 46 789 857" width="12" height="12" style="width:12px;height:12px;min-width:12px;vertical-align:-2px;fill:currentColor;margin-right:2px;flex-shrink:0;"><path d="m212.4 901.4c-29.1-3.5-56.4-16.4-78.1-36.9-1.8-1.7-5.7-5.9-8.6-9.4-17.6-20.7-28.3-45.5-31.5-72.5-4.6-39.5 8.9-79.3 37-109 9.1-9.7 24.6-20.8 37.9-27.3l8.2-4v-84.9c0-91.8-.1-89.4 3.6-99.2 2.6-6.8 6.1-12.2 11.7-17.8 5.6-5.6 11-9.1 17.8-11.7 9.9-3.7 5.6-3.6 120.3-3.6h105.9v-59.5-59.5l-7.7-3.6c-16.8-7.9-32.3-19.8-44.4-34-24.4-28.7-35.8-66-31.5-102.8 1.8-15.7 5.8-29.5 12.6-43.5 13.5-27.9 34.9-49.3 62.8-62.8 37.2-18 80.1-18 117.3 0 27.9 13.5 49.3 34.9 62.8 62.8 6.8 14 10.8 27.8 12.6 43.5 5.2 44.8-12.9 89.8-48 119.1-6.7 5.6-19 13.5-26.5 17l-6.4 3-.03 60.2-.03 60.2h105.9c114.7 0 110.4-.1 120.3 3.6 6.8 2.6 12.2 6.1 17.8 11.7 5.6 5.6 9.1 11 11.7 17.8 3.7 9.8 3.6 7.4 3.6 99.5v85.2l7.5 3.7c36.1 17.7 62.1 50.6 71.6 90.4 7 29.5 3.5 61.3-10 89.1-13.5 27.9-34.9 49.3-62.8 62.8-37.2 18-80.1 18-117.3 0-27.9-13.5-49.3-34.9-62.8-62.8-18-37.2-18-80.1 0-117.3 13.4-27.6 34.9-49.2 62.2-62.5l8.2-4v-56.9-56.9H487.5 279.8v57.2 57.2l7.5 3.7c36.1 17.7 62.1 50.6 71.6 90.4 11.7 49.2-6 101.7-45.4 134.5-11.2 9.4-29 19.3-42.4 23.7-19.7 6.5-40.1 8.6-59.4 6.3z"/><\/svg>';
 var _linIconFlat='<svg viewBox="0 0 12 12" width="12" height="12" style="width:12px;height:12px;min-width:12px;vertical-align:-2px;fill:currentColor;margin-right:2px;flex-shrink:0;"><line x1="2" y1="2.5" x2="10" y2="2.5" stroke="currentColor" stroke-width="1.3"/><line x1="2" y1="6" x2="10" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="2" y1="9.5" x2="10" y2="9.5" stroke="currentColor" stroke-width="1.3"/><\/svg>';
 
 function _setLinBtn(btn,mode){
@@ -5732,7 +5926,13 @@ function _scheduleVisStats(){
 function _computeVisStats(){
   if(!D||!pts)return;
   var n=D.header.n_cells,nc=D.header.n_clusters;
-  var posArr=pts.geometry.attributes.position.array;
+  /* In split mode, use the ACTIVE split's geometry for stats (not always view 0) */
+  var _statPts=pts;
+  if(_splitActive&&_liveViews.length===2){
+    var _sHalf=_splitViewIds.indexOf(_activeViewId);
+    if(_sHalf>=0&&_sHalf<_liveViews.length)_statPts=_liveViews[_sHalf].pts;
+  }
+  var posArr=_statPts.geometry.attributes.position.array;
   /* Cluster visible counts — use position buffer: EXILE = hidden */
   var cvs=new Int32Array(nc);
   for(var i=0;i<n;i++){
@@ -5837,59 +6037,76 @@ function showL(m){var e=document.getElementById("loading");e.textContent=m;e.sty
 function hideL(){document.getElementById("loading").style.display="none";}
 
 /* Pick threshold: convert ~5 screen pixels to world units */
+/* ── 2D pixel-space point picking (bypasses raycaster entirely) ── */
+function _pick2DScreen(ndc,targetPts){
+  /* Pure pixel-space 2D picking. Projects every non-exiled point to CSS pixel
+     coordinates, computes its visual disk radius, returns front-most hit.
+     Returns {index,object} or null. */
+  if(!D||!targetPts)return null;
+  var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
+  cam.updateMatrixWorld();
+  var posArr=targetPts.geometry.attributes.position.array;
+  var szArr=targetPts.geometry.attributes.aSize?targetPts.geometry.attributes.aSize.array:null;
+  var n=D.header.n_cells;
+  var baseWSz=0;
+  if(cloudBounds&&cloudBounds.radius>0)baseWSz=basePtSz/100*cloudBounds.radius*0.018;
+  /* animate() sets material.size = worldSz * canvasH*zoom2/(2*frustum2) * 0.5
+     gl_PointSize = uSize * aSize (in framebuffer pixels, NOT CSS pixels)
+     Visual CSS-pixel radius = gl_PointSize / 2 / DPR */
+  var dpr=Math.min(window.devicePixelRatio||1,2);
+  var pxDiamBase=baseWSz*(canvasH*zoom2/(2*frustum2))*0.5; /* material.size (fb pixels) */
+  /* Mouse in CSS pixels relative to canvas */
+  var mPx=(ndc.x+1)*0.5*canvasW;
+  var mPy=(1-ndc.y)*0.5*canvasH;
+  var _pv=new THREE.Vector3();
+  var bestIdx=-1;
+  for(var i=0;i<n;i++){
+    if(posArr[i*3]>=EXILE-1)continue;
+    _pv.set(posArr[i*3],posArr[i*3+1],posArr[i*3+2]);
+    _pv.project(cam);
+    var px=(_pv.x+1)*0.5*canvasW;
+    var py=(1-_pv.y)*0.5*canvasH;
+    var dx=px-mPx,dy=py-mPy;
+    var d2=dx*dx+dy*dy;
+    var as=szArr?szArr[i]:1.0;
+    /* CSS pixel radius = (material.size * aSize) / 2 / dpr */
+    var r=pxDiamBase*as*0.5/dpr;
+    /* Last (highest index) overlapping point wins — matches GPU draw order */
+    if(r>0&&d2<=r*r)bestIdx=i;
+  }
+  if(bestIdx<0)return null;
+  return {index:bestIdx,object:targetPts};
+}
+
 function pickThreshold(){
-  /* Threshold in world units — must cover the full visual disk of the largest point */
+  /* Threshold in world units for 3D raycaster. Not used in 2D (pixel picking instead). */
   if(!cloudBounds||cloudBounds.radius<=0)return 0.5;
   var maxWorldSz=cloudBounds.radius*0.018;
   var worldSz=basePtSz/100*maxWorldSz;
   var maxASize=showExprSize?1.8:1.0;
-  var r=worldSz*maxASize*(viewIs3d?0.5:0.25);
-  return Math.max(0.01, r*2.0);
+  return Math.max(0.01, worldSz*maxASize);
 }
 
-/* Find the best visible hit — simulates pixel-perfect 2D picking.
-   Projects each candidate to screen, computes its screen-space disk radius.
-   If cursor is inside a disk: front-most cell (nearest camera) wins.
-   If cursor isn't inside any disk: nearest screen center as fallback. */
+/* Find the best visible hit from raycaster candidates.
+   Uses distanceToRay for 3D (works perfectly with perspective).
+   Not used for 2D — _pick2DScreen handles that. */
 function _bestVisibleHit(hits){
-  var posArr=pts.geometry.attributes.position.array;
-  var szArr=pts.geometry.attributes.aSize?pts.geometry.attributes.aSize.array:null;
-  var cam=viewIs3d?cam3d:cam2d;
+  var _bPts=_splitActive?_splitPts():pts;
+  var posArr=_bPts.geometry.attributes.position.array;
+  var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
   var _projV=new THREE.Vector3();
-  var baseWorldSz=0;
-  if(cloudBounds&&cloudBounds.radius>0)baseWorldSz=basePtSz/100*cloudBounds.radius*0.018;
-  var frontHit=null,frontZ=Infinity; /* best "cursor inside disk" hit */
-  var nearHit=null,nearDist=Infinity; /* fallback nearest-center hit */
+  var bestHit=null,bestDist=Infinity;
   for(var i=0;i<hits.length;i++){
     var ci=hits[i].index;
     if(visibleClusters[D.cluster_ids[ci]]===false)continue;
     if(posArr[ci*3]>=EXILE-1)continue;
     _projV.set(posArr[ci*3],posArr[ci*3+1],posArr[ci*3+2]);
     _projV.project(cam);
-    var dx=_projV.x-mouseNDC.x;
-    var dy=_projV.y-mouseNDC.y;
-    var scrDist=dx*dx+dy*dy;
-    /* Estimate NDC radius of this point's visible disk */
-    var as=szArr?szArr[ci]:1.0;
-    var ndcR=0;
-    if(baseWorldSz>0&&as>0){
-      var wR=baseWorldSz*as*0.5;
-      if(viewIs3d){
-        var cd=hits[i].distance||1;
-        ndcR=wR/cd*canvasH/canvasW;
-      }else{
-        ndcR=wR*zoom2/frustum2*0.5;
-      }
-    }
-    var inside=ndcR>0&&scrDist<=ndcR*ndcR;
-    if(inside){
-      /* Among cells covering the cursor, front-most wins */
-      var z=_projV.z;
-      if(z<frontZ){frontZ=z;frontHit=hits[i];}
-    }
-    if(scrDist<nearDist){nearDist=scrDist;nearHit=hits[i];}
+    if(_projV.z>1.0||_projV.z<-1.0)continue;
+    var dr=hits[i].distanceToRay!==undefined?hits[i].distanceToRay:hits[i].distance;
+    if(dr<bestDist){bestDist=dr;bestHit=hits[i];}
   }
-  return frontHit||nearHit;
+  return bestHit;
 }
 
 var _pendingFile=null;
@@ -6608,7 +6825,7 @@ function unloadDataset(){
     /* Clear client state */
     D=null;mode="cluster";selGene="";geneExprCache={};
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
-    _clusterGeneCache={};_clusterGenesFetching=false;_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="global";
+    _clusterGeneCache={};_clusterGenesFetching=false;_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="cluster";
     _gvFilteredIdx=null;_clusterFilteredIdx=null;
     var _modeDD=document.getElementById("gv-mode");if(_modeDD)_modeDD.value="global";
     var _clRow=document.getElementById("gv-cluster-row");if(_clRow)_clRow.style.display="none";
@@ -7035,24 +7252,20 @@ var _liveViews=[]; /* Array of view state objects — see _createLiveView */
 var _masterViewIdx=0; /* index of the "master" camera view */
 var _hoveredViewIdx=0; /* which half the mouse is over (0=left, 1=right) */
 var _splitActive=false; /* true when showing 2 views side by side */
+var _splitViewIds=[]; /* [leftViewId, rightViewId] — which _views entries are in each half */
 
 function _createLiveView(idx,name){
-  /* Build a live-view object. idx 0 reuses the global pts/ringPts/haloPts;
-     idx>=1 creates clones that share position data but have their own color/size/alpha. */
+  /* Build a live-view object with GPU resources + camera only.
+     All state (sliceMask, visibleClusters, selections, etc.) lives in _views[] snapshots and globals. */
   if(idx===0){
     return {
-      id:idx,name:name||"View 1",
+      id:idx,name:name||"Split 1",
       pts:pts,ringPts:ringPts,haloPts:haloPts,
       cam3d:cam3d,cam2d:cam2d,
       sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
       tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
       pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2,
       tethered:false,
-      sliceMask:sliceMask,
-      visibleClusters:JSON.parse(JSON.stringify(visibleClusters)),
-      selGroups:selGroups,activeGroupId:activeGroupId,
-      selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),
-      _deletedCells:_deletedCells,
       _hoverIdx:-1,_hoverPrevColor:null,
       _dirty:true
     };
@@ -7121,18 +7334,13 @@ function _createLiveView(idx,name){
   var vc2=new THREE.OrthographicCamera(-frustum2*a,frustum2*a,frustum2,-frustum2,0.1,1000);
   vc2.position.z=100;
   return {
-    id:idx,name:name||("View "+(idx+1)),
+    id:idx,name:name||("Split "+(idx+1)),
     pts:vPts,ringPts:vRing,haloPts:vHalo,
     cam3d:vc3,cam2d:vc2,
     sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
     tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
     pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2,
     tethered:true,
-    sliceMask:sliceMask,
-    visibleClusters:JSON.parse(JSON.stringify(visibleClusters)),
-    selGroups:selGroups,activeGroupId:activeGroupId,
-    selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),
-    _deletedCells:_deletedCells,
     _hoverIdx:-1,_hoverPrevColor:null,
     _dirty:true
   };
@@ -7147,9 +7355,17 @@ function _disposeLiveView(v){
 function _showViewPts(vIdx){
   var v=_liveViews[vIdx];if(!v)return;
   v.pts.visible=true;
-  /* Restore ring/halo visibility from last recolor state */
-  if(v.ringPts)v.ringPts.visible=!!v._ringVisible;
-  if(v.haloPts)v.haloPts.visible=!!v._haloVisible;
+  /* Ring: visible if global selection groups have visible cells */
+  if(v.ringPts){
+    var _hasRing=false;
+    if(highlightMode==="ring"&&cellGroupMap){
+      for(var _gi=0;_gi<selGroups.length&&!_hasRing;_gi++){
+        if(selGroups[_gi].cells.size>0&&groupVisible[selGroups[_gi].id]!==false)_hasRing=true;
+      }
+    }
+    v.ringPts.visible=_hasRing;
+  }
+  if(v.haloPts)v.haloPts.visible=!!(showGlow&&mode==="gene"&&selGene&&geneExprCache[selGene]);
 }
 function _hideViewPts(vIdx){
   var v=_liveViews[vIdx];if(!v)return;
@@ -7178,20 +7394,25 @@ function _syncViewCamera(src,dst){
 }
 
 function _recolorView(vIdx){
+  /* Reads ALL state from globals (sliceMask, visibleClusters, _deletedCells,
+     selGroups, cellGroupMap, groupVisible). Writes to _liveViews[vIdx].pts geometry.
+     Caller is responsible for loading the correct snapshot into globals before calling. */
   if(!D)return;
   var v=_liveViews[vIdx];if(!v||!v.pts)return;
   var vPts=v.pts,vRing=v.ringPts;
   var col=vPts.geometry.attributes.color.array,n=D.header.n_cells;
   var pos=vPts.geometry.attributes.position.array;
   var BG=getBG();
-  var vSliceMask=v.sliceMask;
-  var vVisibleClusters=v.visibleClusters;
-  var vDeletedCells=v._deletedCells;
-  var vSelGroups=v.selGroups;
-  var vGroupVisible=v.groupVisible;
+  /* Read from globals */
+  var vSliceMask=sliceMask;
+  var vVisibleClusters=visibleClusters;
+  var vDeletedCells=_deletedCells;
+  var vSelGroups=selGroups;
+  var vGroupVisible=groupVisible;
+  var vCellGroupMap=cellGroupMap;
   var hasAnyVisible=false,hasAnySelection=false;
   var useRing=highlightMode==="ring";
-  if(cellGroupMap){
+  if(vCellGroupMap){
     for(var gi=0;gi<vSelGroups.length&&!hasAnyVisible;gi++){
       if(vSelGroups[gi].cells.size>0){
         hasAnySelection=true;
@@ -7206,9 +7427,10 @@ function _recolorView(vIdx){
     }
   }
   var isLight=document.body.classList.contains("light");
-  /* Use global dim state for simplicity; each view inherits from the active view context */
-  var dimFactor=1-bgDimPct/100;
-  var dimBias=bgDimPct/100;
+  /* Per-view dimming: only dim if THIS view has visible selections */
+  var _vDim=hasAnyVisible?(mode==="gene"?(isLight?45:33):(isLight?90:75)):0;
+  var dimFactor=1-_vDim/100;
+  var dimBias=_vDim/100;
   var ringPos=vRing?vRing.geometry.attributes.position.array:null;
   var ringCol=vRing?vRing.geometry.attributes.color.array:null;
   var showRingLayer=useRing&&hasAnyVisible;
@@ -7236,7 +7458,7 @@ function _recolorView(vIdx){
       continue;
     }
     pos[i*3]=D._cachedPos[i*3];pos[i*3+1]=D._cachedPos[i*3+1];pos[i*3+2]=D._cachedPos[i*3+2];
-    var sg=cellGroupMap?cellGroupMap[i]:-1;
+    var sg=vCellGroupMap?vCellGroupMap[i]:-1;
     var inGroup=sg>=0&&sg<vSelGroups.length&&vGroupVisible[vSelGroups[sg].id]!==false;
     var c;
     if(useGene){
@@ -7298,11 +7520,26 @@ function _recolorView(vIdx){
     }
   }
   v._dirty=false;
+  /* Update per-view HUD: left view uses main HUD, right view uses hud-R */
+  var _hPre=vIdx===0?"hud":"hud-R";
+  var _hV=document.getElementById(_hPre+(vIdx===0?"-visible":"-visible"));
+  var _hH=document.getElementById(_hPre+(vIdx===0?"-hidden":"-hidden"));
+  var _hT=document.getElementById(_hPre+(vIdx===0?"-total":"-total"));
+  if(_hV)_hV.textContent=(n-_nHidden).toLocaleString();
+  if(_hH)_hH.textContent=_nHidden>0?_nHidden.toLocaleString():"0";
+  if(_hT)_hT.textContent=n.toLocaleString();
+  /* Recompute bounding spheres so frustum culling doesn't hide geometry */
+  vPts.geometry.computeBoundingSphere();
+  if(vRing)vRing.geometry.computeBoundingSphere();
+  if(v.haloPts&&v.haloPts.geometry)v.haloPts.geometry.computeBoundingSphere();
 }
 
+function _splitViewById(id){return _views.find(function(v){return v.id===id;});}
+
 function _splitViewActivate(){
-  /* Activate dual-view split screen */
-  if(_splitActive||!D||!pts)return;
+  /* Activate dual-view split screen.
+     Live views hold ONLY GPU resources + cameras. All state lives in _views[] snapshots and globals. */
+  if(_splitActive||!D||!pts||_views.length<2){console.warn("_splitViewActivate bail");return;}
   /* Exit old compare mode if active */
   var cw=document.getElementById("cw");
   if(cw.classList.contains("comparing")){
@@ -7313,67 +7550,51 @@ function _splitViewActivate(){
     if(lbl)lbl.style.display="none";
     _comparePinned=null;
   }
-  /* Save current view state */
+  /* Save current view state to its snapshot */
   _viewSaveCurrent();
-  /* Get names from the two snapshot views if available */
-  var av=_views.find(function(v){return v.id===_activeViewId;});
-  var otherView=_views.find(function(v){return v.id!==_activeViewId;});
-  var nameL=av?av.name:"View 1";
-  var nameR=otherView?otherView.name:"View 2";
-  /* Create the two live views — view 0 reuses globals, view 1 is a clone */
-  var lv0=_createLiveView(0,nameL);
-  var lv1=_createLiveView(1,nameR);
-  /* If there's a second snapshot view, apply its state to view 1 */
-  if(otherView){
-    lv1.visibleClusters=JSON.parse(JSON.stringify(otherView.visibleClusters));
-    lv1._deletedCells=otherView.deletedCells?new Set(otherView.deletedCells):null;
-    /* Rebuild sliceMask for the other view */
-    if(D&&otherView.sliceFilter){
-      var cats=D.header.obs_categories||{};
-      var cols=Object.keys(cats);
-      var hasFilter=false;
-      for(var ci=0;ci<cols.length;ci++){
-        if(otherView.sliceFilter[cols[ci]]&&otherView.sliceFilter[cols[ci]].length<cats[cols[ci]].categories.length){hasFilter=true;break;}
-      }
-      if(hasFilter){
-        var n=D.header.n_cells;var sm=new Uint8Array(n);
-        for(var i=0;i<n;i++){
-          var ok=1;
-          for(var ci=0;ci<cols.length;ci++){
-            var c=cols[ci];var code=D.obs_codes[c]?D.obs_codes[c][i]:-1;
-            if(code<0)continue;
-            var sf=otherView.sliceFilter[c];
-            if(sf){var sfs=new Set(sf);if(!sfs.has(code)){ok=0;break;}}
-          }
-          sm[i]=ok;
-        }
-        lv1.sliceMask=sm;
-      }else{lv1.sliceMask=null;}
-    }
-  }
+  /* Pick which two splits go into the halves: active + first other */
+  var _aIdx=_views.findIndex(function(v){return v.id===_activeViewId;});
+  var _oIdx=_aIdx===0?1:0;
+  /* Active always goes left, other goes right */
+  _splitViewIds=[_views[_aIdx].id,_views[_oIdx].id];
+  var viewL=_splitViewById(_splitViewIds[0]);
+  var viewR=_splitViewById(_splitViewIds[1]);
+  var lv0=_createLiveView(0,viewL.name);
+  var lv1=_createLiveView(1,viewR.name);
   _liveViews=[lv0,lv1];
   _masterViewIdx=0;
   _splitActive=true;
-  /* Recolor both views */
-  _recolorView(0);
-  _recolorView(1);
+  /* Show right HUD */
+  var _hudR=document.getElementById("hud-R");if(_hudR)_hudR.style.display="";
+  /* Restore globals to the ACTIVE split's state so sidebar matches */
+  _restoreSplitViewState(viewL);
+  /* Recolor both views (recolor() handles save/load of each snapshot) */
+  recolor();
   /* Update UI */
   cw.classList.add("split-active");
   _splitUpdateLabels();
+  _syncSlicePills();_updateSliceUI();
+  renderLeg();
+  _viewUpdateUI();
   requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
 }
 
 function _splitViewDeactivate(){
   if(!_splitActive)return;
+  /* Save active view's state to snapshot (globals are already the active split's state) */
+  _viewSaveCurrent();
   _splitActive=false;
+  _splitViewIds=[];
+  /* Hide right HUD */
+  var _hudR=document.getElementById("hud-R");if(_hudR)_hudR.style.display="none";
   /* Dispose secondary view's GPU resources */
   if(_liveViews.length>1)_disposeLiveView(_liveViews[1]);
   _liveViews=[];
   /* Remove split class */
   var cw=document.getElementById("cw");
   cw.classList.remove("split-active");
-  /* Restore global state from whatever snapshot view was active */
   recolor();
+  _syncSlicePills();_updateSliceUI();
   requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
 }
 
@@ -7386,16 +7607,58 @@ function _splitUpdateLabels(){
     return;
   }
   var v0=_liveViews[0],v1=_liveViews[1];
-  lblL.querySelector(".split-view-name").textContent=v0.name;
-  lblR.querySelector(".split-view-name").textContent=v1.name;
+  /* Populate dropdown menus with all available splits */
+  var selL=lblL.querySelector(".split-view-select");
+  var selR=lblR.querySelector(".split-view-select");
+  if(selL&&selR){
+    [selL,selR].forEach(function(sel,half){
+      var curId=_splitViewIds[half];
+      sel.innerHTML="";
+      for(var i=0;i<_views.length;i++){
+        var opt=document.createElement("option");
+        opt.value=_views[i].id;
+        opt.textContent=_views[i].name;
+        if(_views[i].id===curId)opt.selected=true;
+        sel.appendChild(opt);
+      }
+    });
+  }
   var tb0=lblL.querySelector(".tether-btn");
   var tb1=lblR.querySelector(".tether-btn");
-  tb0.textContent=v0.tethered?"\uD83D\uDD17":"\u26D3\uFE0F";
+  var _chainSvg='<svg viewBox="0 0 24 24" width="14" height="14" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M13.54 10.46C11.84 8.75 9.07 8.75 7.37 10.46L4.28 13.54C2.57 15.25 2.57 18.02 4.28 19.72C5.98 21.43 8.75 21.43 10.46 19.72L12 18.18"/><path d="M10.46 13.54C12.16 15.25 14.93 15.25 16.63 13.54L19.72 10.46C21.43 8.75 21.43 5.98 19.72 4.28C18.02 2.57 15.25 2.57 13.54 4.28L12 5.82"/><\/svg>';
+  var _chainBrokenSvg='<svg viewBox="0 0 512 512" width="14" height="14" style="fill:currentColor;vertical-align:-2px;"><path d="M212.3 390.2l-60.3 60.3c-25 25-65.5 25-90.5 0-25-25-25-65.5 0-90.5l120.7-120.7c25-25 65.5-25 90.5 0 8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2-41.7-41.7-109.2-41.7-150.8 0L31.3 329.9c-41.7 41.7-41.7 109.2 0 150.8 41.6 41.7 109.2 41.7 150.9 0l60.3-60.3c8.3-8.3 8.3-21.8 0-30.2s-21.8-8.3-30.2 0z"/><path d="M480.8 182.1c41.7-41.7 41.7-109.2 0-150.8-41.7-41.7-109.2-41.7-150.8 0l-72.4 72.4c-8.3 8.3-8.3 21.8 0 30.2s21.8 8.3 30.2 0l72.4-72.4c25-25 65.5-25 90.5 0s25 65.5 0 90.5L317.9 284.6c-25 25-65.5 25-90.5 0-8.3-8.3-21.8-8.3-30.2 0s-8.3 21.8 0 30.2c41.7 41.7 109.2 41.7 150.8 0L480.8 182.1z"/><path d="M399.1 368.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64c8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2l-64-64z"/><path d="M112.9 143.1c8.3 8.3 21.8 8.3 30.2 0s8.3-21.8 0-30.2L79.1 48.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64z"/><path d="M490.7 320h-64c-11.8 0-21.3 9.6-21.3 21.3s9.6 21.3 21.3 21.3h64c11.8 0 21.3-9.6 21.3-21.3S502.5 320 490.7 320z"/><path d="M170.7 106.7c11.8 0 21.3-9.6 21.3-21.3v-64C192 9.6 182.5 0 170.7 0s-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3z"/><path d="M21.3 192h64c11.8 0 21.3-9.6 21.3-21.3 0-11.8-9.6-21.3-21.3-21.3h-64C9.6 149.3 0 158.9 0 170.7 0 182.4 9.6 192 21.3 192z"/><path d="M341.3 405.3c-11.8 0-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3s21.3-9.6 21.3-21.3v-64c0-11.8-9.5-21.3-21.3-21.3z"/><\/svg>';
+  tb0.innerHTML=v0.tethered?_chainSvg:_chainBrokenSvg;
   tb0.className="tether-btn"+(v0.tethered?" tethered":"");
-  tb0.title=v0.tethered?"Camera tethered to master — click to untether":"Camera independent — click to tether";
-  tb1.textContent=v1.tethered?"\uD83D\uDD17":"\u26D3\uFE0F";
+  tb0.title=v0.tethered?"Camera tethered — click to untether":"Camera independent — click to tether";
+  tb1.innerHTML=v1.tethered?_chainSvg:_chainBrokenSvg;
   tb1.className="tether-btn"+(v1.tethered?" tethered":"");
-  tb1.title=v1.tethered?"Camera tethered to master — click to untether":"Camera independent — click to tether";
+  tb1.title=v1.tethered?"Camera tethered — click to untether":"Camera independent — click to tether";
+  lblL.style.display="";lblR.style.display=""; /* let CSS .split-active rule control display:flex */
+  /* Highlight the half containing the ACTIVE split */
+  var _focusHalf=_splitViewIds.indexOf(_activeViewId);
+  var fL=document.getElementById("split-focus-L");
+  var fR=document.getElementById("split-focus-R");
+  if(fL)fL.classList.toggle("active",_focusHalf===0);
+  if(fR)fR.classList.toggle("active",_focusHalf===1);
+}
+
+function _splitReassign(half,newId){
+  /* Reassign which split is shown in the given half (0=left, 1=right) */
+  if(!_splitActive||half<0||half>1)return;
+  var otherhalf=1-half;
+  /* If the other half already shows this split, swap them */
+  if(_splitViewIds[otherhalf]===newId){
+    _splitViewIds[otherhalf]=_splitViewIds[half];
+  }
+  _splitViewIds[half]=newId;
+  /* Update live view names */
+  var vL=_splitViewById(_splitViewIds[0]);
+  var vR=_splitViewById(_splitViewIds[1]);
+  if(vL)_liveViews[0].name=vL.name;
+  if(vR)_liveViews[1].name=vR.name;
+  /* Recolor both halves with the new assignments */
+  recolor();
+  _splitUpdateLabels();
 }
 
 function _toggleTether(vIdx){
@@ -7413,17 +7676,26 @@ function _viewInit(){
   /* Tear down any active split view */
   if(_splitActive){_splitViewDeactivate();}
   for(var _dvi=1;_dvi<_liveViews.length;_dvi++){_disposeLiveView(_liveViews[_dvi]);}
-  _liveViews=[];_splitActive=false;
+  _liveViews=[];_splitActive=false;_splitViewIds=[];
   var cw=document.getElementById("cw");if(cw)cw.classList.remove("split-active");
-  /* Create the default View 1 */
+  /* Create the default Split 1 */
   _views=[];_viewIdCounter=0;_activeViewId=0;
   _viewAdd(true);
+}
+function _nextSplitName(){
+  /* Find lowest unused "Split N" name */
+  var used={};
+  for(var i=0;i<_views.length;i++){
+    var m=_views[i].name.match(/^Split (\d+)$/);
+    if(m)used[parseInt(m[1])]=true;
+  }
+  for(var n=1;;n++){if(!used[n])return "Split "+n;}
 }
 function _viewAdd(isDefault){
   /* Save current view first */
   if(!isDefault)_viewSaveCurrent();
   var id=_viewIdCounter++;
-  var name=isDefault?"View 1":"View "+(id+1);
+  var name=isDefault?"Split 1":_nextSplitName();
   /* Snapshot current state as the new view */
   var sf={};
   if(sliceFilter){for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
@@ -7435,7 +7707,7 @@ function _viewAdd(isDefault){
     selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible))});
   _activeViewId=id;
   _viewUpdateUI();
-  _flashAction(name,"New View");
+  _flashAction(name,"New Split");
 }
 function _viewSaveCurrent(){
   /* Save current state back to the active view */
@@ -7451,52 +7723,110 @@ function _viewSaveCurrent(){
   v.selGroupIdCounter=selGroupIdCounter;
   v.groupVisible=JSON.parse(JSON.stringify(groupVisible));
 }
-function _viewSwitch(id){
-  if(id===_activeViewId)return;
-  /* Deactivate split if active */
-  if(_splitActive)_splitViewDeactivate();
-  /* Save current view state */
-  _viewSaveCurrent();
-  _activeViewId=id;
-  var v=_views.find(function(v){return v.id===id;});
-  if(!v)return;
-  /* Restore slice filter */
-  if(D){
-    var cats=D.header.obs_categories||{};
-    sliceFilter={};
-    for(var col in v.sliceFilter)sliceFilter[col]=new Set(v.sliceFilter[col]);
-    /* Rebuild sliceMask */
-    var cols=Object.keys(cats);
-    var hasFilter=false;
-    for(var ci=0;ci<cols.length;ci++){
-      if(sliceFilter[cols[ci]]&&sliceFilter[cols[ci]].size<cats[cols[ci]].categories.length){hasFilter=true;break;}
-    }
-    if(!hasFilter){sliceMask=null;}
-    else{
-      var n=D.header.n_cells;sliceMask=new Uint8Array(n);
-      for(var i=0;i<n;i++){
-        var ok=1;
-        for(var ci=0;ci<cols.length;ci++){
-          var c=cols[ci];var code=D.obs_codes[c]?D.obs_codes[c][i]:-1;
-          if(code<0)continue;if(!sliceFilter[c].has(code)){ok=0;break;}
-        }
-        sliceMask[i]=ok;
-      }
-    }
+function _serializeSliceFilter(){
+  /* Convert global sliceFilter (col→Set) to a plain object (col→Array) for storage */
+  var sf={};if(sliceFilter){for(var c in sliceFilter)sf[c]=Array.from(sliceFilter[c]);}return sf;
+}
+function _rebuildSliceMaskFrom(sfObj){
+  /* Rebuild global sliceMask from a serialized sliceFilter object (col→Array) */
+  if(!D)return;
+  sliceFilter={};
+  for(var col in sfObj)sliceFilter[col]=new Set(sfObj[col]);
+  var cats=D.header.obs_categories||{};
+  var cols=Object.keys(cats);
+  var hasFilter=false;
+  for(var ci=0;ci<cols.length;ci++){
+    if(sliceFilter[cols[ci]]&&sliceFilter[cols[ci]].size<cats[cols[ci]].categories.length){hasFilter=true;break;}
   }
-  /* Restore visibility */
+  if(!hasFilter){sliceMask=null;return;}
+  var n=D.header.n_cells;sliceMask=new Uint8Array(n);
+  for(var i=0;i<n;i++){
+    var ok=1;
+    for(var ci=0;ci<cols.length;ci++){
+      var c=cols[ci];var code=D.obs_codes[c]?D.obs_codes[c][i]:-1;
+      if(code<0)continue;if(!sliceFilter[c].has(code)){ok=0;break;}
+    }
+    sliceMask[i]=ok;
+  }
+}
+function _buildSliceMask(sfObj){
+  /* Build a NEW Uint8Array slice mask from a serialized sliceFilter object (col→Array)
+     without modifying global sliceFilter or sliceMask. Returns null if no filter active. */
+  if(!D||!sfObj)return null;
+  var cats=D.header.obs_categories||{};
+  var cols=Object.keys(cats);
+  var tempFilter={};
+  for(var c in sfObj)tempFilter[c]=new Set(sfObj[c]);
+  var hasFilter=false;
+  for(var ci=0;ci<cols.length;ci++){
+    if(tempFilter[cols[ci]]&&tempFilter[cols[ci]].size<cats[cols[ci]].categories.length){hasFilter=true;break;}
+  }
+  if(!hasFilter)return null;
+  var n=D.header.n_cells;
+  var mask=new Uint8Array(n);
+  for(var i=0;i<n;i++){
+    var ok=1;
+    for(var ci=0;ci<cols.length;ci++){
+      var c=cols[ci];var code=D.obs_codes[c]?D.obs_codes[c][i]:-1;
+      if(code<0)continue;if(tempFilter[c]&&!tempFilter[c].has(code)){ok=0;break;}
+    }
+    mask[i]=ok;
+  }
+  return mask;
+}
+function _restoreViewState(v){
+  /* Load a snapshot view's FULL state into globals (slice, visibility, selections, deleted cells) */
+  if(!v)return;
+  _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
   for(var k in v.visibleClusters)visibleClusters[k]=v.visibleClusters[k];
-  /* Restore selection groups */
   selGroups=v.selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:new Set(g.cells)};});
   activeGroupId=v.activeGroupId;
   selGroupIdCounter=v.selGroupIdCounter;
   groupVisible={};
   for(var k in v.groupVisible)groupVisible[k]=v.groupVisible[k];
   rebuildCellGroupMap();
-  /* Restore deleted cells */
   _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
   _preShowAllVis=null;_preDeletedCells=null;
+}
+function _restoreSplitViewState(v){
+  /* Load only slice + visibility into globals — NOT selections (shared across splits) */
+  if(!v)return;
+  _rebuildSliceMaskFrom(v.sliceFilter||{});
+  visibleClusters={};
+  for(var k in v.visibleClusters)visibleClusters[k]=v.visibleClusters[k];
+  _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
+  _preShowAllVis=null;_preDeletedCells=null;
+}
+function _viewSwitch(id){
+  if(id===_activeViewId)return;
+  if(_splitActive){
+    /* Save current active's state to its snapshot */
+    _viewSaveCurrent();
+    _activeViewId=id;
+    /* Update hover index if this view is in one of the split halves */
+    var _sIdx=_splitViewIds.indexOf(id);
+    if(_sIdx>=0)_hoveredViewIdx=_sIdx;
+    /* Load new split's slice/visibility into globals (not selections) */
+    var _sv=_views.find(function(v){return v.id===id;});
+    if(_sv)_restoreSplitViewState(_sv);
+    /* Invalidate stale vis stats (from old view) so pills use solid color until fresh stats arrive */
+    _visStats=null;
+    _scheduleVisStats();
+    /* Refresh sidebar UI only — no recolor needed */
+    _syncSlicePills();_updateSliceUI();
+    renderLeg();renderSelPanel();
+    if(lineageView)_renderLineageTree();
+    _splitUpdateLabels();
+    _viewUpdateUI();
+    _updateHudGroup();
+    return;
+  }
+  _viewSaveCurrent();
+  _activeViewId=id;
+  var v=_views.find(function(v){return v.id===id;});
+  if(!v)return;
+  _restoreViewState(v);
   /* Refresh everything */
   _syncSlicePills();_updateSliceUI();
   renderLeg();renderSelPanel();recolor();
@@ -7507,14 +7837,23 @@ function _viewSwitch(id){
 }
 function _viewDelete(){
   if(_views.length<=1)return;
+  /* Deactivate split screen first if active (can't split with <2 views) */
+  if(_splitActive)_splitViewDeactivate();
+  _viewSaveCurrent();
   _views=_views.filter(function(v){return v.id!==_activeViewId;});
   _activeViewId=_views[0].id;
-  _viewSwitch(_activeViewId);
+  _restoreViewState(_views[0]);
+  _syncSlicePills();_updateSliceUI();
+  renderLeg();renderSelPanel();recolor();
+  if(lineageView)_renderLineageTree();
+  _viewUpdateUI();
+  _updateHudGroup();
+  syncCanvasSize();
 }
 function _viewRename(){
   var v=_views.find(function(v){return v.id===_activeViewId;});
   if(!v)return;
-  var name=prompt("Rename view:",v.name);
+  var name=prompt("Rename split:",v.name);
   if(name&&name.trim()){v.name=name.trim();_viewUpdateUI();}
 }
 function _viewUpdateUI(){
@@ -7533,6 +7872,8 @@ function _viewUpdateUI(){
     sel.appendChild(opt);
   }
   if(delBtn)delBtn.style.display=_views.length>1?"inline-block":"none";
+  var addBtn=document.getElementById("view-add-btn");
+  if(addBtn)addBtn.style.display="flex";
   if(cmpBtn){
     cmpBtn.style.display=_views.length>1?"inline-block":"none";
     cmpBtn.style.background=_splitActive?"rgba(99,102,241,0.2)":"none";
@@ -7566,16 +7907,12 @@ function _viewUpdateUI(){
   }
 }
 function _viewCompare(){
-  if(_views.length<2||!renderer)return;
+  if(_views.length<2||!renderer){console.warn("_viewCompare bail: views="+_views.length+" renderer="+(!!renderer));return;}
   if(_splitActive){
-    /* Toggle off split screen */
-    _splitViewDeactivate();
-    _viewUpdateUI();
+    try{_splitViewDeactivate();_viewUpdateUI();}catch(e){console.error("_splitViewDeactivate error:",e);}
     return;
   }
-  /* Activate real dual-view split screen */
-  _splitViewActivate();
-  _viewUpdateUI();
+  try{_splitViewActivate();_viewUpdateUI();}catch(e){console.error("_splitViewActivate error:",e);}
 }
 var vDragging=false, vPrev={x:0,y:0};
 var _volcanoPts=[]; /* cached rendered points [{x,y,g}] rebuilt each renderVolcano() */
@@ -7973,24 +8310,30 @@ function _syncSlicePills(onlyCol){
     var isLight=document.body.classList.contains("light");
     var onColor=isLight?"rgba(5,150,105,0.25)":"rgba(52,211,153,0.25)";
     var offColor=isLight?"rgba(5,150,105,0.05)":"rgba(255,255,255,0.02)";
-    if(isActive&&st>0){
-      var fp=sv===0?0:sv>=st?100:Math.max(5,Math.min(95,pct));
-      if(fp===100){
-        pills[i].style.background=onColor;
-      }else if(fp===0){
-        pills[i].style.background=offColor;
+    if(isActive){
+      if(st>0){
+        var fp=sv===0?0:sv>=st?100:Math.max(5,Math.min(95,pct));
+        if(fp===100){
+          pills[i].style.background=onColor;
+        }else if(fp===0){
+          pills[i].style.background=offColor;
+        }else{
+          pills[i].style.background="linear-gradient(135deg,"+onColor+" "+fp+"%,"+offColor+" "+fp+"%)";
+        }
+        if(sv<st)pills[i].title=sv.toLocaleString()+" / "+st.toLocaleString()+" visible ("+pct+"%) \u00b7 "+_MOD+"+"+_ALT+"+click: show all";
+        else pills[i].title=st.toLocaleString()+" cells (100% visible)";
       }else{
-        pills[i].style.background="linear-gradient(135deg,"+onColor+" "+fp+"%,"+offColor+" "+fp+"%)";
+        /* No stats yet — show consistent solid "on" color */
+        pills[i].style.background=onColor;
+        pills[i].title="(no cell stats)";
       }
       pills[i].classList.remove("partial");
       pills[i].style.removeProperty("--pill-partial-bg");
-      if(sv<st)pills[i].title=sv.toLocaleString()+" / "+st.toLocaleString()+" visible ("+pct+"%) \u00b7 "+_MOD+"+"+_ALT+"+click: show all";
-      else pills[i].title=st.toLocaleString()+" cells (100% visible)";
     }else{
       pills[i].classList.remove("partial");
       pills[i].style.removeProperty("--pill-partial-bg");
       pills[i].style.background="";
-      pills[i].title=isActive?"(no cells)":"(excluded)";
+      pills[i].title="(excluded)";
     }
   }
 }
@@ -9276,8 +9619,11 @@ function toggleSettings(e){
   el.style.display=el.style.display==="block"?"none":"block";
 }
 function applyTheme(t){
-  if(t==="light")document.body.classList.add("light");
+  var resolved=t;
+  if(resolved==="light")document.body.classList.add("light");
   else document.body.classList.remove("light");
+  var csm=document.getElementById("color-scheme-meta");
+  if(csm)csm.setAttribute("content",resolved==="light"?"light":"dark");
   /* Update Three.js canvas clear color */
   if(renderer){
     var style=getComputedStyle(document.body);
@@ -9622,6 +9968,85 @@ function setupCustomScrollbars(){
   });
 }
 
+/* ── Custom dropdown system: intercepts native <select> popups ── */
+var _fleekDD=null; /* current open dropdown div, or null */
+function _fleekDDClose(){
+  if(_fleekDD){_fleekDD.remove();_fleekDD=null;}
+  document.removeEventListener("mousedown",_fleekDDOutside,true);
+  document.removeEventListener("keydown",_fleekDDKey,true);
+}
+function _fleekDDOutside(e){
+  if(_fleekDD&&!_fleekDD.contains(e.target))_fleekDDClose();
+}
+function _fleekDDKey(e){
+  if(!_fleekDD)return;
+  if(e.key==="Escape"){_fleekDDClose();e.stopPropagation();e.preventDefault();return;}
+  /* Arrow key navigation */
+  var items=_fleekDD.querySelectorAll(".fleek-dropdown-item:not(.disabled)");
+  if(!items.length)return;
+  var cur=-1;
+  for(var i=0;i<items.length;i++){if(items[i].classList.contains("focused")){cur=i;break;}}
+  if(e.key==="ArrowDown"){e.preventDefault();if(cur<items.length-1){if(cur>=0)items[cur].classList.remove("focused");items[cur+1].classList.add("focused");items[cur+1].scrollIntoView({block:"nearest"});}}
+  else if(e.key==="ArrowUp"){e.preventDefault();if(cur>0){items[cur].classList.remove("focused");items[cur-1].classList.add("focused");items[cur-1].scrollIntoView({block:"nearest"});}}
+  else if(e.key==="Enter"&&cur>=0){e.preventDefault();items[cur].click();}
+}
+function _fleekDDOpen(sel){
+  _fleekDDClose();
+  var rect=sel.getBoundingClientRect();
+  var dd=document.createElement("div");
+  dd.className="fleek-dropdown";
+  var opts=sel.options;
+  for(var i=0;i<opts.length;i++){
+    var item=document.createElement("div");
+    item.className="fleek-dropdown-item";
+    item.textContent=opts[i].textContent;
+    item.setAttribute("data-value",opts[i].value);
+    if(opts[i].selected)item.classList.add("selected");
+    if(opts[i].disabled)item.classList.add("disabled");
+    (function(idx,val){
+      item.addEventListener("click",function(){
+        if(this.classList.contains("disabled"))return;
+        sel.value=val;
+        sel.dispatchEvent(new Event("change",{bubbles:true}));
+        _fleekDDClose();
+      });
+    })(i,opts[i].value);
+    dd.appendChild(item);
+  }
+  document.body.appendChild(dd);
+  _fleekDD=dd;
+  /* Position: below select, or above if near bottom */
+  var ddH=dd.offsetHeight;
+  var spaceBelow=window.innerHeight-rect.bottom-4;
+  var spaceAbove=rect.top-4;
+  if(spaceBelow>=ddH||spaceBelow>=spaceAbove){
+    dd.style.top=Math.min(rect.bottom+2,window.innerHeight-ddH-4)+"px";
+  }else{
+    dd.style.top=Math.max(4,rect.top-ddH-2)+"px";
+  }
+  dd.style.left=Math.max(4,Math.min(rect.left,window.innerWidth-dd.offsetWidth-4))+"px";
+  dd.style.minWidth=rect.width+"px";
+  /* Scroll selected item into view */
+  var selItem=dd.querySelector(".selected");
+  if(selItem)selItem.scrollIntoView({block:"nearest"});
+  /* Listeners for outside click and keyboard */
+  setTimeout(function(){
+    document.addEventListener("mousedown",_fleekDDOutside,true);
+    document.addEventListener("keydown",_fleekDDKey,true);
+  },0);
+}
+function _setupCustomSelects(){
+  /* Intercept mousedown on all <select> elements to show custom dropdown */
+  document.addEventListener("mousedown",function(e){
+    var sel=e.target.closest("select");
+    if(!sel)return;
+    e.preventDefault();
+    e.stopPropagation();
+    sel.focus();
+    _fleekDDOpen(sel);
+  },true);
+}
+
 function _patchOS(){
   /* Set OS-specific button titles */
   document.getElementById("hist-back").title="Undo ("+_MOD+"+Z or "+_MOD+"+[)";
@@ -9665,12 +10090,14 @@ function _patchOS(){
   renderHVGChips();
   /* Set OS-specific selection hint as tooltip on header label */
   var sh=document.getElementById("sel-groups-label");
-  if(sh)sh.title="Shift+drag lasso \u00b7 +"+_ALT+" deselect \u00b7 1-9 to switch groups";
+  if(sh)sh.title="Shift+drag lasso \u00b7 +"+_ALT+" deselect \u00b7 Shift+1-9 to switch groups";
 }
 
 document.addEventListener("DOMContentLoaded",function(){
   try{var rg=sessionStorage.getItem("fleek_recent_genes");if(rg)recentGenes=JSON.parse(rg);}catch(e){}
-  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupScrollTraps();_patchOS();animate();_checkKeyStatus();
+  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupScrollTraps();_patchOS();_setupCustomSelects();animate();_checkKeyStatus();
+  /* Apply initial theme */
+  applyTheme(document.getElementById("set-theme").value||"dark");
   showL("Connecting to server...");
   /* Recover load start time from before page reload, or start fresh */
   var _savedT0=null;

@@ -126,6 +126,15 @@ In lineage view, **dot** and **name** have different scopes:
 - **Caret (▸/▾) click**: Collapse/expand branch (Alt+click: recursive)
 - Children sort by current `typeSortMode` (alpha or count)
 
+### Theme Rules (Dark / Light)
+- **All CSS must work in both themes.** Use `var(--text)`, `var(--bg3)`, etc. — never hardcode colors that only look right in one theme.
+- **`color-scheme`**: `:root` has `color-scheme:dark`, `.light` has `color-scheme:light`. Native form elements (`select`, `input`, scrollbars) inherit from this. Never hardcode `color-scheme:dark` on individual elements — use `inherit`.
+- **`<meta name="color-scheme">`**: toggled by `applyTheme()` — tells the browser which native UI style to use (affects select dropdown popups on Safari/WebKit).
+- **When adding any visible element**: verify it looks correct in both themes. Use browser dev tools to toggle `.light` on `<body>`.
+- **Halo/glow colors**: dark mode uses additive blending (`ONE, ONE`), light mode uses alpha blending (`SRC_ALPHA, ONE_MINUS_SRC_ALPHA`) with a dark navy color. These are set in `applyTheme()`.
+- **Expression pulse target**: dark mode pushes towards white, light mode towards deep navy `(0.02, 0.05, 0.18)`.
+- **Slice pill colors**: inline backgrounds set by `_syncSlicePills()` use theme-aware `onColor`/`offColor` with `isLight` check.
+
 ### UI Conventions
 - Empty clusters: hidden behind collapsed "▸ N empty clusters" toggle
 - Selection group badges: eye icon + visible count, slashed-eye + hidden count
