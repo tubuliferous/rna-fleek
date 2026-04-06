@@ -9,6 +9,22 @@ A browser-based single-cell RNA-seq visualizer. Two files — a Python server an
 
 ---
 
+## Download
+
+Pre-built desktop apps — no Python installation required:
+
+| Platform | Download |
+|----------|----------|
+| **Windows** | [RNA-FLEEK-Windows.zip](https://github.com/tubuliferous/rna-fleek/releases/latest/download/RNA-FLEEK-Windows.zip) |
+| **macOS** | [RNA-FLEEK-Mac.zip](https://github.com/tubuliferous/rna-fleek/releases/latest/download/RNA-FLEEK-Mac.zip) |
+| **Linux** | [RNA-FLEEK-Linux.tar.gz](https://github.com/tubuliferous/rna-fleek/releases/latest/download/RNA-FLEEK-Linux.tar.gz) |
+
+> **Note:** These links point to the latest release. If no release has been published yet, download from the [Actions artifacts](https://github.com/tubuliferous/rna-fleek/actions) page instead.
+
+Or install from source (see Quick Start below).
+
+---
+
 ## Quick Start
 
 ```bash
