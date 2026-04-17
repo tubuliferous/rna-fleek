@@ -3222,6 +3222,36 @@ function recolor(){
   }
 }
 
+/* Pivot target: in split mode the navcross follows the ACTIVE view's per-view target
+   so it always appears centered in that view. For a tethered active view the globals
+   are the source of truth (and sync into _liveViews after this runs), so return tgt3. */
+function _pivotTgt3(){
+  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+    var _ah=_splitViewIds.indexOf(_activeViewId);
+    if(_ah>=0&&_ah<_liveViews.length){
+      var _av=_liveViews[_ah];
+      return _av.tethered?tgt3:_av.tgt3;
+    }
+  }
+  return tgt3;
+}
+/* 2D analog: active view's pan2 (world-space point at view center). */
+function _pivotPan2(){
+  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+    var _ah=_splitViewIds.indexOf(_activeViewId);
+    if(_ah>=0&&_ah<_liveViews.length){
+      var _av=_liveViews[_ah];
+      return _av.tethered?pan2:_av.pan2;
+    }
+  }
+  return pan2;
+}
+function _applyPivotPos(){
+  if(!pivotMarker||!pivotMarker.visible)return;
+  if(viewIs3d){pivotMarker.position.copy(_pivotTgt3());}
+  else{var _pp=_pivotPan2();pivotMarker.position.set(_pp.x,_pp.y,0);}
+}
+
 /* ── Animation ── */
 function _tickFly(){
   if(!_flyAnim)return;
@@ -3262,7 +3292,7 @@ function animate(){
     /* Did clampOrbit push tgt3 back? If so, user is pressing against boundary */
     var _clamped=(Math.abs(tgt3.x-_preclampX)+Math.abs(tgt3.y-_preclampY)+Math.abs(tgt3.z-_preclampZ))>0.0001;
     /* Update pivot indicator position + scale to remain visible at any zoom */
-    if(pivotMarker&&pivotMarker.visible){pivotMarker.position.copy(tgt3);}
+    _applyPivotPos();
     /* Boundary shell — visible when user pushes against cloud edge */
     if(boundaryShell&&cloudBounds.radius>0){
       if(_clamped){
@@ -3276,7 +3306,7 @@ function animate(){
       if(_dbgGeodesic){boundaryShell.material.opacity=0.45;boundaryShell.visible=true;}
       else{boundaryShell.material.opacity=_boundaryOpacity;boundaryShell.visible=_boundaryOpacity>0.001;}
     }
-  }else{update2dCam();}
+  }else{update2dCam();_applyPivotPos();}
   /* ── Render: split-screen or single ── */
   if(_splitActive&&_liveViews.length===2){
     /* Sync globals → tethered views. Untethered views keep their own camera state. */
@@ -3637,19 +3667,21 @@ function setupCtrl(){
       /* Show pivot cross only after meaningful movement (>4px total) */
       if(dragging||panning||dollying){_dragDist+=Math.abs(dx)+Math.abs(dy);}
       if(_dragDist>4&&pivotMarker&&!pivotMarker.visible){
-        clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;
+        clearTimeout(pivotTimer);pivotMarker.position.copy(_pivotTgt3());pivotMarker.visible=true;
       }
       if(dragging){_cSph.theta-=dx*.005;_cSph.phi-=dy*.005;_cSph.phi=Math.max(.05,Math.min(Math.PI-.05,_cSph.phi));}
       else if(dollying){
         /* Move orbit center forward/backward along view direction.
+           Forward is derived from the target view's spherical coords — not cam3d — because
+           in split mode cam3d tracks view 0 and is stale for an untethered hovered view 1.
            Exponential speed: perceptually constant regardless of distance. */
-        var fwd=new THREE.Vector3();
-        cam3d.getWorldDirection(fwd);
+        var _sp=Math.sin(_cSph.phi),_cp=Math.cos(_cSph.phi),_st=Math.sin(_cSph.theta),_ct=Math.cos(_cSph.theta);
+        var fwdX=-_sp*_ct,fwdY=-_cp,fwdZ=-_sp*_st;
         var efactor=Math.exp(-dy*0.006)-1;
-        _cTgt3.x+=fwd.x*_cSph.radius*efactor;_cTgt3.y+=fwd.y*_cSph.radius*efactor;_cTgt3.z+=fwd.z*_cSph.radius*efactor;
+        _cTgt3.x+=fwdX*_cSph.radius*efactor;_cTgt3.y+=fwdY*_cSph.radius*efactor;_cTgt3.z+=fwdZ*_cSph.radius*efactor;
       }
-      else if(panning){var ps=_cSph.radius*.001;var up=new THREE.Vector3(0,1,0);var cd=new THREE.Vector3().subVectors(cam3d.position,tgt3).normalize();var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();_cTgt3.x+=rt.x*(-dx*ps)+cu.x*(dy*ps);_cTgt3.y+=rt.y*(-dx*ps)+cu.y*(dy*ps);_cTgt3.z+=rt.z*(-dx*ps)+cu.z*(dy*ps);}
-    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;var s=(frustum2*2)/(_zRef*canvasW);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");}}}
+      else if(panning){var ps=_cSph.radius*.001;var _sp=Math.sin(_cSph.phi),_cp=Math.cos(_cSph.phi),_st=Math.sin(_cSph.theta),_ct=Math.cos(_cSph.theta);var cd=new THREE.Vector3(_sp*_ct,_cp,_sp*_st);var up=new THREE.Vector3(0,1,0);var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();_cTgt3.x+=rt.x*(-dx*ps)+cu.x*(dy*ps);_cTgt3.y+=rt.y*(-dx*ps)+cu.y*(dy*ps);_cTgt3.z+=rt.z*(-dx*ps)+cu.z*(dy*ps);}
+    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;var s=(frustum2*2)/(_zRef*canvasW);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");if(pivotMarker&&!pivotMarker.visible){clearTimeout(pivotTimer);pivotMarker.visible=true;}}}}
   });
   var pivotTimer=null;
   window.addEventListener("mouseup",function(){
@@ -3681,7 +3713,7 @@ function setupCtrl(){
       var newRadius=_wSph.radius*factor;
       _wSph.radius=Math.max(0.5,Math.min(5000,newRadius));
       /* Show pivot during zoom */
-      if(pivotMarker){clearTimeout(pivotTimer);pivotMarker.position.copy(tgt3);pivotMarker.visible=true;pivotTimer=setTimeout(function(){pivotMarker.visible=false;},400);}
+      if(pivotMarker){clearTimeout(pivotTimer);pivotMarker.position.copy(_pivotTgt3());pivotMarker.visible=true;pivotTimer=setTimeout(function(){pivotMarker.visible=false;},400);}
     }
     else{
       var _wz=_wZoom2Ref?_wZoom2Ref.zoom2:zoom2;
@@ -3699,6 +3731,8 @@ function setupCtrl(){
         _wPan2.y+=wyBefore-wyAfter;
       }
       if(_wZoom2Ref){_wZoom2Ref.zoom2=newZoom;}else{zoom2=newZoom;}
+      /* Show pivot during 2D zoom (mirrors 3D behavior) */
+      if(pivotMarker){clearTimeout(pivotTimer);pivotMarker.visible=true;pivotTimer=setTimeout(function(){pivotMarker.visible=false;},400);}
     }
     clearTimeout(wheelSaveTimer);wheelSaveTimer=setTimeout(saveCameraOnly,300);
   },{passive:false});
