@@ -21,6 +21,21 @@ Pre-built desktop apps — no Python installation required:
 
 > **Note:** These links point to the latest release. If no release has been published yet, download from the [Actions artifacts](https://github.com/tubuliferous/rna-fleek/actions) page instead.
 
+### macOS: first-launch security warning
+
+The Mac build isn't code-signed or notarized, so Gatekeeper will block it on first launch with one of two messages:
+
+- *"RNA-FLEEK can't be opened because Apple cannot check it for malicious software"* — right-click (or Control-click) the app and choose **Open**, then click **Open** in the confirmation dialog. This only needs to be done once.
+- *"RNA-FLEEK is damaged and can't be opened"* — this is the quarantine flag added by Safari/Chrome. Remove it with:
+
+  ```bash
+  xattr -d com.apple.quarantine /Applications/RNA-FLEEK.app
+  ```
+
+  (Adjust the path to wherever you placed the app.)
+
+If the right-click trick doesn't produce an "Open" option, try **System Settings → Privacy & Security**, scroll to the bottom, and click **Open Anyway** next to the blocked-app notice.
+
 Or install from source (see Quick Start below).
 
 ---
