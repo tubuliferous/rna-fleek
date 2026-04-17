@@ -33,6 +33,25 @@
   #sidebar-toggle.show:hover{opacity:1;}
   #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
   #sidebar-upper.sb-scrolling .sb-trap,#sidebar-upper .sb-trap.sb-locked{pointer-events:none;}
+  /* Second sidebar column — appears when a panel is dragged into it */
+  #sidebar-right{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;}
+  #sidebar-right.active{display:flex;}
+  #sidebar-right-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
+  /* Drag-drop visuals for panel reordering */
+  .sec[data-col]{cursor:default;}
+  .sec[data-col].panel-dragging{opacity:0.35;}
+  .sec[data-col].panel-drop-before{box-shadow:inset 0 3px 0 0 var(--accent);}
+  .sec[data-col].panel-drop-after{box-shadow:inset 0 -3px 0 0 var(--accent);}
+  .panel-grip{display:inline-flex;align-items:center;justify-content:center;width:14px;height:16px;margin-right:6px;color:var(--text2);opacity:0.75;cursor:grab;user-select:none;flex-shrink:0;font-size:13px;font-weight:700;line-height:1;letter-spacing:-2px;transition:opacity 0.1s,color 0.1s;touch-action:none;}
+  .panel-grip:hover{opacity:1;color:var(--accent2);}
+  .panel-grip:active{cursor:grabbing;}
+  /* Floating drag ghost while a panel is being moved */
+  #panel-drag-ghost{position:fixed;z-index:9999;pointer-events:none;opacity:0.85;background:var(--bg2);border:1px solid var(--accent);border-radius:4px;padding:6px 12px;box-shadow:0 4px 16px rgba(0,0,0,0.3);font-size:11px;color:var(--text);display:none;}
+  /* Column-level drop highlight for dropping at end / into an empty column */
+  #sidebar-upper.panel-drop-col,#sidebar-right-upper.panel-drop-col{background:rgba(99,102,241,0.06);}
+  #sidebar-right.panel-drop-col-empty{display:flex!important;}
+  #sidebar-right.panel-drop-col-empty #sidebar-right-upper{min-height:100%;display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:11px;}
+  #sidebar-right.panel-drop-col-empty #sidebar-right-upper::before{content:"Drop panel here";padding:20px;border:2px dashed var(--border2);border-radius:6px;margin:12px;width:calc(100% - 24px);text-align:center;box-sizing:border-box;}
   #glist,#hvg-scroll,#leg-scroll{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:10px;font-family:inherit;outline:none;margin-top:4px;}
   .sec{padding:10px 14px;border-bottom:1px solid var(--border);}
@@ -758,6 +777,9 @@
     </div>
   </div>
   </div><!-- end sidebar-upper -->
+</div>
+<div id="sidebar-right">
+  <div id="sidebar-right-upper"></div>
 </div>
 <div id="main-col" style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
 <div id="cw">
@@ -2141,6 +2163,7 @@ function toggleSec(key){
   try{sessionStorage.setItem("fleek_col",JSON.stringify(_colState));}catch(e){}
   if(key==="gene")_updateGeneCollapsedName();
   if(key==="data"&&!el.classList.contains("collapsed"))_relayoutBadges();
+  if(typeof _scheduleSizeCellTypesList==="function")_scheduleSizeCellTypesList();
 }
 function _hexToRgb(h){var r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255;return[r,g,b];}
 function cc(id){
@@ -5578,6 +5601,7 @@ function toggleLineageView(){
     /* Defer virtual render to next frame so clientHeight is computed */
     _legLastS=-1;_legLastE=-1;
     requestAnimationFrame(function(){_legVirtualRender();});
+    if(typeof _scheduleSizeCellTypesList==="function")_scheduleSizeCellTypesList();
     return;
   }
   /* Switch to tree view — fetch if not loaded */
@@ -5685,6 +5709,7 @@ function _showLineageView(){
   document.getElementById("lineage-tree").style.display="block";
   _setLinBtn(null,"tree");
   _renderLineageTree();
+  if(typeof _scheduleSizeCellTypesList==="function")_scheduleSizeCellTypesList();
 }
 
 function _renderLineageTree(){
@@ -10400,9 +10425,184 @@ function _patchOS(){
   if(sh)sh.title="Shift+drag lasso \u00b7 +"+_ALT+" deselect \u00b7 Shift+1-9 to switch groups";
 }
 
+/* ── Detachable/rearrangeable sidebar panels ──
+   Each .sec[data-col] panel has a grip (⋮⋮) inserted at the left of its header.
+   Uses pointer events (not HTML5 DnD) because the native drag API is fiddly when
+   the draggable element has many interactive descendants. Drag the grip to reorder
+   within the left column or drop into the right column (which auto-appears when it
+   has panels and auto-hides when empty). Layout persists in localStorage. */
+var _panelDrag=null; /* {sec, startX, startY, active, ghost, placeholder} */
+function _panelsInit(){
+  var secs=document.querySelectorAll(".sec[data-col]");
+  for(var i=0;i<secs.length;i++){
+    var s=secs[i];
+    var hdr=s.querySelector(":scope > .col-hdr");
+    if(hdr&&!hdr.querySelector(":scope > .panel-grip")){
+      var grip=document.createElement("span");
+      grip.className="panel-grip";
+      grip.setAttribute("title","Drag to reorder (drop in the right-hand empty space for a second column)");
+      grip.textContent="⋮⋮";
+      grip.addEventListener("pointerdown",_panelGripPointerDown);
+      grip.addEventListener("click",function(ev){ev.stopPropagation();});
+      hdr.insertBefore(grip,hdr.firstChild);
+    }
+  }
+  _panelRestoreLayout();
+  _panelUpdateRightCol();
+  /* Size Cell Types list to fill any leftover column space, now and on relevant events. */
+  _scheduleSizeCellTypesList();
+  window.addEventListener("resize",_scheduleSizeCellTypesList);
+  var _ro=new ResizeObserver(_scheduleSizeCellTypesList);
+  [document.getElementById("sidebar-upper"),document.getElementById("sidebar-right-upper")].forEach(function(c){if(c)_ro.observe(c);});
+}
+function _panelGripPointerDown(e){
+  if(e.button!==0)return;
+  var sec=this.closest(".sec[data-col]");
+  if(!sec)return;
+  e.preventDefault();e.stopPropagation();
+  _panelDrag={sec:sec,startX:e.clientX,startY:e.clientY,active:false,ghost:null,lastTarget:null,lastBefore:false};
+  window.addEventListener("pointermove",_panelPointerMove);
+  window.addEventListener("pointerup",_panelPointerUp);
+  window.addEventListener("pointercancel",_panelPointerUp);
+}
+function _panelPointerMove(e){
+  if(!_panelDrag)return;
+  var dx=e.clientX-_panelDrag.startX,dy=e.clientY-_panelDrag.startY;
+  /* Defer actual drag until movement threshold — lets a quick click-release toggle collapse */
+  if(!_panelDrag.active){
+    if(Math.sqrt(dx*dx+dy*dy)<6)return;
+    _panelDrag.active=true;
+    _panelDrag.sec.classList.add("panel-dragging");
+    /* Build floating ghost with panel's label */
+    var lbl=_panelDrag.sec.querySelector(".col-hdr .lbl");
+    var ghost=document.createElement("div");
+    ghost.id="panel-drag-ghost";
+    ghost.textContent=lbl?lbl.textContent.trim():(_panelDrag.sec.dataset.col||"panel");
+    document.body.appendChild(ghost);
+    ghost.style.display="block";
+    _panelDrag.ghost=ghost;
+    /* Reveal right column's empty-drop hint if it's currently empty */
+    var r=document.getElementById("sidebar-right");
+    if(r&&!r.classList.contains("active"))r.classList.add("panel-drop-col-empty");
+  }
+  /* Position ghost near cursor */
+  if(_panelDrag.ghost){
+    _panelDrag.ghost.style.left=(e.clientX+12)+"px";
+    _panelDrag.ghost.style.top=(e.clientY+6)+"px";
+  }
+  /* Find drop target under cursor */
+  _panelClearDropIndicators();
+  var elUnder=document.elementFromPoint(e.clientX,e.clientY);
+  if(!elUnder)return;
+  var sec=elUnder.closest&&elUnder.closest(".sec[data-col]");
+  if(sec&&sec!==_panelDrag.sec){
+    var r=sec.getBoundingClientRect();
+    var before=(e.clientY-r.top)<r.height/2;
+    sec.classList.add(before?"panel-drop-before":"panel-drop-after");
+    _panelDrag.lastTarget=sec;_panelDrag.lastBefore=before;
+    return;
+  }
+  /* No sec under cursor — maybe over an empty column or the right-column drop zone */
+  var col=elUnder.closest&&elUnder.closest("#sidebar-upper,#sidebar-right-upper");
+  if(col){
+    col.classList.add("panel-drop-col");
+    _panelDrag.lastTarget=col;_panelDrag.lastBefore=false;
+  }else{
+    _panelDrag.lastTarget=null;
+  }
+}
+function _panelClearDropIndicators(){
+  document.querySelectorAll(".panel-drop-before,.panel-drop-after,.panel-drop-col").forEach(function(el){
+    el.classList.remove("panel-drop-before","panel-drop-after","panel-drop-col");
+  });
+}
+function _panelPointerUp(e){
+  window.removeEventListener("pointermove",_panelPointerMove);
+  window.removeEventListener("pointerup",_panelPointerUp);
+  window.removeEventListener("pointercancel",_panelPointerUp);
+  if(!_panelDrag){return;}
+  if(_panelDrag.active){
+    var sec=_panelDrag.sec;
+    var tgt=_panelDrag.lastTarget;
+    if(tgt&&tgt.classList.contains("sec")&&tgt!==sec){
+      tgt.parentNode.insertBefore(sec,_panelDrag.lastBefore?tgt:tgt.nextSibling);
+    }else if(tgt&&(tgt.id==="sidebar-upper"||tgt.id==="sidebar-right-upper")){
+      if(sec.parentNode!==tgt)tgt.appendChild(sec);
+    }
+    sec.classList.remove("panel-dragging");
+    if(_panelDrag.ghost&&_panelDrag.ghost.parentNode)_panelDrag.ghost.parentNode.removeChild(_panelDrag.ghost);
+    _panelClearDropIndicators();
+    var r=document.getElementById("sidebar-right");
+    if(r)r.classList.remove("panel-drop-col-empty");
+    _panelSaveLayout();
+    _panelUpdateRightCol();
+    _scheduleSizeCellTypesList();
+    if(typeof syncCanvasSize==="function")syncCanvasSize();
+  }
+  _panelDrag=null;
+}
+function _panelUpdateRightCol(){
+  var r=document.getElementById("sidebar-right");
+  var rUpper=document.getElementById("sidebar-right-upper");
+  if(!r||!rUpper)return;
+  var has=!!rUpper.querySelector(".sec[data-col]");
+  r.classList.toggle("active",has);
+}
+/* Expand the Cell Types list (or lineage tree) to fill leftover vertical space
+   in whichever sidebar column it lives in. Called on layout changes. */
+function _sizeCellTypesList(){
+  var ct=document.getElementById("ct-sec");
+  if(!ct||ct.classList.contains("collapsed"))return;
+  var column=ct.closest("#sidebar-upper,#sidebar-right-upper");
+  if(!column)return;
+  var leg=document.getElementById("leg-scroll");
+  var lin=document.getElementById("lineage-tree");
+  /* Pick whichever is currently visible */
+  var target=null;
+  if(leg&&leg.offsetParent!==null&&leg.style.display!=="none")target=leg;
+  else if(lin&&lin.offsetParent!==null&&lin.style.display!=="none")target=lin;
+  if(!target)return;
+  var colRect=column.getBoundingClientRect();
+  var tgtRect=target.getBoundingClientRect();
+  /* Distance from target's top to column's inner bottom, minus a small padding buffer. */
+  var avail=colRect.bottom-tgtRect.top-12;
+  var minH=200;
+  target.style.maxHeight=Math.max(minH,Math.round(avail))+"px";
+  if(target===leg&&typeof _legVirtualRender==="function"){try{_legVirtualRender();}catch(_){}}
+}
+var _sizeCtRaf=0;
+function _scheduleSizeCellTypesList(){
+  if(_sizeCtRaf)return;
+  _sizeCtRaf=requestAnimationFrame(function(){_sizeCtRaf=0;_sizeCellTypesList();});
+}
+function _panelSaveLayout(){
+  try{
+    var layout={L:[],R:[]};
+    document.querySelectorAll("#sidebar-upper .sec[data-col]").forEach(function(s){layout.L.push(s.dataset.col);});
+    document.querySelectorAll("#sidebar-right-upper .sec[data-col]").forEach(function(s){layout.R.push(s.dataset.col);});
+    localStorage.setItem("fleek_panel_layout",JSON.stringify(layout));
+  }catch(_){}
+}
+function _panelRestoreLayout(){
+  var raw=null;try{raw=localStorage.getItem("fleek_panel_layout");}catch(_){}
+  if(!raw)return;
+  var layout;try{layout=JSON.parse(raw);}catch(_){return;}
+  var lUp=document.getElementById("sidebar-upper");
+  var rUp=document.getElementById("sidebar-right-upper");
+  function move(ids,dst){
+    if(!ids||!dst)return;
+    ids.forEach(function(col){
+      var s=document.querySelector('.sec[data-col="'+col+'"]');
+      if(s)dst.appendChild(s); /* appendChild moves if already in DOM, preserving event listeners */
+    });
+  }
+  move(layout.L,lUp);
+  move(layout.R,rUp);
+}
+
 document.addEventListener("DOMContentLoaded",function(){
   try{var rg=sessionStorage.getItem("fleek_recent_genes");if(rg)recentGenes=JSON.parse(rg);}catch(e){}
-  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupScrollTraps();_patchOS();_setupCustomSelects();animate();_checkKeyStatus();
+  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupScrollTraps();_patchOS();_setupCustomSelects();_panelsInit();animate();_checkKeyStatus();
   /* Apply initial theme */
   applyTheme(document.getElementById("set-theme").value||"dark");
   showL("Connecting to server...");
