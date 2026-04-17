@@ -6166,8 +6166,11 @@ function _pick2DScreen(ndc,targetPts){
     var as=szArr?szArr[i]:1.0;
     /* CSS pixel radius = (material.size * aSize) / 2 / dpr + zoom-out bonus */
     var r=pxDiamBase*as*0.5/dpr+_pickBonus;
+    /* Floor: always allow ~8px clickable radius so individual points stay pickable
+       at any zoom. No-op when points are already larger than the floor. */
+    if(r<8)r=8;
     /* Last (highest index) overlapping point wins — matches GPU draw order */
-    if(r>0&&d2<=r*r)bestIdx=i;
+    if(d2<=r*r)bestIdx=i;
   }
   if(bestIdx<0)return null;
   return {index:bestIdx,object:targetPts};
