@@ -7679,6 +7679,9 @@ function _splitViewActivate(){
   var viewR=_splitViewById(_splitViewIds[1]);
   var lv0=_createLiveView(0,viewL.name);
   var lv1=_createLiveView(1,viewR.name);
+  /* Seed each half with its view's saved camera (falls back to globals if none) */
+  if(viewL&&viewL.camera)_applyCameraToLive(viewL.camera,lv0);
+  if(viewR&&viewR.camera)_applyCameraToLive(viewR.camera,lv1);
   _liveViews=[lv0,lv1];
   _masterViewIdx=0;
   _splitActive=true;
@@ -7699,8 +7702,19 @@ function _splitViewActivate(){
 
 function _splitViewDeactivate(){
   if(!_splitActive)return;
+  /* Save non-active half's camera explicitly (active gets saved via _viewSaveCurrent) */
+  if(_liveViews.length===2&&_splitViewIds.length===2){
+    for(var _hv=0;_hv<2;_hv++){
+      if(_splitViewIds[_hv]===_activeViewId)continue;
+      var _snap=_splitViewById(_splitViewIds[_hv]);
+      if(_snap)_snap.camera=_snapCameraFromLive(_liveViews[_hv]);
+    }
+  }
   /* Save active view's state to snapshot (globals are already the active split's state) */
   _viewSaveCurrent();
+  /* Apply active's camera to globals so single-view state lands on its saved camera */
+  var _av=_views.find(function(v){return v.id===_activeViewId;});
+  if(_av)_applyCameraToGlobals(_av.camera);
   _splitActive=false;
   _splitViewIds=[];
   /* Hide right HUD */
@@ -7764,7 +7778,16 @@ function _splitReassign(half,newId){
   /* Reassign which split is shown in the given half (0=left, 1=right).
      The same split can be shown in both halves (e.g. for comparing camera angles). */
   if(!_splitActive||half<0||half>1)return;
+  /* Save outgoing view's live camera to its snapshot */
+  var _outId=_splitViewIds[half];
+  if(_liveViews[half]&&_outId!==newId){
+    var _oSnap=_splitViewById(_outId);
+    if(_oSnap)_oSnap.camera=_snapCameraFromLive(_liveViews[half]);
+  }
   _splitViewIds[half]=newId;
+  /* Apply incoming view's saved camera to the live view */
+  var _inSnap=_splitViewById(newId);
+  if(_inSnap&&_inSnap.camera&&_liveViews[half])_applyCameraToLive(_inSnap.camera,_liveViews[half]);
   /* Update live view names */
   var vL=_splitViewById(_splitViewIds[0]);
   var vR=_splitViewById(_splitViewIds[1]);
@@ -7818,10 +7841,44 @@ function _viewAdd(isDefault){
   var dc=_deletedCells?Array.from(_deletedCells):null;
   _views.push({id:id,name:name,sliceFilter:sf,visibleClusters:vc,
     selGroups:sg,deletedCells:dc,activeGroupId:activeGroupId,
-    selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible))});
+    selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),
+    camera:_snapCameraFromGlobals()});
   _activeViewId=id;
   _viewUpdateUI();
   _flashAction(name,"New Split");
+}
+/* Camera persistence per view: each snapshot keeps its own {sph,tgt3,pan2,zoom2}
+   so switching between views preserves camera position. */
+function _snapCameraFromGlobals(){
+  return {
+    sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
+    tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
+    pan2:{x:pan2.x,y:pan2.y},
+    zoom2:zoom2
+  };
+}
+function _snapCameraFromLive(lv){
+  if(!lv)return _snapCameraFromGlobals();
+  return {
+    sph:{theta:lv.sph.theta,phi:lv.sph.phi,radius:lv.sph.radius},
+    tgt3:{x:lv.tgt3.x,y:lv.tgt3.y,z:lv.tgt3.z},
+    pan2:{x:lv.pan2.x,y:lv.pan2.y},
+    zoom2:lv.zoom2
+  };
+}
+function _applyCameraToGlobals(c){
+  if(!c)return;
+  if(c.sph){sph.theta=c.sph.theta;sph.phi=c.sph.phi;sph.radius=c.sph.radius;}
+  if(c.tgt3){tgt3.x=c.tgt3.x;tgt3.y=c.tgt3.y;tgt3.z=c.tgt3.z;}
+  if(c.pan2){pan2.x=c.pan2.x;pan2.y=c.pan2.y;}
+  if(typeof c.zoom2==="number")zoom2=c.zoom2;
+}
+function _applyCameraToLive(c,lv){
+  if(!c||!lv)return;
+  if(c.sph){lv.sph.theta=c.sph.theta;lv.sph.phi=c.sph.phi;lv.sph.radius=c.sph.radius;}
+  if(c.tgt3){lv.tgt3.x=c.tgt3.x;lv.tgt3.y=c.tgt3.y;lv.tgt3.z=c.tgt3.z;}
+  if(c.pan2){lv.pan2.x=c.pan2.x;lv.pan2.y=c.pan2.y;}
+  if(typeof c.zoom2==="number")lv.zoom2=c.zoom2;
 }
 function _viewSaveCurrent(){
   /* Save current state back to the active view */
@@ -7836,6 +7893,13 @@ function _viewSaveCurrent(){
   v.activeGroupId=activeGroupId;
   v.selGroupIdCounter=selGroupIdCounter;
   v.groupVisible=JSON.parse(JSON.stringify(groupVisible));
+  /* Camera: pull from active live view in split mode, else from globals */
+  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+    var _ah=_splitViewIds.indexOf(_activeViewId);
+    v.camera=(_ah>=0&&_ah<_liveViews.length)?_snapCameraFromLive(_liveViews[_ah]):_snapCameraFromGlobals();
+  }else{
+    v.camera=_snapCameraFromGlobals();
+  }
 }
 function _serializeSliceFilter(){
   /* Convert global sliceFilter (col→Set) to a plain object (col→Array) for storage */
@@ -7889,7 +7953,7 @@ function _buildSliceMask(sfObj){
   return mask;
 }
 function _restoreViewState(v){
-  /* Load a snapshot view's FULL state into globals (slice, visibility, selections, deleted cells) */
+  /* Load a snapshot view's FULL state into globals (slice, visibility, selections, deleted cells, camera) */
   if(!v)return;
   _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
@@ -7902,6 +7966,7 @@ function _restoreViewState(v){
   rebuildCellGroupMap();
   _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
   _preShowAllVis=null;_preDeletedCells=null;
+  _applyCameraToGlobals(v.camera);
 }
 function _restoreSplitViewState(v){
   /* Load only slice + visibility into globals — NOT selections (shared across splits) */
