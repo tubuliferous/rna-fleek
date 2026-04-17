@@ -941,11 +941,13 @@
   </div>
   <div id="pb-controls" style="display:none;padding:4px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
     <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
-      <span style="display:inline-flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
+      <span id="pb-mode-toggle" style="display:inline-flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
         <button id="deg-mode-sc" onclick="_degSetMode('sc')" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;font-weight:600;transition:all 0.1s;">Single-cell</button>
         <button id="deg-mode-pb" onclick="_degSetMode('pb')" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;font-weight:400;transition:all 0.1s;" title="Pseudo-bulk DEG: aggregates cells by sample, tests with DESeq2 or t-test">Pseudo-bulk</button>
       </span>
+      <span id="pb-counts-info" style="color:var(--text4);font-size:9px;"></span>
     </div>
+    <div id="pb-smoothed-warn" style="display:none;margin-top:4px;padding:4px 6px;border:1px solid rgba(230,160,40,0.5);background:rgba(230,160,40,0.08);border-radius:3px;color:var(--text2);line-height:1.4;"></div>
     <div id="pb-opts" style="display:none;margin-top:4px;">
       <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
         <span style="color:var(--text4);">Replicate column:</span>
@@ -6150,8 +6152,13 @@ function _pick2DScreen(ndc,targetPts){
   var _zFit=zoom2Fit?zoom2Fit():1;
   var _zRatio=_zFit/Math.max(_z2,0.01); /* >1 when zoomed out, <1 when zoomed in */
   var _pickBonus=Math.max(0,15*Math.sqrt(Math.max(0,_zRatio-1))); /* 0 at fit, grows when zoomed out */
-  /* Mouse in CSS pixels relative to canvas */
-  var mPx=(ndc.x+1)*0.5*canvasW;
+  /* In split mode both NDCs (mouse via canvasNDC and points via project(_splitCam))
+     span [-1,+1] across a HALF, so we must scale X by half-width — not full canvasW —
+     to get real CSS pixels. Otherwise X distances are 2x inflated and picks are
+     tighter horizontally than vertically. */
+  var _vpW=(_splitActive&&_liveViews.length===2)?canvasW*0.5:canvasW;
+  /* Mouse in CSS pixels relative to viewport */
+  var mPx=(ndc.x+1)*0.5*_vpW;
   var mPy=(1-ndc.y)*0.5*canvasH;
   var _pv=new THREE.Vector3();
   var bestIdx=-1;
@@ -6159,7 +6166,7 @@ function _pick2DScreen(ndc,targetPts){
     if(posArr[i*3]>=EXILE-1)continue;
     _pv.set(posArr[i*3],posArr[i*3+1],posArr[i*3+2]);
     _pv.project(cam);
-    var px=(_pv.x+1)*0.5*canvasW;
+    var px=(_pv.x+1)*0.5*_vpW;
     var py=(1-_pv.y)*0.5*canvasH;
     var dx=px-mPx,dy=py-mPy;
     var d2=dx*dx+dy*dy;
@@ -8181,7 +8188,53 @@ function markDEGStale(){
 
 /* ── Pseudo-bulk DEG ── */
 var _degMode="sc"; /* "sc" or "pb" */
+function _pbUpdateCountsInfo(){
+  /* Populate the counts source / Fano info line and warning banner.
+     Hides the whole PB section if no counts were detected.
+     Disables the Pseudo-bulk toggle if the matrix looks smoothed/denoised. */
+  var pbCtrl=document.getElementById("pb-controls");
+  if(!pbCtrl)return;
+  var info=D&&D.header?D.header.counts_info:null;
+  if(!info){pbCtrl.style.display="none";return;}
+  pbCtrl.style.display="block";
+  var lbl=info.label||"(unknown)";
+  var med=info.median_total;
+  var mx=info.max;
+  var fano=info.fano_median;
+  var parts=["Counts: adata."+lbl];
+  if(med!=null)parts.push("median "+Math.round(med).toLocaleString()+"/cell");
+  if(mx!=null)parts.push("max "+Math.round(mx).toLocaleString());
+  if(fano!=null)parts.push("Fano "+fano.toFixed(2));
+  var infoEl=document.getElementById("pb-counts-info");
+  if(infoEl)infoEl.textContent="\u00b7 "+parts.join(" \u00b7 ");
+  var warnEl=document.getElementById("pb-smoothed-warn");
+  var pbBtn=document.getElementById("deg-mode-pb");
+  if(info.looks_smoothed){
+    if(warnEl){
+      warnEl.style.display="block";
+      warnEl.innerHTML="<strong>Pseudo-bulk disabled.<\/strong> "+(info.reason||"Detected counts matrix looks smoothed \u2014 pseudo-bulk requires raw UMI counts.");
+    }
+    if(pbBtn){
+      pbBtn.disabled=true;
+      pbBtn.style.opacity="0.4";
+      pbBtn.style.cursor="not-allowed";
+      pbBtn.title="Pseudo-bulk unavailable: "+(info.reason||"detected matrix is not raw UMI counts");
+    }
+    /* If user was in PB mode, snap back to single-cell */
+    if(_degMode==="pb")_degSetMode("sc");
+  }else{
+    if(warnEl)warnEl.style.display="none";
+    if(pbBtn){
+      pbBtn.disabled=false;
+      pbBtn.style.opacity="";
+      pbBtn.style.cursor="pointer";
+      pbBtn.title="Pseudo-bulk DEG: aggregates cells by sample, tests with DESeq2 or t-test";
+    }
+  }
+}
 function _degSetMode(m){
+  /* Block PB mode if the detected matrix looks smoothed. */
+  if(m==="pb"&&D&&D.header&&D.header.counts_info&&D.header.counts_info.looks_smoothed){m="sc";}
   _degMode=m;
   var scBtn=document.getElementById("deg-mode-sc");
   var pbBtn=document.getElementById("deg-mode-pb");
@@ -8304,9 +8357,9 @@ function openDEG(){
   if(filled.length>=2)selB.selectedIndex=1;
   syncCanvasSize();
   _updateDEGHistory();
-  /* Show pseudo-bulk controls if counts available */
-  var pbCtrl=document.getElementById("pb-controls");
-  if(pbCtrl)pbCtrl.style.display=(D&&D.header.counts_available)?"block":"none";
+  /* Show pseudo-bulk controls whenever counts were detected (even if smoothed) so
+     the user can see WHAT matrix was picked. Gating happens on pb_ok. */
+  _pbUpdateCountsInfo();
   /* If results already exist (e.g. restored from sessionStorage), render them */
   if(degData){
     renderDEGTable();

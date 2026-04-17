@@ -78,6 +78,7 @@ GO_DATASET_GENES = None  # Set of gene names in current dataset (for intersectio
 GO_SYNONYM_MAP = None    # synonym -> canonical gene symbol (for dataset matching)
 COUNTS_MATRIX = None  # raw counts matrix reference (for pseudo-bulk DEG)
 COUNTS_LABEL = None   # where counts were found (e.g. "X", "layers['counts']")
+COUNTS_INFO = None    # {"label","median_total","max","fano_median","looks_smoothed","pb_ok","reason"}
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
 _DETECTED_ORGANISM = None  # (name, reason) tuple from _detect_organism()
 AUTO_UNLOAD = False   # If True, unload dataset when no client heartbeat
@@ -353,10 +354,19 @@ def load_go_db():
 
 
 def detect_counts():
-    """Auto-detect raw counts matrix from adata.X, .raw.X, or layers."""
-    global COUNTS_MATRIX, COUNTS_LABEL
+    """Auto-detect raw counts matrix from adata.X, .raw.X, or layers.
+
+    Also runs a Fano-factor sanity check: real UMI counts have biological
+    overdispersion (median Fano typically > 1.5), while model-generated
+    integer counts (scVI denoised_counts, MAGIC, etc.) follow Poisson
+    (Fano ≈ 1). If Fano median is too low, the matrix is still detected
+    but flagged as looks_smoothed and pseudo-bulk is disabled to prevent
+    statistically invalid results.
+    """
+    global COUNTS_MATRIX, COUNTS_LABEL, COUNTS_INFO
     COUNTS_MATRIX = None
     COUNTS_LABEL = None
+    COUNTS_INFO = None
     if ADATA is None:
         return
 
@@ -417,10 +427,69 @@ def detect_counts():
         COUNTS_LABEL, COUNTS_MATRIX = best
         # Quick stats
         row_sums = np.array(COUNTS_MATRIX[:1000, :].sum(axis=1)).flatten()
-        print(f"  Raw counts detected in: adata.{COUNTS_LABEL}")
-        print(f"    Median counts/cell: {np.median(row_sums):.0f}, max gene count in sample: {np.array(COUNTS_MATRIX[:500,:500].toarray() if hasattr(COUNTS_MATRIX[:500,:500],'toarray') else COUNTS_MATRIX[:500,:500]).max():.0f}")
+        median_total = float(np.median(row_sums))
+        max_sample = COUNTS_MATRIX[:500, :500]
+        max_val = float(np.asarray(max_sample.toarray() if hasattr(max_sample, 'toarray') else max_sample).max())
+
+        # Fano-factor check to detect smoothed/denoised integer counts.
+        # Sample up to 10k cells × 500 well-expressed genes, compute var/mean per gene.
+        fano_median = None
+        looks_smoothed = False
+        try:
+            n_cells_full = COUNTS_MATRIX.shape[0]
+            n_sample = min(10000, n_cells_full)
+            # deterministic stride-based sample (no RNG dependency)
+            stride = max(1, n_cells_full // n_sample)
+            row_idx = np.arange(0, n_cells_full, stride)[:n_sample]
+            sub = COUNTS_MATRIX[row_idx, :]
+            gene_sums = np.asarray(sub.sum(axis=0)).flatten()
+            good = np.where(gene_sums > 50)[0]
+            if len(good) >= 50:
+                # limit to 500 genes to bound cost
+                if len(good) > 500:
+                    g_stride = max(1, len(good) // 500)
+                    good = good[::g_stride][:500]
+                block = sub[:, good]
+                if sp.issparse(block):
+                    block = block.toarray()
+                block = np.asarray(block, dtype=np.float64)
+                means = block.mean(axis=0)
+                vars_ = block.var(axis=0)
+                fano = vars_ / np.maximum(means, 1e-9)
+                fano_median = float(np.median(fano))
+                # Empirical threshold: real UMI scRNA-seq data has median Fano
+                # well above 1.5 because of biological overdispersion + cell
+                # type mixing. Poisson-sampled outputs sit near 1.0.
+                looks_smoothed = fano_median < 1.5
+        except Exception as e:
+            print(f"    (Fano check skipped: {e})")
+
+        pb_ok = not looks_smoothed
+        reason = ""
+        if looks_smoothed:
+            reason = (f"median Fano={fano_median:.2f} suggests smoothed/denoised integer counts "
+                      f"(e.g. scVI denoised_counts, MAGIC). Pseudo-bulk disabled — NB dispersion "
+                      f"estimates collapse on Poisson data, yielding anti-conservative p-values.")
+
+        COUNTS_INFO = {
+            "label": COUNTS_LABEL,
+            "median_total": median_total,
+            "max": max_val,
+            "fano_median": fano_median,
+            "looks_smoothed": looks_smoothed,
+            "pb_ok": pb_ok,
+            "reason": reason,
+        }
+
+        print(f"  Counts detected in: adata.{COUNTS_LABEL}")
+        print(f"    Median counts/cell: {median_total:.0f}, max in sample: {max_val:.0f}"
+              f"{', median Fano: ' + f'{fano_median:.2f}' if fano_median is not None else ''}")
+        if looks_smoothed:
+            print(f"    ⚠ {reason}")
+            # Matrix stays available for display, but PB is gated on pb_ok.
     else:
         print("  ⚠ No raw counts detected — pseudo-bulk DEG will be unavailable")
+        COUNTS_INFO = None
 
 
 def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name="Group A", group_b_name="Group B"):
@@ -443,6 +512,10 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
 
     if ADATA is None or COUNTS_MATRIX is None:
         raise ValueError("No dataset or counts matrix available")
+    if COUNTS_INFO and not COUNTS_INFO.get("pb_ok", True):
+        raise ValueError(
+            "Pseudo-bulk disabled: " + (COUNTS_INFO.get("reason")
+            or "detected counts matrix does not look like raw UMI data"))
     if len(group_a_cells) == 0:
         raise ValueError(f"{group_a_name} has no cells")
     if len(group_b_cells) == 0:
@@ -1216,6 +1289,7 @@ def _reset_all():
     global PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST
     global N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, OBS_COLS
     global CSC_CACHED, CSC_TIME, LOADED_PATH, LOAD_SETTINGS, ABORT_REQUESTED
+    global COUNTS_MATRIX, COUNTS_LABEL, COUNTS_INFO
     ADATA = None
     UMAP_2D = None; UMAP_3D = None
     PCA_2D = None; PCA_3D = None
@@ -1228,7 +1302,7 @@ def _reset_all():
     HVG_NAMES = []; HVG_VAR = {}; ALL_GENE_VAR = None; GENE_CUTOFF_FLAG = None; GENE_INDEX = {}
     CSC_BUILDING = False; CSC_CACHED = False; CSC_TIME = 0
     LOADED_PATH = ""; LOAD_SETTINGS.clear()
-    COUNTS_MATRIX = None; COUNTS_LABEL = None
+    COUNTS_MATRIX = None; COUNTS_LABEL = None; COUNTS_INFO = None
     ABORT_REQUESTED = False
     # Clear DEG cache (reinitialize with expected keys, not .clear())
     _DEG_CACHE["key"] = None
@@ -2274,8 +2348,9 @@ def build_init_payload():
         "organism_reason": _DETECTED_ORGANISM[1] if _DETECTED_ORGANISM else "",
         "go_available": GO_DB is not None,
         "go_organism": GO_DB.get("label", "") if GO_DB else "",
-        "counts_available": COUNTS_MATRIX is not None,
+        "counts_available": COUNTS_MATRIX is not None and (COUNTS_INFO is None or COUNTS_INFO.get("pb_ok", True)),
         "counts_label": COUNTS_LABEL or "",
+        "counts_info": COUNTS_INFO,
     }
 
     # Include cached annotations if available
