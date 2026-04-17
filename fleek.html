@@ -77,7 +77,8 @@
   #cw.comparing #c{width:50%!important;margin-left:50%;}
   #cw.comparing #hud{left:calc(50% + 12px);}
   #cw.comparing #hint{left:75%;}
-  #split-divider{display:none;}
+  #split-divider{display:none;position:absolute;top:0;left:50%;width:1px;height:100%;background:var(--border);opacity:0.6;pointer-events:none;z-index:4;transform:translateX(-0.5px);}
+  #cw.split-active #split-divider{display:block;}
   .split-focus-box{display:none;position:absolute;top:0;height:100%;border:2px solid var(--accent);pointer-events:none;z-index:5;box-sizing:border-box;opacity:0.6;}
   #split-focus-L{left:0;width:50%;}
   #split-focus-R{left:50%;width:50%;}
@@ -626,6 +627,20 @@
       <!-- rot-sec moved to top row with 2D/3D buttons -->
     </div>
   </div>
+  <!-- Split Views -->
+  <div class="sec" id="split-sec" data-col="split">
+    <div class="col-hdr" onclick="toggleSec('split')">
+      <span class="lbl" style="margin-bottom:0;">Split Views</span>
+      <span class="col-chev">&#9660;</span>
+    </div>
+    <div class="col-body">
+      <div id="split-list"></div>
+      <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
+        <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split (or press 1-9)" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
+        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border2)';this.style.color=_splitActive?'var(--accent2)':'var(--text4)'">⧉</button>
+      </div>
+    </div>
+  </div>
   <!-- Selection Groups -->
   <div class="sec" id="sel-sec" data-col="sel">
     <div class="col-hdr" onclick="toggleSec('sel')">
@@ -690,20 +705,6 @@
     </div>
   </div>
   <!-- Slice: metadata filter panel (hidden until dataset has obs columns) -->
-  <!-- Split Views -->
-  <div class="sec" id="split-sec" data-col="split">
-    <div class="col-hdr" onclick="toggleSec('split')">
-      <span class="lbl" style="margin-bottom:0;">Split Views</span>
-      <span class="col-chev">&#9660;</span>
-    </div>
-    <div class="col-body">
-      <div id="split-list"></div>
-      <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
-        <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:10px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split (or press 1-9)" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
-        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border2)';this.style.color=_splitActive?'var(--accent2)':'var(--text4)'">⧉</button>
-      </div>
-    </div>
-  </div>
   <div class="sec" id="slice-sec" data-col="slice" style="display:none;">
     <div class="col-hdr" onclick="toggleSec('slice')">
       <div style="display:flex;align-items:center;gap:4px;flex:1;min-width:0;">
@@ -1757,6 +1758,7 @@ var lassoStartPos=null;
 var lassoSubtract=false;
 var LASSO_MIN_DIST=8; /* min px movement to trigger lasso vs click */
 var selClickNDC=null; /* NDC at mousedown for click selection */
+var selClickHalf=-1; /* Which split half was active at mousedown; kept in lockstep with selClickNDC */
 
 /* ── State persistence via sessionStorage ── */
 var _restoring=false;
@@ -3576,9 +3578,12 @@ function setupCtrl(){
     }
     if(tooltipEl)tooltipEl.style.display="none";
     if(shiftHeld&&e.button===0){
-      /* Capture NDC at aim time — camera is synced with what user sees */
+      /* Capture NDC and which half was hovered at aim time — keeping them paired
+         so the mouseup raycast uses the same half, even if the user drifts across
+         the divider between the two shift+clicks of a shift+dblclick. */
       var ndc=canvasNDC(e.clientX, e.clientY);
       selClickNDC=new THREE.Vector2(ndc.x, ndc.y);
+      selClickHalf=_splitActive?_hoveredViewIdx:-1;
       var cl=canvasLocal(e.clientX, e.clientY);
       lassoStart(cl.x, cl.y, e.altKey);
       e.preventDefault();
@@ -3618,26 +3623,52 @@ function setupCtrl(){
     /* Raycast using NDC captured at mousedown (when user aimed) */
     if(!selClickNDC)return;
     var ndc=selClickNDC;
-    selClickNDC=null;
-    var _rPts=_splitActive?_splitPts():pts;
+    var _pickHalf=selClickHalf;
+    selClickNDC=null;selClickHalf=-1;
+    /* Use the half that was hovered at mousedown, not the current hover — shift+dblclick
+       fires two mouseup events and the hover can drift between them if the mouse moves. */
+    var _pickView=(_splitActive&&_pickHalf>=0&&_pickHalf<_liveViews.length)?_liveViews[_pickHalf]:null;
+    var _rPts=_pickView?_pickView.pts:pts;
     var bestHit;
     if(!viewIs3d){
+      /* _pick2DScreen reads _hoveredViewIdx internally; temporarily align it. */
+      var _hSave=_hoveredViewIdx;
+      if(_pickHalf>=0)_hoveredViewIdx=_pickHalf;
       bestHit=_pick2DScreen(ndc,_rPts);
+      _hoveredViewIdx=_hSave;
     }else{
       raycaster.params.Points.threshold=pickThreshold();
-      var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
-      if(!_splitActive){update3dCam();}
+      var cam;
+      if(_pickView){
+        /* Build the half-aspect camera for the captured half directly. */
+        var _halfW=Math.floor(canvasW/2);
+        _pickView.cam3d.aspect=_halfW/canvasH;_pickView.cam3d.updateProjectionMatrix();
+        _update3dCamView(_pickView);
+        cam=_pickView.cam3d;
+      }else{
+        cam=viewIs3d?cam3d:cam2d;
+        update3dCam();
+      }
       raycaster.setFromCamera(ndc,cam);
       var hits=raycaster.intersectObject(_rPts);
+      /* _bestVisibleHit also reads _splitPts/_splitCam via globals — align _hoveredViewIdx */
+      var _hSave=_hoveredViewIdx;
+      if(_pickHalf>=0)_hoveredViewIdx=_pickHalf;
       bestHit=hits.length>0?_bestVisibleHit(hits):null;
+      _hoveredViewIdx=_hSave;
     }
     if(!bestHit)return;
     var idx=bestHit.index;
     var cid=D.cluster_ids[idx];
 
-    /* Double-click detection for cell-type selection */
+    /* Double-click detection for cell-type selection.
+       Threshold is 600ms (matches the browser's native dblclick timing) rather than
+       the tighter 400ms that used to be here: in split-view mode, recolor() iterates
+       both halves (2x the cells), blocking the main thread between the two shift+clicks
+       and pushing the measured gap above 400ms — which silently caused click#2 to toggle
+       the single cell back off instead of expanding to the whole cluster. */
     var now=Date.now();
-    if(now-lastClickTime<400&&lastClickIdx>=0&&D.cluster_ids[lastClickIdx]===cid){
+    if(now-lastClickTime<600&&lastClickIdx>=0&&D.cluster_ids[lastClickIdx]===cid){
       /* Double-click: toggle entire cell type */
       selToggleCellType(cid);
       lastClickTime=0;lastClickIdx=-1;
@@ -7732,6 +7763,13 @@ function _splitViewDeactivate(){
   /* Remove split class */
   var cw=document.getElementById("cw");
   cw.classList.remove("split-active");
+  /* Defensive: the split recolor path cycles globals through each view's state,
+     which can leave cellGroupMap out of sync with selGroups. Rebuild before the
+     final single-view recolor so rings render the shared selections correctly. */
+  rebuildCellGroupMap();
+  /* Make sure main pts/ringPts are visible — split render's _hideViewPts(0) could
+     have left them hidden if the last split frame ended mid-cycle. */
+  if(pts)pts.visible=true;
   recolor();
   _syncSlicePills();_updateSliceUI();
   requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
