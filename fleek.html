@@ -66,7 +66,9 @@
   .col-hdr{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;}
   .col-hdr:hover .lbl{color:var(--text2);}
   .col-body{margin-top:6px;}
-  .col-body .lbl{margin-bottom:4px;}  /* tighter label spacing inside body */
+  /* Sub-labels inside the body aren't panel titles — drop the uppercase + letter-spacing
+     so they look like field labels ("Point Size") rather than headings ("POINT SIZE"). */
+  .col-body .lbl{margin-bottom:4px;text-transform:none;letter-spacing:normal;font-weight:600;}
   .col-chev{font-size:10px;color:var(--text4);transition:transform 0.15s;flex-shrink:0;margin-left:4px;padding:3px 5px;border-radius:4px;}
   .col-chev:hover{background:rgba(255,255,255,0.05);color:var(--text2);}
   .light .col-chev:hover{background:rgba(0,0,0,0.06);color:var(--text2);}
@@ -144,9 +146,10 @@
   #data-sec.no-data #data-summary{padding:8px 20px 10px!important;}
   #data-sec.no-data #data-summary #info{margin:0;}
   #data-sec.no-data > .col-body{padding:0 20px 14px;}
-  /* File browser should fill most of the dotted box — cancel col-body padding
-     with negative margins so it can stretch closer to the dashed border edges. */
-  #data-sec.no-data #browse-popover{margin-left:-16px;margin-right:-16px;}
+  /* File browser sits right under the header now (outside col-body), so it doesn't
+     inherit col-body's horizontal padding. Nudge it inward so it stays inside the
+     dashed drop-zone border on both sides when a dataset isn't loaded. */
+  #data-sec.no-data > #browse-popover{margin-left:14px;margin-right:14px;}
   input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:2px;outline:none;}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
   input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
@@ -486,6 +489,67 @@
       </div>
       <span class="col-chev">&#9660;</span>
     </div>
+    <!-- Server file browser popover — placed right under the Data header icons so
+         the file picker always appears at the top of the panel regardless of what
+         other transient UI (upload status, load badges, matrix info) is open below. -->
+    <div id="browse-popover" style="display:none;margin:6px 14px 0;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
+      <div style="display:flex;align-items:center;gap:2px;margin-bottom:6px;">
+        <div style="display:flex;align-items:center;gap:1px;margin-right:4px;">
+          <button class="btn" id="browse-back" onclick="browseBack()" title="Step Back" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--text4);">&#8634;</button>
+          <button class="btn" id="browse-fwd" onclick="browseFwd()" title="Step Forward" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--text4);">&#8635;</button>
+          <button class="btn" onclick="browseTo('..')" title="Parent directory" style="padding:2px 4px;font-size:13px;line-height:1;">&#8593;</button>
+          <button class="btn" onclick="browseTo('~')" title="Home directory" style="padding:2px 4px;font-size:11px;line-height:1;"><svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:middle;fill:currentColor;"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg></button>
+        </div>
+        <div style="flex:1;position:relative;">
+          <input type="text" id="browse-path" style="width:100%;font-size:9px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-family:'SF Mono',Monaco,Consolas,monospace;outline:none;text-overflow:ellipsis;cursor:text;" placeholder="Type a path or paste..."
+            onfocus="this.style.borderColor='var(--accent)';this.style.background='var(--bg);';this.select();"
+            onblur="this.style.borderColor='var(--border)';this.style.background='var(--bg2)';">
+          <div id="browse-complete" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--bg2);border:1px solid var(--border);border-radius:4px;max-height:120px;overflow-y:auto;z-index:10;font-size:9px;"></div>
+        </div>
+      </div>
+      <div id="browse-columns" style="display:flex;overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:4px;background:var(--bg2);height:220px;scroll-snap-type:x proximity;cursor:grab;"></div>
+      <div id="browse-selected" style="display:none;margin-top:6px;">
+        <div id="browse-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
+          <label class="s-toggle"><input type="checkbox" id="browse-fast-umap" checked><span class="s-slider"></span></label>
+          <span>QuickMap (UMAP)</span>
+        </label>
+        <div id="browse-fast-umap-opts" style="margin:4px 0 0 16px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Fit cells:</span>
+            <input type="range" id="browse-fast-umap-n" min="10000" max="200000" step="10000" value="50000" oninput="updateBrowseFastLabel()" style="flex:1;min-width:0;">
+            <span id="browse-fast-umap-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
+          <label class="s-toggle"><input type="checkbox" id="browse-fast-pacmap" checked><span class="s-slider"></span></label>
+          <span>QuickMap (PaCMAP)</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10\u201320\u00d7 faster.">
+          <label class="s-toggle"><input type="checkbox" id="browse-fast-deg" checked><span class="s-slider"></span></label>
+          <span>QuickDEG</span>
+        </label>
+        <div id="browse-fast-deg-opts" style="margin:4px 0 0 16px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Max cells:</span>
+            <input type="range" id="browse-fast-deg-n" min="10000" max="200000" step="10000" value="50000" oninput="updateBrowseDegLabel()" style="flex:1;min-width:0;">
+            <span id="browse-fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
+          <label class="s-toggle"><input type="checkbox" id="browse-native-2d" checked><span class="s-slider"></span></label>
+          <span>Native 2D embeddings</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
+          <label class="s-toggle"><input type="checkbox" id="browse-backed"><span class="s-slider"></span></label>
+          <span>Disk-backed</span>
+        </label>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button class="btn" id="browse-load-btn" onclick="loadBrowsedFile()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
+          <button class="btn" onclick="closeBrowser()" style="color:var(--text4);">Cancel</button>
+        </div>
+      </div>
+    </div>
     <div id="data-summary" style="padding:0 14px;">
       <div id="loaded-file" style="display:none;font-size:9px;color:var(--text2);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="">
         <span id="loaded-file-text"></span>
@@ -507,6 +571,15 @@
     </div>
     <div class="col-body">
       <div id="load-badges" style="display:none;margin-top:3px;gap:4px;flex-wrap:wrap;"></div>
+      <!-- Matrix inventory + task routing (expand on demand) -->
+      <div id="matrix-info-wrap" style="display:none;margin-top:6px;">
+        <div id="matrix-info-toggle" onclick="_matrixInfoToggle()" style="cursor:pointer;user-select:none;font-size:9px;color:var(--text3);display:flex;align-items:center;gap:4px;" title="Show the expression matrices FLEEK found and how each analysis path is routed">
+          <span id="matrix-info-chev" style="display:inline-block;transform:rotate(-90deg);transition:transform 0.15s;">&#9660;</span>
+          <span>Data source</span>
+          <span id="matrix-info-summary" style="color:var(--text4);"></span>
+        </div>
+        <div id="matrix-info-body" style="display:none;margin-top:4px;font-size:9px;color:var(--text2);line-height:1.5;"></div>
+      </div>
       <div id="csc-status" style="font-size:9px;color:var(--accent);margin-top:2px;display:none;">
         <span id="csc-spinner-static"></span>
         Building gene index — first lookups may be slow
@@ -556,65 +629,6 @@
       <div id="upload-progress"><div id="upload-progress-bar"></div></div>
       <div id="upload-status"></div>
       <button id="upload-stop-btn" onclick="abortUpload()" style="display:none;background:none;border:1px solid #f87171;border-radius:3px;color:#f87171;font-size:9px;font-family:inherit;padding:2px 6px;cursor:pointer;margin-top:4px;">Stop Loading</button>
-      <!-- Server file browser popover -->
-      <div id="browse-popover" style="display:none;margin-top:6px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
-        <div style="display:flex;align-items:center;gap:2px;margin-bottom:6px;">
-          <div style="display:flex;align-items:center;gap:1px;margin-right:4px;">
-            <button class="btn" id="browse-back" onclick="browseBack()" title="Step Back" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--text4);">&#8634;</button>
-            <button class="btn" id="browse-fwd" onclick="browseFwd()" title="Step Forward" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--text4);">&#8635;</button>
-            <button class="btn" onclick="browseTo('..')" title="Parent directory" style="padding:2px 4px;font-size:13px;line-height:1;">&#8593;</button>
-            <button class="btn" onclick="browseTo('~')" title="Home directory" style="padding:2px 4px;font-size:11px;line-height:1;"><svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:middle;fill:currentColor;"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg></button>
-          </div>
-          <div style="flex:1;position:relative;">
-            <input type="text" id="browse-path" style="width:100%;font-size:9px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-family:'SF Mono',Monaco,Consolas,monospace;outline:none;text-overflow:ellipsis;cursor:text;" placeholder="Type a path or paste..."
-              onfocus="this.style.borderColor='var(--accent)';this.style.background='var(--bg);';this.select();"
-              onblur="this.style.borderColor='var(--border)';this.style.background='var(--bg2)';">
-            <div id="browse-complete" style="display:none;position:absolute;left:0;right:0;top:100%;background:var(--bg2);border:1px solid var(--border);border-radius:4px;max-height:120px;overflow-y:auto;z-index:10;font-size:9px;"></div>
-          </div>
-        </div>
-        <div id="browse-columns" style="display:flex;overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:4px;background:var(--bg2);height:220px;scroll-snap-type:x proximity;cursor:grab;"></div>
-        <div id="browse-selected" style="display:none;margin-top:6px;">
-          <div id="browse-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
-            <label class="s-toggle"><input type="checkbox" id="browse-fast-umap" checked><span class="s-slider"></span></label>
-            <span>QuickMap (UMAP)</span>
-          </label>
-          <div id="browse-fast-umap-opts" style="margin:4px 0 0 16px;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Fit cells:</span>
-              <input type="range" id="browse-fast-umap-n" min="10000" max="200000" step="10000" value="50000" oninput="updateBrowseFastLabel()" style="flex:1;min-width:0;">
-              <span id="browse-fast-umap-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
-            </div>
-          </div>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
-            <label class="s-toggle"><input type="checkbox" id="browse-fast-pacmap" checked><span class="s-slider"></span></label>
-            <span>QuickMap (PaCMAP)</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10\u201320\u00d7 faster.">
-            <label class="s-toggle"><input type="checkbox" id="browse-fast-deg" checked><span class="s-slider"></span></label>
-            <span>QuickDEG</span>
-          </label>
-          <div id="browse-fast-deg-opts" style="margin:4px 0 0 16px;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Max cells:</span>
-              <input type="range" id="browse-fast-deg-n" min="10000" max="200000" step="10000" value="50000" oninput="updateBrowseDegLabel()" style="flex:1;min-width:0;">
-              <span id="browse-fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
-            </div>
-          </div>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
-            <label class="s-toggle"><input type="checkbox" id="browse-native-2d" checked><span class="s-slider"></span></label>
-            <span>Native 2D embeddings</span>
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
-            <label class="s-toggle"><input type="checkbox" id="browse-backed"><span class="s-slider"></span></label>
-            <span>Disk-backed</span>
-          </label>
-          <div style="display:flex;gap:6px;margin-top:6px;">
-            <button class="btn" id="browse-load-btn" onclick="loadBrowsedFile()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
-            <button class="btn" onclick="closeBrowser()" style="color:var(--text4);">Cancel</button>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
   <!-- View: 2D/3D toggle -->
@@ -670,7 +684,7 @@
         </label>
         <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Show a glow halo around expressing cells. Visible especially when zoomed out.">
           <span style="font-size:9px;color:var(--text3);flex:1;">Expression glow</span>
-          <span class="se-switch"><input type="checkbox" id="show-glow" checked onchange="showGlow=this.checked;var _ha=showGlow&&!!(mode==='gene'&&selGene&&geneExprCache[selGene]);if(haloPts)haloPts.visible=_ha;if(pts&&pts.material.uniforms&&pts.material.uniforms.uHaloOn)pts.material.uniforms.uHaloOn.value=_ha?1:0;"><span class="se-track"></span></span>
+          <span class="se-switch"><input type="checkbox" id="show-glow" checked onchange="showGlow=this.checked;if(typeof recolor==='function')recolor();"><span class="se-track"></span></span>
         </label>
         <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Slowly pulse expressing cells (and glow if enabled) brighter to help spot them.">
           <span style="font-size:9px;color:var(--text3);flex:1;">Pulse expressing cells</span>
@@ -1058,6 +1072,7 @@
       <a href="#" onclick="event.preventDefault();helpJump('help-gene')">Gene Expression</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-deg')">DEG Analysis</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-data')">Data</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-matrix')">Data matrices &amp; routing</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-sessions')">Sessions</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-undo')">Undo &amp; Redo</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-settings')">Settings</a>
@@ -1130,7 +1145,8 @@
         </table>
         <p><strong>Practical guidance:</strong> Start with UMAP for exploration — the clusters are easiest to see and interact with. Switch to PCA to check whether two clusters that look separate in UMAP are genuinely distant in expression space, or whether UMAP is exaggerating a small difference. Use PaCMAP when you want the best of both worlds — it's the most balanced view for understanding how cell populations relate to each other.</p>
         <p><strong>Important UMAP caveat:</strong> UMAP's cluster sizes, shapes, and inter-cluster distances are all unreliable. A large cluster in UMAP may be smaller than a tiny one. Two adjacent clusters may be unrelated. Two distant clusters may be almost identical. UMAP only reliably tells you that cells within a cluster are similar — nothing about the relationships between clusters.</p>
-        <p>All embeddings are available in both 2D and 3D. UMAP and PCA are computed during initial data loading. PaCMAP computes in the background after loading — the dropdown shows "PaCMAP (computing&hellip;)" until it's ready. All embeddings are cached to disk for instant reload on subsequent sessions.</p>
+        <p>All embeddings are available in both 2D and 3D. UMAP and PCA are computed during initial data loading only if needed. PaCMAP computes in the background after loading — the dropdown shows "PaCMAP (computing&hellip;)" until it's ready. FLEEK-computed embeddings are cached to disk for instant reload on subsequent sessions.</p>
+        <p><strong>Where embeddings come from.</strong> For each embedding, FLEEK uses this priority: <strong>(1)</strong> <code>adata.obsm["X_umap"]</code> / <code>X_pca</code> / <code>X_pacmap</code> if present and matching the cell count — always preferred, the file is the authoritative source. <strong>(2)</strong> A cached copy in <code>.fleek_cache.npz</code> — fallback when the file has no embedding of its own (usually the result of a previous FLEEK-computed session). <strong>(3)</strong> Compute from scratch via scanpy (UMAP) / PCA / a PaCMAP subprocess, using the matrix chosen by the <em>Data matrices &amp; routing</em> logic (log-normalized preferred, raw counts + normalize+log1p as fallback). The Data panel's "Embeddings" line shows exactly where each one came from this session ("from obsm (author-provided)", "from cache (full)", "computed by FLEEK", etc.), so you never have to guess.</p>
         <p><strong>Native 2D embeddings:</strong> By default, FLEEK computes only the 3D embedding and derives 2D by slicing the first two coordinates — halving computation time. Enable <strong>Native 2D embeddings</strong> in the load options to compute 2D independently, which produces tighter cluster separation in 2D views at the cost of longer load times. If a native 2D cache exists from a previous load, it is automatically preferred regardless of the current setting.</p>
         <p><strong>Keyboard shortcuts:</strong> Press <span class="help-key">D</span> to toggle between 2D and 3D views. Press <span class="help-key">E</span> to cycle through available embeddings (UMAP &rarr; PCA &rarr; PaCMAP &rarr; &hellip;).</p>
       </div>
@@ -1189,6 +1205,7 @@
         <p>Hidden cell types are removed from the 3D/2D view entirely (exiled off-screen), not just faded. Hovering over a cell in the UMAP shows the cluster name, gene expression (if active), group membership, and annotation predictions (if computed). The tooltip in lineage view also shows the original cluster name from the file if it differs from the lineage node name.</p>
         <p><strong>Annotation buttons:</strong> <strong>Markers</strong> and <strong>Claude</strong> run cell type inference (see Annotation section). After completion, buttons show a ✓ and become inactive. Clearing their cache from the Data panel re-enables them.</p>
         <p><strong>Search:</strong> The search box filters by cluster name <em>and</em> annotation predictions in both views. In lineage mode, matching branches auto-expand and non-matching branches hide. Typing "monocyte" will show clusters whose name or annotation contains "monocyte."</p>
+        <p><strong>Auto-expand to fill column:</strong> The Cell Types panel dynamically grows to fill leftover vertical space in whichever sidebar column it lives in. Collapsing any other panel gives the cluster list more room; expanding one takes it back. When Cell Types sits above other panels (due to drag-reordering), it only grows down to the next panel's top edge — it won't overlap what's below.</p>
       </div>
     </div>
 
@@ -1230,6 +1247,8 @@
           <tr><td>Focus</td><td>Click a split in the sidebar dropdown or use the number keys to focus a half. The focused half gets a highlight border.</td></tr>
           <tr><td>Navigation</td><td>Mouse interactions (rotate, zoom, pan, lasso) affect the half the cursor is over. Dragging across the divider stays locked to the original half. Fly/pan direction is computed from the hovered view's own orientation, so untethered halves navigate correctly regardless of where the other view is pointing.</td></tr>
           <tr><td>Double-click</td><td>Zoom-focus works in each half independently (untethered only).</td></tr>
+          <tr><td>Per-split coloring</td><td>Each half has its own color mode and active gene. One split can show gene X, the other can show gene Y, or one clusters and the other gene expression. Switch the active split to see its coloring reflected in the sidebar (gene search, color dropdown, expression legend).</td></tr>
+          <tr><td>Expression glow</td><td>Glow is per-split — it only appears on halves currently in gene-expression mode. Toggling the Glow switch refreshes all halves.</td></tr>
           <tr><td>HUD</td><td>Each half has its own cell-count HUD in the bottom corner showing visible/hidden/total for that half's split.</td></tr>
           <tr><td>Undo</td><td>Entering and exiting split-screen is captured in undo history. All changes within split-screen are undoable.</td></tr>
         </table>
@@ -1360,7 +1379,7 @@
         <span class="help-sec-title">DEG Analysis</span>
       </div>
       <div class="help-sec-body">
-        <p>The DEG button (enabled when 2+ groups have cells) opens the analysis panel at the bottom. Select two groups to compare, choose a test, and click <strong>Run</strong>. The Run button becomes a <strong>Stop</strong> button during computation — click to cancel.</p>
+        <p>The DEG button (enabled when 2+ groups have cells) opens the analysis panel at the bottom. Select two groups to compare, choose a test, and click <strong>Run</strong>. The Run button becomes a red <strong>Stop</strong> button during computation — click to cancel (the client aborts its fetch and the server stops at the next checkpoint).</p>
         <p><strong>Tests available:</strong></p>
         <table class="help-table">
           <tr><th>Test</th><th>Description</th></tr>
@@ -1368,7 +1387,7 @@
           <tr><td>t-test</td><td>Welch's t-test. Faster, assumes roughly normal expression in each group.</td></tr>
         </table>
         <p><strong>Gene filtering:</strong> Before testing, genes expressed in fewer than 3 cells across both groups are removed. This typically reduces ~60k genes to ~10–20k, giving a 3–6× speedup without affecting results for meaningful genes.</p>
-        <p><strong>Normalization:</strong> If the data appears to contain raw counts (integer values with max > 5 in a sample), the server auto-applies <code>normalize_total(target_sum=1e4)</code> and <code>log1p</code> to the subset before testing.</p>
+        <p><strong>Input matrix &amp; normalization:</strong> FLEEK routes DEG to the best-available matrix via the hierarchy described in <em>Data matrices &amp; routing</em>. Preference: raw counts (normalize+log1p applied on the fly) &rarr; log-normalized layer as-is &rarr; denoised counts (normalize+log1p, with caveat). The Data panel shows which matrix was picked and any caveat. When running on denoised data, p-values and Cohen's d will be <em>anti-conservative</em> (within-group variance is artificially small); gene rankings are still meaningful but statistical magnitudes are unreliable.</p>
         <p><strong>Volcano plot:</strong> log₂ fold-change on x-axis. Y-axis toggles between −log₁₀(padj) and |Cohen's d|. Dotted lines mark significance thresholds: |log₂FC| ≥ 0.5 (vertical lines) and padj &lt; 0.05 or |d| ≥ 0.8 (horizontal line). Genes passing both thresholds are colored by group direction. A horizontal dotted line labeled "top N%" shows the visibility cutoff — genes below this line are hidden by the <strong>"Show top N%"</strong> slider. When viewing all 100% of genes, the visibility cutoff line is hidden. Default 50% shows the most significant genes, keeping the plot responsive.</p>
         <p><strong>Volcano navigation:</strong> Scroll to zoom both axes simultaneously. Drag the plot to pan. Drag the <strong>x-axis area (bottom)</strong> left/right to zoom just the x-axis (fold-change); drag the <strong>y-axis area (left)</strong> up/down to zoom just the y-axis (significance). Double-click to reset all axes to default view.</p>
         <p><strong>Interacting with results:</strong> Hover over a volcano point or table row to see gene stats and highlight the corresponding element in the other view. Click a gene (in either the volcano or the table) to load its expression on the UMAP — this lets you immediately see where a differentially expressed gene is active in the cell landscape. The gene search box in the DEG table filters results in real time. Table columns (gene, log₂FC, Cohen's d, padj) are sortable — click any header to sort.</p>
@@ -1391,6 +1410,7 @@
         <p><strong>Requirements:</strong> A raw counts matrix must be detected in the dataset (checked automatically on load — see the Data panel). Each group needs cells in <strong>at least 2 replicates</strong>. More replicates improve statistical power. Genes with fewer than 10 total counts across all samples are filtered out.</p>
         <p><strong>Counts source visibility &amp; smoothed-count guard:</strong> The Pseudo-bulk controls show which matrix was detected as counts (e.g. <code>adata.X</code>, a layer, or <code>adata.raw.X</code>) along with median UMI/cell, max, and the computed <strong>median Fano factor</strong> (variance/mean across ~500 well-expressed genes). Real UMI data is overdispersed (median Fano typically &gt; 1.5) because of biological cell-to-cell variation; model-generated integer counts (scVI <code>denoised_counts</code>, MAGIC, similar denoisers) follow a Poisson distribution with Fano ≈ 1. If the detected matrix looks smoothed (Fano &lt; 1.5), pseudo-bulk is <strong>disabled</strong> and an amber banner explains why: on Poisson-distributed counts the negative-binomial dispersion estimate collapses near zero, yielding anti-conservative p-values — everything looks significant. This guard prevents silently invalid DEG results when a denoised matrix is mistaken for raw counts.</p>
         <p><strong>Results:</strong> Displayed in the same volcano plot and gene table as single-cell DEG. The note above the plot shows the method used, group names, replicate counts, and number of genes tested. Cohen's d is not computed for pseudo-bulk (shown as 0).</p>
+        <p><strong>Cancel mid-compute:</strong> During either a single-cell DEG or pseudo-bulk run, the Run button turns red and displays <strong>Stop</strong>. Click it (or refresh) to abort. The server checks for the abort flag at natural checkpoints (each replicate aggregation, before pyDESeq2 fit/summary, every 512 genes in the t-test fallback) so cancellation takes effect promptly without leaving the server spinning. The status line names the backend (<em>pyDESeq2</em> vs <em>t-test (CPM)</em>) while running.</p>
       </div>
     </div>
 
@@ -1431,6 +1451,38 @@
         <p><strong>Server startup:</strong> <code>python fleek_server.py [file.h5ad]</code> — or start without a file and use the file browser or upload. For Claude annotation, set <code>ANTHROPIC_API_KEY</code> in your environment or in <code>~/.fleek.env</code>. Use <code>--host 0.0.0.0</code> to allow connections from other machines. SSH sessions are auto-detected (no browser auto-open).</p>
         <p><strong>Remote deployment:</strong> Run FLEEK on a remote server (e.g. HPC cluster) and access via SSH tunnel: <code>ssh -L 9123:127.0.0.1:9123 user@server</code>, then open <code>http://localhost:9123</code> locally. The server processes data where the files live — only small payloads (coordinates, expression values) travel through the tunnel. Use <code>pip install -r requirements.txt</code> to install dependencies; <code>pacmap&lt;0.8</code> avoids GCC version issues on older HPC systems.</p>
         <p><strong>Exports:</strong> Click the save icon on a selection group to download that cell subset as an .h5ad file. Exported subsets include sliced embeddings (UMAP, PCA, PaCMAP), cluster color maps, and annotation caches — so when you load a saved subset, it appears instantly with colors and cell type predictions already in place, no recomputation or API calls needed. You can also save all cells matching the current slice filter from the Slice panel. Large exports are streamed in 4MB chunks.</p>
+        <p><strong>Subset annotation remapping:</strong> When you load a subset that reuses its parent's annotation cache, FLEEK automatically remaps cached cluster IDs by matching cluster <em>name</em> — the subset's categorical codes may shift if unused categories got dropped, but predictions stay aligned to the right cell types. The server log prints "remapped for subset" when this kicks in.</p>
+        <p><strong>Data source subsection:</strong> Inside the Data panel, the collapsible "Data source" drop-down lists every expression matrix FLEEK found in the h5ad (raw counts, denoised counts, log-normalized, scaled), along with quick stats (median UMI/cell, max value, median Fano factor) and which one was chosen for each analysis task. Amber caveats appear when a non-ideal fallback had to be used. See <em>Data matrices &amp; routing</em> for full detail.</p>
+      </div>
+    </div>
+
+    <!-- Data matrices & routing -->
+    <div class="help-sec" id="help-matrix">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Data matrices &amp; routing</span>
+      </div>
+      <div class="help-sec-body">
+        <p>A single <code>.h5ad</code> can contain several expression matrices — <code>adata.X</code>, <code>adata.raw.X</code>, and any number of <code>adata.layers[...]</code>. These usually hold different <em>stages</em> of processing (raw UMI counts, denoised counts, log-normalized, scaled/z-scored, etc.). FLEEK inspects every matrix at load time, classifies it, and routes each analysis task to the most appropriate one. The "Data source" dropdown in the Data panel lists every matrix found and what it's being used for.</p>
+        <table class="help-table">
+          <tr><th>Kind</th><th>How FLEEK detects it</th><th>Typical content</th></tr>
+          <tr><td><strong>raw counts</strong></td><td>Integer values, reasonable per-cell totals, median Fano &gt; 1.5 (biologically overdispersed)</td><td>Direct UMI counts from CellRanger / STARsolo. What pseudo-bulk DEG actually needs.</td></tr>
+          <tr><td><strong>denoised counts</strong></td><td>Integer values, but median Fano &lt; 1.5 (Poisson-like)</td><td>Output of scVI <code>denoised_counts</code>, MAGIC, SAVER, or similar. Looks like counts but biological overdispersion has been regressed out.</td></tr>
+          <tr><td><strong>log-normalized</strong></td><td>Decimal-valued, non-negative, max &lt; ~100</td><td>Output of <code>sc.pp.normalize_total</code> + <code>sc.pp.log1p</code>. Standard for visualization, PCA, Wilcoxon-DEG.</td></tr>
+          <tr><td><strong>scaled</strong></td><td>Decimal-valued, has negative values</td><td>Output of <code>sc.pp.scale</code> (z-score per gene). Useful for PCA input but unsuitable for Fano / DE on its own.</td></tr>
+        </table>
+        <p><strong>Task routing.</strong> Each analysis path picks the best-available matrix from this preference chain:</p>
+        <table class="help-table">
+          <tr><th>Task</th><th>Preference chain</th><th>If fallback is used</th></tr>
+          <tr><td>Gene variability (Fano-based)</td><td>raw counts &rarr; log-normalized &rarr; denoised</td><td>On log-normalized: trend method still works, but Fano interpretation is approximate. On denoised: rankings dominated by residual numerical noise, results unreliable.</td></tr>
+          <tr><td>Single-cell DEG</td><td>raw counts + normalize+log1p &rarr; log-normalized as-is &rarr; denoised + normalize+log1p</td><td>On denoised: p-values and Cohen's d are anti-conservative (within-group variance artificially low); rankings still meaningful.</td></tr>
+          <tr><td>Pseudo-bulk DEG</td><td>raw counts only</td><td>No fallback — pseudo-bulk is disabled if no raw-counts matrix is found or if the detected counts look smoothed.</td></tr>
+          <tr><td>Gene expression display</td><td>log-normalized &rarr; raw counts + normalize+log1p on-the-fly &rarr; denoised + normalize+log1p</td><td>On raw: normalized per-column for display so colormap gradients are comparable across cells. On denoised: same, but gradients may look artificially smooth.</td></tr>
+          <tr><td>Embedding computation (if none in <code>obsm</code>)</td><td>log-normalized &rarr; raw counts + normalize+log1p &rarr; denoised + normalize+log1p</td><td>Pre-computed embeddings in <code>obsm</code> are always used as-is if present; the fallback only fires when FLEEK has to compute a fresh PCA/UMAP.</td></tr>
+        </table>
+        <p><strong>Why FLEEK does this automatically.</strong> scRNA-seq pipelines vary. Some labs store raw counts in <code>adata.X</code> and compute everything downstream on the fly. Others store log-normalized data in <code>X</code> and keep raw counts in <code>adata.raw.X</code> or a layer. Others run a denoiser and overwrite <code>X</code> with its output. Without routing, FLEEK would silently run Fano math on log-normalized data, or run Wilcoxon on smoothed counts and produce implausibly tiny p-values. Routing picks the right matrix for the right job and, when a fallback is used, shows a caveat in the Data panel so you can judge whether to trust the result.</p>
+        <p><strong>Check the Data panel.</strong> The "Data source" drop-down shows every matrix found with its classification (colored pill) and quick stats (median UMI/cell, max value, median Fano). Below that, each task is listed with which matrix it routed to and any caveat that applies. Amber <strong>⚠</strong> markers flag non-ideal fallbacks.</p>
+        <p><strong>Pseudo-bulk's Fano guard.</strong> When a detected counts matrix has median Fano &lt; 1.5 (i.e., looks like model-generated Poisson data rather than real UMIs), pseudo-bulk DEG is automatically disabled. The reason: DESeq2 and pyDESeq2 estimate negative-binomial dispersion from the data, and on Poisson-distributed counts the dispersion collapses near zero, producing anti-conservative p-values where essentially everything looks significant. Better to refuse the test than run a fictitious one.</p>
       </div>
     </div>
 
@@ -1487,7 +1539,7 @@
           <tr><td><strong>UI scale</strong></td><td>75%–150%</td><td>Adjusts the size of all UI elements — sidebar, panels, text, buttons. Useful on high-DPI displays or when using FLEEK on a projector.</td></tr>
           <tr><td><strong>Hint bar</strong></td><td>On / Off</td><td>The hint bar at the bottom of the canvas shows contextual tips about modifier keys and available actions. Disable for a cleaner view once you know the shortcuts.</td></tr>
           <tr><td><strong>Shortcut flash</strong></td><td>On / Off</td><td>Brief overlay that flashes on screen when you press a keyboard shortcut, showing the action name and key combination. Helps learn shortcuts. Disable for a quieter interface.</td></tr>
-          <tr><td><strong>Undo/Redo buttons</strong></td><td>On / Off</td><td>Show or hide the undo/redo arrow buttons in the top-right corner of the canvas. The keyboard shortcuts (<span class="help-key">⌘</span>+<span class="help-key">[</span>/<span class="help-key">]</span>, or <span class="help-key">Ctrl</span>+<span class="help-key">[</span>/<span class="help-key">]</span> on Windows/Linux) always work regardless.</td></tr>
+          <tr><td><strong>Undo/Redo buttons</strong></td><td>On / Off</td><td>Show or hide the undo/redo arrow buttons in the top-right corner of the canvas. The keyboard shortcuts <span class="help-key">⌘</span>+<span class="help-key">[</span> / <span class="help-key">⌘</span>+<span class="help-key">]</span> (or <span class="help-key">⌘</span>+<span class="help-key">Z</span> / <span class="help-key">⌘</span>+<span class="help-key">Shift</span>+<span class="help-key">Z</span>) always work regardless.</td></tr>
           <tr><td><strong>Auto-unload on disconnect</strong></td><td>On / Off</td><td>When enabled, the server automatically frees the loaded dataset from memory if no browser tab is connected. Useful for liberating RAM when you close the FLEEK window. The timeout (default 1 second) can be adjusted in the Debug panel.</td></tr>
           <tr><td><strong>Claude API key</strong></td><td>Text input</td><td>Enter your Anthropic API key directly in the UI — it is saved to <code>~/.fleek.env</code> on the server. This is an alternative to setting the <code>ANTHROPIC_API_KEY</code> environment variable. A green check appears when a key is active.</td></tr>
           <tr><td><strong>Cache mode</strong></td><td>Dataset / Server</td><td><em>Dataset</em> stores caches alongside the .h5ad file (portable — cache moves with the data). <em>Server</em> stores caches in <code>~/.fleek_cache/</code> (works with read-only or networked data). If the dataset directory is not writable, FLEEK falls back to server mode automatically.</td></tr>
@@ -1503,7 +1555,7 @@
         <span class="help-sec-title">Quick Reference</span>
       </div>
       <div class="help-sec-body">
-        <p style="font-size:9px;color:var(--text4);margin-bottom:6px;"><span class="help-key">⌘</span> = Cmd (Mac) / Ctrl (Windows/Linux) &nbsp;&middot;&nbsp; <span class="help-key">⌥</span> = Option (Mac) / Alt (Windows/Linux)</p>
+        <p style="font-size:9px;color:var(--text4);margin-bottom:6px;" id="help-os-note">Modifier-key labels below match the OS you're running on. Mac: <span class="help-key">⌘</span> (Cmd) and <span class="help-key">⌥</span> (Option). Windows/Linux: <span class="help-key">Ctrl</span> and <span class="help-key">Alt</span>.</p>
         <table class="help-table">
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Navigation</th></tr>
           <tr><td>Left-drag</td><td>3D rotate / 2D pan</td></tr>
@@ -1588,6 +1640,7 @@
         <p><strong>Marker-based annotation</strong> uses the shared one-vs-rest DEG results (top 50 genes per cluster), then scores each cluster against every cell type signature using: (1) overlap coefficient = fraction of known markers found in the cluster's top genes, and (2) Fisher's exact test for enrichment against the full gene universe. Predictions are ranked by overlap score, then p-value. The built-in database contains ~55 cell types; the full CellMarker2 database (optional download) contains ~800+.</p>
         <p><strong>LLM annotation</strong> uses the same shared DEG results, formatted as a structured prompt to Claude (Anthropic). The top 25 marker genes per cluster are sent in batches of 50 clusters. Claude returns cell type, confidence level, and reasoning. Each batch uses up to 8,192 output tokens. The model evaluates gene combinations holistically rather than matching individual genes against a list.</p>
         <p><strong>Gene variability scoring</strong> — FLEEK ranks all genes by how variable they are relative to their expression level. When a dataset already contains a variability metric (checked in order: <code>dispersions_norm</code>, <code>dispersions</code>, <code>variances_norm</code>, <code>variances</code> in <code>adata.var</code>), that metric is used directly. When no pre-computed metric exists, FLEEK computes its own using the <em>locally standardized trend residual</em> method described below.</p>
+        <p><strong>Which matrix feeds the variability calculation:</strong> routed per <em>Data matrices &amp; routing</em>. Ideal is raw counts (Fano interpretation is statistically clean); log-normalized is an acceptable fallback (trend/residual method still works, though Fano as a Poisson-vs-NB diagnostic no longer applies); denoised counts are a last resort (Fano trend collapses to ≈1 because the denoiser fits a Poisson emission, so the rankings end up dominated by numerical noise). The Data panel shows which matrix was used for variability and whether a caveat applies.</p>
 
         <p><strong>The problem (two parts):</strong></p>
         <p><em>Part 1 — mean-variance dependence:</em> In scRNA-seq data, variance scales with mean expression. Highly expressed housekeeping genes (ACTB, GAPDH, Malat1, ribosomal proteins) dominate raw variance rankings simply because they are highly expressed, not because they are biologically informative. A good variability score must correct for this dependence.</p>
@@ -2326,15 +2379,25 @@ function selToggleCell(cellIdx){
   renderSelPanel();recolor();saveState();
 }
 
+/* A cell is "visible" (and thus eligible for new bulk selections) only if its
+   cluster isn't hidden, it's inside the active slice filter, and it hasn't been
+   hidden via the Delete-key workflow (_deletedCells). */
+function _isCellVisible(i){
+  if(!D)return false;
+  if(visibleClusters&&visibleClusters[D.cluster_ids[i]]===false)return false;
+  if(sliceMask&&!sliceMask[i])return false;
+  if(_deletedCells&&_deletedCells.has(i))return false;
+  return true;
+}
 function selToggleCellType(clusterIdx){
   var ag=getActiveGroup();
   if(!ag||!D)return;
   var agi=getActiveGroupIndex();
-  /* Check if majority of this type are already in active group */
+  /* Check if majority of this type are already in active group (visible cells only) */
   var inGroup=0, total=0;
   for(var i=0;i<D.header.n_cells;i++){
     if(D.cluster_ids[i]===clusterIdx){
-      if(sliceMask&&!sliceMask[i])continue;
+      if(!_isCellVisible(i))continue;
       total++;
       if(ag.cells.has(i))inGroup++;
     }
@@ -2342,7 +2405,7 @@ function selToggleCellType(clusterIdx){
   var adding=(inGroup<total/2);
   for(var i=0;i<D.header.n_cells;i++){
     if(D.cluster_ids[i]===clusterIdx){
-      if(sliceMask&&!sliceMask[i])continue;
+      if(!_isCellVisible(i))continue;
       if(adding){
         for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(i);}
         ag.cells.add(i);
@@ -2363,7 +2426,7 @@ function selAllVisible(){
   if(!ag||!D)return;
   var agi=getActiveGroupIndex();
   for(var i=0;i<D.header.n_cells;i++){
-    if(visibleClusters[D.cluster_ids[i]]!==false&&!(sliceMask&&!sliceMask[i])){
+    if(_isCellVisible(i)){
       for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(i);}
       ag.cells.add(i);
       cellGroupMap[i]=agi;
@@ -2553,6 +2616,7 @@ function lassoSelect(){
   for(var i=0;i<n;i++){
     if(_selVC[D.cluster_ids[i]]===false)continue;
     if(_selSM&&!_selSM[i])continue;
+    if(_deletedCells&&_deletedCells.has(i))continue;
     v.set(pos[i*3],pos[i*3+1],pos[i*3+2]);
     v.project(cam);
     if(v.z>1.0||v.z<-1.0)continue;
@@ -6004,6 +6068,7 @@ function _lineageSelect(cids){
   var inGroup=0,total=0;
   for(var ci=0;ci<D.header.n_cells;ci++){
     if(cidSet[D.cluster_ids[ci]]){
+      if(!_isCellVisible(ci))continue;
       total++;
       if(ag.cells.has(ci))inGroup++;
     }
@@ -6011,6 +6076,7 @@ function _lineageSelect(cids){
   var adding=(inGroup<total/2);
   for(var ci=0;ci<D.header.n_cells;ci++){
     if(cidSet[D.cluster_ids[ci]]){
+      if(!_isCellVisible(ci))continue;
       if(adding){
         for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(ci);}
         ag.cells.add(ci);
@@ -7084,6 +7150,10 @@ function unloadDataset(){
     document.getElementById("info").textContent="No dataset loaded";
     document.getElementById("load-badges").style.display="none";
     document.getElementById("load-badges").innerHTML="";
+    var _miWrap=document.getElementById("matrix-info-wrap");
+    if(_miWrap)_miWrap.style.display="none";
+    var _miBody=document.getElementById("matrix-info-body");
+    if(_miBody)_miBody.innerHTML="";
     document.getElementById("csc-status").style.display="none";
     document.getElementById("gene-sec").style.display="none";
     document.getElementById("session-bar").style.display="none";
@@ -7283,6 +7353,113 @@ function _relayoutBadges(){
   });
 }
 
+var _matrixInfoOpen=false;
+function _matrixInfoToggle(){
+  _matrixInfoOpen=!_matrixInfoOpen;
+  var body=document.getElementById("matrix-info-body");
+  var chev=document.getElementById("matrix-info-chev");
+  if(body)body.style.display=_matrixInfoOpen?"block":"none";
+  if(chev)chev.style.transform=_matrixInfoOpen?"rotate(0deg)":"rotate(-90deg)";
+}
+/* Render the "Data source" subsection — lists each matrix found in the h5ad
+   with its classification, then lists how each FLEEK task was routed. */
+function _renderMatrixInfo(){
+  var wrap=document.getElementById("matrix-info-wrap");
+  var body=document.getElementById("matrix-info-body");
+  var summary=document.getElementById("matrix-info-summary");
+  if(!wrap||!body||!D||!D.header)return;
+  var reg=D.header.matrix_registry||[];
+  var routing=D.header.matrix_routing||{};
+  if(reg.length===0){wrap.style.display="none";return;}
+  wrap.style.display="block";
+  var raws=reg.filter(function(m){return m.kind==="raw_counts";}).length;
+  var lognorms=reg.filter(function(m){return m.kind==="log_normalized";}).length;
+  var denoiseds=reg.filter(function(m){return m.kind==="denoised_counts";}).length;
+  var parts=[];
+  if(raws)parts.push(raws+" raw");
+  if(lognorms)parts.push(lognorms+" log-norm");
+  if(denoiseds)parts.push(denoiseds+" denoised");
+  if(summary)summary.textContent="("+reg.length+" matr"+(reg.length===1?"ix":"ices")+(parts.length?" \u00b7 "+parts.join(", "):"")+")";
+  /* Kind → pill style. "source_hint=denoised" on a log-normalized matrix bumps
+     it toward the denoised color so users can spot at a glance that the values
+     are model-smoothed even if the immediate shape is log-normalized. */
+  var kindColor={raw_counts:"#34d399",log_normalized:"#6366f1",denoised_counts:"#fb923c",scaled:"#f87171",unknown:"#9ca3af"};
+  var kindLabel={raw_counts:"raw counts",log_normalized:"log-norm",denoised_counts:"denoised",scaled:"scaled",unknown:"?"};
+  function pillFor(m){
+    var col=kindColor[m.kind]||kindColor.unknown;
+    var lbl=kindLabel[m.kind]||m.kind;
+    if(m.kind==="log_normalized"&&m.source_hint==="denoised"){
+      col=kindColor.denoised_counts;
+      lbl="log-norm (denoised)";
+    }else if(m.kind==="log_normalized"&&m.source_hint==="raw"){
+      lbl="log-norm (raw)";
+    }
+    return {col:col,lbl:lbl};
+  }
+  function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+  var html='<div style="color:var(--text3);margin-bottom:3px;">Matrices<\/div>';
+  for(var i=0;i<reg.length;i++){
+    var m=reg[i];
+    var pill=pillFor(m);
+    var stats=[];
+    if(m.median_total!=null)stats.push("med "+Math.round(m.median_total).toLocaleString()+"/cell");
+    if(m.max!=null)stats.push("max "+Math.round(m.max).toLocaleString());
+    if(m.fano_median!=null)stats.push("Fano "+m.fano_median.toFixed(2));
+    html+='<div style="margin:3px 0;"><span style="display:inline-block;padding:0 5px;border-radius:3px;border:1px solid '+pill.col+';color:'+pill.col+';font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-right:4px;">'+esc(pill.lbl)+'<\/span><code style="color:var(--text2);font-size:10px;">'+esc(m.label||m.path)+'<\/code>';
+    if(stats.length)html+='<span style="color:var(--text4);"> \u00b7 '+esc(stats.join(" \u00b7 "))+'<\/span>';
+    if(m.notes)html+='<div style="margin-left:10px;color:var(--text4);font-size:9px;">'+esc(m.notes)+'<\/div>';
+    html+='<\/div>';
+  }
+  /* Task routing (matrix-based tasks) — skip "embedding" here because it's
+     displayed with per-method actual-source info instead of the hypothetical
+     fallback matrix. */
+  var taskOrder=[["variability","Variability"],["deg_sc","Single-cell DEG"],["deg_pb","Pseudo-bulk DEG"],["gene_display","Gene display"]];
+  html+='<div style="color:var(--text3);margin-top:8px;margin-bottom:3px;">Routing<\/div>';
+  for(var t=0;t<taskOrder.length;t++){
+    var key=taskOrder[t][0], lbl=taskOrder[t][1];
+    var r=routing[key];
+    if(!r){html+='<div style="margin:2px 0;color:var(--text4);">'+esc(lbl)+': <em>not available<\/em><\/div>';continue;}
+    var srcLbl=r.matrix_label||r.path||"—";
+    html+='<div style="margin:2px 0;"><span style="color:var(--text2);">'+esc(lbl)+'<\/span><span style="color:var(--text4);">: <\/span><code style="color:var(--text2);font-size:10px;">'+esc(srcLbl)+'<\/code>';
+    if(r.transform==="normalize+log1p")html+='<span style="color:var(--text4);font-style:italic;"> + normalize&middot;log1p<\/span>';
+    html+='<\/div>';
+    if(r.caveat)html+='<div style="margin:0 0 2px 10px;color:#fbbf24;font-size:9px;line-height:1.4;">&#9888; '+esc(r.caveat)+'<\/div>';
+  }
+  /* Embeddings — show what actually happened (from obsm vs cache vs computed). */
+  var embSrc=D.header.embedding_sources||{};
+  var embOrder=[["umap","UMAP"],["pca","PCA"],["pacmap","PaCMAP"]];
+  var srcWord={obsm:"from obsm (author-provided)",cache_full:"from cache (full)",cache_quick:"from cache (quick)",cache_legacy:"from cache (legacy)",computed_full:"computed by FLEEK (full)",computed_quick:"computed by FLEEK (quick)",derived_from_3d:"derived from 3D (slice)",padded_from_2d:"padded from 2D"};
+  /* Only embeddings COMPUTED fresh by FLEEK carry the fallback-matrix caveat;
+     anything loaded from obsm/cache should not show it. */
+  var fallbackCaveat=routing.embedding?routing.embedding.caveat:"";
+  html+='<div style="color:var(--text3);margin-top:8px;margin-bottom:3px;">Embeddings<\/div>';
+  for(var e=0;e<embOrder.length;e++){
+    var ekey=embOrder[e][0], elbl=embOrder[e][1];
+    var s2=embSrc[ekey+"_2d"]||null;
+    var s3=embSrc[ekey+"_3d"]||null;
+    if(!s2&&!s3){
+      html+='<div style="margin:2px 0;color:var(--text4);">'+esc(elbl)+': <em>not available<\/em><\/div>';
+      continue;
+    }
+    /* Collapse when 2D and 3D share source; else show both */
+    if(s2===s3){
+      html+='<div style="margin:2px 0;"><span style="color:var(--text2);">'+esc(elbl)+'<\/span><span style="color:var(--text4);">: <\/span><span style="color:var(--text2);">'+esc(srcWord[s2]||s2)+'<\/span><\/div>';
+    }else{
+      html+='<div style="margin:2px 0;"><span style="color:var(--text2);">'+esc(elbl)+'<\/span><span style="color:var(--text4);">: <\/span>';
+      if(s2)html+='2D '+esc(srcWord[s2]||s2);
+      if(s2&&s3)html+='<span style="color:var(--text4);">, <\/span>';
+      if(s3)html+='3D '+esc(srcWord[s3]||s3);
+      html+='<\/div>';
+    }
+    /* Show the fallback caveat only if at least one dimension was computed fresh
+       and a caveat is non-empty. */
+    var computedFresh=/^(computed_)/.test(s2||"")||/^(computed_)/.test(s3||"");
+    if(computedFresh&&fallbackCaveat){
+      html+='<div style="margin:0 0 2px 10px;color:#fbbf24;font-size:9px;line-height:1.4;">&#9888; '+esc(fallbackCaveat)+'<\/div>';
+    }
+  }
+  body.innerHTML=html;
+}
 function showLoadBadges(ls){
   _lastLoadSettings=ls;
   /* Sync cache mode dropdown from server */
@@ -7290,6 +7467,8 @@ function showLoadBadges(ls){
     var cm=document.getElementById("set-cache-mode");
     if(cm)cm.value=ls.cache_mode;
   }
+  /* Render the matrix-inventory panel whenever load badges refresh. */
+  _renderMatrixInfo();
   var el=document.getElementById("load-badges");
   if(!el)return;
   var badges=[];
@@ -7630,7 +7809,21 @@ function _showViewPts(vIdx){
     }
     v.ringPts.visible=_hasRing;
   }
-  if(v.haloPts)v.haloPts.visible=!!(showGlow&&mode==="gene"&&selGene&&geneExprCache[selGene]);
+  /* Halo visibility is per-view: only enable for halves in gene-expression mode
+     whose gene is actually in the cache. Read the view's own snapshot (not globals),
+     because globals always reflect the ACTIVE view. Falls back to globals if the
+     snapshot can't be found. */
+  if(v.haloPts){
+    var _sm=mode, _sg=selGene;
+    if(_splitViewIds&&_splitViewIds.length>vIdx){
+      var _snap=_splitViewById(_splitViewIds[vIdx]);
+      if(_snap){
+        if(typeof _snap.mode==="string")_sm=_snap.mode;
+        if(typeof _snap.selGene==="string")_sg=_snap.selGene;
+      }
+    }
+    v.haloPts.visible=!!(showGlow&&_sm==="gene"&&_sg&&geneExprCache[_sg]);
+  }
 }
 function _hideViewPts(vIdx){
   var v=_liveViews[vIdx];if(!v)return;
@@ -7996,6 +8189,7 @@ function _viewAdd(isDefault){
   _views.push({id:id,name:name,sliceFilter:sf,visibleClusters:vc,
     selGroups:sg,deletedCells:dc,activeGroupId:activeGroupId,
     selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),
+    mode:mode,selGene:selGene||"",
     camera:_snapCameraFromGlobals()});
   _activeViewId=id;
   _viewUpdateUI();
@@ -8047,6 +8241,10 @@ function _viewSaveCurrent(){
   v.activeGroupId=activeGroupId;
   v.selGroupIdCounter=selGroupIdCounter;
   v.groupVisible=JSON.parse(JSON.stringify(groupVisible));
+  /* Per-view color mode + selected gene so split views can show different genes /
+     one cluster-colored, one gene-colored, etc. */
+  v.mode=mode;
+  v.selGene=selGene||"";
   /* Camera: pull from active live view in split mode, else from globals */
   if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
     var _ah=_splitViewIds.indexOf(_activeViewId);
@@ -8120,16 +8318,50 @@ function _restoreViewState(v){
   rebuildCellGroupMap();
   _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
   _preShowAllVis=null;_preDeletedCells=null;
+  if(typeof v.mode==="string")mode=v.mode;
+  if(typeof v.selGene==="string")selGene=v.selGene;
   _applyCameraToGlobals(v.camera);
 }
 function _restoreSplitViewState(v){
-  /* Load only slice + visibility into globals — NOT selections (shared across splits) */
+  /* Load slice + visibility + color mode + selected gene into globals so each view
+     can render with its OWN coloring during the split recolor loop. Selections stay
+     global (shared across splits by design). */
   if(!v)return;
   _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
   for(var k in v.visibleClusters)visibleClusters[k]=v.visibleClusters[k];
   _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
   _preShowAllVis=null;_preDeletedCells=null;
+  if(typeof v.mode==="string")mode=v.mode;
+  if(typeof v.selGene==="string")selGene=v.selGene;
+}
+/* Re-sync the sidebar color-mode / gene-expression UI widgets to the current
+   globals. Called after restoring a view in split mode so the panels reflect the
+   newly-active split's coloring. If the active view's selGene isn't cached yet,
+   kick off a fetch; recolor fires when it resolves. */
+function _syncColorModeUIToGlobals(){
+  var cms=document.getElementById("color-mode-select");
+  if(cms)cms.value=mode;
+  var showGene=(mode==="gene")&&!!selGene;
+  var _el=document.getElementById("expr-legend");
+  if(_el)_el.style.display=showGene?"block":"none";
+  var _ec=document.getElementById("expr-controls");
+  if(_ec)_ec.style.display=(mode==="gene")?"block":"none";
+  if(showGene){
+    var nm=document.getElementById("egnm");
+    if(nm)nm.textContent="Expression: "+selGene;
+  }
+  if(typeof _updateGeneCollapsedName==="function")_updateGeneCollapsedName();
+  /* Re-highlight the active gene among the chip buttons. */
+  var btns=document.querySelectorAll(".gbtn");
+  for(var i=0;i<btns.length;i++){
+    var g=btns[i].getAttribute("data-g");
+    btns[i].className="gbtn"+(mode==="gene"&&selGene===g?" on":"");
+  }
+  /* If active view wants a gene that isn't cached, fetch it (triggers recolor). */
+  if(mode==="gene"&&selGene&&!geneExprCache[selGene]&&typeof loadGene==="function"){
+    loadGene(selGene);
+  }
 }
 function _viewSwitch(id){
   if(id===_activeViewId)return;
@@ -8140,9 +8372,12 @@ function _viewSwitch(id){
     /* Update hover index if this view is in one of the split halves */
     var _sIdx=_splitViewIds.indexOf(id);
     if(_sIdx>=0)_hoveredViewIdx=_sIdx;
-    /* Load new split's slice/visibility into globals (not selections) */
+    /* Load new split's slice/visibility/mode/selGene into globals (not selections) */
     var _sv=_views.find(function(v){return v.id===id;});
     if(_sv)_restoreSplitViewState(_sv);
+    /* Sync the sidebar color/gene UI to the active split's coloring. If the
+       active view needs a gene that isn't cached yet, fetch it. */
+    _syncColorModeUIToGlobals();
     /* Invalidate stale vis stats (from old view) so pills use solid color until fresh stats arrive */
     _visStats=null;
     _scheduleVisStats();
@@ -8160,6 +8395,7 @@ function _viewSwitch(id){
   var v=_views.find(function(v){return v.id===id;});
   if(!v)return;
   _restoreViewState(v);
+  _syncColorModeUIToGlobals();
   /* Refresh everything */
   _syncSlicePills();_updateSliceUI();
   renderLeg();renderSelPanel();recolor();
@@ -10042,12 +10278,38 @@ function applyTheme(t){
     pts.material.needsUpdate=true;
   }
   /* Update halo blend mode for theme */
+  var isL=t==="light";
   if(haloPts){
-    var isL=t==="light";
     haloPts.material.uniforms.uLight.value=isL?1.0:0.0;
     haloPts.material.blendSrc=isL?THREE.SrcAlphaFactor:THREE.OneFactor;
     haloPts.material.blendDst=isL?THREE.OneMinusSrcAlphaFactor:THREE.OneFactor;
     haloPts.material.needsUpdate=true;
+  }
+  /* Each _liveViews[i] has its own CLONED pts/haloPts material. Theme-dependent
+     settings (uLight, blend mode, circleTexture, alphaTest) must be propagated to
+     every clone or the non-active half will keep the old theme's look — most
+     visibly the expression halo rendering white instead of deep navy in light
+     mode (uLight=0 branch mixes toward the pulseTarget, which is white in dark). */
+  if(typeof _liveViews!=="undefined"&&_liveViews&&_liveViews.length){
+    for(var _lvi=0;_lvi<_liveViews.length;_lvi++){
+      var _lv=_liveViews[_lvi];
+      if(!_lv)continue;
+      if(_lv.pts&&_lv.pts.material){
+        var _pm=_lv.pts.material;
+        if(_pm.uniforms){
+          if(_pm.uniforms.uMap)_pm.uniforms.uMap.value=circleTexture;
+          if(_pm.uniforms.uAT)_pm.uniforms.uAT.value=isL?0.5:0.05;
+        }
+        _pm.depthWrite=true;
+      }
+      if(_lv.haloPts&&_lv.haloPts.material&&_lv.haloPts.material.uniforms){
+        var _hm=_lv.haloPts.material;
+        _hm.uniforms.uLight.value=isL?1.0:0.0;
+        _hm.blendSrc=isL?THREE.SrcAlphaFactor:THREE.OneFactor;
+        _hm.blendDst=isL?THREE.OneMinusSrcAlphaFactor:THREE.OneFactor;
+        _hm.needsUpdate=true;
+      }
+    }
   }
   /* Update point cloud colors for theme */
   recolor();
@@ -10518,6 +10780,14 @@ function _patchOS(){
   /* Patch help panel text for current OS */
   var help=document.getElementById("help-overlay");
   if(!help)return;
+  /* Swap the OS-intro line BEFORE running the symbol-replacement pass, so the
+     ⌘/⌥ markers don't get double-replaced. */
+  var osNote=document.getElementById("help-os-note");
+  if(osNote){
+    osNote.innerHTML = _isMac
+      ? 'Modifier keys: <span class="help-key">\u2318<\/span> = Cmd \u00b7 <span class="help-key">\u2325<\/span> = Option (shown below as <span class="help-key">\u2325 Opt<\/span>). <span class="help-key">Shift<\/span> and <span class="help-key">Esc<\/span> are the same on all platforms.'
+      : 'Modifier keys: <span class="help-key">Ctrl<\/span> (Cmd on Mac) and <span class="help-key">Alt<\/span> (Option on Mac). <span class="help-key">Shift<\/span> and <span class="help-key">Esc<\/span> are the same on all platforms.';
+  }
   var html=help.innerHTML;
   if(!_isMac){
     /* Replace Mac-specific symbols with Windows/Linux equivalents */
