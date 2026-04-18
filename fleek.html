@@ -34,15 +34,23 @@
   #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
   #sidebar-upper.sb-scrolling .sb-trap,#sidebar-upper .sb-trap.sb-locked{pointer-events:none;}
   /* Second sidebar column — appears when a panel is dragged into it */
-  #sidebar-right{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;}
+  #sidebar-right{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;transition:margin-left 0.25s ease,opacity 0.25s ease;}
   #sidebar-right.active{display:flex;}
+  #sidebar-right.active.hidden{margin-left:-260px;opacity:0;pointer-events:none;}
   #sidebar-right-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
   /* Drag-drop visuals for panel reordering */
   .sec[data-col]{cursor:default;}
   .sec[data-col].panel-dragging{opacity:0.35;}
   .sec[data-col].panel-drop-before{box-shadow:inset 0 3px 0 0 var(--accent);}
   .sec[data-col].panel-drop-after{box-shadow:inset 0 -3px 0 0 var(--accent);}
-  .panel-grip{display:inline-flex;align-items:center;justify-content:center;width:14px;height:16px;margin-right:6px;color:var(--text2);opacity:0.75;cursor:grab;user-select:none;flex-shrink:0;font-size:13px;font-weight:700;line-height:1;letter-spacing:-2px;transition:opacity 0.1s,color 0.1s;touch-action:none;}
+  .sec[data-col] > .col-hdr{position:relative;}
+  .sec[data-col] > .col-hdr.has-grip{padding-left:8px;}
+  /* Data has no grip, so give it the same padding-left as grippable panels
+     so "DATA" lines up horizontally with the other panel titles. */
+  .sec[data-col="data"] > .col-hdr{padding-left:8px;}
+  .panel-grip{position:absolute;left:-8px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;width:12px;height:16px;color:var(--text2);opacity:0.6;cursor:grab;user-select:none;font-size:12px;font-weight:700;line-height:1;letter-spacing:-2px;transition:opacity 0.1s,color 0.1s;touch-action:none;}
+  /* Remove the border between the RNA-FLEEK title and the Data panel */
+  .sec:not([data-col]){border-bottom:none;}
   .panel-grip:hover{opacity:1;color:var(--accent2);}
   .panel-grip:active{cursor:grabbing;}
   /* Floating drag ghost while a panel is being moved */
@@ -126,7 +134,19 @@
   .elbl{display:flex;justify-content:space-between;font-size:9px;color:var(--text4);margin-top:3px;}
   #gene-sec{display:none;}
   #data-sec.drop-active{outline:2px dashed var(--accent);outline-offset:-2px;background:rgba(99,102,241,0.06);}
-  #data-sec.no-data{border:1.5px dashed var(--border2);border-radius:6px;margin:2px 10px 2px;}
+  /* Drop zone: inset dashed border drawn via a pseudo-element so the .sec box
+     itself keeps its natural padding/margin — title stays aligned with the other
+     panel titles. */
+  #data-sec.no-data{position:relative;}
+  #data-sec.no-data::before{content:"";position:absolute;top:2px;bottom:10px;left:10px;right:10px;border:1.5px dashed var(--border2);border-radius:6px;pointer-events:none;}
+  /* Breathing room between drop-zone content (status, progress, upload popover)
+     and the dashed border — applies in both idle and loading states. */
+  #data-sec.no-data #data-summary{padding:8px 20px 10px!important;}
+  #data-sec.no-data #data-summary #info{margin:0;}
+  #data-sec.no-data > .col-body{padding:0 20px 14px;}
+  /* File browser should fill most of the dotted box — cancel col-body padding
+     with negative margins so it can stretch closer to the dashed border edges. */
+  #data-sec.no-data #browse-popover{margin-left:-16px;margin-right:-16px;}
   input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:2px;outline:none;}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
   input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
@@ -282,8 +302,8 @@
   #deg-run-btn{background:rgba(99,102,241,0.2)!important;border-color:var(--accent)!important;color:var(--accent2)!important;font-weight:600;padding:3px 14px!important;}
   #deg-run-btn:hover{background:rgba(99,102,241,0.35)!important;}
   #deg-run-btn:disabled{opacity:0.3!important;cursor:default!important;}
-  #deg-run-btn.deg-stop{background:rgba(248,113,113,0.2)!important;border-color:#f87171!important;color:#f87171!important;}
-  #deg-run-btn.deg-stop:hover{background:rgba(248,113,113,0.35)!important;}
+  #deg-run-btn.deg-stop,#pb-run-btn.deg-stop{background:rgba(248,113,113,0.2)!important;border-color:#f87171!important;color:#f87171!important;}
+  #deg-run-btn.deg-stop:hover,#pb-run-btn.deg-stop:hover{background:rgba(248,113,113,0.35)!important;}
   #deg-body{display:flex;flex:1;min-height:0;overflow:hidden;}
   #volcano-wrap{flex:1;position:relative;min-width:0;}
   #volcano-cv{width:100%;height:100%;display:block;cursor:crosshair;}
@@ -471,7 +491,7 @@
         <span id="loaded-file-text"></span>
       </div>
       <div id="info" style="font-size:10px;color:var(--text4);margin-top:2px;">Connecting to server...</div>
-      <div id="session-bar" style="display:none;margin-top:4px;align-items:center;gap:4px;font-size:9px;">
+      <div id="session-bar" style="display:none;margin-top:10px;align-items:center;gap:4px;font-size:9px;">
         <span style="color:var(--text4);">Session:</span>
         <select id="session-select" onchange="onSessionSelect()" style="flex:1;min-width:0;"></select>
         <button class="icon-btn" onclick="saveSessionAs()" title="Save session as...">
@@ -555,23 +575,37 @@
         <div id="browse-columns" style="display:flex;overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:4px;background:var(--bg2);height:220px;scroll-snap-type:x proximity;cursor:grab;"></div>
         <div id="browse-selected" style="display:none;margin-top:6px;">
           <div id="browse-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project UMAP for large datasets.">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
             <label class="s-toggle"><input type="checkbox" id="browse-fast-umap" checked><span class="s-slider"></span></label>
             <span>QuickMap (UMAP)</span>
           </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Subsample-and-project PaCMAP for large datasets.">
+          <div id="browse-fast-umap-opts" style="margin:4px 0 0 16px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Fit cells:</span>
+              <input type="range" id="browse-fast-umap-n" min="10000" max="200000" step="10000" value="50000" oninput="updateBrowseFastLabel()" style="flex:1;min-width:0;">
+              <span id="browse-fast-umap-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
             <label class="s-toggle"><input type="checkbox" id="browse-fast-pacmap" checked><span class="s-slider"></span></label>
             <span>QuickMap (PaCMAP)</span>
           </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Subsample cells for annotation DEG.">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10\u201320\u00d7 faster.">
             <label class="s-toggle"><input type="checkbox" id="browse-fast-deg" checked><span class="s-slider"></span></label>
             <span>QuickDEG</span>
           </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
+          <div id="browse-fast-deg-opts" style="margin:4px 0 0 16px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Max cells:</span>
+              <input type="range" id="browse-fast-deg-n" min="10000" max="200000" step="10000" value="50000" oninput="updateBrowseDegLabel()" style="flex:1;min-width:0;">
+              <span id="browse-fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
             <label class="s-toggle"><input type="checkbox" id="browse-native-2d" checked><span class="s-slider"></span></label>
             <span>Native 2D embeddings</span>
           </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:3px;" title="Keep expression matrix on disk.">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
             <label class="s-toggle"><input type="checkbox" id="browse-backed"><span class="s-slider"></span></label>
             <span>Disk-backed</span>
           </label>
@@ -1013,6 +1047,7 @@
     <p class="help-tagline">Fast Lightweight Expression Exploration Kit — a browser-based single-cell RNA-seq visualizer with cell type annotation.</p>
     <div class="help-toc">
       <a href="#" onclick="event.preventDefault();helpJump('help-nav')">Navigation</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-panels')">Sidebar &amp; Panels</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-emb')">Embeddings</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-sel')">Selection</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-celltypes')">Cell Types</a>
@@ -1059,6 +1094,23 @@
           <tr><td>Reset</td><td colspan="2">Reset View button or <span class="help-key">R</span></td></tr>
           <tr><td>Toggle 2D/3D</td><td colspan="2"><span class="help-key">D</span> key</td></tr>
         </table>
+      </div>
+    </div>
+
+    <!-- Sidebar & Panels -->
+    <div class="help-sec" id="help-panels">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Sidebar &amp; Panels</span>
+      </div>
+      <div class="help-sec-body">
+        <p>The sidebar is composed of independent panels (Data, View, Split Views, Selection Groups, Cell Types, Gene, Slice). Each panel has a header with a collapse chevron and a drag grip.</p>
+        <p><strong>Collapse:</strong> click any panel's header (anywhere except the grip) to collapse or expand it. Collapsed state persists in the browser session.</p>
+        <p><strong>Rearrange:</strong> each panel header shows a <strong>&#x22EE;&#x22EE;</strong> grip on the left. Click-and-drag the grip to reorder panels within the sidebar — a floating badge with the panel name follows the cursor, and a blue indicator bar appears above or below target panels showing the drop position. Release to drop.</p>
+        <p><strong>Second column:</strong> drag a panel past the right edge of the sidebar and a second sidebar column appears (dashed "Drop panel here" placeholder). Drop a panel there and the column snaps in at a fixed width, shrinking the canvas to fit. Drag panels back to the left column to free up the space — the second column auto-hides when it becomes empty, and the canvas reclaims the width.</p>
+        <p><strong>Layout persists</strong> in <code>localStorage</code> keyed by the browser, so the arrangement survives reloads and dataset changes.</p>
+        <p><strong>Auto-fill:</strong> the Cell Types panel dynamically expands to fill any leftover vertical space in whichever column it lives in. Collapsing other panels gives it more room for the cluster list; expanding them takes it back.</p>
+        <p><strong>Hide sidebar:</strong> press <span class="help-key">\</span> or click the <strong>«</strong> button to hide the sidebar entirely (both columns) for a full-width canvas. Press <span class="help-key">\</span> again or click <strong>»</strong> to restore it.</p>
       </div>
     </div>
 
@@ -1111,6 +1163,7 @@
         <p>Cells are assigned to the <em>active</em> group (highlighted row). Groups are non-overlapping: adding a cell to one group removes it from any other.</p>
         <p><strong>Highlight modes</strong> (Settings): <em>Ring</em> (default) draws a colored ring around selected cells, preserving the underlying cluster/expression color — ideal for seeing how selected cells relate to expression patterns. <em>Fill</em> replaces the cell color entirely with the group color. In both modes, non-selected cells can be faded using the <strong>Unselected Brightness</strong> slider in the View panel — slide left to dim unselected cells, right for full brightness. Selected cells are never dimmed.</p>
         <p><strong>Brightness auto-adjust:</strong> When you create your first selection, the slider automatically moves to a comfortable dim level so your selection stands out. You can adjust it freely from there. When you clear all selections (Escape), the slider resets to full brightness. When all highlighted cells are hidden — whether by hiding groups, hiding clusters, or slicing — brightness auto-resets to full.</p>
+        <p><strong>Picking at zoom-out:</strong> In 3D, the raycaster's world-space threshold naturally makes distant points easier to hit. In 2D, each point's pixel pick radius has a floor of ~8 CSS pixels, so individual cells remain clickable even when zoomed far out and the dots render as 1–2 px dots. When zoomed in close, the floor is a no-op — the usual per-point radius applies, so precision isn't lost.</p>
       </div>
     </div>
 
@@ -1167,14 +1220,15 @@
       </div>
       <div class="help-sec-body">
         <p><strong>View splits</strong> are named snapshots of your current slice filter and cluster visibility. They let you save and switch between different "angles" on the data — for example, one split filtered to organ=heart, another to organ=liver — without losing state.</p>
-        <p>Create a new view split with the <strong>+</strong> button in the Split Views panel, or press <span class="help-key">1</span>–<span class="help-key">9</span> to create/switch to "Split N" by number. You can create as many splits as you want. Switch between them using the sidebar dropdown, or press the number key matching the split name. Each split remembers its slice filter, cluster visibility, and deleted cells.</p>
-        <p><strong>Split-screen (<span style="font-size:13px;">⧉</span>):</strong> When you have two or more view splits, click the split-screen button to show two side by side in real time. Each half renders its own cell population based on its split's slice filter. Selection groups are shared across both halves — lasso in one half, see the highlights in both.</p>
-        <p><strong>Reassigning halves:</strong> The split name in each half's label is a dropdown. Change it to show a different split in that half — if you pick a split already in the other half, they swap.</p>
+        <p>Create a new view split with the <strong>+</strong> button in the Split Views panel, or press <span class="help-key">1</span>–<span class="help-key">9</span> to create/switch to "Split N" by number. You can create as many splits as you want. Switch between them using the sidebar dropdown, or press the number key matching the split name. Each split remembers its slice filter, cluster visibility, deleted cells, <strong>and camera position</strong> — switching between splits preserves where you were looking in each one, even outside of split-screen mode.</p>
+        <p><strong>Split-screen (<span style="font-size:13px;">⧉</span>):</strong> When you have two or more view splits, click the split-screen button to show two side by side in real time. Each half renders its own cell population based on its split's slice filter. Selection groups are shared across both halves — lasso in one half, see the highlights in both. A subtle vertical divider marks the boundary between the halves; the accent-colored focus border on the active half overlaps it on that side.</p>
+        <p><strong>Reassigning halves:</strong> The split name in each half's label is a dropdown. Change it to show a different split in that half — if you pick a split already in the other half, they swap. Each half's camera state follows the split shown there.</p>
         <table class="help-table">
           <tr><th>Feature</th><th>Details</th></tr>
           <tr><td>Camera tethering</td><td>By default both cameras are tethered (they move together). Click the chain-link icon to untether a half — it then has its own independent camera. Both halves can be untethered.</td></tr>
+          <tr><td>Navcross behavior</td><td>The orbit-pivot cross (3D) / pan-center cross (2D) stays at the active view's target, so it's always centered in the active half and drifts in the inactive half as you pan. Switching the active view reassigns it.</td></tr>
           <tr><td>Focus</td><td>Click a split in the sidebar dropdown or use the number keys to focus a half. The focused half gets a highlight border.</td></tr>
-          <tr><td>Navigation</td><td>Mouse interactions (rotate, zoom, pan, lasso) affect the half the cursor is over. Dragging across the divider stays locked to the original half.</td></tr>
+          <tr><td>Navigation</td><td>Mouse interactions (rotate, zoom, pan, lasso) affect the half the cursor is over. Dragging across the divider stays locked to the original half. Fly/pan direction is computed from the hovered view's own orientation, so untethered halves navigate correctly regardless of where the other view is pointing.</td></tr>
           <tr><td>Double-click</td><td>Zoom-focus works in each half independently (untethered only).</td></tr>
           <tr><td>HUD</td><td>Each half has its own cell-count HUD in the bottom corner showing visible/hidden/total for that half's split.</td></tr>
           <tr><td>Undo</td><td>Entering and exiting split-screen is captured in undo history. All changes within split-screen are undoable.</td></tr>
@@ -1335,6 +1389,7 @@
         </ol>
         <p><strong>Statistical tests:</strong> <strong>pyDESeq2</strong> is used when installed — it models count dispersion across replicates using a negative binomial GLM. If pyDESeq2 is not available, FLEEK falls back to a <strong>Welch's t-test on log₂-CPM</strong> values with Benjamini-Hochberg correction.</p>
         <p><strong>Requirements:</strong> A raw counts matrix must be detected in the dataset (checked automatically on load — see the Data panel). Each group needs cells in <strong>at least 2 replicates</strong>. More replicates improve statistical power. Genes with fewer than 10 total counts across all samples are filtered out.</p>
+        <p><strong>Counts source visibility &amp; smoothed-count guard:</strong> The Pseudo-bulk controls show which matrix was detected as counts (e.g. <code>adata.X</code>, a layer, or <code>adata.raw.X</code>) along with median UMI/cell, max, and the computed <strong>median Fano factor</strong> (variance/mean across ~500 well-expressed genes). Real UMI data is overdispersed (median Fano typically &gt; 1.5) because of biological cell-to-cell variation; model-generated integer counts (scVI <code>denoised_counts</code>, MAGIC, similar denoisers) follow a Poisson distribution with Fano ≈ 1. If the detected matrix looks smoothed (Fano &lt; 1.5), pseudo-bulk is <strong>disabled</strong> and an amber banner explains why: on Poisson-distributed counts the negative-binomial dispersion estimate collapses near zero, yielding anti-conservative p-values — everything looks significant. This guard prevents silently invalid DEG results when a denoised matrix is mistaken for raw counts.</p>
         <p><strong>Results:</strong> Displayed in the same volcano plot and gene table as single-cell DEG. The note above the plot shows the method used, group names, replicate counts, and number of genes tested. Cohen's d is not computed for pseudo-bulk (shown as 0).</p>
       </div>
     </div>
@@ -5151,16 +5206,19 @@ function _fmtBytes(b){return b<1e9?(b/1e6).toFixed(1)+" MB":(b/1e9).toFixed(2)+"
 var _sidebarHidden=false;
 function toggleSidebar(){
   var sb=document.getElementById("sidebar");
+  var sr=document.getElementById("sidebar-right");
   var btn=document.getElementById("sidebar-toggle");
   _sidebarHidden=!_sidebarHidden;
   if(_sidebarHidden){
     sb.classList.add("hidden");
+    if(sr)sr.classList.add("hidden");
     btn.classList.add("show");
   }else{
     sb.classList.remove("hidden");
+    if(sr)sr.classList.remove("hidden");
     btn.classList.remove("show");
   }
-  setTimeout(function(){syncCanvasSize();},300);
+  setTimeout(function(){syncCanvasSize();if(typeof _scheduleSizeCellTypesList==="function")_scheduleSizeCellTypesList();},300);
 }
 function setPtOpacity(v,noSave){
   if(!pts)return;
@@ -6840,10 +6898,10 @@ function loadBrowsedFile(){
   var req={
     path:loadPath,
     fast_umap:document.getElementById("browse-fast-umap").checked,
-    fast_umap_n:50000,
+    fast_umap_n:parseInt(document.getElementById("browse-fast-umap-n").value)||50000,
     fast_pacmap:document.getElementById("browse-fast-pacmap").checked,
     fast_deg:document.getElementById("browse-fast-deg").checked,
-    fast_deg_n:50000,
+    fast_deg_n:parseInt(document.getElementById("browse-fast-deg-n").value)||50000,
     backed:document.getElementById("browse-backed").checked?"on":"off",
     native_2d:document.getElementById("browse-native-2d").checked
   };
@@ -7037,7 +7095,15 @@ function unloadDataset(){
     document.getElementById("data-sec").classList.add("no-data");
     document.getElementById("lineage-tree").style.display="none";
     document.getElementById("lineage-tree").innerHTML="";
-    document.getElementById("leg-scroll").style.display="";
+    var _legEl=document.getElementById("leg-scroll");
+    if(_legEl){_legEl.style.display="";_legEl.innerHTML="";_legEl.scrollTop=0;}
+    /* Reset virtual-scroll state so a fresh render starts clean when a new dataset loads. */
+    _legRowH=[];_legRowY=[];_legIndices=[];_legLastS=-1;_legLastE=-1;_legCursor=-1;
+    var _typeCount=document.getElementById("type-count");if(_typeCount)_typeCount.textContent="";
+    /* Hide the cluster-gene variability section so stale cluster names don't linger */
+    var _hvgSec=document.getElementById("hvg-section");if(_hvgSec)_hvgSec.style.display="none";
+    /* Data panel becomes fixed (pinned at top, no grip) while no dataset is loaded. */
+    if(typeof _panelsSetDataMovable==="function")_panelsSetDataMovable(false);
     _setLinBtn(null,"flat");
     /* Clear HUD */
     var _hudV=document.getElementById("hud-visible");if(_hudV)_hudV.textContent="—";
@@ -7155,6 +7221,14 @@ document.getElementById("fast-deg-toggle").addEventListener("change",function(){
   var on=this.checked;
   document.getElementById("fast-deg-opts").style.display=on?"block":"none";
 });
+document.getElementById("browse-fast-umap").addEventListener("change",function(){
+  var on=this.checked;
+  document.getElementById("browse-fast-umap-opts").style.display=on?"block":"none";
+});
+document.getElementById("browse-fast-deg").addEventListener("change",function(){
+  var on=this.checked;
+  document.getElementById("browse-fast-deg-opts").style.display=on?"block":"none";
+});
 function updateFastLabel(){
   var v=parseInt(document.getElementById("fast-umap-n").value);
   document.getElementById("fast-umap-label").textContent=v>=1000?(v/1000)+"k":v;
@@ -7162,6 +7236,14 @@ function updateFastLabel(){
 function updateDegLabel(){
   var v=parseInt(document.getElementById("fast-deg-n").value);
   document.getElementById("fast-deg-label").textContent=v>=1000?(v/1000)+"k":v;
+}
+function updateBrowseFastLabel(){
+  var v=parseInt(document.getElementById("browse-fast-umap-n").value);
+  document.getElementById("browse-fast-umap-label").textContent=v>=1000?(v/1000)+"k":v;
+}
+function updateBrowseDegLabel(){
+  var v=parseInt(document.getElementById("browse-fast-deg-n").value);
+  document.getElementById("browse-fast-deg-label").textContent=v>=1000?(v/1000)+"k":v;
 }
 
 var _lastLoadSettings=null;
@@ -7254,6 +7336,8 @@ function showLoadBadges(ls){
   /* Mark data panel as loaded — removes dashed drop zone border */
   var dataSec=document.getElementById("data-sec");
   if(dataSec)dataSec.classList.remove("no-data");
+  /* Now that a dataset is loaded, let the Data panel be draggable. */
+  if(typeof _panelsSetDataMovable==="function")_panelsSetDataMovable(true);
 }
 
 /* ── Custom confirm dialog ── */
@@ -8334,7 +8418,23 @@ function _pbPopulate(){
     }
   }
 }
+var _pbAbort=null;   /* AbortController for the in-flight request */
+var _pbRunning=false;
+var _pbTimer=null;
+function _pbStop(){
+  /* Tell the server to stop the compute and abort the fetch locally. */
+  try{fetch("/api/abort",{method:"POST"});}catch(_){}
+  if(_pbAbort){try{_pbAbort.abort();}catch(_){}_pbAbort=null;}
+}
+function _pbResetBtn(){
+  _pbRunning=false;
+  if(_pbTimer){clearInterval(_pbTimer);_pbTimer=null;}
+  var btn=document.getElementById("pb-run-btn");
+  if(btn){btn.disabled=false;btn.textContent="Run";btn.classList.remove("deg-stop");}
+}
 function _pbRun(){
+  /* If already running, the button acts as Stop. */
+  if(_pbRunning){_pbStop();return;}
   /* Read which selection groups to compare from the Group A/B dropdowns */
   var selA=document.getElementById("deg-grpA");
   var selB=document.getElementById("deg-grpB");
@@ -8352,8 +8452,19 @@ function _pbRun(){
   if(idA===idB){document.getElementById("pb-status").textContent="Select two different groups";return;}
   var status=document.getElementById("pb-status");
   var btn=document.getElementById("pb-run-btn");
-  btn.disabled=true;btn.textContent="Running...";
-  status.textContent="";
+  /* Switch to Stop mode; reuse the DEG button's red styling. */
+  _pbRunning=true;
+  _pbAbort=new AbortController();
+  btn.textContent="Stop";btn.classList.add("deg-stop");btn.disabled=false;
+  /* Label the test the server is about to run so the status line reflects
+     what's actually executing (pyDESeq2 vs Welch's t-test on CPM). */
+  var _pbTestName=(D&&D.header&&D.header.pydeseq2_available)?"pyDESeq2":"t-test (CPM)";
+  status.textContent="Running "+_pbTestName+"...";
+  var startTime=Date.now();
+  _pbTimer=setInterval(function(){
+    var elapsed=(Date.now()-startTime)/1000;
+    status.textContent="Running "+_pbTestName+"... "+elapsed.toFixed(0)+"s";
+  },500);
   var body={
     group_a_cells:Array.from(grpA.cells),
     group_b_cells:Array.from(grpB.cells),
@@ -8361,16 +8472,18 @@ function _pbRun(){
     group_a_name:grpA.name,
     group_b_name:grpB.name
   };
-  fetch("/api/pseudobulk-deg",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+  fetch("/api/pseudobulk-deg",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:_pbAbort.signal})
   .then(function(r){return r.json();})
   .then(function(data){
-    btn.disabled=false;btn.textContent="Run";
-    if(data.error){status.textContent="Error: "+data.error;return;}
+    _pbResetBtn();_pbAbort=null;
+    if(data&&data.aborted){status.textContent="Cancelled";return;}
+    if(data&&data.error){status.textContent="Error: "+data.error;return;}
     status.textContent=data.method+" \u00b7 "+data.n_genes_tested+" genes \u00b7 "+data.elapsed+"s";
     _showPseudoBulkResult(data);
   })
   .catch(function(err){
-    btn.disabled=false;btn.textContent="Run";
+    _pbResetBtn();_pbAbort=null;
+    if(err&&err.name==="AbortError"){status.textContent="Cancelled";return;}
     status.textContent="Failed: "+err.message;
   });
 }
@@ -10064,6 +10177,8 @@ function applyUIScale(v){
   currentUIScale=s;
   document.getElementById("ui-scale-label").textContent=Math.round(s*100)+"%";
   document.getElementById("sidebar").style.zoom=s;
+  var sr=document.getElementById("sidebar-right");
+  if(sr)sr.style.zoom=s;
   document.getElementById("deg-panel").style.zoom=s;
   document.getElementById("deg-drag").style.zoom=s;
   /* Scale floating UI via transform (not zoom) to avoid affecting canvas coords */
@@ -10432,20 +10547,55 @@ function _patchOS(){
    within the left column or drop into the right column (which auto-appears when it
    has panels and auto-hides when empty). Layout persists in localStorage. */
 var _panelDrag=null; /* {sec, startX, startY, active, ghost, placeholder} */
+function _panelAddGrip(sec){
+  if(!sec)return;
+  var hdr=sec.querySelector(":scope > .col-hdr");
+  if(!hdr||hdr.querySelector(":scope > .panel-grip"))return;
+  var grip=document.createElement("span");
+  grip.className="panel-grip";
+  grip.setAttribute("title","Drag to reorder (drop in the right-hand empty space for a second column)");
+  grip.textContent="⋮⋮";
+  grip.addEventListener("pointerdown",_panelGripPointerDown);
+  grip.addEventListener("click",function(ev){ev.stopPropagation();});
+  hdr.insertBefore(grip,hdr.firstChild);
+  hdr.classList.add("has-grip");
+}
+function _panelRemoveGrip(sec){
+  if(!sec)return;
+  var hdr=sec.querySelector(":scope > .col-hdr");
+  if(!hdr)return;
+  var grip=hdr.querySelector(":scope > .panel-grip");
+  if(grip)grip.remove();
+  hdr.classList.remove("has-grip");
+}
+/* Data panel is movable only when a dataset is loaded. When unloaded, it's pinned
+   at the top of the left column and has no grip. Call with D being null/not-null. */
+function _panelsSetDataMovable(on){
+  var ds=document.getElementById("data-sec");
+  if(!ds)return;
+  if(on){
+    _panelAddGrip(ds);
+  }else{
+    _panelRemoveGrip(ds);
+    /* Snap Data back to the top of the left column after the RNA-FLEEK header. */
+    var lUp=document.getElementById("sidebar-upper");
+    if(lUp){
+      var hdr=lUp.querySelector(":scope > .sec:not([data-col])");
+      if(hdr&&hdr.nextSibling!==ds)lUp.insertBefore(ds,hdr.nextSibling);
+      else if(!hdr&&lUp.firstChild!==ds)lUp.insertBefore(ds,lUp.firstChild);
+    }
+    _panelSaveLayout();
+    _panelUpdateRightCol();
+  }
+}
 function _panelsInit(){
   var secs=document.querySelectorAll(".sec[data-col]");
   for(var i=0;i<secs.length;i++){
     var s=secs[i];
-    var hdr=s.querySelector(":scope > .col-hdr");
-    if(hdr&&!hdr.querySelector(":scope > .panel-grip")){
-      var grip=document.createElement("span");
-      grip.className="panel-grip";
-      grip.setAttribute("title","Drag to reorder (drop in the right-hand empty space for a second column)");
-      grip.textContent="⋮⋮";
-      grip.addEventListener("pointerdown",_panelGripPointerDown);
-      grip.addEventListener("click",function(ev){ev.stopPropagation();});
-      hdr.insertBefore(grip,hdr.firstChild);
-    }
+    /* Data panel: grip is added only when a dataset is loaded; see
+       _panelsSetDataMovable which is called from the load/unload paths. */
+    if(s.dataset.col==="data")continue;
+    _panelAddGrip(s);
   }
   _panelRestoreLayout();
   _panelUpdateRightCol();
@@ -10498,6 +10648,9 @@ function _panelPointerMove(e){
   if(sec&&sec!==_panelDrag.sec){
     var r=sec.getBoundingClientRect();
     var before=(e.clientY-r.top)<r.height/2;
+    /* Data panel is pinned at the top when no dataset is loaded — never allow drop
+       BEFORE it in that state. When a dataset is loaded, Data is freely movable. */
+    if(sec.dataset.col==="data"&&!D)before=false;
     sec.classList.add(before?"panel-drop-before":"panel-drop-after");
     _panelDrag.lastTarget=sec;_panelDrag.lastBefore=before;
     return;
@@ -10562,12 +10715,32 @@ function _sizeCellTypesList(){
   if(leg&&leg.offsetParent!==null&&leg.style.display!=="none")target=leg;
   else if(lin&&lin.offsetParent!==null&&lin.style.display!=="none")target=lin;
   if(!target)return;
-  var colRect=column.getBoundingClientRect();
+  /* Clear stale inline max-height before measuring — after a column move the
+     previous column's sizing would otherwise keep the panel oversized. */
+  target.style.maxHeight="";
+  /* Force a reflow so the cleared max-height takes effect before we read rects */
+  void target.offsetHeight;
+  /* Find the next sibling panel after ct-sec in the same column so the list
+     doesn't grow past it and overlap panels below. If ct-sec is the last panel,
+     use the column's visible bottom. */
+  var nextPanel=ct.nextElementSibling;
+  while(nextPanel&&!(nextPanel.classList&&nextPanel.classList.contains("sec"))){
+    nextPanel=nextPanel.nextElementSibling;
+  }
+  var limitBottom;
+  if(nextPanel){
+    limitBottom=nextPanel.getBoundingClientRect().top;
+  }else{
+    limitBottom=column.getBoundingClientRect().bottom;
+  }
   var tgtRect=target.getBoundingClientRect();
-  /* Distance from target's top to column's inner bottom, minus a small padding buffer. */
-  var avail=colRect.bottom-tgtRect.top-12;
+  var avail=limitBottom-tgtRect.top-12;
   var minH=200;
-  target.style.maxHeight=Math.max(minH,Math.round(avail))+"px";
+  /* Cap at column height minus a bit so we never overflow when the target is
+     scrolled into view with lots of space above it. */
+  var cap=Math.max(minH,column.clientHeight-40);
+  var chosen=Math.max(minH,Math.min(cap,Math.round(avail)));
+  target.style.maxHeight=chosen+"px";
   if(target===leg&&typeof _legVirtualRender==="function"){try{_legVirtualRender();}catch(_){}}
 }
 var _sizeCtRaf=0;
@@ -10585,19 +10758,34 @@ function _panelSaveLayout(){
 }
 function _panelRestoreLayout(){
   var raw=null;try{raw=localStorage.getItem("fleek_panel_layout");}catch(_){}
-  if(!raw)return;
-  var layout;try{layout=JSON.parse(raw);}catch(_){return;}
   var lUp=document.getElementById("sidebar-upper");
   var rUp=document.getElementById("sidebar-right-upper");
-  function move(ids,dst){
-    if(!ids||!dst)return;
-    ids.forEach(function(col){
-      var s=document.querySelector('.sec[data-col="'+col+'"]');
-      if(s)dst.appendChild(s); /* appendChild moves if already in DOM, preserving event listeners */
-    });
+  var dataSec=document.querySelector('.sec[data-col="data"]');
+  if(raw){
+    var layout;try{layout=JSON.parse(raw);}catch(_){layout=null;}
+    if(layout){
+      function move(ids,dst){
+        if(!ids||!dst)return;
+        ids.forEach(function(col){
+          if(col==="data")return; /* Data is pinned — handled separately below */
+          var s=document.querySelector('.sec[data-col="'+col+'"]');
+          if(s)dst.appendChild(s);
+        });
+      }
+      move(layout.L,lUp);
+      move(layout.R,rUp);
+    }
   }
-  move(layout.L,lUp);
-  move(layout.R,rUp);
+  /* Pin Data at the top of the left column ONLY when no dataset is loaded. Once
+     loaded, Data becomes draggable and respects the saved layout. */
+  if(dataSec&&lUp&&!D){
+    var titleHeader=lUp.querySelector(":scope > .sec:not([data-col])");
+    if(titleHeader){
+      if(titleHeader.nextSibling!==dataSec)lUp.insertBefore(dataSec,titleHeader.nextSibling);
+    }else if(lUp.firstChild!==dataSec){
+      lUp.insertBefore(dataSec,lUp.firstChild);
+    }
+  }
 }
 
 document.addEventListener("DOMContentLoaded",function(){

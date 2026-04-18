@@ -79,6 +79,11 @@ GO_SYNONYM_MAP = None    # synonym -> canonical gene symbol (for dataset matchin
 COUNTS_MATRIX = None  # raw counts matrix reference (for pseudo-bulk DEG)
 COUNTS_LABEL = None   # where counts were found (e.g. "X", "layers['counts']")
 COUNTS_INFO = None    # {"label","median_total","max","fano_median","looks_smoothed","pb_ok","reason"}
+try:
+    import pydeseq2 as _pydeseq2_probe  # noqa: F401
+    PYDESEQ2_AVAILABLE = True
+except Exception:
+    PYDESEQ2_AVAILABLE = False
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
 _DETECTED_ORGANISM = None  # (name, reason) tuple from _detect_organism()
 AUTO_UNLOAD = False   # If True, unload dataset when no client heartbeat
@@ -509,6 +514,9 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
         dict with: genes, log2fc, padj, method, n_samples_a, n_samples_b, ...
     """
     import scipy.sparse as sp
+    global ABORT_REQUESTED
+    # Reset any stale abort flag from a prior cancel so this run can check it fresh.
+    ABORT_REQUESTED = False
 
     if ADATA is None or COUNTS_MATRIX is None:
         raise ValueError("No dataset or counts matrix available")
@@ -548,6 +556,7 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
     COND_B = "B"
 
     for rep_id in unique_a:
+        _check_abort()
         cell_idx = idx_a[reps_a == rep_id]
         if len(cell_idx) == 0:
             continue
@@ -557,6 +566,7 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
         all_conditions.append(COND_A)
 
     for rep_id in unique_b:
+        _check_abort()
         cell_idx = idx_b[reps_b == rep_id]
         if len(cell_idx) == 0:
             continue
@@ -564,6 +574,8 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
         agg = np.asarray(counts.sum(axis=0)).flatten()
         all_samples.append(agg)
         all_conditions.append(COND_B)
+
+    _check_abort()
 
     count_matrix = np.vstack(all_samples)  # samples × genes
     conditions = np.array(all_conditions)
@@ -591,9 +603,11 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
         meta_df = pd.DataFrame({"condition": conditions}, index=[f"sample_{i}" for i in range(len(conditions))])
         count_df.index = meta_df.index
 
+        _check_abort()  # last chance before entering the long pyDESeq2 fit
         dds = DeseqDataSet(counts=count_df, metadata=meta_df, design="~condition")
         dds.deseq2()
 
+        _check_abort()
         stat = DeseqStats(dds, contrast=["condition", COND_A, COND_B])
         stat.summary()
 
@@ -625,6 +639,9 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
         for gi in range(n_genes):
             if not keep[gi]:
                 continue
+            # Check abort every 500 genes — cheap enough to skip every iteration.
+            if (gi & 0x1FF) == 0:
+                _check_abort()
             vals_a = log_cpm[mask_cond_a, gi]
             vals_b = log_cpm[mask_cond_b, gi]
             fc = vals_a.mean() - vals_b.mean()
@@ -644,6 +661,9 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
 
         print(f"  t-test on CPM complete: {len(genes_out)} genes tested")
 
+    except AbortError:
+        # Propagate cancellation to the handler; don't wrap it as a DEG error.
+        raise
     except Exception as e:
         raise ValueError(f"DEG computation failed: {e}")
 
@@ -2351,6 +2371,7 @@ def build_init_payload():
         "counts_available": COUNTS_MATRIX is not None and (COUNTS_INFO is None or COUNTS_INFO.get("pb_ok", True)),
         "counts_label": COUNTS_LABEL or "",
         "counts_info": COUNTS_INFO,
+        "pydeseq2_available": PYDESEQ2_AVAILABLE,
     }
 
     # Include cached annotations if available
@@ -3290,6 +3311,19 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
         except BrokenPipeError:
             pass
+        except AbortError:
+            global ABORT_REQUESTED
+            ABORT_REQUESTED = False  # clear so the next run isn't pre-aborted
+            print("  Pseudo-bulk aborted by user")
+            try:
+                err = json.dumps({"error": "aborted", "aborted": True}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
+            except BrokenPipeError:
+                pass
         except Exception as e:
             import traceback
             traceback.print_exc()
