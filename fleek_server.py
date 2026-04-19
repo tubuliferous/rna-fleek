@@ -15,6 +15,7 @@ Then open: http://localhost:8080
 import argparse
 import io
 import json
+import math
 import os
 import struct
 import sys
@@ -113,6 +114,29 @@ _FLEEK_PALETTE = [
 def _palette_hex(idx):
     r, g, b = _FLEEK_PALETTE[idx % len(_FLEEK_PALETTE)]
     return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+
+def _json_safe(obj):
+    """Recursively convert NaN / ±Inf floats to None so json.dumps produces
+    strict JSON that the browser can parse. Numpy scalars are coerced to
+    builtins first so isnan/isinf work on them."""
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    # numpy scalar / array element
+    if hasattr(obj, "item") and not isinstance(obj, (str, bytes)):
+        try:
+            v = obj.item()
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                return None
+            return v
+        except Exception:
+            pass
+    return obj
 
 def _init_cache_dir():
     """Initialize the server-side cache directory."""
@@ -2862,7 +2886,7 @@ def build_init_payload():
             except Exception as e:
                 print(f"  Init: error reading lineage {lp}: {e}")
 
-    header_bytes = json.dumps(header, separators=(",", ":")).encode("utf-8")
+    header_bytes = json.dumps(_json_safe(header), separators=(",", ":")).encode("utf-8")
 
     buf = io.BytesIO()
     buf.write(b"SCRN")

@@ -20,9 +20,11 @@ certifi
 # PaCMAP embedding (optional — FLEEK works without it)
 pacmap<0.8
 
-# Pseudo-bulk DEG (optional — falls back to t-test without it)
-# pydeseq2
-# statsmodels  # needed for t-test fallback BH correction
+# Pseudo-bulk DEG — pyDESeq2 is preferred; statsmodels is required for the
+# t-test fallback's Benjamini-Hochberg correction. Both are bundled into the
+# desktop-app builds so pseudo-bulk DEG uses DESeq2 out of the box.
+pydeseq2
+statsmodels
 
 # Build only (not needed to run FLEEK)
 # hatchling

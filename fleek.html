@@ -140,16 +140,16 @@
      itself keeps its natural padding/margin — title stays aligned with the other
      panel titles. */
   #data-sec.no-data{position:relative;}
-  #data-sec.no-data::before{content:"";position:absolute;top:2px;bottom:10px;left:10px;right:10px;border:1.5px dashed var(--border2);border-radius:6px;pointer-events:none;}
+  #data-sec.no-data::before{content:"";position:absolute;top:3px;bottom:4px;left:4px;right:4px;border:1.5px dashed var(--border2);border-radius:6px;pointer-events:none;}
   /* Breathing room between drop-zone content (status, progress, upload popover)
      and the dashed border — applies in both idle and loading states. */
   #data-sec.no-data #data-summary{padding:8px 20px 10px!important;}
   #data-sec.no-data #data-summary #info{margin:0;}
   #data-sec.no-data > .col-body{padding:0 20px 14px;}
   /* File browser sits right under the header now (outside col-body), so it doesn't
-     inherit col-body's horizontal padding. Nudge it inward so it stays inside the
-     dashed drop-zone border on both sides when a dataset isn't loaded. */
-  #data-sec.no-data > #browse-popover{margin-left:14px;margin-right:14px;}
+     inherit col-body's horizontal padding. Keep it just inside the dashed
+     drop-zone border (which is at left/right:4px) when a dataset isn't loaded. */
+  #data-sec.no-data > #browse-popover{margin-left:7px;margin-right:7px;}
   input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:2px;outline:none;}
   input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
   input[type=range]::-moz-range-thumb{width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
@@ -308,8 +308,13 @@
   #deg-drag:hover::after,#deg-drag.dragging::after{background:#818cf8;}
   #deg-hdr{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
   #deg-hdr .lbl{margin:0;font-size:10px;}
-  #deg-hdr select{padding:4px 6px;}
-  #deg-hdr button{background:none;border:1px solid var(--border);border-radius:3px;color:var(--text3);font-size:9px;font-family:inherit;padding:3px 8px;cursor:pointer;}
+  /* flex-shrink:0 so selects don't get squeezed narrower than their content —
+     otherwise long group labels (e.g. "Group 1 (1,234,567 cells)") run into
+     the dropdown arrow. padding-right:18px reserves space for the native
+     dropdown arrow so text doesn't sit under it. width:auto keeps them at
+     intrinsic content width. */
+  #deg-hdr select{padding:4px 18px 4px 6px;flex-shrink:0;width:auto;}
+  #deg-hdr button{background:none;border:1px solid var(--border);border-radius:3px;color:var(--text3);font-size:9px;font-family:inherit;padding:3px 8px;cursor:pointer;flex-shrink:0;}
   #deg-hdr button:hover{border-color:var(--text3);color:var(--text2);}
   #deg-run-btn{background:rgba(99,102,241,0.2)!important;border-color:var(--accent)!important;color:var(--accent2)!important;font-weight:600;padding:3px 14px!important;}
   #deg-run-btn:hover{background:rgba(99,102,241,0.35)!important;}
@@ -337,7 +342,7 @@
   /* Custom dropdown popup */
   .fleek-dropdown{position:fixed;z-index:400;background:var(--bg2);border:1px solid var(--border);border-radius:5px;box-shadow:0 8px 24px rgba(0,0,0,0.4);padding:3px;max-height:260px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent;min-width:60px;}
   .light .fleek-dropdown{box-shadow:0 8px 24px rgba(0,0,0,0.12);}
-  .fleek-dropdown-item{padding:4px 10px;border-radius:3px;cursor:pointer;font-size:10px;font-family:inherit;color:var(--text2);white-space:nowrap;line-height:1.5;}
+  .fleek-dropdown-item{padding:4px 10px;border-radius:3px;cursor:pointer;font-size:inherit;font-family:inherit;font-weight:inherit;color:var(--text2);white-space:nowrap;line-height:1.5;}
   .fleek-dropdown-item:hover{background:var(--bg-hover);}
   .fleek-dropdown-item.selected{color:var(--accent2);font-weight:600;}
   .fleek-dropdown-item.disabled{color:var(--text4);cursor:default;opacity:0.5;}
@@ -501,7 +506,7 @@
     <!-- Server file browser popover — placed right under the Data header icons so
          the file picker always appears at the top of the panel regardless of what
          other transient UI (upload status, load badges, matrix info) is open below. -->
-    <div id="browse-popover" style="display:none;margin:6px 14px 0;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
+    <div id="browse-popover" style="display:none;margin:6px 6px 0;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
       <div style="display:flex;align-items:center;gap:2px;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:1px;margin-right:4px;">
           <button class="btn" id="browse-back" onclick="browseBack()" title="Step Back" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--text4);">&#8634;</button>
@@ -825,8 +830,8 @@
     </div>
     <div class="col-body">
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;min-width:0;">
-        <button id="annotate-btn" onclick="runAnnotation()" style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.3);border-radius:3px;color:#34d399;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;" title="Infer cell types from marker gene database">Markers</button>
-        <button id="annotate-llm-btn" onclick="runAnnotationLLM()" style="background:rgba(196,181,253,0.06);border:1px solid rgba(196,181,253,0.3);border-radius:3px;color:#c4b5fd;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;" title="Infer cell types using Claude AI (requires ANTHROPIC_API_KEY env var or ~/.fleek.env)">Claude</button>
+        <button id="annotate-btn" onclick="runAnnotation()" style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.3);border-radius:3px;color:#34d399;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;text-align:center;" title="Infer cell types from marker gene database">Markers</button>
+        <button id="annotate-llm-btn" onclick="runAnnotationLLM()" style="background:rgba(196,181,253,0.06);border:1px solid rgba(196,181,253,0.3);border-radius:3px;color:#c4b5fd;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;text-align:center;" title="Infer cell types using Claude AI (requires ANTHROPIC_API_KEY env var or ~/.fleek.env)">Claude</button>
         <span id="lineage-toggle" style="display:inline-flex;border:1px solid rgba(251,191,36,0.3);border-radius:3px;overflow:hidden;font-size:9px;font-family:inherit;flex-shrink:0;margin-left:auto;">
           <button id="lineage-btn-flat" onclick="if(lineageView)toggleLineageView()" style="background:rgba(251,191,36,0.15);border:none;color:#fbbf24;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 6px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex-shrink:0;"></button>
           <button id="lineage-btn-tree" onclick="if(!lineageView)toggleLineageView()" style="background:rgba(251,191,36,0.06);border:none;border-left:1px solid rgba(251,191,36,0.2);color:#fbbf24;cursor:pointer;font-size:9px;font-family:inherit;padding:3px 6px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex-shrink:0;" title="Show developmental lineage tree (uses Claude AI)"></button>
@@ -848,7 +853,10 @@
 <div id="cw">
   <img id="compare-img" style="display:none;position:absolute;top:0;left:0;width:50%;height:100%;object-fit:cover;z-index:2;border-right:2px solid var(--accent);">
   <div id="compare-label" style="display:none;position:absolute;top:8px;left:8px;z-index:3;font-size:10px;color:var(--accent2);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:none;"></div>
-  <div id="view-label" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);cursor:pointer;" onclick="_viewRename()" title="Click to rename this view split"></div>
+  <div id="view-label" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);align-items:center;gap:6px;">
+    <span id="view-label-name" style="cursor:pointer;" onclick="_viewRename()" title="Click to rename this view split"></span>
+    <span id="view-label-tether" class="tether-btn" onclick="_toggleTetherById(_activeViewId)" title="Toggle camera tether"></span>
+  </div>
   <div id="split-divider"></div>
   <div id="split-focus-L" class="split-focus-box"></div>
   <div id="split-focus-R" class="split-focus-box"></div>
@@ -1257,7 +1265,7 @@
         <p><strong>Reassigning halves:</strong> The split name in each half's label is a dropdown. Change it to show a different split in that half — if you pick a split already in the other half, they swap. Each half's camera state follows the split shown there.</p>
         <table class="help-table">
           <tr><th>Feature</th><th>Details</th></tr>
-          <tr><td>Camera tethering</td><td>By default cameras are tethered (they move together). Click the chain-link icon on a half's label, or on any view row in the Split Views panel, to untether — that view keeps its own independent camera. Tether state is persisted per view and can be set even when split-screen isn't active.</td></tr>
+          <tr><td>Camera tethering</td><td>By default cameras are tethered (they move together). Click the chain-link icon on a half's label, or on any view row in the Split Views panel, to untether — that view keeps its own independent camera. Tether state is persisted per view and works in single-view mode too: switching between two tethered splits keeps the same camera position, while switching to or from an untethered split restores that split's own saved camera.</td></tr>
           <tr><td>Navcross behavior</td><td>In 3D, the orbit-pivot cross stays at the active view's target, so it's always centered in the active half and drifts in the inactive half as you pan. 2D uses a fixed-size screen crosshair in the active half only.</td></tr>
           <tr><td>Focus</td><td>Click a split in the sidebar dropdown or use the number keys to focus a half. The focused half gets a highlight border.</td></tr>
           <tr><td>Navigation</td><td>Mouse interactions (rotate, zoom, pan, lasso) affect the half the cursor is over. Dragging across the divider stays locked to the original half. Fly/pan direction is computed from the hovered view's own orientation, so untethered halves navigate correctly regardless of where the other view is pointing.</td></tr>
@@ -1421,7 +1429,7 @@
           <li>A single <strong>Replicate column</strong> dropdown appears. Select the <code>obs</code> column that defines biological replicates (e.g., <em>donor</em>, <em>batch</em>, <em>sample_id</em>). Columns with 2–50 unique values are listed.</li>
           <li>Click <strong>Run</strong>. For each group, cells are split by replicate, raw counts are summed per replicate, and the resulting pseudo-bulk count matrix is tested.</li>
         </ol>
-        <p><strong>Statistical tests:</strong> <strong>pyDESeq2</strong> is used when installed — it models count dispersion across replicates using a negative binomial GLM. If pyDESeq2 is not available, FLEEK falls back to a <strong>Welch's t-test on log₂-CPM</strong> values with Benjamini-Hochberg correction.</p>
+        <p><strong>Statistical tests:</strong> <strong>pyDESeq2</strong> is used when installed — it models count dispersion across replicates using a negative binomial GLM. The pre-built desktop apps ship with pyDESeq2 bundled, so it's the default backend out of the box. If pyDESeq2 is unavailable (e.g. a custom pip environment without it), FLEEK falls back to a <strong>Welch's t-test on log₂-CPM</strong> values with Benjamini-Hochberg correction. The Pseudo-bulk panel shows which backend was picked.</p>
         <p><strong>Requirements:</strong> A raw counts matrix must be detected in the dataset (checked automatically on load — see the Data panel). Each group needs cells in <strong>at least 2 replicates</strong>. More replicates improve statistical power. Genes with fewer than 10 total counts across all samples are filtered out.</p>
         <p><strong>Counts source visibility &amp; smoothed-count guard:</strong> The Pseudo-bulk controls show which matrix was detected as counts (e.g. <code>adata.X</code>, a layer, or <code>adata.raw.X</code>) along with median UMI/cell, max, and the computed <strong>median Fano factor</strong> (variance/mean across ~500 well-expressed genes). Real UMI data is overdispersed (median Fano typically &gt; 1.5) because of biological cell-to-cell variation; model-generated integer counts (scVI <code>denoised_counts</code>, MAGIC, similar denoisers) follow a Poisson distribution with Fano ≈ 1. If the detected matrix looks smoothed (Fano &lt; 1.5), pseudo-bulk is <strong>disabled</strong> and an amber banner explains why: on Poisson-distributed counts the negative-binomial dispersion estimate collapses near zero, yielding anti-conservative p-values — everything looks significant. This guard prevents silently invalid DEG results when a denoised matrix is mistaken for raw counts.</p>
         <p><strong>Results:</strong> Displayed in the same volcano plot and gene table as single-cell DEG. The note above the plot shows the method used, group names, replicate counts, and number of genes tested. Cohen's d is not computed for pseudo-bulk (shown as 0).</p>
@@ -5405,14 +5413,14 @@ function _updateAnnotBtns(){
   var cb=document.getElementById("annotate-llm-btn");
   if(mb){
     if(markerAnnotations){
-      mb.style.opacity="0.4";mb.style.cursor="default";mb.innerHTML="Markers<span style=\"margin-left:1px;\">\u2713<\/span>";
+      mb.style.opacity="0.4";mb.style.cursor="default";mb.innerHTML="Markers<span style=\"display:inline-block;width:1em;text-align:center;margin-left:3px;margin-right:-2px;\">\u2713<\/span>";
     }else{
       mb.style.opacity="";mb.style.cursor="pointer";mb.textContent="Markers";
     }
   }
   if(cb){
     if(llmAnnotations){
-      cb.style.opacity="0.4";cb.style.cursor="default";cb.innerHTML="Claude<span style=\"margin-left:1px;\">\u2713<\/span>";
+      cb.style.opacity="0.4";cb.style.cursor="default";cb.innerHTML="Claude<span style=\"display:inline-block;width:1em;text-align:center;margin-left:3px;margin-right:-2px;\">\u2713<\/span>";
     }else{
       cb.style.opacity="";cb.style.cursor="pointer";cb.textContent="Claude";
     }
@@ -6251,6 +6259,10 @@ function _computeVisStats(){
   _legLastS=-1;_legLastE=-1;_legVirtualRender();
   _syncSlicePills();
   if(lineageView)_renderLineageTree();
+  /* Gene-panel cluster dot: renderLeg() already triggered a dot refresh, but
+     that ran before _visStats was rebuilt — so the partial/full fill state was
+     still stale. Refresh once more now that counts are current. */
+  _gvUpdateDot();
 }
 var _preDeletedCells=null;
 function _toggleShowAll(){
@@ -7143,6 +7155,7 @@ function unloadDataset(){
     /* Close DEG panel */
     if(degOpen)closeDEG();
     degData=null;degCache={};degGrpA=null;degGrpB=null;_degOrigGroups=null;
+    _pbWarnDismissed=false;
     selGroups=[];activeGroupId=null;selGroupIdCounter=0;cellGroupMap=null;groupVisible={};
     _hadSelection=false;bgDimPct=0;_bgDimCluster=0;_bgDimGene=0;
     _deletedCells=null;_preShowAllVis=null;_preDeletedCells=null;
@@ -8182,6 +8195,12 @@ function _toggleTetherById(viewId){
   if(!sv)return;
   if(sv.tethered===undefined)sv.tethered=true;
   sv.tethered=!sv.tethered;
+  /* When untethering the currently-active view in single-view mode, stamp its
+     saved camera from the current globals so it doesn't jump back to a stale
+     position next time it's activated. */
+  if(!_splitActive&&viewId===_activeViewId&&!sv.tethered){
+    sv.camera=_snapCameraFromGlobals();
+  }
   /* If split is active and this view occupies a half, mirror to the live view
      and snap its camera to the master if re-tethered. */
   if(_splitActive){
@@ -8344,8 +8363,12 @@ function _buildSliceMask(sfObj){
   }
   return mask;
 }
-function _restoreViewState(v){
-  /* Load a snapshot view's FULL state into globals (slice, visibility, selections, deleted cells, camera) */
+function _restoreViewState(v,opts){
+  /* Load a snapshot view's FULL state into globals (slice, visibility, selections, deleted cells, camera).
+     Camera sharing: caller decides via opts.shareCam — true only when BOTH source
+     and target views are tethered (same rule as dual-view split mode). When
+     shareCam is true we keep the current camera; otherwise we restore the
+     target's saved camera. Default (no opts) = restore stored camera. */
   if(!v)return;
   _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
@@ -8360,7 +8383,7 @@ function _restoreViewState(v){
   _preShowAllVis=null;_preDeletedCells=null;
   if(typeof v.mode==="string")mode=v.mode;
   if(typeof v.selGene==="string")selGene=v.selGene;
-  _applyCameraToGlobals(v.camera);
+  if(!(opts&&opts.shareCam))_applyCameraToGlobals(v.camera);
 }
 function _restoreSplitViewState(v){
   /* Load slice + visibility + color mode + selected gene into globals so each view
@@ -8430,11 +8453,18 @@ function _viewSwitch(id){
     _updateHudGroup();
     return;
   }
+  /* Determine tether state of source + target BEFORE mutating _activeViewId —
+     cameras are shared (kept from current globals) only when both ends are
+     tethered. Any untethered end means load target's stored camera. */
+  var _srcV=_views.find(function(v){return v.id===_activeViewId;});
+  var _tgtV=_views.find(function(v){return v.id===id;});
+  var _srcTeth=!(_srcV&&_srcV.tethered===false);
+  var _tgtTeth=!(_tgtV&&_tgtV.tethered===false);
+  var _shareCam=_srcTeth&&_tgtTeth;
   _viewSaveCurrent();
   _activeViewId=id;
-  var v=_views.find(function(v){return v.id===id;});
-  if(!v)return;
-  _restoreViewState(v);
+  if(!_tgtV)return;
+  _restoreViewState(_tgtV,{shareCam:_shareCam});
   _syncColorModeUIToGlobals();
   /* Refresh everything */
   _syncSlicePills();_updateSliceUI();
@@ -8521,12 +8551,24 @@ function _viewUpdateUI(){
     cmpBtn.style.background=_splitActive?"rgba(99,102,241,0.2)":"none";
     cmpBtn.style.color=_splitActive?"var(--accent2)":"var(--text4)";
   }
-  /* Canvas overlay label */
+  /* Canvas overlay label: name + tether toggle (only when >1 view exists and
+     split-screen isn't active — in split mode the per-half labels already
+     carry their own tether buttons). */
   if(label){
     if(_views.length>1&&!_splitActive){
       var av=_views.find(function(v){return v.id===_activeViewId;});
-      label.textContent=av?av.name:"";
-      label.style.display="block";
+      var nameEl=document.getElementById("view-label-name");
+      var tEl=document.getElementById("view-label-tether");
+      if(nameEl)nameEl.textContent=av?av.name:"";
+      if(tEl&&av){
+        var isT=av.tethered!==false;
+        tEl.innerHTML=isT
+          ?'<svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M13.54 10.46C11.84 8.75 9.07 8.75 7.37 10.46L4.28 13.54C2.57 15.25 2.57 18.02 4.28 19.72C5.98 21.43 8.75 21.43 10.46 19.72L12 18.18"/><path d="M10.46 13.54C12.16 15.25 14.93 15.25 16.63 13.54L19.72 10.46C21.43 8.75 21.43 5.98 19.72 4.28C18.02 2.57 15.25 2.57 13.54 4.28L12 5.82"/><\/svg>'
+          :'<svg viewBox="0 0 512 512" width="12" height="12" style="fill:currentColor;vertical-align:-2px;"><path d="M212.3 390.2l-60.3 60.3c-25 25-65.5 25-90.5 0-25-25-25-65.5 0-90.5l120.7-120.7c25-25 65.5-25 90.5 0 8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2-41.7-41.7-109.2-41.7-150.8 0L31.3 329.9c-41.7 41.7-41.7 109.2 0 150.8 41.6 41.7 109.2 41.7 150.9 0l60.3-60.3c8.3-8.3 8.3-21.8 0-30.2s-21.8-8.3-30.2 0z"/><path d="M480.8 182.1c41.7-41.7 41.7-109.2 0-150.8-41.7-41.7-109.2-41.7-150.8 0l-72.4 72.4c-8.3 8.3-8.3 21.8 0 30.2s21.8 8.3 30.2 0l72.4-72.4c25-25 65.5-25 90.5 0s25 65.5 0 90.5L317.9 284.6c-25 25-65.5 25-90.5 0-8.3-8.3-21.8-8.3-30.2 0s-8.3 21.8 0 30.2c41.7 41.7 109.2 41.7 150.8 0L480.8 182.1z"/><path d="M399.1 368.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64c8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2l-64-64z"/><path d="M112.9 143.1c8.3 8.3 21.8 8.3 30.2 0s8.3-21.8 0-30.2L79.1 48.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64z"/><path d="M490.7 320h-64c-11.8 0-21.3 9.6-21.3 21.3s9.6 21.3 21.3 21.3h64c11.8 0 21.3-9.6 21.3-21.3S502.5 320 490.7 320z"/><path d="M170.7 106.7c11.8 0 21.3-9.6 21.3-21.3v-64C192 9.6 182.5 0 170.7 0s-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3z"/><path d="M21.3 192h64c11.8 0 21.3-9.6 21.3-21.3 0-11.8-9.6-21.3-21.3-21.3h-64C9.6 149.3 0 158.9 0 170.7 0 182.4 9.6 192 21.3 192z"/><path d="M341.3 405.3c-11.8 0-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3s21.3-9.6 21.3-21.3v-64c0-11.8-9.5-21.3-21.3-21.3z"/><\/svg>';
+        tEl.className="tether-btn"+(isT?" tethered":"");
+        tEl.title=(isT?"Camera tethered":"Camera independent")+" — click to toggle. When multiple splits are tethered, they share one camera even in single-view mode.";
+      }
+      label.style.display="inline-flex";
     }else{label.style.display="none";}
   }
 }
@@ -8618,6 +8660,10 @@ function markDEGStale(){
 
 /* ── Pseudo-bulk DEG ── */
 var _degMode="sc"; /* "sc" or "pb" */
+/* Track whether the user has acknowledged the "pseudo-bulk disabled" banner
+   by running any DEG. Banner shows once per dataset; the full reason stays
+   accessible as a tooltip on both the banner element and the PB toggle. */
+var _pbWarnDismissed=false;
 function _pbUpdateCountsInfo(){
   /* Populate the counts source / Fano info line and warning banner.
      Hides the whole PB section if no counts were detected.
@@ -8640,8 +8686,15 @@ function _pbUpdateCountsInfo(){
   var warnEl=document.getElementById("pb-smoothed-warn");
   var pbBtn=document.getElementById("deg-mode-pb");
   if(info.looks_smoothed){
+    var _warnText="Pseudo-bulk disabled. "+(info.reason||"Detected counts matrix looks smoothed \u2014 pseudo-bulk requires raw UMI counts.");
+    /* If any DEG is already in the cache (this session or restored), treat the
+       banner as already-seen — user has clearly moved past the disabled notice. */
+    if(!_pbWarnDismissed&&degCache&&Object.keys(degCache).length>0)_pbWarnDismissed=true;
     if(warnEl){
-      warnEl.style.display="block";
+      /* Always carry the full reason as a tooltip so the user can recover it
+         after the inline banner has been dismissed by running a DEG. */
+      warnEl.title=_warnText;
+      warnEl.style.display=_pbWarnDismissed?"none":"block";
       warnEl.innerHTML="<strong>Pseudo-bulk disabled.<\/strong> "+(info.reason||"Detected counts matrix looks smoothed \u2014 pseudo-bulk requires raw UMI counts.");
     }
     if(pbBtn){
@@ -8715,9 +8768,15 @@ function _pbResetBtn(){
   var btn=document.getElementById("pb-run-btn");
   if(btn){btn.disabled=false;btn.textContent="Run";btn.classList.remove("deg-stop");}
 }
+function _dismissPbWarn(){
+  _pbWarnDismissed=true;
+  var w=document.getElementById("pb-smoothed-warn");
+  if(w)w.style.display="none";
+}
 function _pbRun(){
   /* If already running, the button acts as Stop. */
   if(_pbRunning){_pbStop();return;}
+  _dismissPbWarn();
   /* Read which selection groups to compare from the Group A/B dropdowns */
   var selA=document.getElementById("deg-grpA");
   var selB=document.getElementById("deg-grpB");
@@ -9234,6 +9293,18 @@ function _loadSessionList(selectName){
     if(!sel)return;
     sel.innerHTML="";
     var sessions=d.sessions||[];
+    /* Always show "Auto-saved" first, even before the first auto-save write
+       has returned from the server — otherwise the select would be blank
+       immediately after a fresh load (when no _auto session exists yet) and
+       stay blank after picking "(Fresh session)" because the auto-save fires
+       again and sets sel.value="_auto" to a non-existent option. */
+    var hasAuto=false;
+    for(var i=0;i<sessions.length;i++){if(sessions[i].auto){hasAuto=true;break;}}
+    if(!hasAuto){
+      var autoOpt=document.createElement("option");
+      autoOpt.value="_auto";autoOpt.textContent="Auto-saved";
+      sel.appendChild(autoOpt);
+    }
     for(var i=0;i<sessions.length;i++){
       var s=sessions[i];
       var opt=document.createElement("option");
@@ -9299,6 +9370,8 @@ function _applySessionState(s){
     for(var col in cats2){var n2=cats2[col].categories.length;sliceFilter[col]=new Set();for(var j=0;j<n2;j++)sliceFilter[col].add(j);}
     _syncSlicePills();_updateSliceUI();
   }
+  /* Restore individually deleted (Delete-key-hidden) cells */
+  _deletedCells=s.deletedCells?new Set(s.deletedCells):null;
   if(s.recentGenes)recentGenes=s.recentGenes;
   var needReposition=false;
   if(s.embMethod&&D&&D.embeddings[s.embMethod]&&embMethod!==s.embMethod){
@@ -9314,6 +9387,21 @@ function _applySessionState(s){
   var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value=mode;
   document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
   document.getElementById("expr-controls").style.display=(mode==="gene")?"block":"none";
+  /* Restore split-view snapshots (all view splits + active split id + split-screen state). */
+  if(Array.isArray(s.views)&&s.views.length>0){
+    _views=JSON.parse(JSON.stringify(s.views));
+    _viewIdCounter=0;
+    for(var _vi=0;_vi<_views.length;_vi++){if(_views[_vi].id>=_viewIdCounter)_viewIdCounter=_views[_vi].id+1;}
+  }
+  if(s.activeViewId!==undefined)_activeViewId=s.activeViewId;
+  if(Array.isArray(s.splitViewIds))_splitViewIds=s.splitViewIds.slice();
+  var _wantSplit=!!s.splitActive;
+  if(_wantSplit&&!_splitActive&&_views.length>=2){
+    try{_splitViewActivate();}catch(e){console.error("session: splitViewActivate failed",e);}
+  }else if(!_wantSplit&&_splitActive){
+    try{_splitViewDeactivate();}catch(e){console.error("session: splitViewDeactivate failed",e);}
+  }
+  _viewUpdateUI();
   recolor();renderLeg();if(selGroups.length>0)renderSelPanel();showRecentGenes();
   /* Restore DEG results if present */
   if(s._deg){
@@ -9688,6 +9776,8 @@ function runDEG(){
   var test=document.getElementById("deg-test").value;
   var status=document.getElementById("deg-status");
 
+  /* User is running an analysis — dismiss the pseudo-bulk-disabled banner (tooltip persists). */
+  _dismissPbWarn();
   /* Switch button to Stop */
   _degRunning=true;
   _degAbort=new AbortController();
@@ -10597,11 +10687,40 @@ function setupScrollTraps(){
     clearTimeout(_dwellTimer);
     if(_activeTrap){_activeTrap.classList.add("sb-locked");_activeTrap=null;}
   });
+  /* Click shortcut: if the user clicks anywhere inside the sidebar while a trap
+     is currently locked (from dwell logic or the post-scroll lock), unlock it
+     immediately and re-dispatch the click at the intended element. Without this
+     the mousedown is absorbed by pointer-events:none and the trap only becomes
+     active after the 250 ms dwell, making first-click-after-scroll feel broken. */
+  sb.addEventListener("mousedown",function(e){
+    var locked=_sbScrolling||sb.querySelector(".sb-trap.sb-locked");
+    if(!locked)return;
+    var els=document.elementsFromPoint(e.clientX,e.clientY);
+    var trap=null,intended=null;
+    for(var i=0;i<els.length;i++){
+      if(els[i].classList&&els[i].classList.contains("sb-trap")){trap=els[i];break;}
+    }
+    if(!trap)return;
+    for(var j=0;j<els.length;j++){
+      if(els[j]!==trap&&trap.contains(els[j])){intended=els[j];break;}
+    }
+    clearTimeout(_dwellTimer);
+    clearTimeout(scrollTimer);
+    _sbScrolling=false;
+    sb.classList.remove("sb-scrolling");
+    trap.classList.remove("sb-locked");
+    _activeTrap=trap;
+    if(intended){
+      e.preventDefault();
+      var ev=new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:e.clientX,clientY:e.clientY,button:0,shiftKey:e.shiftKey,altKey:e.altKey,metaKey:e.metaKey,ctrlKey:e.ctrlKey});
+      intended.dispatchEvent(ev);
+    }
+  },true);
 }
 function setupCustomScrollbars(){
   /* Custom overlay scrollbars for macOS (which hides native scrollbars).
      Shows a draggable thumb on hover after a short delay. */
-  var targets=["sidebar-upper"];
+  var targets=["sidebar-upper","sidebar-right-upper"];
   targets.forEach(function(id){
     var el=document.getElementById(id);
     if(!el)return;
@@ -10749,8 +10868,19 @@ function _fleekDDKey(e){
 function _fleekDDOpen(sel){
   _fleekDDClose();
   var rect=sel.getBoundingClientRect();
+  /* Match the source <select>'s typography so the popup's visible text reads at
+     the same size/face as the selected value. Important when a UI-scale zoom
+     is in effect on the sidebar — the popup lives on document.body and wouldn't
+     otherwise inherit that scale. */
+  var _cs=window.getComputedStyle(sel);
+  var _fontSize=_cs.fontSize;
+  var _fontFamily=_cs.fontFamily;
+  var _fontWeight=_cs.fontWeight;
   var dd=document.createElement("div");
   dd.className="fleek-dropdown";
+  dd.style.fontFamily=_fontFamily;
+  dd.style.fontSize=_fontSize;
+  dd.style.fontWeight=_fontWeight;
   var opts=sel.options;
   for(var i=0;i<opts.length;i++){
     var item=document.createElement("div");

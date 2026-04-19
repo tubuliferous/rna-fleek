@@ -11,7 +11,8 @@ for pkg in ['scikit-learn', 'scanpy', 'anndata', 'scipy', 'numpy', 'matplotlib',
             'h5py', 'numba', 'llvmlite', 'umap-learn', 'pandas', 'packaging',
             'natsort', 'joblib', 'session-info', 'threadpoolctl', 'tqdm',
             'networkx', 'patsy', 'statsmodels', 'pynndescent', 'igraph',
-            'leidenalg', 'certifi']:
+            'leidenalg', 'certifi', 'pydeseq2', 'formulaic', 'formulaic-contrasts',
+            'anndata2ri', 'interface-meta', 'wrapt', 'typing-extensions']:
     try:
         extra_datas += copy_metadata(pkg)
     except Exception:
@@ -41,6 +42,9 @@ a = Analysis(
         + collect_submodules('llvmlite')
         + collect_submodules('igraph')
         + collect_submodules('leidenalg')
+        + collect_submodules('statsmodels')
+        + collect_submodules('pydeseq2')
+        + collect_submodules('formulaic')
     ),
     hookspath=[],
     hooksconfig={},
