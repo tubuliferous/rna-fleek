@@ -1804,24 +1804,48 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         need_save = True
 
     # ── Cluster colors ──────────────────────────────────────────────────────
-    # Priority: fleek_color_map (name→hex dict) > uns["{col}_colors"] > palette fallback
+    # Priority: fleek_color_map (name→hex) > uns["{col}_colors"] > palette fallback.
+    # fleek_color_map is stored as parallel {"names": [...], "colors": [...]}
+    # arrays (newer format, slash-safe for HDF5) OR as a plain {name:color} dict
+    # (legacy format — still read for backward compatibility, but keys containing
+    # "/" will be missing from this format because HDF5 strips them on write).
     CLUSTER_COL = _cluster_col_used
-    _color_map = adata.uns.get("fleek_color_map", {})
-    if isinstance(_color_map, dict) and _color_map:
-        # Map by name — works even when subset has fewer/different cluster indices
-        CLUSTER_COLORS = [str(_color_map.get(n, _palette_hex(i))) for i, n in enumerate(CLUSTER_NAMES)]
-    else:
-        _uns_colors = []
-        if _cluster_col_used:
-            _uns_colors = adata.uns.get(f"{_cluster_col_used}_colors", [])
-        if isinstance(_uns_colors, np.ndarray):
-            _uns_colors = _uns_colors.tolist()
-        elif not isinstance(_uns_colors, list):
-            _uns_colors = list(_uns_colors) if _uns_colors else []
-        if len(_uns_colors) == len(CLUSTER_NAMES):
-            CLUSTER_COLORS = [str(c) for c in _uns_colors]
+    _color_map_obj = adata.uns.get("fleek_color_map", None)
+    _name_to_color = {}
+    if isinstance(_color_map_obj, dict) and _color_map_obj:
+        _nm = _color_map_obj.get("names")
+        _cs = _color_map_obj.get("colors")
+        if _nm is not None and _cs is not None:
+            # New parallel-array format
+            try:
+                _nm_list = list(_nm) if not isinstance(_nm, list) else _nm
+                _cs_list = list(_cs) if not isinstance(_cs, list) else _cs
+                for _k, _v in zip(_nm_list, _cs_list):
+                    _name_to_color[str(_k)] = str(_v)
+            except Exception:
+                pass
         else:
-            CLUSTER_COLORS = [_palette_hex(i) for i in range(len(CLUSTER_NAMES))]
+            # Legacy plain-dict format
+            for _k, _v in _color_map_obj.items():
+                _name_to_color[str(_k)] = str(_v)
+    # Also grab the positional {col}_colors array as a secondary fallback for
+    # names that fleek_color_map doesn't cover (e.g. legacy subsets where HDF5
+    # dropped "/"-containing dict keys on write).
+    _uns_colors = []
+    if _cluster_col_used:
+        _uns_colors = adata.uns.get(f"{_cluster_col_used}_colors", [])
+    if isinstance(_uns_colors, np.ndarray):
+        _uns_colors = _uns_colors.tolist()
+    elif not isinstance(_uns_colors, list):
+        _uns_colors = list(_uns_colors) if _uns_colors else []
+
+    def _resolve_color(i, n):
+        if n in _name_to_color:
+            return str(_name_to_color[n])
+        if i < len(_uns_colors) and _uns_colors[i]:
+            return str(_uns_colors[i])
+        return _palette_hex(i)
+    CLUSTER_COLORS = [_resolve_color(i, n) for i, n in enumerate(CLUSTER_NAMES)]
 
     # Detect slice-able obs metadata columns
     OBS_COLS = _detect_obs_cols(adata, clustering_col=_cluster_col_used)
@@ -3047,11 +3071,17 @@ def export_h5ad_subset(cell_indices, group_name):
             sub.obsm["X_pca"] = PCA_2D[idx]
 
     # ── Bake colors + annotations into the subset ─────────────────────────
-    # Store a name→color mapping so colors survive subsetting (positional
-    # lists break when categories are removed by subsetting)
+    # Store name→color pairs so colors survive subsetting (positional lists
+    # break when categories are removed by subsetting). Use parallel arrays
+    # instead of a plain dict because HDF5 can't have "/" in group-member
+    # names and anndata silently drops any dict key containing a slash on
+    # write — which would discard cluster names like "Paneth-like/DCS".
     if CLUSTER_NAMES and CLUSTER_COLORS:
-        color_map = {CLUSTER_NAMES[i]: CLUSTER_COLORS[i] for i in range(len(CLUSTER_NAMES)) if i < len(CLUSTER_COLORS)}
-        sub.uns["fleek_color_map"] = color_map
+        n_pairs = min(len(CLUSTER_NAMES), len(CLUSTER_COLORS))
+        sub.uns["fleek_color_map"] = {
+            "names": [str(CLUSTER_NAMES[i]) for i in range(n_pairs)],
+            "colors": [str(CLUSTER_COLORS[i]) for i in range(n_pairs)],
+        }
 
     # Store parent stem so subset can find parent's annotation caches
     _ps = Path(LOADED_PATH).stem

@@ -245,7 +245,12 @@
   .lin-dot:hover{opacity:0.8;}
   .lin-dot.vis-on{border-color:currentColor;background:currentColor;}
   .lin-dot.vis-off{border-color:currentColor;background:transparent;}
-  .lin-name{flex:1;min-width:0;white-space:normal;overflow-wrap:break-word;overflow:hidden;line-height:1.3;}
+  /* Full name always visible: wrap at spaces when possible, break mid-word
+     only if a single token is too long to fit. The min-width floor prevents
+     deep indents from shrinking the column so far that the browser resorts
+     to letter-per-line breaks. hyphens:auto inserts soft hyphens at syllable
+     boundaries where the browser's dictionary supports it. */
+  .lin-name{flex:1;min-width:80px;white-space:normal;word-break:normal;overflow-wrap:break-word;hyphens:auto;line-height:1.3;}
   .lin-name.inferred{opacity:0.45;font-style:italic;}
   .lin-count{font-size:9px;color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;}
   .lin-children{margin-left:9px;border-left:1px solid var(--border);padding-left:2px;}
@@ -284,6 +289,10 @@
   .sv-del{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;opacity:0;transition:opacity 0.1s;}
   .sv-item:hover .sv-del{opacity:1;}
   .sv-del:hover{color:#f87171!important;}
+  .sv-tether{background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.5;transition:opacity 0.1s,color 0.1s;display:inline-flex;align-items:center;justify-content:center;}
+  .sv-item:hover .sv-tether{opacity:0.9;}
+  .sv-tether:hover{color:var(--accent2)!important;opacity:1!important;}
+  .sv-tether.tethered{color:var(--accent2);opacity:0.9;}
   /* sg-add-btn removed — replaced by + button in header */
   .sg-toolbar{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap;}
   .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:9px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;}
@@ -818,7 +827,7 @@
         </span>
       </div>
       <input type="text" id="type-search" placeholder="Search types &amp; annotations..." oninput="filterTypes()">
-      <div id="lineage-tree" style="display:none;margin-top:4px;"></div>
+      <div id="lineage-tree" class="sb-trap" style="display:none;margin-top:4px;max-height:280px;overflow-y:auto;overflow-x:hidden;"></div>
       <div id="leg-scroll" class="sb-trap" style="max-height:280px;overflow-y:auto;overflow-x:hidden;margin-top:4px;" onscroll="_legVirtualRender()">
         <div id="leg"></div>
       </div>
@@ -1242,8 +1251,8 @@
         <p><strong>Reassigning halves:</strong> The split name in each half's label is a dropdown. Change it to show a different split in that half — if you pick a split already in the other half, they swap. Each half's camera state follows the split shown there.</p>
         <table class="help-table">
           <tr><th>Feature</th><th>Details</th></tr>
-          <tr><td>Camera tethering</td><td>By default both cameras are tethered (they move together). Click the chain-link icon to untether a half — it then has its own independent camera. Both halves can be untethered.</td></tr>
-          <tr><td>Navcross behavior</td><td>The orbit-pivot cross (3D) / pan-center cross (2D) stays at the active view's target, so it's always centered in the active half and drifts in the inactive half as you pan. Switching the active view reassigns it.</td></tr>
+          <tr><td>Camera tethering</td><td>By default cameras are tethered (they move together). Click the chain-link icon on a half's label, or on any view row in the Split Views panel, to untether — that view keeps its own independent camera. Tether state is persisted per view and can be set even when split-screen isn't active.</td></tr>
+          <tr><td>Navcross behavior</td><td>In 3D, the orbit-pivot cross stays at the active view's target, so it's always centered in the active half and drifts in the inactive half as you pan. 2D uses a fixed-size screen crosshair in the active half only.</td></tr>
           <tr><td>Focus</td><td>Click a split in the sidebar dropdown or use the number keys to focus a half. The focused half gets a highlight border.</td></tr>
           <tr><td>Navigation</td><td>Mouse interactions (rotate, zoom, pan, lasso) affect the half the cursor is over. Dragging across the divider stays locked to the original half. Fly/pan direction is computed from the hovered view's own orientation, so untethered halves navigate correctly regardless of where the other view is pointing.</td></tr>
           <tr><td>Double-click</td><td>Zoom-focus works in each half independently (untethered only).</td></tr>
@@ -1607,6 +1616,7 @@
           <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
           <tr><td><span class="help-key">T</span></td><td>Toggle dark/light theme</td></tr>
           <tr><td><span class="help-key">\</span></td><td>Toggle sidebar</td></tr>
+          <tr><td><span class="help-key">S</span></td><td>Toggle split-screen (side-by-side) — requires ≥2 view splits</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Slice Panel</th></tr>
           <tr><td>Click pill</td><td>Toggle slice value</td></tr>
           <tr><td><span class="help-key">⌥</span>+click pill</td><td>Solo this value (or restore all if already solo)</td></tr>
@@ -3394,8 +3404,9 @@ function _pivotPan2(){
 }
 function _applyPivotPos(){
   if(!pivotMarker||!pivotMarker.visible)return;
+  /* 3D only — 2D uses the HTML #crosshair SVG for a fixed-size indicator. */
   if(viewIs3d){pivotMarker.position.copy(_pivotTgt3());}
-  else{var _pp=_pivotPan2();pivotMarker.position.set(_pp.x,_pp.y,0);}
+  else{pivotMarker.visible=false;}
 }
 
 /* ── Animation ── */
@@ -3856,7 +3867,7 @@ function setupCtrl(){
         _cTgt3.x+=fwdX*_cSph.radius*efactor;_cTgt3.y+=fwdY*_cSph.radius*efactor;_cTgt3.z+=fwdZ*_cSph.radius*efactor;
       }
       else if(panning){var ps=_cSph.radius*.001;var _sp=Math.sin(_cSph.phi),_cp=Math.cos(_cSph.phi),_st=Math.sin(_cSph.theta),_ct=Math.cos(_cSph.theta);var cd=new THREE.Vector3(_sp*_ct,_cp,_sp*_st);var up=new THREE.Vector3(0,1,0);var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();_cTgt3.x+=rt.x*(-dx*ps)+cu.x*(dy*ps);_cTgt3.y+=rt.y*(-dx*ps)+cu.y*(dy*ps);_cTgt3.z+=rt.z*(-dx*ps)+cu.z*(dy*ps);}
-    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;var s=(frustum2*2)/(_zRef*canvasW);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");if(pivotMarker&&!pivotMarker.visible){clearTimeout(pivotTimer);pivotMarker.visible=true;}}}}
+    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;var s=(frustum2*2)/(_zRef*canvasW);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");}}}
   });
   var pivotTimer=null;
   window.addEventListener("mouseup",function(){
@@ -4185,6 +4196,11 @@ function setupCtrl(){
     }
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
+    /* s = toggle side-by-side split-screen (requires ≥2 views) */
+    if(e.key==="s"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){
+      if(_views.length>=2){_viewCompare();_flashAction(_splitActive?"Split Screen On":"Split Screen Off","S");}
+      else{_flashAction("Need 2+ views to split","S");}
+    }
     /* Ctrl+1-9 = switch views */
     if(e[_MOD_KEY]&&!e.altKey&&!e.shiftKey&&e.key>="1"&&e.key<="9"&&_views.length>1){
       var vi=parseInt(e.key)-1;
@@ -8019,9 +8035,12 @@ function _splitViewActivate(){
   var viewR=_splitViewById(_splitViewIds[1]);
   var lv0=_createLiveView(0,viewL.name);
   var lv1=_createLiveView(1,viewR.name);
-  /* Seed each half with its view's saved camera (falls back to globals if none) */
+  /* Seed each half with its view's saved camera (falls back to globals if none)
+     and its persisted tether state. */
   if(viewL&&viewL.camera)_applyCameraToLive(viewL.camera,lv0);
   if(viewR&&viewR.camera)_applyCameraToLive(viewR.camera,lv1);
+  if(viewL&&viewL.tethered!==undefined)lv0.tethered=viewL.tethered;
+  if(viewR&&viewR.tethered!==undefined)lv1.tethered=viewR.tethered;
   _liveViews=[lv0,lv1];
   _masterViewIdx=0;
   _splitActive=true;
@@ -8042,12 +8061,14 @@ function _splitViewActivate(){
 
 function _splitViewDeactivate(){
   if(!_splitActive)return;
-  /* Save non-active half's camera explicitly (active gets saved via _viewSaveCurrent) */
+  /* Save non-active half's camera + tether state explicitly (active gets saved via _viewSaveCurrent) */
   if(_liveViews.length===2&&_splitViewIds.length===2){
     for(var _hv=0;_hv<2;_hv++){
-      if(_splitViewIds[_hv]===_activeViewId)continue;
       var _snap=_splitViewById(_splitViewIds[_hv]);
-      if(_snap)_snap.camera=_snapCameraFromLive(_liveViews[_hv]);
+      if(_snap){
+        _snap.tethered=_liveViews[_hv].tethered;
+        if(_splitViewIds[_hv]!==_activeViewId)_snap.camera=_snapCameraFromLive(_liveViews[_hv]);
+      }
     }
   }
   /* Save active view's state to snapshot (globals are already the active split's state) */
@@ -8146,14 +8167,26 @@ function _splitReassign(half,newId){
 }
 
 function _toggleTether(vIdx){
+  /* Called from the in-canvas split-half label; delegates to by-id version. */
   if(!_splitActive||vIdx>=_liveViews.length)return;
-  var v=_liveViews[vIdx];
-  v.tethered=!v.tethered;
-  if(v.tethered){
-    /* Snap to master camera */
-    _syncViewCamera(_liveViews[_masterViewIdx],v);
+  _toggleTetherById(_splitViewIds[vIdx]);
+}
+function _toggleTetherById(viewId){
+  var sv=_splitViewById(viewId);
+  if(!sv)return;
+  if(sv.tethered===undefined)sv.tethered=true;
+  sv.tethered=!sv.tethered;
+  /* If split is active and this view occupies a half, mirror to the live view
+     and snap its camera to the master if re-tethered. */
+  if(_splitActive){
+    var hi=_splitViewIds.indexOf(viewId);
+    if(hi>=0&&_liveViews[hi]){
+      _liveViews[hi].tethered=sv.tethered;
+      if(sv.tethered)_syncViewCamera(_liveViews[_masterViewIdx],_liveViews[hi]);
+      _splitUpdateLabels();
+    }
   }
-  _splitUpdateLabels();
+  _viewUpdateUI();
 }
 
 function _viewInit(){
@@ -8190,6 +8223,7 @@ function _viewAdd(isDefault){
     selGroups:sg,deletedCells:dc,activeGroupId:activeGroupId,
     selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),
     mode:mode,selGene:selGene||"",
+    tethered:true,
     camera:_snapCameraFromGlobals()});
   _activeViewId=id;
   _viewUpdateUI();
@@ -8460,9 +8494,16 @@ function _viewUpdateUI(){
       /* In-split indicator */
       var inSplit=_splitActive&&_splitViewIds.indexOf(v.id)>=0;
       var splitBadge=inSplit?'<span style="font-size:7px;color:var(--accent2);margin-left:2px;" title="Shown in split-screen">⧉<\/span>':"";
+      var isTethered=v.tethered!==false;
+      var tetherTitle=(isTethered?"Camera tethered — click to untether":"Camera independent — click to tether")+". When shown in split-screen, a tethered view follows the active view's camera.";
+      var tetherIcon=isTethered
+        ?'<svg viewBox="0 0 24 24" width="11" height="11" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-1px;"><path d="M13.54 10.46C11.84 8.75 9.07 8.75 7.37 10.46L4.28 13.54C2.57 15.25 2.57 18.02 4.28 19.72C5.98 21.43 8.75 21.43 10.46 19.72L12 18.18"/><path d="M10.46 13.54C12.16 15.25 14.93 15.25 16.63 13.54L19.72 10.46C21.43 8.75 21.43 5.98 19.72 4.28C18.02 2.57 15.25 2.57 13.54 4.28L12 5.82"/><\/svg>'
+        :'<svg viewBox="0 0 512 512" width="11" height="11" style="fill:currentColor;vertical-align:-1px;"><path d="M212.3 390.2l-60.3 60.3c-25 25-65.5 25-90.5 0-25-25-25-65.5 0-90.5l120.7-120.7c25-25 65.5-25 90.5 0 8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2-41.7-41.7-109.2-41.7-150.8 0L31.3 329.9c-41.7 41.7-41.7 109.2 0 150.8 41.6 41.7 109.2 41.7 150.9 0l60.3-60.3c8.3-8.3 8.3-21.8 0-30.2s-21.8-8.3-30.2 0z"/><path d="M480.8 182.1c41.7-41.7 41.7-109.2 0-150.8-41.7-41.7-109.2-41.7-150.8 0l-72.4 72.4c-8.3 8.3-8.3 21.8 0 30.2s21.8 8.3 30.2 0l72.4-72.4c25-25 65.5-25 90.5 0s25 65.5 0 90.5L317.9 284.6c-25 25-65.5 25-90.5 0-8.3-8.3-21.8-8.3-30.2 0s-8.3 21.8 0 30.2c41.7 41.7 109.2 41.7 150.8 0L480.8 182.1z"/><path d="M399.1 368.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64c8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2l-64-64z"/><path d="M112.9 143.1c8.3 8.3 21.8 8.3 30.2 0s8.3-21.8 0-30.2L79.1 48.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64z"/><path d="M490.7 320h-64c-11.8 0-21.3 9.6-21.3 21.3s9.6 21.3 21.3 21.3h64c11.8 0 21.3-9.6 21.3-21.3S502.5 320 490.7 320z"/><path d="M170.7 106.7c11.8 0 21.3-9.6 21.3-21.3v-64C192 9.6 182.5 0 170.7 0s-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3z"/><path d="M21.3 192h64c11.8 0 21.3-9.6 21.3-21.3 0-11.8-9.6-21.3-21.3-21.3h-64C9.6 149.3 0 158.9 0 170.7 0 182.4 9.6 192 21.3 192z"/><path d="M341.3 405.3c-11.8 0-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3s21.3-9.6 21.3-21.3v-64c0-11.8-9.5-21.3-21.3-21.3z"/><\/svg>';
+      var tetherBtn='<button class="sv-tether'+(isTethered?" tethered":"")+'" onclick="event.stopPropagation();_toggleTetherById('+v.id+')" title="'+tetherTitle+'">'+tetherIcon+'<\/button>';
       html+='<div class="sv-item'+(isActive?" active":"")+'" onclick="_viewSwitch('+v.id+')" title="'+tip.replace(/"/g,"&quot;")+'">'
         +'<span class="sv-num">'+num+'<\/span>'
         +'<span class="sv-name">'+v.name.replace(/</g,"&lt;")+splitBadge+'<\/span>'
+        +tetherBtn
         +(_views.length>1?'<button class="sv-del" onclick="event.stopPropagation();_viewDeleteById('+v.id+')" title="Delete split">&times;<\/button>':"")
         +'<\/div>';
     }
