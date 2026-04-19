@@ -486,6 +486,7 @@
   <div class="sec" style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:baseline;gap:8px;">
       <span style="font-weight:800;font-size:13px;cursor:pointer;" onclick="toggleHelp()" title="About & Help"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
+      <span id="fleek-version" style="font-size:9px;color:var(--text4);opacity:0.7;font-variant-numeric:tabular-nums;cursor:pointer;" onclick="toggleHelp()" title="Version — click for About & Help"></span>
     </div>
     <div style="display:flex;gap:2px;align-items:center;">
       <button onclick="toggleSidebar()" title="Hide sidebar (\)" style="background:none;border:none;color:var(--text4);cursor:pointer;font-size:20px;font-family:inherit;padding:2px 6px;line-height:1;opacity:0.4;margin-left:2px;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">&laquo;</button>
@@ -1077,7 +1078,7 @@
 <div id="help-overlay" onclick="if(event.target===this)toggleHelp()">
 <div id="help-panel">
   <div id="help-hdr">
-    <h1><span>RNA</span><span>-FLEEK</span></h1>
+    <h1><span>RNA</span><span>-FLEEK</span><span id="help-version" style="font-size:11px;font-weight:500;color:var(--text4);margin-left:10px;letter-spacing:0;font-variant-numeric:tabular-nums;opacity:0.8;"></span></h1>
     <button id="help-close" onclick="toggleHelp()">&times;</button>
   </div>
   <div id="help-body">
@@ -1783,6 +1784,9 @@ var _MOD=_isMac?"⌘":"Ctrl"; /* primary modifier label */
 var _ALT=_isMac?"⌥":"Alt"; /* alt/option label */
 var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
+/* Displayed in the sidebar title and the help/about header. Bump in lockstep
+   with pyproject.toml / the GitHub release tag. */
+var FLEEK_VERSION="v0.3.2";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=true; /* scale point size with expression level in gene mode */
@@ -11237,6 +11241,9 @@ function _panelRestoreLayout(){
 
 document.addEventListener("DOMContentLoaded",function(){
   try{var rg=sessionStorage.getItem("fleek_recent_genes");if(rg)recentGenes=JSON.parse(rg);}catch(e){}
+  /* Stamp the version into both the sidebar title pill and the help-overlay header. */
+  var _sbv=document.getElementById("fleek-version");if(_sbv)_sbv.textContent=FLEEK_VERSION;
+  var _hv=document.getElementById("help-version");if(_hv)_hv.textContent=FLEEK_VERSION;
   initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupScrollTraps();_patchOS();_setupCustomSelects();_panelsInit();animate();_checkKeyStatus();
   /* Apply initial theme */
   applyTheme(document.getElementById("set-theme").value||"dark");
