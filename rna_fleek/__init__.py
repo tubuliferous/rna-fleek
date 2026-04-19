@@ -1,2 +1,2 @@
 """RNA-FLEEK: Fast Lightweight Expression Exploration Kit"""
-__version__ = "0.3.2"
+__version__ = "0.3.3"

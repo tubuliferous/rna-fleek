@@ -883,8 +883,16 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
 
     gene_names = np.array(ADATA.var_names)
 
-    # Try pyDESeq2 first, fallback to scipy
+    # Try pyDESeq2 first, fallback to scipy if it's unavailable or fails at runtime.
+    # Runtime failures we've seen:
+    #   - joblib/loky workers killed (exit code 2) inside PyInstaller-bundled apps
+    #     because the frozen executable can't relaunch itself as a worker. Passing
+    #     n_cpus=1 keeps everything in-process and sidesteps that.
+    #   - Rare numerical corner cases (singular design, all-zero genes after filter)
+    #     that raise from DESeq2's NB fit. We fall back to the t-test on CPM rather
+    #     than giving the user a hard error.
     method = "pydeseq2"
+    _pd_err = None
     try:
         from pydeseq2.dds import DeseqDataSet
         from pydeseq2.ds import DeseqStats
@@ -895,7 +903,11 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
         count_df.index = meta_df.index
 
         _check_abort()  # last chance before entering the long pyDESeq2 fit
-        dds = DeseqDataSet(counts=count_df, metadata=meta_df, design="~condition")
+        try:
+            dds = DeseqDataSet(counts=count_df, metadata=meta_df, design="~condition", n_cpus=1)
+        except TypeError:
+            # Older pyDESeq2 versions used a different kwarg name (`inference`/`n_processes`).
+            dds = DeseqDataSet(counts=count_df, metadata=meta_df, design="~condition")
         dds.deseq2()
 
         _check_abort()
@@ -909,54 +921,63 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
 
         print(f"  pyDESeq2 complete: {len(genes_out)} genes tested")
 
-    except ImportError:
-        method = "ttest"
-        print("  pyDESeq2 not installed — falling back to t-test on CPM")
-
-        from scipy import stats
-
-        lib_sizes = count_matrix.sum(axis=1, keepdims=True)
-        lib_sizes[lib_sizes == 0] = 1
-        cpm = count_matrix / lib_sizes * 1e6
-        log_cpm = np.log2(cpm + 1)
-
-        mask_cond_a = conditions == COND_A
-        mask_cond_b = conditions == COND_B
-
-        genes_out = []
-        log2fc = []
-        pvals = []
-
-        for gi in range(n_genes):
-            if not keep[gi]:
-                continue
-            # Check abort every 500 genes — cheap enough to skip every iteration.
-            if (gi & 0x1FF) == 0:
-                _check_abort()
-            vals_a = log_cpm[mask_cond_a, gi]
-            vals_b = log_cpm[mask_cond_b, gi]
-            fc = vals_a.mean() - vals_b.mean()
-            try:
-                _, pv = stats.ttest_ind(vals_a, vals_b, equal_var=False)
-            except Exception:
-                pv = 1.0
-            if np.isnan(pv):
-                pv = 1.0
-            genes_out.append(gene_names[gi])
-            log2fc.append(float(fc))
-            pvals.append(float(pv))
-
-        from statsmodels.stats.multitest import multipletests
-        _, padj_arr, _, _ = multipletests(pvals, method="fdr_bh")
-        padj = padj_arr.tolist()
-
-        print(f"  t-test on CPM complete: {len(genes_out)} genes tested")
-
     except AbortError:
-        # Propagate cancellation to the handler; don't wrap it as a DEG error.
+        # Cancellation — let the handler see it, not the fallback.
         raise
-    except Exception as e:
-        raise ValueError(f"DEG computation failed: {e}")
+    except (ImportError, Exception) as _exc:
+        _pd_err = _exc
+
+    if _pd_err is not None:
+        method = "ttest"
+        if isinstance(_pd_err, ImportError):
+            print("  pyDESeq2 not installed — falling back to t-test on CPM")
+        else:
+            print(f"  pyDESeq2 failed ({type(_pd_err).__name__}: {_pd_err}) — falling back to t-test on CPM")
+        try:
+            from scipy import stats
+
+            lib_sizes = count_matrix.sum(axis=1, keepdims=True)
+            lib_sizes[lib_sizes == 0] = 1
+            cpm = count_matrix / lib_sizes * 1e6
+            log_cpm = np.log2(cpm + 1)
+
+            mask_cond_a = conditions == COND_A
+            mask_cond_b = conditions == COND_B
+
+            genes_out = []
+            log2fc = []
+            pvals = []
+
+            for gi in range(n_genes):
+                if not keep[gi]:
+                    continue
+                # Check abort every 500 genes — cheap enough to skip every iteration.
+                if (gi & 0x1FF) == 0:
+                    _check_abort()
+                vals_a = log_cpm[mask_cond_a, gi]
+                vals_b = log_cpm[mask_cond_b, gi]
+                fc = vals_a.mean() - vals_b.mean()
+                try:
+                    _, pv = stats.ttest_ind(vals_a, vals_b, equal_var=False)
+                except Exception:
+                    pv = 1.0
+                if np.isnan(pv):
+                    pv = 1.0
+                genes_out.append(gene_names[gi])
+                log2fc.append(float(fc))
+                pvals.append(float(pv))
+
+            from statsmodels.stats.multitest import multipletests
+            _, padj_arr, _, _ = multipletests(pvals, method="fdr_bh")
+            padj = padj_arr.tolist()
+
+            print(f"  t-test on CPM complete: {len(genes_out)} genes tested")
+
+        except AbortError:
+            # Cancellation — propagate unwrapped.
+            raise
+        except Exception as e:
+            raise ValueError(f"DEG fallback (t-test on CPM) failed: {e}")
 
     return {
         "genes": genes_out,
