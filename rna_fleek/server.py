@@ -15,6 +15,7 @@ Then open: http://localhost:8080
 import argparse
 import io
 import json
+import math
 import os
 import struct
 import sys
@@ -40,6 +41,9 @@ _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 ADATA = None
 UMAP_2D = None
 UMAP_3D = None
+# Per-embedding provenance: {"umap_2d": "obsm" | "cache_quick" | "cache_full" |
+# "computed" | "derived_from_3d" | "unavailable", ...}.
+EMBEDDING_SOURCES = {}
 PCA_2D = None
 PCA_3D = None
 PACMAP_2D = None
@@ -78,7 +82,18 @@ GO_DATASET_GENES = None  # Set of gene names in current dataset (for intersectio
 GO_SYNONYM_MAP = None    # synonym -> canonical gene symbol (for dataset matching)
 COUNTS_MATRIX = None  # raw counts matrix reference (for pseudo-bulk DEG)
 COUNTS_LABEL = None   # where counts were found (e.g. "X", "layers['counts']")
+COUNTS_INFO = None    # {"label","median_total","max","fano_median","looks_smoothed","pb_ok","reason"}
+try:
+    import pydeseq2 as _pydeseq2_probe  # noqa: F401
+    PYDESEQ2_AVAILABLE = True
+except Exception:
+    PYDESEQ2_AVAILABLE = False
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
+_DETECTED_ORGANISM = None  # (name, reason) tuple from _detect_organism()
+AUTO_UNLOAD = False   # If True, unload dataset when no client heartbeat
+AUTO_UNLOAD_TIMEOUT = 1.0  # seconds without heartbeat before unload
+_LAST_HEARTBEAT = 0.0  # time.time() of last heartbeat
+_HEARTBEAT_TIMER = None  # threading.Timer for delayed unload
 
 # ── Cache location management ──
 # CACHE_MODE: "dataset" = store caches alongside .h5ad file (default)
@@ -99,6 +114,29 @@ _FLEEK_PALETTE = [
 def _palette_hex(idx):
     r, g, b = _FLEEK_PALETTE[idx % len(_FLEEK_PALETTE)]
     return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+
+def _json_safe(obj):
+    """Recursively convert NaN / ±Inf floats to None so json.dumps produces
+    strict JSON that the browser can parse. Numpy scalars are coerced to
+    builtins first so isnan/isinf work on them."""
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    # numpy scalar / array element
+    if hasattr(obj, "item") and not isinstance(obj, (str, bytes)):
+        try:
+            v = obj.item()
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                return None
+            return v
+        except Exception:
+            pass
+    return obj
 
 def _init_cache_dir():
     """Initialize the server-side cache directory."""
@@ -251,20 +289,36 @@ def load_marker_db(marker_path=None):
 
 
 def _detect_organism():
-    """Try to detect organism from gene name casing."""
+    """Detect organism from gene names using marker genes + casing heuristic.
+    Returns (organism, reason) tuple."""
     if GENE_NAMES_LIST is None or len(GENE_NAMES_LIST) == 0:
-        return "human"
-    # Sample first 100 genes
-    sample = [g for g in GENE_NAMES_LIST[:100] if g.isalpha()]
+        return "human", "default (no gene names)"
+    genes = set(GENE_NAMES_LIST)
+    # Check for species-specific marker genes (case-sensitive)
+    human_markers = {"CD3D", "CD3E", "CD8A", "CD4", "MS4A1", "NKG7", "GZMB",
+                     "COL1A1", "EPCAM", "PECAM1", "PTPRC", "HBA1", "GAPDH",
+                     "ACTB", "MALAT1", "TMSB4X", "FTL", "FTH1", "S100A9"}
+    mouse_markers = {"Cd3d", "Cd3e", "Cd8a", "Cd4", "Ms4a1", "Nkg7", "Gzmb",
+                     "Col1a1", "Epcam", "Pecam1", "Ptprc", "Hba-a1", "Gapdh",
+                     "Actb", "Malat1", "Tmsb4x", "Ftl1", "Fth1", "S100a9"}
+    h_hits = genes & human_markers
+    m_hits = genes & mouse_markers
+    if len(h_hits) > len(m_hits) and len(h_hits) >= 3:
+        return "human", f"matched {len(h_hits)} human marker genes: {', '.join(sorted(h_hits)[:6])}"
+    if len(m_hits) > len(h_hits) and len(m_hits) >= 3:
+        return "mouse", f"matched {len(m_hits)} mouse marker genes: {', '.join(sorted(m_hits)[:6])}"
+    # Fallback: casing heuristic on alpha-only gene names
+    sample = [g for g in GENE_NAMES_LIST[:200] if g.isalpha() and len(g) > 1]
     if not sample:
-        return "human"
+        return "human", "default (no alpha gene names to analyze)"
     upper = sum(1 for g in sample if g == g.upper())
-    title = sum(1 for g in sample if g == g.title())
-    if upper > len(sample) * 0.7:
-        return "human"  # UPPERCASE = human
-    if title > len(sample) * 0.5:
-        return "mouse"  # Titlecase = mouse
-    return "human"  # default
+    title = sum(1 for g in sample if g[0].isupper() and g[1:] == g[1:].lower())
+    n = len(sample)
+    if upper > n * 0.7:
+        return "human", f"gene name casing: {upper}/{n} UPPERCASE (human convention)"
+    if title > n * 0.5:
+        return "mouse", f"gene name casing: {title}/{n} Title case (mouse convention)"
+    return "human", f"default (ambiguous casing: {upper}/{n} upper, {title}/{n} title)"
 
 
 def load_go_db():
@@ -274,7 +328,10 @@ def load_go_db():
     GO_DATASET_GENES = None
     GO_SYNONYM_MAP = None
 
-    organism = _detect_organism()
+    global _DETECTED_ORGANISM
+    organism, _org_reason = _detect_organism()
+    _DETECTED_ORGANISM = (organism.capitalize(), _org_reason)
+    print(f"  Organism: {_DETECTED_ORGANISM[0]} ({_org_reason})")
     script_dir = Path(__file__).parent
     paths_to_try = [
         _BUNDLE_DIR / "rna_fleek" / f"go_{organism}.json",
@@ -328,156 +385,493 @@ def load_go_db():
         print(f"  GO matching: {n_resolved} GO genes resolved to dataset genes")
 
 
+MATRIX_REGISTRY = []
+"""List of dicts classifying every matrix present in the loaded h5ad. Populated by
+_classify_all_matrices(). Each entry contains:
+    path          — how to reference it from a client ("X", "raw.X", "layers[NAME]")
+    label         — human-friendly name
+    shape         — (n_cells, n_vars) tuple for display
+    dtype         — numpy dtype string
+    is_integer    — bool (sample appears to be integers)
+    max           — max value in 500x500 sample
+    median_total  — median per-cell total over ~200 cells
+    fano_median   — median Fano across moderately-expressed genes, or None
+    kind          — "raw_counts" | "denoised_counts" | "log_normalized" | "scaled" | "unknown"
+    notes         — short free-text classification reasoning
+"""
+
+MATRIX_ROUTING = {}
+"""Per-task matrix routing decisions. Populated by _build_matrix_routing().
+Keys are task names; values are:
+    path      — matrix path string matching MATRIX_REGISTRY entry
+    transform — "none" | "normalize+log1p"
+    label     — human-friendly task label
+    caveat    — short warning string, or "" if no caveat
+"""
+
+
+def _classify_all_matrices():
+    """Walk .X, .raw.X, and all layers; classify each. Populates MATRIX_REGISTRY."""
+    global MATRIX_REGISTRY
+    MATRIX_REGISTRY = []
+    if ADATA is None:
+        return
+
+    import scipy.sparse as sp
+    candidates = [("X", "adata.X", ADATA.X)]
+    if ADATA.raw is not None:
+        candidates.append(("raw.X", "adata.raw.X", ADATA.raw.X))
+    for name in ADATA.layers:
+        candidates.append((f"layers[{name!r}]", f"adata.layers['{name}']", ADATA.layers[name]))
+
+    for path, label, mat in candidates:
+        try:
+            shape = tuple(mat.shape)
+            dtype_s = str(getattr(mat, "dtype", ""))
+            sample = mat[:500, :500]
+            if sp.issparse(sample):
+                sample = sample.toarray()
+            elif hasattr(sample, "toarray"):
+                sample = sample.toarray()
+            sample = np.asarray(sample, dtype=np.float64)
+            any_neg = bool((sample < 0).any())
+            max_val = float(sample.max()) if sample.size else 0.0
+            min_nz = float(sample[sample > 0].min()) if (sample > 0).any() else 0.0
+            # Integer check on sample
+            is_int = bool(np.allclose(sample[sample >= 0], np.round(sample[sample >= 0])))
+            # Median per-cell total across first 200 rows
+            row_sums = np.array(mat[:200, :].sum(axis=1)).flatten()
+            median_total = float(np.median(row_sums)) if row_sums.size else 0.0
+
+            # Fano on moderately-expressed genes, on a small subsample of cells.
+            fano_median = None
+            try:
+                n_cells = mat.shape[0]
+                n_sub = min(3000, n_cells)
+                if n_sub > 0:
+                    stride = max(1, n_cells // n_sub)
+                    row_idx = np.arange(0, n_cells, stride)[:n_sub]
+                    sub = mat[row_idx, :]
+                    if sp.issparse(sub):
+                        mean_arr = np.asarray(sub.mean(axis=0)).ravel()
+                        sq_mean = np.asarray(sub.multiply(sub).mean(axis=0)).ravel()
+                        gene_sum = np.asarray(sub.sum(axis=0)).ravel()
+                    else:
+                        sub_d = np.asarray(sub, dtype=np.float64)
+                        mean_arr = sub_d.mean(axis=0)
+                        sq_mean = (sub_d ** 2).mean(axis=0)
+                        gene_sum = sub_d.sum(axis=0)
+                    var_arr = sq_mean - mean_arr ** 2
+                    moderate = (mean_arr > 0) & (var_arr > 0) & (gene_sum > 50)
+                    if moderate.sum() >= 50:
+                        fano_median = float(np.median(var_arr[moderate] / mean_arr[moderate]))
+            except Exception:
+                pass
+
+            # Classify
+            kind = "unknown"
+            notes = ""
+            if any_neg:
+                kind = "scaled"
+                notes = "has negative values — likely z-scored / sc.pp.scale output"
+            elif is_int and max_val >= 3 and median_total >= 50:
+                if fano_median is not None and fano_median < 1.5:
+                    kind = "denoised_counts"
+                    notes = (f"integer + Fano≈{fano_median:.2f} (Poisson-like) — denoiser output "
+                             f"(e.g. scVI denoised_counts)")
+                else:
+                    kind = "raw_counts"
+                    if fano_median is not None:
+                        notes = f"integer UMI counts (Fano≈{fano_median:.2f})"
+                    else:
+                        notes = "integer counts"
+            elif (not is_int) and min_nz > 0 and max_val < 100:
+                kind = "log_normalized"
+                if max_val < 15:
+                    notes = f"decimal values, max≈{max_val:.2f} — looks log-normalized"
+                else:
+                    notes = f"decimal values, max≈{max_val:.2f} — probably normalized (possibly log)"
+            elif (not is_int):
+                kind = "log_normalized"
+                notes = f"decimal values, max≈{max_val:.2f} — probably normalized"
+            else:
+                notes = f"integer but unusual (max={max_val:.0f}, median/cell={median_total:.0f})"
+
+            # Source-hint heuristics: layer names often encode provenance that the
+            # numerical shape alone can't reveal. E.g. "denoised_norm" looks just
+            # like any other log-normalized matrix numerically, but the name tells
+            # us the input was model-smoothed data.
+            source_hint = ""
+            label_lower = label.lower()
+            denoised_tags = ["denois", "smooth", "magic", "imput", "scvi", "saver", "dca"]
+            raw_tags = ["raw", "umi", "counts", "spliced"]
+            if any(tag in label_lower for tag in denoised_tags):
+                source_hint = "denoised"
+            elif any(tag in label_lower for tag in raw_tags):
+                source_hint = "raw"
+
+            # Amend notes / kind labeling when a log-normalized matrix appears
+            # to be derived from denoised counts.
+            if kind == "log_normalized" and source_hint == "denoised":
+                notes = (notes + " — name suggests it's been built from denoised counts, "
+                                  "so values are model-smoothed, not raw observations").strip()
+
+            MATRIX_REGISTRY.append({
+                "path": path,
+                "label": label,
+                "shape": list(shape),
+                "dtype": dtype_s,
+                "is_integer": is_int,
+                "max": max_val,
+                "median_total": median_total,
+                "fano_median": fano_median,
+                "kind": kind,
+                "source_hint": source_hint,
+                "notes": notes,
+            })
+        except Exception as e:
+            MATRIX_REGISTRY.append({
+                "path": path, "label": label, "shape": None, "dtype": "?",
+                "kind": "unknown", "notes": f"(classification failed: {e})",
+            })
+
+
+def _get_matrix_by_path(path):
+    """Resolve a MATRIX_REGISTRY path string back to an actual matrix reference."""
+    if ADATA is None:
+        return None
+    if path == "X":
+        return ADATA.X
+    if path == "raw.X":
+        return ADATA.raw.X if ADATA.raw is not None else None
+    if path.startswith("layers[") and path.endswith("]"):
+        name = path[len("layers["):-1]
+        # strip surrounding quotes if present
+        if (name.startswith("'") and name.endswith("'")) or (name.startswith('"') and name.endswith('"')):
+            name = name[1:-1]
+        if name in ADATA.layers:
+            return ADATA.layers[name]
+    return None
+
+
+def _build_matrix_routing():
+    """Assign the best matrix for each analysis task based on MATRIX_REGISTRY.
+
+    Preference hierarchy:
+      * variability (Fano-based):      raw_counts  →  fallback: log_normalized (different interpretation)
+      * single-cell DEG:               raw_counts + normalize+log1p  →  log_normalized as-is  →  denoised as-is (caveat)
+      * pseudo-bulk:                   raw_counts only (no fallback)
+      * gene expression (visualization): log_normalized  →  raw_counts + normalize+log1p on-the-fly  →  denoised as-is (caveat)
+      * embedding fallback (PCA):      log_normalized  →  raw_counts + normalize+log1p  →  denoised (caveat)
+    """
+    global MATRIX_ROUTING
+    MATRIX_ROUTING = {}
+    if not MATRIX_REGISTRY:
+        return
+
+    # Indexes by kind
+    by_kind = {}
+    for entry in MATRIX_REGISTRY:
+        by_kind.setdefault(entry["kind"], []).append(entry)
+
+    def pick_first(kinds):
+        for k in kinds:
+            if k in by_kind and by_kind[k]:
+                return by_kind[k][0]
+        return None
+
+    # When a log-normalized matrix has a denoised-source hint, swap in the
+    # task-specific caveat that would apply to denoised_counts directly — the
+    # log1p step doesn't rescue the underlying problem (biological overdispersion
+    # has already been regressed out by the upstream denoiser).
+    denoised_via_lognorm_caveat = {
+        "variability": ("Running on log-normalized DENOISED data — the upstream denoiser regressed out "
+                        "biological overdispersion, so Fano is artificially tight and trend residuals "
+                        "are dominated by residual numerical noise, not biology. Rankings are unreliable."),
+        "deg_sc": ("Running on log-normalized DENOISED data — within-group variance has been artificially "
+                   "compressed by the upstream denoiser, so Wilcoxon/t-test p-values and Cohen's d are "
+                   "anti-conservative. Gene rankings still order roughly correctly; statistical magnitudes "
+                   "shouldn't be trusted."),
+        "gene_display": ("Display values come from log-normalized DENOISED counts — gradients are smooth "
+                         "because the denoiser filled in zeros and regressed away noise. You're seeing the "
+                         "model's inference, not raw observations."),
+        "embedding": ("PCA built on log-normalized DENOISED data — cluster structure preserved but "
+                      "amplitudes / dispersions are compressed."),
+    }
+
+    def route(task, task_label, preferred_chain, transforms_per_kind, caveat_per_kind):
+        pick = None
+        for kind in preferred_chain:
+            if kind in by_kind and by_kind[kind]:
+                pick = by_kind[kind][0]
+                pick_kind = kind
+                break
+        else:
+            pick_kind = None
+        if pick is None:
+            MATRIX_ROUTING[task] = {
+                "path": None, "matrix_label": None, "matrix_kind": None,
+                "transform": "none", "label": task_label,
+                "caveat": "No suitable matrix available — task disabled.",
+            }
+            return
+        caveat = caveat_per_kind.get(pick_kind, "")
+        # If a log-normalized pick is actually built from denoised counts, swap in
+        # the harder task-specific caveat rather than just appending a soft note —
+        # the log1p step doesn't restore the biological variability the denoiser ate.
+        if pick_kind == "log_normalized" and pick.get("source_hint") == "denoised":
+            harder = denoised_via_lognorm_caveat.get(task)
+            if harder:
+                caveat = harder
+            else:
+                extra = ("Underlying values were denoised before normalization; results inherit "
+                         "denoised-data caveats.")
+                caveat = (caveat + " " + extra).strip() if caveat else extra
+        MATRIX_ROUTING[task] = {
+            "path": pick["path"],
+            "matrix_label": pick["label"],
+            "matrix_kind": pick_kind,
+            "matrix_source_hint": pick.get("source_hint", ""),
+            "transform": transforms_per_kind.get(pick_kind, "none"),
+            "label": task_label,
+            "caveat": caveat,
+        }
+
+    # Variability (Fano): raw only ideal; log_normalized works approximately
+    route("variability", "Gene variability",
+          ["raw_counts", "log_normalized", "denoised_counts", "unknown", "scaled"],
+          {"raw_counts": "none", "log_normalized": "none", "denoised_counts": "none", "unknown": "none", "scaled": "none"},
+          {"log_normalized": "Running on log-normalized data: trend-residual method still works, but Fano interpretation is approximate.",
+           "denoised_counts": "Running on denoised (Poisson) data — rankings dominated by residual numerical noise, not biology. Results are unreliable.",
+           "scaled": "Running on scaled/z-scored data — Fano math is invalid. Results are meaningless."})
+    # Single-cell DEG: any reasonable matrix works; raw gets normalized
+    route("deg_sc", "Single-cell DEG",
+          ["raw_counts", "log_normalized", "denoised_counts", "unknown", "scaled"],
+          {"raw_counts": "normalize+log1p", "log_normalized": "none", "denoised_counts": "normalize+log1p", "unknown": "none", "scaled": "none"},
+          {"denoised_counts": "Running on denoised counts — p-values and Cohen's d are anti-conservative (within-group variance artificially low). Rankings are still meaningful.",
+           "scaled": "Running on scaled data — fold changes and Cohen's d may be misleading.",
+           "unknown": "Matrix type uncertain — interpret p-values cautiously."})
+    # Pseudo-bulk: raw only
+    route("deg_pb", "Pseudo-bulk DEG",
+          ["raw_counts"],
+          {"raw_counts": "none"},
+          {})
+    # Gene expression display: log_normalized is ideal
+    route("gene_display", "Gene expression display",
+          ["log_normalized", "raw_counts", "denoised_counts", "unknown", "scaled"],
+          {"raw_counts": "normalize+log1p", "log_normalized": "none", "denoised_counts": "normalize+log1p", "unknown": "none", "scaled": "none"},
+          {"raw_counts": "Normalized + log1p on-the-fly for display.",
+           "denoised_counts": "Denoised integer counts normalized + log1p'd on-the-fly. Gradients may be artificially smooth.",
+           "scaled": "Scaled matrix may show negative values — colormap interpretation awkward."})
+    # Embedding input (used only when we need to compute PCA/UMAP from scratch)
+    route("embedding", "Embedding (PCA fallback)",
+          ["log_normalized", "raw_counts", "denoised_counts", "unknown", "scaled"],
+          {"raw_counts": "normalize+log1p", "log_normalized": "none", "denoised_counts": "normalize+log1p", "unknown": "none", "scaled": "none"},
+          {"raw_counts": "Normalized + log1p before PCA.",
+           "denoised_counts": "PCA on denoised data — cluster structure preserved but amplitudes off.",
+           "scaled": "PCA on already-scaled data may over-weight low-variance genes."})
+
+
 def detect_counts():
-    """Auto-detect raw counts matrix from adata.X, .raw.X, or layers."""
-    global COUNTS_MATRIX, COUNTS_LABEL
+    """Classify every matrix in the loaded adata, then pick the best raw-counts
+    entry for pseudo-bulk. MATRIX_REGISTRY / MATRIX_ROUTING get populated as a
+    side-effect so every analysis task can share the same hierarchy.
+    """
+    global COUNTS_MATRIX, COUNTS_LABEL, COUNTS_INFO
     COUNTS_MATRIX = None
     COUNTS_LABEL = None
+    COUNTS_INFO = None
     if ADATA is None:
         return
 
     import scipy.sparse as sp
 
-    candidates = [("X", ADATA.X)]
-    if ADATA.raw is not None:
-        candidates.append(("raw.X", ADATA.raw.X))
-    for name in ADATA.layers:
-        candidates.append((f"layers['{name}']", ADATA.layers[name]))
+    # Full classification + task routing in one pass.
+    _classify_all_matrices()
+    _build_matrix_routing()
 
-    # Name hints — prioritize layers with count-like names
+    # Prefer matrices classified as "raw_counts"; among those, lean on layer-name
+    # hints (counts / raw_counts / umi / spliced) and then the highest Fano.
     hint_names = {"counts", "raw_counts", "raw", "umi", "spliced"}
+    raw_candidates = [e for e in MATRIX_REGISTRY if e["kind"] == "raw_counts"]
+    def _score(entry):
+        s = 0.0
+        label_low = entry["label"].lower()
+        for hint in hint_names:
+            if hint in label_low:
+                s += 10.0
+                break
+        if entry.get("fano_median") is not None:
+            s += float(entry["fano_median"])
+        s += 0.1 * np.log1p(entry.get("max", 0))
+        return s
+    raw_candidates.sort(key=_score, reverse=True)
 
     best = None
-    best_score = -1
+    if raw_candidates:
+        best = (raw_candidates[0]["path"], _get_matrix_by_path(raw_candidates[0]["path"]))
 
-    for label, mat in candidates:
-        try:
-            sample = mat[:500, :500]
-            if sp.issparse(sample):
-                sample = sample.toarray()
-            elif hasattr(sample, 'toarray'):
-                sample = sample.toarray()
-            sample = np.asarray(sample, dtype=np.float64)
-
-            # Must be integers
-            if not np.allclose(sample, np.round(sample)):
-                continue
-
-            max_val = sample.max()
-            # Must have reasonable range (not binarized)
-            if max_val < 3:
-                continue
-
-            # Check total counts per cell
-            row_sums = np.array(mat[:200, :].sum(axis=1)).flatten()
-            median_total = np.median(row_sums)
-            if median_total < 50:
-                continue
-
-            # Score: higher max and median = more likely real counts
-            score = np.log1p(max_val) + np.log1p(median_total)
-
-            # Bonus for name hints
-            for hint in hint_names:
-                if hint in label.lower():
-                    score += 10
-                    break
-
-            if score > best_score:
-                best_score = score
-                best = (label, mat)
-        except Exception:
-            continue
+    # Fallback: honor the old heuristic (integer + reasonable depth + no Fano gate)
+    # in case the classifier drops everything into denoised by mistake.
+    if best is None:
+        for entry in MATRIX_REGISTRY:
+            if entry["kind"] in ("denoised_counts",) and entry.get("is_integer") and entry.get("max", 0) >= 3 and entry.get("median_total", 0) >= 50:
+                best = (entry["path"], _get_matrix_by_path(entry["path"]))
+                break
 
     if best:
         COUNTS_LABEL, COUNTS_MATRIX = best
         # Quick stats
         row_sums = np.array(COUNTS_MATRIX[:1000, :].sum(axis=1)).flatten()
-        print(f"  Raw counts detected in: adata.{COUNTS_LABEL}")
-        print(f"    Median counts/cell: {np.median(row_sums):.0f}, max gene count in sample: {np.array(COUNTS_MATRIX[:500,:500].toarray() if hasattr(COUNTS_MATRIX[:500,:500],'toarray') else COUNTS_MATRIX[:500,:500]).max():.0f}")
+        median_total = float(np.median(row_sums))
+        max_sample = COUNTS_MATRIX[:500, :500]
+        max_val = float(np.asarray(max_sample.toarray() if hasattr(max_sample, 'toarray') else max_sample).max())
+
+        # Fano-factor check to detect smoothed/denoised integer counts.
+        # Sample up to 10k cells × 500 well-expressed genes, compute var/mean per gene.
+        fano_median = None
+        looks_smoothed = False
+        try:
+            n_cells_full = COUNTS_MATRIX.shape[0]
+            n_sample = min(10000, n_cells_full)
+            # deterministic stride-based sample (no RNG dependency)
+            stride = max(1, n_cells_full // n_sample)
+            row_idx = np.arange(0, n_cells_full, stride)[:n_sample]
+            sub = COUNTS_MATRIX[row_idx, :]
+            gene_sums = np.asarray(sub.sum(axis=0)).flatten()
+            good = np.where(gene_sums > 50)[0]
+            if len(good) >= 50:
+                # limit to 500 genes to bound cost
+                if len(good) > 500:
+                    g_stride = max(1, len(good) // 500)
+                    good = good[::g_stride][:500]
+                block = sub[:, good]
+                if sp.issparse(block):
+                    block = block.toarray()
+                block = np.asarray(block, dtype=np.float64)
+                means = block.mean(axis=0)
+                vars_ = block.var(axis=0)
+                fano = vars_ / np.maximum(means, 1e-9)
+                fano_median = float(np.median(fano))
+                # Empirical threshold: real UMI scRNA-seq data has median Fano
+                # well above 1.5 because of biological overdispersion + cell
+                # type mixing. Poisson-sampled outputs sit near 1.0.
+                looks_smoothed = fano_median < 1.5
+        except Exception as e:
+            print(f"    (Fano check skipped: {e})")
+
+        pb_ok = not looks_smoothed
+        reason = ""
+        if looks_smoothed:
+            reason = (f"median Fano={fano_median:.2f} suggests smoothed/denoised integer counts "
+                      f"(e.g. scVI denoised_counts, MAGIC). Pseudo-bulk disabled — NB dispersion "
+                      f"estimates collapse on Poisson data, yielding anti-conservative p-values.")
+
+        COUNTS_INFO = {
+            "label": COUNTS_LABEL,
+            "median_total": median_total,
+            "max": max_val,
+            "fano_median": fano_median,
+            "looks_smoothed": looks_smoothed,
+            "pb_ok": pb_ok,
+            "reason": reason,
+        }
+
+        print(f"  Counts detected in: adata.{COUNTS_LABEL}")
+        print(f"    Median counts/cell: {median_total:.0f}, max in sample: {max_val:.0f}"
+              f"{', median Fano: ' + f'{fano_median:.2f}' if fano_median is not None else ''}")
+        if looks_smoothed:
+            print(f"    ⚠ {reason}")
+            # Matrix stays available for display, but PB is gated on pb_ok.
     else:
         print("  ⚠ No raw counts detected — pseudo-bulk DEG will be unavailable")
+        COUNTS_INFO = None
 
 
-def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, cluster_col=None, cluster_id=None):
+def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name="Group A", group_b_name="Group B"):
     """Run pseudo-bulk DEG using pyDESeq2 or fallback to scipy t-test.
 
+    Conditions are defined by selection groups (cell index arrays).
+    Replicates are defined by an obs column (e.g. 'donor', 'batch').
+    Counts are aggregated per (group × replicate) combination.
+
     Args:
-        group_col: obs column defining biological replicates (e.g. 'organ')
-        condition_col: obs column defining conditions to compare (e.g. 'timepoint')
-        condition_a: value in condition_col for group A
-        condition_b: value in condition_col for group B
-        cluster_col: optional obs column to filter by cell type
-        cluster_id: value in cluster_col to filter for
+        group_a_cells: list of cell indices for condition A
+        group_b_cells: list of cell indices for condition B
+        replicate_col: obs column defining biological replicates
+        group_a_name: display name for group A
+        group_b_name: display name for group B
     Returns:
         dict with: genes, log2fc, padj, method, n_samples_a, n_samples_b, ...
     """
     import scipy.sparse as sp
-    from collections import Counter
+    global ABORT_REQUESTED
+    # Reset any stale abort flag from a prior cancel so this run can check it fresh.
+    ABORT_REQUESTED = False
 
     if ADATA is None or COUNTS_MATRIX is None:
         raise ValueError("No dataset or counts matrix available")
+    if COUNTS_INFO and not COUNTS_INFO.get("pb_ok", True):
+        raise ValueError(
+            "Pseudo-bulk disabled: " + (COUNTS_INFO.get("reason")
+            or "detected counts matrix does not look like raw UMI data"))
+    if len(group_a_cells) == 0:
+        raise ValueError(f"{group_a_name} has no cells")
+    if len(group_b_cells) == 0:
+        raise ValueError(f"{group_b_name} has no cells")
 
     obs = ADATA.obs
+    if replicate_col not in obs.columns:
+        raise ValueError(f"Column '{replicate_col}' not found in obs")
 
-    # Filter to specific cluster if requested
-    mask = np.ones(ADATA.n_obs, dtype=bool)
-    if cluster_col and cluster_id is not None:
-        mask &= (obs[cluster_col].astype(str) == str(cluster_id)).values
+    # Get replicate labels for each group's cells
+    idx_a = np.array(group_a_cells, dtype=int)
+    idx_b = np.array(group_b_cells, dtype=int)
+    reps_a = obs.iloc[idx_a][replicate_col].astype(str).values
+    reps_b = obs.iloc[idx_b][replicate_col].astype(str).values
+    unique_a = sorted(set(reps_a))
+    unique_b = sorted(set(reps_b))
 
-    # Filter to the two conditions
-    mask_a = mask & (obs[condition_col].astype(str) == str(condition_a)).values
-    mask_b = mask & (obs[condition_col].astype(str) == str(condition_b)).values
+    print(f"  Pseudo-bulk: {group_a_name} ({len(unique_a)} replicates, {len(idx_a)} cells) vs {group_b_name} ({len(unique_b)} replicates, {len(idx_b)} cells)")
 
-    if mask_a.sum() == 0 or mask_b.sum() == 0:
-        raise ValueError(f"No cells found for one or both conditions: {condition_a} ({mask_a.sum()}) vs {condition_b} ({mask_b.sum()})")
+    if len(unique_a) < 2:
+        raise ValueError(f"Need ≥2 replicates per group. {group_a_name} has cells in {len(unique_a)} replicate(s) of '{replicate_col}'.")
+    if len(unique_b) < 2:
+        raise ValueError(f"Need ≥2 replicates per group. {group_b_name} has cells in {len(unique_b)} replicate(s) of '{replicate_col}'.")
 
-    # Get sample labels for each cell
-    groups_a = obs.loc[mask_a, group_col].astype(str).values
-    groups_b = obs.loc[mask_b, group_col].astype(str).values
-    unique_a = sorted(set(groups_a))
-    unique_b = sorted(set(groups_b))
-
-    print(f"  Pseudo-bulk: {condition_a} ({len(unique_a)} samples, {mask_a.sum()} cells) vs {condition_b} ({len(unique_b)} samples, {mask_b.sum()} cells)")
-
-    if len(unique_a) < 2 or len(unique_b) < 2:
-        raise ValueError(f"Need at least 2 samples per condition for pseudo-bulk. Got {len(unique_a)} vs {len(unique_b)}.")
-
-    # Aggregate counts per sample
+    # Aggregate counts per (group × replicate)
     n_genes = ADATA.n_vars
     all_samples = []
     all_conditions = []
+    COND_A = "A"
+    COND_B = "B"
 
-    for sample_id in unique_a:
-        cell_mask = mask_a & (obs[group_col].astype(str) == sample_id).values
-        idx = np.where(cell_mask)[0]
-        if len(idx) == 0:
+    for rep_id in unique_a:
+        _check_abort()
+        cell_idx = idx_a[reps_a == rep_id]
+        if len(cell_idx) == 0:
             continue
-        counts = COUNTS_MATRIX[idx, :]
-        if sp.issparse(counts):
-            agg = np.asarray(counts.sum(axis=0)).flatten()
-        else:
-            agg = np.asarray(counts.sum(axis=0)).flatten()
+        counts = COUNTS_MATRIX[cell_idx, :]
+        agg = np.asarray(counts.sum(axis=0)).flatten()
         all_samples.append(agg)
-        all_conditions.append(condition_a)
+        all_conditions.append(COND_A)
 
-    for sample_id in unique_b:
-        cell_mask = mask_b & (obs[group_col].astype(str) == sample_id).values
-        idx = np.where(cell_mask)[0]
-        if len(idx) == 0:
+    for rep_id in unique_b:
+        _check_abort()
+        cell_idx = idx_b[reps_b == rep_id]
+        if len(cell_idx) == 0:
             continue
-        counts = COUNTS_MATRIX[idx, :]
-        if sp.issparse(counts):
-            agg = np.asarray(counts.sum(axis=0)).flatten()
-        else:
-            agg = np.asarray(counts.sum(axis=0)).flatten()
+        counts = COUNTS_MATRIX[cell_idx, :]
+        agg = np.asarray(counts.sum(axis=0)).flatten()
         all_samples.append(agg)
-        all_conditions.append(condition_b)
+        all_conditions.append(COND_B)
+
+    _check_abort()
 
     count_matrix = np.vstack(all_samples)  # samples × genes
     conditions = np.array(all_conditions)
-    n_a = sum(1 for c in conditions if c == condition_a)
-    n_b = sum(1 for c in conditions if c == condition_b)
+    n_a = sum(1 for c in conditions if c == COND_A)
+    n_b = sum(1 for c in conditions if c == COND_B)
 
     print(f"  Pseudo-bulk matrix: {count_matrix.shape[0]} samples × {count_matrix.shape[1]} genes")
 
@@ -496,15 +890,16 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
         from pydeseq2.ds import DeseqStats
         import pandas as pd
 
-        # Build AnnData-like input for pyDESeq2
         count_df = pd.DataFrame(count_matrix[:, keep], columns=gene_names[keep])
         meta_df = pd.DataFrame({"condition": conditions}, index=[f"sample_{i}" for i in range(len(conditions))])
         count_df.index = meta_df.index
 
+        _check_abort()  # last chance before entering the long pyDESeq2 fit
         dds = DeseqDataSet(counts=count_df, metadata=meta_df, design="~condition")
         dds.deseq2()
 
-        stat = DeseqStats(dds, contrast=["condition", condition_a, condition_b])
+        _check_abort()
+        stat = DeseqStats(dds, contrast=["condition", COND_A, COND_B])
         stat.summary()
 
         results_df = stat.results_df
@@ -520,28 +915,27 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
 
         from scipy import stats
 
-        # CPM normalize
         lib_sizes = count_matrix.sum(axis=1, keepdims=True)
         lib_sizes[lib_sizes == 0] = 1
         cpm = count_matrix / lib_sizes * 1e6
         log_cpm = np.log2(cpm + 1)
 
-        mask_cond_a = conditions == condition_a
-        mask_cond_b = conditions == condition_b
+        mask_cond_a = conditions == COND_A
+        mask_cond_b = conditions == COND_B
 
         genes_out = []
         log2fc = []
-        padj = []
         pvals = []
 
         for gi in range(n_genes):
             if not keep[gi]:
                 continue
+            # Check abort every 500 genes — cheap enough to skip every iteration.
+            if (gi & 0x1FF) == 0:
+                _check_abort()
             vals_a = log_cpm[mask_cond_a, gi]
             vals_b = log_cpm[mask_cond_b, gi]
-            mean_a = vals_a.mean()
-            mean_b = vals_b.mean()
-            fc = mean_a - mean_b  # already log2
+            fc = vals_a.mean() - vals_b.mean()
             try:
                 _, pv = stats.ttest_ind(vals_a, vals_b, equal_var=False)
             except Exception:
@@ -552,13 +946,15 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
             log2fc.append(float(fc))
             pvals.append(float(pv))
 
-        # BH correction
         from statsmodels.stats.multitest import multipletests
         _, padj_arr, _, _ = multipletests(pvals, method="fdr_bh")
         padj = padj_arr.tolist()
 
         print(f"  t-test on CPM complete: {len(genes_out)} genes tested")
 
+    except AbortError:
+        # Propagate cancellation to the handler; don't wrap it as a DEG error.
+        raise
     except Exception as e:
         raise ValueError(f"DEG computation failed: {e}")
 
@@ -569,18 +965,65 @@ def run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b, clust
         "method": method,
         "n_samples_a": n_a,
         "n_samples_b": n_b,
-        "condition_a": condition_a,
-        "condition_b": condition_b,
-        "group_col": group_col,
-        "condition_col": condition_col,
+        "group_a_name": group_a_name,
+        "group_b_name": group_b_name,
+        "replicate_col": replicate_col,
         "n_genes_tested": len(genes_out),
     }
+
+
+def _remap_cached_annotations(cached):
+    """Remap a cached annotation payload so its results[] use the CURRENTLY loaded
+    dataset's cluster ordering. When a subset is loaded from a parent's cache, the
+    subset's cluster_ids may shift (because unused categories were dropped) even
+    though the cluster names still match. Without remapping, the client would
+    assign each cluster's predictions to the wrong position.
+
+    Returns a new dict safe to send to the client. No-op if cache already matches.
+    """
+    if not cached or not isinstance(cached, dict):
+        return cached
+    cached_names = cached.get("cluster_names")
+    if cached_names == CLUSTER_NAMES and cached.get("n_cells") == N_CELLS:
+        return cached  # exact match — nothing to do
+    name_to_result = {}
+    for r in cached.get("results", []) or []:
+        if isinstance(r, dict):
+            cn = r.get("cluster_name")
+            if cn is not None:
+                name_to_result[cn] = r
+    if not name_to_result:
+        return cached  # unexpected format; leave alone
+    new_results = []
+    for cid, cname in enumerate(CLUSTER_NAMES or []):
+        src = name_to_result.get(cname)
+        if src:
+            new_r = dict(src)
+            new_r["cluster_id"] = cid
+            new_r["cluster_name"] = cname
+            try:
+                new_r["n_cells"] = int(np.sum(CLUSTER_IDS == cid)) if CLUSTER_IDS is not None else src.get("n_cells", 0)
+            except Exception:
+                pass
+            new_results.append(new_r)
+        else:
+            new_results.append({
+                "cluster_id": cid, "cluster_name": cname,
+                "n_cells": int(np.sum(CLUSTER_IDS == cid)) if CLUSTER_IDS is not None else 0,
+                "top_genes": [], "predictions": []
+            })
+    out = dict(cached)
+    out["results"] = new_results
+    out["cluster_names"] = list(CLUSTER_NAMES) if CLUSTER_NAMES else []
+    out["n_cells"] = N_CELLS
+    out["remapped_from_parent"] = True
+    return out
 
 
 def annotate_clusters(top_n=50, test="wilcoxon"):
     """Score clusters against marker database using shared DEG results."""
     from scipy.stats import fisher_exact
-    
+
     if ADATA is None or MARKER_DB is None:
         return {"error": "No data or marker database loaded"}
     
@@ -604,7 +1047,8 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
             _cn = cached_annot.get("cluster_names")
             _valid = (_cn == CLUSTER_NAMES and cached_annot.get("n_cells") == N_CELLS) or (_cn and set(CLUSTER_NAMES).issubset(set(_cn)))
             if _valid:
-                print(f"  Marker annotation loaded from cache")
+                cached_annot = _remap_cached_annotations(cached_annot)
+                print(f"  Marker annotation loaded from cache" + (" (remapped for subset)" if cached_annot.get("remapped_from_parent") else ""))
                 cached_annot["cached"] = True
                 return cached_annot
         except Exception as e:
@@ -853,17 +1297,27 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         ANNOT_STATUS["pct"] = 10
         adata_deg = adata[use_idx].copy()
 
-        # Normalize if raw counts (on the small copy only)
-        if sp.issparse(adata_deg.X):
-            sample = adata_deg.X[:min(1000, adata_deg.n_obs)].toarray()
-        else:
-            sample = np.asarray(adata_deg.X[:min(1000, adata_deg.n_obs)])
-        is_raw = np.allclose(sample, sample.astype(int)) and sample.max() > 20
+        # Route to the best available matrix (raw counts → normalize+log1p if found,
+        # otherwise fall through to whatever adata.X is).
+        route = MATRIX_ROUTING.get("deg_sc", {}) if MATRIX_ROUTING else {}
+        src_path = route.get("path") or "X"
+        if src_path != "X":
+            try:
+                src_full = _get_matrix_by_path(src_path)
+                if src_full is not None:
+                    src_sub = src_full[use_idx, :]
+                    if not sp.issparse(src_sub) and hasattr(src_sub, "toarray"):
+                        src_sub = src_sub.toarray()
+                    adata_deg.X = src_sub
+                    print(f"  Annot DEG: using {route.get('matrix_label') or src_path} as source matrix")
+            except Exception as _e:
+                print(f"  Annot DEG: failed to switch to {src_path} ({_e}), falling back to adata.X")
 
-        if is_raw:
+        transform = route.get("transform", "none")
+        if transform == "normalize+log1p":
             ANNOT_STATUS["step"] = "Normalizing raw counts..."
             ANNOT_STATUS["pct"] = 12
-            print("  Data appears to be raw counts — normalizing subset for DEG...")
+            print("  Annot DEG: applying normalize_total + log1p before testing")
             sc.pp.normalize_total(adata_deg, target_sum=1e4)
             sc.pp.log1p(adata_deg)
 
@@ -992,7 +1446,8 @@ def annotate_clusters_llm(top_n=30, test="wilcoxon", tissue_hint=""):
             _cn = cached.get("cluster_names")
             _valid = (_cn == CLUSTER_NAMES and cached.get("n_cells") == N_CELLS) or (_cn and set(CLUSTER_NAMES).issubset(set(_cn)))
             if _valid:
-                print(f"  LLM annotation loaded from cache")
+                cached = _remap_cached_annotations(cached)
+                print(f"  LLM annotation loaded from cache" + (" (remapped for subset)" if cached.get("remapped_from_parent") else ""))
                 cached["cached"] = True
                 return cached
         except Exception as e:
@@ -1205,10 +1660,13 @@ def _reset_all():
     global PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST
     global N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, OBS_COLS
     global CSC_CACHED, CSC_TIME, LOADED_PATH, LOAD_SETTINGS, ABORT_REQUESTED
+    global COUNTS_MATRIX, COUNTS_LABEL, COUNTS_INFO
     ADATA = None
     UMAP_2D = None; UMAP_3D = None
     PCA_2D = None; PCA_3D = None
     PACMAP_2D = None; PACMAP_3D = None
+    global EMBEDDING_SOURCES
+    EMBEDDING_SOURCES = {}
     PACMAP_COMPUTING = False
     CLUSTER_IDS = None; CLUSTER_NAMES = None; CLUSTER_COL = None; CLUSTER_COLORS = []
     OBS_COLS.clear()
@@ -1217,7 +1675,9 @@ def _reset_all():
     HVG_NAMES = []; HVG_VAR = {}; ALL_GENE_VAR = None; GENE_CUTOFF_FLAG = None; GENE_INDEX = {}
     CSC_BUILDING = False; CSC_CACHED = False; CSC_TIME = 0
     LOADED_PATH = ""; LOAD_SETTINGS.clear()
-    COUNTS_MATRIX = None; COUNTS_LABEL = None
+    COUNTS_MATRIX = None; COUNTS_LABEL = None; COUNTS_INFO = None
+    global MATRIX_REGISTRY, MATRIX_ROUTING, _CELL_LIB_SIZES
+    MATRIX_REGISTRY = []; MATRIX_ROUTING = {}; _CELL_LIB_SIZES = None
     ABORT_REQUESTED = False
     # Clear DEG cache (reinitialize with expected keys, not .clear())
     _DEG_CACHE["key"] = None
@@ -1368,24 +1828,48 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         need_save = True
 
     # ── Cluster colors ──────────────────────────────────────────────────────
-    # Priority: fleek_color_map (name→hex dict) > uns["{col}_colors"] > palette fallback
+    # Priority: fleek_color_map (name→hex) > uns["{col}_colors"] > palette fallback.
+    # fleek_color_map is stored as parallel {"names": [...], "colors": [...]}
+    # arrays (newer format, slash-safe for HDF5) OR as a plain {name:color} dict
+    # (legacy format — still read for backward compatibility, but keys containing
+    # "/" will be missing from this format because HDF5 strips them on write).
     CLUSTER_COL = _cluster_col_used
-    _color_map = adata.uns.get("fleek_color_map", {})
-    if isinstance(_color_map, dict) and _color_map:
-        # Map by name — works even when subset has fewer/different cluster indices
-        CLUSTER_COLORS = [str(_color_map.get(n, _palette_hex(i))) for i, n in enumerate(CLUSTER_NAMES)]
-    else:
-        _uns_colors = []
-        if _cluster_col_used:
-            _uns_colors = adata.uns.get(f"{_cluster_col_used}_colors", [])
-        if isinstance(_uns_colors, np.ndarray):
-            _uns_colors = _uns_colors.tolist()
-        elif not isinstance(_uns_colors, list):
-            _uns_colors = list(_uns_colors) if _uns_colors else []
-        if len(_uns_colors) == len(CLUSTER_NAMES):
-            CLUSTER_COLORS = [str(c) for c in _uns_colors]
+    _color_map_obj = adata.uns.get("fleek_color_map", None)
+    _name_to_color = {}
+    if isinstance(_color_map_obj, dict) and _color_map_obj:
+        _nm = _color_map_obj.get("names")
+        _cs = _color_map_obj.get("colors")
+        if _nm is not None and _cs is not None:
+            # New parallel-array format
+            try:
+                _nm_list = list(_nm) if not isinstance(_nm, list) else _nm
+                _cs_list = list(_cs) if not isinstance(_cs, list) else _cs
+                for _k, _v in zip(_nm_list, _cs_list):
+                    _name_to_color[str(_k)] = str(_v)
+            except Exception:
+                pass
         else:
-            CLUSTER_COLORS = [_palette_hex(i) for i in range(len(CLUSTER_NAMES))]
+            # Legacy plain-dict format
+            for _k, _v in _color_map_obj.items():
+                _name_to_color[str(_k)] = str(_v)
+    # Also grab the positional {col}_colors array as a secondary fallback for
+    # names that fleek_color_map doesn't cover (e.g. legacy subsets where HDF5
+    # dropped "/"-containing dict keys on write).
+    _uns_colors = []
+    if _cluster_col_used:
+        _uns_colors = adata.uns.get(f"{_cluster_col_used}_colors", [])
+    if isinstance(_uns_colors, np.ndarray):
+        _uns_colors = _uns_colors.tolist()
+    elif not isinstance(_uns_colors, list):
+        _uns_colors = list(_uns_colors) if _uns_colors else []
+
+    def _resolve_color(i, n):
+        if n in _name_to_color:
+            return str(_name_to_color[n])
+        if i < len(_uns_colors) and _uns_colors[i]:
+            return str(_uns_colors[i])
+        return _palette_hex(i)
+    CLUSTER_COLORS = [_resolve_color(i, n) for i, n in enumerate(CLUSTER_NAMES)]
 
     # Detect slice-able obs metadata columns
     OBS_COLS = _detect_obs_cols(adata, clustering_col=_cluster_col_used)
@@ -1425,12 +1909,14 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 UMAP_2D = cached[cache_key].astype(np.float32)
             else:
                 UMAP_3D = cached[cache_key].astype(np.float32)
+            EMBEDDING_SOURCES[f"umap_{nd}d"] = "cache_quick" if use_fast else "cache_full"
         elif legacy_key in cached:
             _progress(f"Loaded {nd}D UMAP from cache (legacy)", 25)
             if nd == 2:
                 UMAP_2D = cached[legacy_key].astype(np.float32)
             else:
                 UMAP_3D = cached[legacy_key].astype(np.float32)
+            EMBEDDING_SOURCES[f"umap_{nd}d"] = "cache_legacy"
         elif _obsm_umap is not None and _obsm_umap.shape[1] >= nd:
             # Use pre-existing UMAP from obsm (e.g. subset exported from full dataset)
             umap_arr = _obsm_umap[:, :nd].astype(np.float32)
@@ -1441,6 +1927,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             cached[f"umap_{nd}d_full"] = umap_arr  # cache so next load is instant
             need_save = True
             _progress(f"Loaded {nd}D UMAP from obsm (pre-existing)", 25)
+            EMBEDDING_SOURCES[f"umap_{nd}d"] = "obsm"
         else:
             dims_needed.append(nd)
             umap_from_cache = False
@@ -1561,6 +2048,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 UMAP_3D = full_emb
             cached[f"umap_{nd}d_quick"] = full_emb
             need_save = True
+            EMBEDDING_SOURCES[f"umap_{nd}d"] = "computed_quick"
 
     elif dims_needed:
         # ── Standard full UMAP ──
@@ -1584,11 +2072,13 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 UMAP_3D = umap_arr
             cached[f"umap_{nd}d_full"] = umap_arr
             need_save = True
+            EMBEDDING_SOURCES[f"umap_{nd}d"] = "computed_full"
 
     # Derive 2D from 3D if not native and 2D wasn't loaded/computed
     if UMAP_2D is None and UMAP_3D is not None:
         UMAP_2D = UMAP_3D[:, :2].copy()
         print(f"  UMAP 2D derived from 3D (slice)")
+        EMBEDDING_SOURCES["umap_2d"] = "derived_from_3d"
 
     if need_save:
         # Also save PCA coords to cache if available
@@ -1603,33 +2093,38 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     ADATA = adata
 
     # ── Extract PCA coordinates ──
-    # Priority: cache > obsm > compute
-    if "pca_full" in cached:
+    # Priority: obsm['X_pca'] in the h5ad → cache (fallback for FLEEK-computed
+    # cases where the file had no PCA to begin with). When obsm has a PCA that
+    # matches the current cell count we always trust it over the cache, because
+    # the file is the authoritative source — a cached PCA could be stale if the
+    # dataset was regenerated with a different upstream pipeline.
+    _obsm_pca = adata.obsm.get("X_pca") if hasattr(adata, "obsm") else None
+    if _obsm_pca is not None and getattr(_obsm_pca, "shape", (0,))[0] != N_CELLS:
+        _obsm_pca = None  # stale/wrong size — ignore
+
+    if _obsm_pca is not None:
+        pca_arr = np.asarray(_obsm_pca, dtype=np.float32)
+        PCA_2D = pca_arr[:, :2].copy()
+        PCA_3D = pca_arr[:, :3].copy() if pca_arr.shape[1] >= 3 else np.pad(PCA_2D, ((0, 0), (0, 1)))
+        print(f"  PCA from obsm ({pca_arr.shape[1]} components) — preferred over cache")
+        EMBEDDING_SOURCES["pca_2d"] = "obsm"
+        EMBEDDING_SOURCES["pca_3d"] = "obsm"
+    elif "pca_full" in cached:
         pca_full = cached["pca_full"].astype(np.float32)
         PCA_2D = pca_full[:, :2].copy()
         PCA_3D = pca_full[:, :3].copy()
         # Restore to obsm so PaCMAP and other tools can use it
-        if "X_pca" not in adata.obsm:
-            adata.obsm["X_pca"] = pca_full
-        print(f"  PCA loaded from cache ({pca_full.shape[1]} components)")
+        adata.obsm["X_pca"] = pca_full
+        print(f"  PCA loaded from cache ({pca_full.shape[1]} components) — obsm had none")
+        EMBEDDING_SOURCES["pca_2d"] = "cache_full"
+        EMBEDDING_SOURCES["pca_3d"] = "cache_full"
     elif "pca_2d" in cached and "pca_3d" in cached:
         # Legacy cache with only 2D/3D — use for display but PaCMAP won't work
         PCA_2D = cached["pca_2d"].astype(np.float32)
         PCA_3D = cached["pca_3d"].astype(np.float32)
-        print(f"  PCA loaded from cache (2D/3D only, no full PCA for PaCMAP)")
-    elif "X_pca" in adata.obsm:
-        pca_arr = adata.obsm["X_pca"].astype(np.float32)
-        PCA_2D = pca_arr[:, :2].copy()
-        PCA_3D = pca_arr[:, :3].copy()
-        print(f"  PCA extracted from obsm ({pca_arr.shape[1]} components)")
-        # Save full PCA to cache for next time
-        cached["pca_2d"] = PCA_2D
-        cached["pca_3d"] = PCA_3D
-        cached["pca_full"] = pca_arr.copy()
-        try:
-            np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
-        except Exception:
-            pass
+        print(f"  PCA loaded from cache (2D/3D only, no full PCA for PaCMAP) — obsm had none")
+        EMBEDDING_SOURCES["pca_2d"] = "cache_legacy"
+        EMBEDDING_SOURCES["pca_3d"] = "cache_legacy"
     else:
         PCA_2D = None
         PCA_3D = None
@@ -1664,23 +2159,32 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         PACMAP_3D = cached[_pm_key3].astype(np.float32)
         PACMAP_COMPUTING = False
         print(f"  PaCMAP loaded from cache ({'quick' if _pm_suffix == '_quick' else 'full'})")
+        src = "cache_quick" if _pm_suffix == "_quick" else "cache_full"
+        EMBEDDING_SOURCES["pacmap_2d"] = src
+        EMBEDDING_SOURCES["pacmap_3d"] = src
     elif _pm_key3 in cached:
         # 3D cached but no native 2D — derive 2D from 3D
         PACMAP_3D = cached[_pm_key3].astype(np.float32)
         PACMAP_2D = PACMAP_3D[:, :2].copy()
         PACMAP_COMPUTING = False
         print(f"  PaCMAP 3D from cache, 2D derived (slice)")
+        EMBEDDING_SOURCES["pacmap_3d"] = "cache_full" if _pm_suffix == "_full" else "cache_quick"
+        EMBEDDING_SOURCES["pacmap_2d"] = "derived_from_3d"
     elif "pacmap_2d" in cached and "pacmap_3d" in cached:
         # Legacy cache fallback
         PACMAP_2D = cached["pacmap_2d"].astype(np.float32)
         PACMAP_3D = cached["pacmap_3d"].astype(np.float32)
         PACMAP_COMPUTING = False
         print(f"  PaCMAP loaded from cache (legacy)")
+        EMBEDDING_SOURCES["pacmap_2d"] = "cache_legacy"
+        EMBEDDING_SOURCES["pacmap_3d"] = "cache_legacy"
     elif "pacmap_3d" in cached:
         PACMAP_3D = cached["pacmap_3d"].astype(np.float32)
         PACMAP_2D = PACMAP_3D[:, :2].copy()
         PACMAP_COMPUTING = False
         print(f"  PaCMAP 3D from cache (legacy), 2D derived (slice)")
+        EMBEDDING_SOURCES["pacmap_3d"] = "cache_legacy"
+        EMBEDDING_SOURCES["pacmap_2d"] = "derived_from_3d"
     elif "X_pacmap" in adata.obsm and adata.obsm["X_pacmap"].shape[0] == N_CELLS:
         # Pre-existing PaCMAP from obsm (e.g. exported subset)
         _obsm_pm = adata.obsm["X_pacmap"].astype(np.float32)
@@ -1693,8 +2197,11 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         PACMAP_COMPUTING = False
         if PACMAP_2D is not None:
             cached["pacmap_2d_full"] = PACMAP_2D
+            EMBEDDING_SOURCES["pacmap_2d"] = "obsm"
         if PACMAP_3D is not None:
             cached["pacmap_3d_full"] = PACMAP_3D
+            if EMBEDDING_SOURCES.get("pacmap_3d") is None:
+                EMBEDDING_SOURCES["pacmap_3d"] = "obsm" if _obsm_pm.shape[1] >= 3 else "padded_from_2d"
         need_save = True
         print(f"  PaCMAP loaded from obsm (pre-existing)")
     elif "X_pca" in adata.obsm:
@@ -1806,6 +2313,9 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
 
                     PACMAP_2D = np.load(out2_path)
                     PACMAP_3D = np.load(out3_path)
+                    src = "computed_quick" if _pm_suffix == "_quick" else "computed_full"
+                    EMBEDDING_SOURCES["pacmap_2d"] = src
+                    EMBEDDING_SOURCES["pacmap_3d"] = src
 
                 # Save to cache with method-specific keys
                 cached[f"pacmap_2d{_pm_suffix}"] = PACMAP_2D
@@ -1924,7 +2434,14 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 print("  Computing gene variability (locally standardized trend residual)...")
                 t0 = time.time()
                 import scipy.sparse as _sp
-                X = ADATA.X
+                # Route to the ideal matrix (raw counts > log-normalized > denoised).
+                route = MATRIX_ROUTING.get("variability", {}) if MATRIX_ROUTING else {}
+                src_path = route.get("path") or "X"
+                X = _get_matrix_by_path(src_path) if src_path else ADATA.X
+                if X is None:
+                    X = ADATA.X
+                    src_path = "X"
+                print(f"  Variability: reading from {route.get('matrix_label') or src_path}")
                 n_sub = min(50000, X.shape[0])
                 if n_sub < X.shape[0]:
                     rng = np.random.default_rng(42)
@@ -2167,40 +2684,75 @@ def _ensure_neighbors(adata):
         adata.uns["neighbors"] = tmp.uns["neighbors"]
 
 
+_CELL_LIB_SIZES = None  # lazily computed per-cell totals for normalize+log1p
+
+def _get_lib_sizes(src_mat):
+    """Return per-cell library sizes for the given matrix, caching the result so
+    repeated gene lookups don't rescan the matrix. Keyed by `id(src_mat)`."""
+    global _CELL_LIB_SIZES
+    if _CELL_LIB_SIZES is not None and _CELL_LIB_SIZES[0] == id(src_mat):
+        return _CELL_LIB_SIZES[1]
+    lib = np.asarray(src_mat.sum(axis=1)).ravel().astype(np.float64)
+    lib[lib == 0] = 1.0
+    _CELL_LIB_SIZES = (id(src_mat), lib)
+    return lib
+
+
 def get_gene_expression(gene_name):
-    """Get normalized 0-1 expression for a single gene."""
+    """Get normalized 0-1 expression for a single gene, routed to the best
+    available matrix per MATRIX_ROUTING['gene_display']. Applies normalize+log1p
+    on the fly if the chosen matrix is raw/denoised counts."""
     import scipy.sparse as sp
 
     idx = GENE_INDEX.get(gene_name)
     if idx is None:
         return None
 
-    if X_CSC is not None:
-        # Fast path: full CSC column slice — O(nnz in column)
-        col = X_CSC[:, idx].toarray().ravel().astype(np.float32)
-    elif BACKED:
-        # Backed mode: read in row batches
-        n = ADATA.n_obs
-        col = np.empty(n, dtype=np.float32)
-        batch = 50000
-        for bi in range(0, n, batch):
-            be = min(bi + batch, n)
-            chunk = ADATA.X[bi:be, idx]
-            if sp.issparse(chunk):
-                chunk = chunk.toarray().ravel()
-            else:
-                chunk = np.asarray(chunk).ravel()
-            col[bi:be] = chunk
-    else:
-        # Dense or fallback
-        col = ADATA.X[:, idx]
-        if sp.issparse(col):
-            col = col.toarray().ravel()
-        else:
-            col = np.asarray(col).ravel()
-        col = col.astype(np.float32)
+    # Which matrix + transform are we using for display?
+    route = MATRIX_ROUTING.get("gene_display", {}) if MATRIX_ROUTING else {}
+    src_path = route.get("path") or "X"
+    transform = route.get("transform", "none")
 
-    # Normalize to 0-1
+    # Fast path: the CSC index was built from adata.X. If the route points to a
+    # different matrix OR asks for a transform, we need to read raw values from
+    # the routed matrix directly.
+    use_csc = X_CSC is not None and src_path == "X" and transform == "none"
+
+    if use_csc:
+        col = X_CSC[:, idx].toarray().ravel().astype(np.float32)
+    else:
+        src_mat = _get_matrix_by_path(src_path) if src_path else None
+        if src_mat is None:
+            src_mat = ADATA.X
+        # Read the column
+        if BACKED and src_path == "X":
+            # Can't use CSC when backed; fall back to per-batch reads of raw X.
+            n = ADATA.n_obs
+            col = np.empty(n, dtype=np.float32)
+            batch = 50000
+            for bi in range(0, n, batch):
+                be = min(bi + batch, n)
+                chunk = src_mat[bi:be, idx]
+                if sp.issparse(chunk):
+                    chunk = chunk.toarray().ravel()
+                else:
+                    chunk = np.asarray(chunk).ravel()
+                col[bi:be] = chunk
+        else:
+            col_src = src_mat[:, idx]
+            if sp.issparse(col_src):
+                col = col_src.toarray().ravel()
+            else:
+                col = np.asarray(col_src).ravel()
+            col = col.astype(np.float32)
+
+        if transform == "normalize+log1p":
+            lib = _get_lib_sizes(src_mat)
+            col = np.asarray(col, dtype=np.float64)
+            col = col / lib * 1e4
+            col = np.log1p(col).astype(np.float32)
+
+    # Normalize to 0-1 for the client's colormap.
     pos = col[col > 0]
     if len(pos) > 10:
         pmax = np.percentile(pos, 98)
@@ -2259,10 +2811,17 @@ def build_init_payload():
         "loaded_path": LOADED_PATH,
         "hvg_genes": HVG_NAMES[:200],  # top HVGs for quick-access UI
         "hvg_var": {g: round(HVG_VAR[g], 4) for g in HVG_NAMES[:200] if g in HVG_VAR},
+        "organism": _DETECTED_ORGANISM[0] if _DETECTED_ORGANISM else "Human",
+        "organism_reason": _DETECTED_ORGANISM[1] if _DETECTED_ORGANISM else "",
         "go_available": GO_DB is not None,
         "go_organism": GO_DB.get("label", "") if GO_DB else "",
-        "counts_available": COUNTS_MATRIX is not None,
+        "counts_available": COUNTS_MATRIX is not None and (COUNTS_INFO is None or COUNTS_INFO.get("pb_ok", True)),
         "counts_label": COUNTS_LABEL or "",
+        "counts_info": COUNTS_INFO,
+        "pydeseq2_available": PYDESEQ2_AVAILABLE,
+        "matrix_registry": MATRIX_REGISTRY,
+        "matrix_routing": MATRIX_ROUTING,
+        "embedding_sources": EMBEDDING_SOURCES,
     }
 
     # Include cached annotations if available
@@ -2301,8 +2860,12 @@ def build_init_payload():
                     with open(ap) as f:
                         cached = json.load(f)
                     if _annot_valid(cached):
+                        # Remap cluster_ids by name so a subset's shifted cluster
+                        # indexing doesn't cross-wire annotations to wrong clusters.
+                        cached = _remap_cached_annotations(cached)
                         header[annot_key] = cached.get("results", [])
-                        print(f"  Init: loaded {annot_key} from {ap.name}")
+                        _sfx = " (remapped for subset)" if cached.get("remapped_from_parent") else ""
+                        print(f"  Init: loaded {annot_key} from {ap.name}{_sfx}")
                     else:
                         print(f"  Init: {ap.name} FAILED validation (cached_names={cached.get('cluster_names')}, current={CLUSTER_NAMES})")
                 except Exception as e:
@@ -2323,7 +2886,7 @@ def build_init_payload():
             except Exception as e:
                 print(f"  Init: error reading lineage {lp}: {e}")
 
-    header_bytes = json.dumps(header, separators=(",", ":")).encode("utf-8")
+    header_bytes = json.dumps(_json_safe(header), separators=(",", ":")).encode("utf-8")
 
     buf = io.BytesIO()
     buf.write(b"SCRN")
@@ -2373,6 +2936,15 @@ def run_deg(group_a, group_b, test="wilcoxon"):
     indices = indices_a + indices_b
     labels = ["A"] * len(indices_a) + ["B"] * len(indices_b)
 
+    # Pick the right source matrix via the routing table so we don't silently run
+    # on denoised / scaled data when raw counts are available elsewhere.
+    route = MATRIX_ROUTING.get("deg_sc", {}) if MATRIX_ROUTING else {}
+    src_path = route.get("path") or "X"
+    src_mat = _get_matrix_by_path(src_path) if src_path else None
+    if src_mat is None:
+        src_mat = ADATA.X
+        src_path = "X"
+
     sub = ADATA[indices]
     if BACKED:
         try:
@@ -2383,13 +2955,19 @@ def run_deg(group_a, group_b, test="wilcoxon"):
         sub = sub.copy()
     sub.obs["deg_group"] = labels
 
-    # Normalize if raw counts
-    sample = sub.X[:min(100, sub.n_obs), :min(100, sub.n_vars)]
-    if sp.issparse(sample):
-        sample = sample.toarray()
-    sample = np.asarray(sample)
-    is_raw = np.allclose(sample, sample.astype(int)) and sample.max() > 5
-    if is_raw:
+    # If the chosen source isn't already the subset's X, materialize it now.
+    if src_path != "X":
+        try:
+            src_sub = src_mat[indices, :]
+            if not sp.issparse(src_sub) and hasattr(src_sub, "toarray"):
+                src_sub = src_sub.toarray()
+            sub.X = src_sub
+            print(f"  DEG: using {route.get('matrix_label') or src_path} as source matrix")
+        except Exception as _e:
+            print(f"  DEG: failed to switch to {src_path} ({_e}), falling back to adata.X")
+
+    transform = route.get("transform", "none")
+    if transform == "normalize+log1p":
         sc.pp.normalize_total(sub, target_sum=1e4)
         sc.pp.log1p(sub)
 
@@ -2517,11 +3095,17 @@ def export_h5ad_subset(cell_indices, group_name):
             sub.obsm["X_pca"] = PCA_2D[idx]
 
     # ── Bake colors + annotations into the subset ─────────────────────────
-    # Store a name→color mapping so colors survive subsetting (positional
-    # lists break when categories are removed by subsetting)
+    # Store name→color pairs so colors survive subsetting (positional lists
+    # break when categories are removed by subsetting). Use parallel arrays
+    # instead of a plain dict because HDF5 can't have "/" in group-member
+    # names and anndata silently drops any dict key containing a slash on
+    # write — which would discard cluster names like "Paneth-like/DCS".
     if CLUSTER_NAMES and CLUSTER_COLORS:
-        color_map = {CLUSTER_NAMES[i]: CLUSTER_COLORS[i] for i in range(len(CLUSTER_NAMES)) if i < len(CLUSTER_COLORS)}
-        sub.uns["fleek_color_map"] = color_map
+        n_pairs = min(len(CLUSTER_NAMES), len(CLUSTER_COLORS))
+        sub.uns["fleek_color_map"] = {
+            "names": [str(CLUSTER_NAMES[i]) for i in range(n_pairs)],
+            "colors": [str(CLUSTER_COLORS[i]) for i in range(n_pairs)],
+        }
 
     # Store parent stem so subset can find parent's annotation caches
     _ps = Path(LOADED_PATH).stem
@@ -2667,6 +3251,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_abort(req)
         elif path == "/api/unload":
             self._serve_unload(req)
+        elif path == "/api/heartbeat":
+            self._serve_heartbeat(req)
         elif path == "/api/lineage":
             self._serve_lineage(req)
         elif path == "/api/clear-cache":
@@ -2699,8 +3285,9 @@ class FleekHandler(SimpleHTTPRequestHandler):
             return
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate, max-age=0")
         self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(html_path.read_bytes())
 
@@ -3175,21 +3762,20 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def _serve_pseudobulk_deg(self, req):
-        """Run pseudo-bulk DEG between two conditions."""
+        """Run pseudo-bulk DEG between two selection groups."""
         try:
-            group_col = req.get("group_col")
-            condition_col = req.get("condition_col")
-            condition_a = req.get("condition_a")
-            condition_b = req.get("condition_b")
-            cluster_col = req.get("cluster_col")
-            cluster_id = req.get("cluster_id")
+            group_a_cells = req.get("group_a_cells")
+            group_b_cells = req.get("group_b_cells")
+            replicate_col = req.get("replicate_col")
+            group_a_name = req.get("group_a_name", "Group A")
+            group_b_name = req.get("group_b_name", "Group B")
 
-            if not group_col or not condition_col or not condition_a or not condition_b:
-                raise ValueError("Missing required fields: group_col, condition_col, condition_a, condition_b")
+            if not group_a_cells or not group_b_cells or not replicate_col:
+                raise ValueError("Missing required fields: group_a_cells, group_b_cells, replicate_col")
 
             t0 = time.time()
-            result = run_pseudobulk_deg(group_col, condition_col, condition_a, condition_b,
-                                         cluster_col=cluster_col, cluster_id=cluster_id)
+            result = run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col,
+                                         group_a_name=group_a_name, group_b_name=group_b_name)
             result["elapsed"] = round(time.time() - t0, 1)
 
             data = json.dumps(result, separators=(",", ":")).encode("utf-8")
@@ -3200,6 +3786,19 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.wfile.write(data)
         except BrokenPipeError:
             pass
+        except AbortError:
+            global ABORT_REQUESTED
+            ABORT_REQUESTED = False  # clear so the next run isn't pre-aborted
+            print("  Pseudo-bulk aborted by user")
+            try:
+                err = json.dumps({"error": "aborted", "aborted": True}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(err)))
+                self.end_headers()
+                self.wfile.write(err)
+            except BrokenPipeError:
+                pass
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -4046,6 +4645,43 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
         import gc; gc.collect()
         result = {"ok": True}
         data = json.dumps(result).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_heartbeat(self, req):
+        """Client heartbeat — resets the auto-unload timer."""
+        global AUTO_UNLOAD, AUTO_UNLOAD_TIMEOUT, _LAST_HEARTBEAT, _HEARTBEAT_TIMER
+        _LAST_HEARTBEAT = time.time()
+        print(f"  ♥ heartbeat (auto_unload={req.get('auto_unload') if req else '?'}, timeout={req.get('timeout') if req else '?'})")
+        # Cancel any pending unload timer
+        if _HEARTBEAT_TIMER:
+            _HEARTBEAT_TIMER.cancel()
+            _HEARTBEAT_TIMER = None
+        # Parse settings updates from client
+        if req:
+            if "auto_unload" in req:
+                AUTO_UNLOAD = bool(req["auto_unload"])
+            if "timeout" in req:
+                AUTO_UNLOAD_TIMEOUT = max(0.5, float(req["timeout"]))
+        # Schedule next unload check
+        if AUTO_UNLOAD and ADATA is not None:
+            def _check_unload():
+                global _HEARTBEAT_TIMER
+                _HEARTBEAT_TIMER = None
+                elapsed = time.time() - _LAST_HEARTBEAT
+                if elapsed >= AUTO_UNLOAD_TIMEOUT and AUTO_UNLOAD and ADATA is not None:
+                    print(f"  Auto-unloading dataset (no heartbeat for {elapsed:.1f}s)")
+                    _reset_all()
+                    PROGRESS["status"] = "idle"
+                    PROGRESS["message"] = "Dataset auto-unloaded"
+                    import gc; gc.collect()
+            _HEARTBEAT_TIMER = threading.Timer(AUTO_UNLOAD_TIMEOUT + 0.5, _check_unload)
+            _HEARTBEAT_TIMER.daemon = True
+            _HEARTBEAT_TIMER.start()
+        data = json.dumps({"ok": True, "auto_unload": AUTO_UNLOAD, "timeout": AUTO_UNLOAD_TIMEOUT}).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
