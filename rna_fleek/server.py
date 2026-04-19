@@ -1697,12 +1697,28 @@ def _check_abort():
         raise AbortError("Loading aborted by user")
 
 def _reset_all():
-    """Free all data globals and reclaim memory."""
+    """Free all data globals and reclaim memory.
+
+    On machines near their RAM limit this matters — loading dataset B while
+    dataset A is still held would briefly peak at A+B. We drop all top-level
+    references, close any backed h5 file handle, and run gc.collect() twice
+    (some scipy/numpy buffers are only reclaimed on the second pass because
+    the first releases weakref-targets that the second then finalizes).
+    """
     global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D
     global PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, GENE_NAMES_LIST
     global N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, OBS_COLS
     global CSC_CACHED, CSC_TIME, LOADED_PATH, LOAD_SETTINGS, ABORT_REQUESTED
     global COUNTS_MATRIX, COUNTS_LABEL, COUNTS_INFO
+    # Close backed-mode file handle first — anndata keeps an h5py.File open
+    # when adata is loaded with backed=True, and the file (plus its page
+    # cache) won't be freed until the handle is closed explicitly.
+    if ADATA is not None:
+        try:
+            if getattr(ADATA, "isbacked", False) and getattr(ADATA, "file", None) is not None:
+                ADATA.file.close()
+        except Exception as _e:
+            print(f"  _reset_all: failed to close backed file ({_e})")
     ADATA = None
     UMAP_2D = None; UMAP_3D = None
     PCA_2D = None; PCA_3D = None
@@ -1726,7 +1742,9 @@ def _reset_all():
     _DEG_CACHE["cluster_genes"] = None
     _DEG_CACHE["small_clusters"] = None
     _DEG_CACHE["full_rankings"] = None
-    import gc; gc.collect()
+    import gc
+    gc.collect()
+    gc.collect()
 
 def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False,
                      fast_umap_subsample=50000, backed="off", native_2d=False):

@@ -1791,7 +1791,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.4";
+var FLEEK_VERSION="v0.3.5";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=true; /* scale point size with expression level in gene mode */
@@ -8841,10 +8841,11 @@ function _pbRun(){
     if(data&&data.error){status.textContent="Error: "+data.error;return;}
     status.textContent=data.method+" \u00b7 "+data.n_genes_tested+" genes \u00b7 "+data.elapsed+"s";
     /* Cache the run in degCache (same history store as single-cell DEG).
-       The key test-slot records the actual backend that ran so DESeq2 vs t-test
-       results are kept as distinct history entries even for the same groups. */
+       Key includes the backend that actually ran AND the replicate column,
+       so DESeq2 vs t-test and different replicate choices (donor vs batch,
+       etc.) stay as distinct history entries for the same group pair. */
     var _pbTest="pb-"+(data.method||"unknown").toLowerCase().replace(/[^a-z0-9]+/g,"");
-    var _pbKey=_pbTest+"|"+_pbGrpASnap.id+"|"+_pbGrpBSnap.id+"|"+_pbSelHashSnap;
+    var _pbKey=_pbTest+"|rep="+_pbRepColSnap+"|"+_pbGrpASnap.id+"|"+_pbGrpBSnap.id+"|"+_pbSelHashSnap;
     degCache[_pbKey]={
       data:data,
       grpA:_pbGrpASnap,
@@ -9696,11 +9697,13 @@ function _updateDEGHistory(){
     var nGenes=0;
     if(c.data){nGenes=Array.isArray(c.data.genes)?c.data.genes.length:0;}
     /* Label: single-cell shows the test name (wilcoxon/t-test); pseudo-bulk
-       shows "pseudo-bulk DESeq2" or "pseudo-bulk t-test" using the server's
-       reported method so DESeq2 and the fallback are distinguishable. */
+       shows "pseudo-bulk DESeq2 · donor" (method + replicate column) so
+       different backends AND different replicate choices are distinguishable
+       in the dropdown at a glance. */
     var label;
     if(c.kind==="pb"){
       label="pseudo-bulk "+(c.method||"");
+      if(c.replicate_col)label+=" \u00b7 "+c.replicate_col;
     }else{
       label=k.split("|")[0]||"test";
     }
