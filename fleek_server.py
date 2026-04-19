@@ -3323,6 +3323,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_set_key(req)
         elif path == "/api/clear-key":
             self._serve_clear_key()
+        elif path == "/api/test-key":
+            self._serve_test_key(req)
         elif path == "/api/sessions":
             self._serve_sessions()
         elif path == "/api/session-save":
@@ -4195,6 +4197,53 @@ class FleekHandler(SimpleHTTPRequestHandler):
                     env_path.unlink()
             print("  Claude API key cleared.")
             result = json.dumps({"ok": True}).encode("utf-8")
+        except Exception as e:
+            result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
+    def _serve_test_key(self, req):
+        """Verify an Anthropic API key by making a minimal /v1/messages call.
+        If `key` is provided in the body, test that specific value without
+        persisting. Otherwise test the key currently loaded in memory.
+        Returns the raw API response body on failure so users can see the
+        actual reason (401, 429, 403 workspace-scoped, DNS, proxy, etc.)."""
+        import urllib.request, urllib.error
+        try:
+            candidate = (req.get("key") or "").strip() if isinstance(req, dict) else ""
+            key = candidate or ANTHROPIC_API_KEY
+            if not key:
+                raise ValueError("No key to test. Paste a key into the field, or save one first.")
+            if not key.startswith("sk-ant-"):
+                raise ValueError("Key doesn't look like an Anthropic key (expected sk-ant-...).")
+            body = json.dumps({
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 8,
+                "messages": [{"role": "user", "content": "ping"}],
+            }).encode("utf-8")
+            rq = urllib.request.Request(
+                "https://api.anthropic.com/v1/messages",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": key,
+                    "anthropic-version": "2023-06-01",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(rq, timeout=15) as resp:
+                    data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                result = json.dumps({"ok": True, "model": data.get("model", "")}).encode("utf-8")
+            except urllib.error.HTTPError as e:
+                raw = e.read().decode("utf-8", errors="replace")
+                # Surface the verbatim API error so the user can see the real cause.
+                result = json.dumps({"ok": False, "error": f"HTTP {e.code}: {raw}"}).encode("utf-8")
+            except urllib.error.URLError as e:
+                result = json.dumps({"ok": False, "error": f"Network error: {e.reason}"}).encode("utf-8")
         except Exception as e:
             result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
         self.send_response(200)

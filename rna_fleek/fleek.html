@@ -932,6 +932,7 @@
       <div class="s-key-input-wrap">
         <input type="password" id="set-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
         <button class="s-key-save" onclick="saveApiKey()">Save</button>
+        <button class="s-key-save" id="test-api-key-btn" onclick="testApiKey()" style="background:rgba(99,102,241,0.25);" title="Send a minimal request to api.anthropic.com to verify the currently-saved key works">Test</button>
         <button class="s-key-save" id="clear-api-key-btn" onclick="clearApiKey()" style="background:#f87171;display:none;" title="Remove API key from server and ~/.fleek.env">Clear</button>
       </div>
       <span class="s-key-status" id="api-key-status"></span>
@@ -1791,7 +1792,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.5";
+var FLEEK_VERSION="v0.3.6";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=true; /* scale point size with expression level in gene mode */
@@ -10582,6 +10583,31 @@ function clearApiKey(){
       setTimeout(function(){status.textContent="";},3000);
     }else{
       status.textContent=d.error||"Error clearing key.";status.style.color="#f87171";
+    }
+  }).catch(function(){status.textContent="Server error.";status.style.color="#f87171";});
+}
+function testApiKey(){
+  /* Send the currently-saved key (or the one in the input if pasted but not
+     saved yet) to the server, which makes a minimal Anthropic call. Surfaces
+     the verbatim API response body on failure so the user can see 401 / 403 /
+     rate-limit / network issues directly. */
+  var status=document.getElementById("api-key-status");
+  var inpKey=(document.getElementById("set-api-key").value||"").trim();
+  status.textContent="Testing…";status.style.color="var(--text4)";
+  fetch("/api/test-key",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(inpKey?{key:inpKey}:{})
+  }).then(function(r){return r.json();}).then(function(d){
+    if(d.ok){
+      status.textContent="Key OK · "+(d.model||"claude");
+      status.style.color="#4ade80";
+      setTimeout(function(){status.textContent="";},5000);
+    }else{
+      var msg=d.error||"Test failed.";
+      status.textContent=msg.length>160?msg.slice(0,160)+"…":msg;
+      status.style.color="#f87171";
+      status.title=msg;
     }
   }).catch(function(){status.textContent="Server error.";status.style.color="#f87171";});
 }
