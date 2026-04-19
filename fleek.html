@@ -1047,6 +1047,11 @@
       <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
         <span style="color:var(--text4);">Replicate column:</span>
         <select id="pb-replicate" style="max-width:120px;" title="Obs column defining biological replicates (e.g. donor, batch). Counts are aggregated per replicate within each selection group."></select>
+        <span style="color:var(--text4);margin-left:6px;">Method:</span>
+        <select id="pb-method" title="Statistical test for pseudo-bulk DEG. DESeq2 uses a negative-binomial GLM (preferred for count data). Welch's t-test runs on log2-CPM values.">
+          <option value="auto">DESeq2 (default)</option>
+          <option value="ttest">Welch's t-test (CPM)</option>
+        </select>
         <button id="pb-run-btn" onclick="_pbRun()" style="background:rgba(99,102,241,0.2);border:1px solid var(--accent);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:9px;font-family:inherit;padding:2px 10px;font-weight:600;">Run</button>
         <span id="pb-status" style="color:var(--text4);font-size:9px;"></span>
       </div>
@@ -1786,7 +1791,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.3";
+var FLEEK_VERSION="v0.3.4";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=true; /* scale point size with expression level in gene mode */
@@ -8804,7 +8809,11 @@ function _pbRun(){
   btn.textContent="Stop";btn.classList.add("deg-stop");btn.disabled=false;
   /* Label the test the server is about to run so the status line reflects
      what's actually executing (pyDESeq2 vs Welch's t-test on CPM). */
-  var _pbTestName=(D&&D.header&&D.header.pydeseq2_available)?"pyDESeq2":"t-test (CPM)";
+  var _methodSel=document.getElementById("pb-method");
+  var _methodPref=_methodSel?_methodSel.value:"auto";
+  var _pbTestName;
+  if(_methodPref==="ttest")_pbTestName="t-test (CPM)";
+  else _pbTestName=(D&&D.header&&D.header.pydeseq2_available)?"pyDESeq2":"t-test (CPM)";
   status.textContent="Running "+_pbTestName+"...";
   var startTime=Date.now();
   _pbTimer=setInterval(function(){
@@ -8816,8 +8825,14 @@ function _pbRun(){
     group_b_cells:Array.from(grpB.cells),
     replicate_col:repCol,
     group_a_name:grpA.name,
-    group_b_name:grpB.name
+    group_b_name:grpB.name,
+    method_pref:_methodPref
   };
+  /* Snapshot group metadata for history caching (used after fetch resolves). */
+  var _pbGrpASnap={id:grpA.id,name:grpA.name,color:grpA.color.slice(),size:grpA.cells.size};
+  var _pbGrpBSnap={id:grpB.id,name:grpB.name,color:grpB.color.slice(),size:grpB.cells.size};
+  var _pbSelHashSnap=_selHash();
+  var _pbRepColSnap=repCol;
   fetch("/api/pseudobulk-deg",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal:_pbAbort.signal})
   .then(function(r){return r.json();})
   .then(function(data){
@@ -8825,6 +8840,22 @@ function _pbRun(){
     if(data&&data.aborted){status.textContent="Cancelled";return;}
     if(data&&data.error){status.textContent="Error: "+data.error;return;}
     status.textContent=data.method+" \u00b7 "+data.n_genes_tested+" genes \u00b7 "+data.elapsed+"s";
+    /* Cache the run in degCache (same history store as single-cell DEG).
+       The key test-slot records the actual backend that ran so DESeq2 vs t-test
+       results are kept as distinct history entries even for the same groups. */
+    var _pbTest="pb-"+(data.method||"unknown").toLowerCase().replace(/[^a-z0-9]+/g,"");
+    var _pbKey=_pbTest+"|"+_pbGrpASnap.id+"|"+_pbGrpBSnap.id+"|"+_pbSelHashSnap;
+    degCache[_pbKey]={
+      data:data,
+      grpA:_pbGrpASnap,
+      grpB:_pbGrpBSnap,
+      kind:"pb",
+      method:data.method||"pseudo-bulk",
+      replicate_col:_pbRepColSnap
+    };
+    degSelHash=_pbSelHashSnap;degGrpA=_pbGrpASnap;degGrpB=_pbGrpBSnap;
+    _updateDEGHistory();
+    _sessionAutoSave();
     _showPseudoBulkResult(data);
   })
   .catch(function(err){
@@ -9660,10 +9691,19 @@ function _updateDEGHistory(){
   for(var i=0;i<keys.length;i++){
     var k=keys[i];
     var c=degCache[k];
-    var label=k.split("|")[0]||"test";
     var aName=c.grpA?c.grpA.name:"A";
     var bName=c.grpB?c.grpB.name:"B";
-    var nGenes=c.data?c.data.genes.length:0;
+    var nGenes=0;
+    if(c.data){nGenes=Array.isArray(c.data.genes)?c.data.genes.length:0;}
+    /* Label: single-cell shows the test name (wilcoxon/t-test); pseudo-bulk
+       shows "pseudo-bulk DESeq2" or "pseudo-bulk t-test" using the server's
+       reported method so DESeq2 and the fallback are distinguishable. */
+    var label;
+    if(c.kind==="pb"){
+      label="pseudo-bulk "+(c.method||"");
+    }else{
+      label=k.split("|")[0]||"test";
+    }
     var stale=_isDEGEntryStale(c);
     var opt=document.createElement("option");
     opt.value=k;
@@ -9688,7 +9728,13 @@ function loadDEGFromHistory(){
   if(!key||!degCache[key])return;
   var c=degCache[key];
   _removeStaleGhosts();
-  _showDEGResult(c.data,c.grpA,c.grpB);
+  if(c.kind==="pb"&&c.data&&Array.isArray(c.data.genes)){
+    /* Pseudo-bulk entries store the server response shape (parallel arrays).
+       _showPseudoBulkResult converts them to the volcano/table display. */
+    _showPseudoBulkResult(c.data);
+  }else{
+    _showDEGResult(c.data,c.grpA,c.grpB);
+  }
   /* If stale, add ghost entries in the group dropdowns for the original groups */
   if(_isDEGEntryStale(c)){
     var el=document.getElementById("deg-stale");

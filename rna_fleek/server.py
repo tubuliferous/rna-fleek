@@ -788,7 +788,7 @@ def detect_counts():
         COUNTS_INFO = None
 
 
-def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name="Group A", group_b_name="Group B"):
+def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name="Group A", group_b_name="Group B", method_pref="auto"):
     """Run pseudo-bulk DEG using pyDESeq2 or fallback to scipy t-test.
 
     Conditions are defined by selection groups (cell index arrays).
@@ -801,6 +801,9 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
         replicate_col: obs column defining biological replicates
         group_a_name: display name for group A
         group_b_name: display name for group B
+        method_pref: "auto" (DESeq2 then fall back), "pydeseq2" (require DESeq2,
+                     error if unavailable), or "ttest" (skip DESeq2 entirely and
+                     use Welch's t-test on log2-CPM).
     Returns:
         dict with: genes, log2fc, padj, method, n_samples_a, n_samples_b, ...
     """
@@ -893,7 +896,13 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
     #     than giving the user a hard error.
     method = "pydeseq2"
     _pd_err = None
+    # User explicitly asked for the t-test path — skip DESeq2.
+    if method_pref == "ttest":
+        _pd_err = RuntimeError("user selected t-test (CPM)")
+        print("  Pseudo-bulk: user requested t-test (CPM) — bypassing DESeq2")
     try:
+        if method_pref == "ttest":
+            raise _pd_err  # short-circuit into the fallback block below
         from pydeseq2.dds import DeseqDataSet
         from pydeseq2.ds import DeseqStats
         import pandas as pd
@@ -928,9 +937,21 @@ def run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col, group_a_name
         _pd_err = _exc
 
     if _pd_err is not None:
+        # Respect the "require DESeq2" preference: surface the real error
+        # instead of silently falling back. (user-chosen ttest is exempted —
+        # it's expected to follow the fallback code path.)
+        if method_pref == "pydeseq2" and not isinstance(_pd_err, RuntimeError):
+            raise ValueError(f"pyDESeq2 required but failed: {_pd_err}")
         method = "ttest"
-        if isinstance(_pd_err, ImportError):
-            print("  pyDESeq2 not installed — falling back to t-test on CPM")
+        if method_pref == "ttest":
+            pass  # already printed above
+        elif isinstance(_pd_err, ImportError):
+            # ImportError can mean either "pyDESeq2 not installed" OR "installed
+            # but a dep failed to import" (e.g. formulaic / anndata2ri / a
+            # version-mismatched numpy). Print the underlying reason so users
+            # can diagnose without guessing.
+            print(f"  pyDESeq2 import failed ({_pd_err}) — falling back to t-test on CPM")
+            print(f"    Check: python -c 'from pydeseq2.dds import DeseqDataSet'")
         else:
             print(f"  pyDESeq2 failed ({type(_pd_err).__name__}: {_pd_err}) — falling back to t-test on CPM")
         try:
@@ -3790,13 +3811,15 @@ class FleekHandler(SimpleHTTPRequestHandler):
             replicate_col = req.get("replicate_col")
             group_a_name = req.get("group_a_name", "Group A")
             group_b_name = req.get("group_b_name", "Group B")
+            method_pref = req.get("method_pref", "auto")
 
             if not group_a_cells or not group_b_cells or not replicate_col:
                 raise ValueError("Missing required fields: group_a_cells, group_b_cells, replicate_col")
 
             t0 = time.time()
             result = run_pseudobulk_deg(group_a_cells, group_b_cells, replicate_col,
-                                         group_a_name=group_a_name, group_b_name=group_b_name)
+                                         group_a_name=group_a_name, group_b_name=group_b_name,
+                                         method_pref=method_pref)
             result["elapsed"] = round(time.time() - t0, 1)
 
             data = json.dumps(result, separators=(",", ":")).encode("utf-8")
