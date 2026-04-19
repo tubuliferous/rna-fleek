@@ -32,7 +32,7 @@
   #sidebar-toggle.show{opacity:0.7;pointer-events:auto;}
   #sidebar-toggle.show:hover{opacity:1;}
   #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
-  #sidebar-upper.sb-scrolling .sb-trap,#sidebar-upper .sb-trap.sb-locked{pointer-events:none;}
+  #sidebar-upper.sb-scrolling .sb-trap{pointer-events:none;}
   /* Second sidebar column — appears when a panel is dragged into it */
   #sidebar-right{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;transition:margin-left 0.25s ease,opacity 0.25s ease;}
   #sidebar-right.active{display:flex;}
@@ -1424,7 +1424,7 @@
         <p><strong>Resizable panel:</strong> Drag the divider between the volcano plot and gene table to adjust their relative sizes. The layout is preserved during the session.</p>
         <p><strong>Download:</strong> Click the download button to export the full DEG table as a <strong>TSV file</strong> (tab-separated values), suitable for spreadsheets or downstream analysis tools.</p>
         <p><strong>Cohen's d</strong> is computed directly on the sparse matrix using E[X²]−E[X]² with Bessel correction, avoiding densification.</p>
-        <p><strong>Caching &amp; history:</strong> Results are cached by test type + group combination. The <strong>History</strong> dropdown lists all previous DEG analyses for the current session — click any entry to restore its results instantly, including the volcano plot and gene table. Switching between Wilcoxon and t-test shows cached results instantly if available. A <strong>"stale"</strong> badge appears on a history entry when the selection groups have changed since that analysis was run — the results are still viewable but may no longer reflect the current cell assignments.</p>
+        <p><strong>Caching &amp; history:</strong> Both single-cell and pseudo-bulk runs land in the <strong>History</strong> dropdown at the top of the DEG panel. The cache key records the test type (wilcoxon / t-test / pb-deseq2 / pb-ttest), the replicate column for pseudo-bulk runs, and the selection-group combination — so switching between backends or replicate columns stores results as distinct entries instead of overwriting. Click any entry to restore its volcano + gene table instantly. A <strong>"stale"</strong> badge marks entries where the selection groups have changed since that analysis was run; the results are still viewable but may no longer match the current cell assignments. History is persisted in session state, so it survives page reloads.</p>
         <p><strong>Pseudoreplication caveat:</strong> Cells from the same donor/sample are not independent observations. P-values from single-cell comparisons are anti-conservative — they reflect intra-sample variability, not inter-donor. For publication-level results, use the pseudo-bulk mode described below.</p>
 
         <p><strong>Pseudo-bulk mode:</strong> Switch between <strong>Single-cell</strong> and <strong>Pseudo-bulk</strong> using the toggle at the top of the DEG panel. Pseudo-bulk aggregates raw counts per biological replicate within each selection group, then runs a bulk-level statistical test. This addresses the pseudoreplication problem.</p>
@@ -1434,9 +1434,10 @@
           <li>Open DEG panel and switch to <strong>Pseudo-bulk</strong> mode.</li>
           <li>The Group A / Group B dropdowns remain visible — select which two groups to compare.</li>
           <li>A single <strong>Replicate column</strong> dropdown appears. Select the <code>obs</code> column that defines biological replicates (e.g., <em>donor</em>, <em>batch</em>, <em>sample_id</em>). Columns with 2–50 unique values are listed.</li>
+          <li>Pick a <strong>Method</strong>: <em>DESeq2</em> (default) or <em>Welch's t-test (CPM)</em>. Leave on DESeq2 unless you specifically want to compare backends or DESeq2 is misbehaving on your dataset.</li>
           <li>Click <strong>Run</strong>. For each group, cells are split by replicate, raw counts are summed per replicate, and the resulting pseudo-bulk count matrix is tested.</li>
         </ol>
-        <p><strong>Statistical tests:</strong> <strong>pyDESeq2</strong> is used when installed — it models count dispersion across replicates using a negative binomial GLM. The pre-built desktop apps ship with pyDESeq2 bundled, so it's the default backend out of the box. If pyDESeq2 is unavailable (e.g. a custom pip environment without it), FLEEK falls back to a <strong>Welch's t-test on log₂-CPM</strong> values with Benjamini-Hochberg correction. The Pseudo-bulk panel shows which backend was picked.</p>
+        <p><strong>Statistical tests:</strong> <strong>pyDESeq2</strong> is used by default — it models count dispersion across replicates using a negative-binomial GLM. The pre-built desktop apps ship with pyDESeq2 bundled, so it's the default backend out of the box (single-threaded inside the bundle — loky/joblib worker processes don't survive in a frozen executable). Picking the <strong>Welch's t-test (CPM)</strong> option from the Method dropdown bypasses DESeq2 entirely; the server also falls back to this automatically if DESeq2 fails at runtime (the server console prints the actual failure reason).</p>
         <p><strong>Requirements:</strong> A raw counts matrix must be detected in the dataset (checked automatically on load — see the Data panel). Each group needs cells in <strong>at least 2 replicates</strong>. More replicates improve statistical power. Genes with fewer than 10 total counts across all samples are filtered out.</p>
         <p><strong>Counts source visibility &amp; smoothed-count guard:</strong> The Pseudo-bulk controls show which matrix was detected as counts (e.g. <code>adata.X</code>, a layer, or <code>adata.raw.X</code>) along with median UMI/cell, max, and the computed <strong>median Fano factor</strong> (variance/mean across ~500 well-expressed genes). Real UMI data is overdispersed (median Fano typically &gt; 1.5) because of biological cell-to-cell variation; model-generated integer counts (scVI <code>denoised_counts</code>, MAGIC, similar denoisers) follow a Poisson distribution with Fano ≈ 1. If the detected matrix looks smoothed (Fano &lt; 1.5), pseudo-bulk is <strong>disabled</strong> and an amber banner explains why: on Poisson-distributed counts the negative-binomial dispersion estimate collapses near zero, yielding anti-conservative p-values — everything looks significant. This guard prevents silently invalid DEG results when a denoised matrix is mistaken for raw counts.</p>
         <p><strong>Results:</strong> Displayed in the same volcano plot and gene table as single-cell DEG. The note above the plot shows the method used, group names, replicate counts, and number of genes tested. Cohen's d is not computed for pseudo-bulk (shown as 0).</p>
@@ -1523,7 +1524,7 @@
         <span class="help-sec-title">Sessions</span>
       </div>
       <div class="help-sec-body">
-        <p><strong>Auto-save:</strong> FLEEK auto-saves your session state every 2 seconds. This includes selection groups, camera position, active gene, coloring mode, slice filters, and panel states. State persists across browser sessions — reloading the page restores exactly where you left off.</p>
+        <p><strong>Auto-save:</strong> FLEEK auto-saves your session state every 2 seconds. This includes selection groups, camera position, active gene, coloring mode, slice filters, view splits (with their per-split camera and tether state), individually deleted cells, DEG history (single-cell and pseudo-bulk), and panel states. State persists across browser sessions — reloading the page restores exactly where you left off. The session dropdown always shows an <em>Auto-saved</em> entry even before the first auto-save has committed, so picking <em>(Fresh session)</em> and then resuming work just rejoins the auto-save stream.</p>
         <p><strong>Named sessions:</strong> Use the <strong>Save As</strong> button to save the current state as a named session, stored alongside the dataset caches. Named sessions let you maintain multiple analysis configurations for the same dataset.</p>
         <p><strong>Session dropdown:</strong> The Data panel includes a session dropdown to switch between saved sessions. Loading a session restores the full UI state including camera position, active gene, selections, and visibility.</p>
         <p><strong>Delete:</strong> Click the trash icon to remove a named session (with confirmation). The auto-save session cannot be deleted manually — it is overwritten on every state change.</p>
@@ -1571,7 +1572,7 @@
           <tr><td><strong>Shortcut flash</strong></td><td>On / Off</td><td>Brief overlay that flashes on screen when you press a keyboard shortcut, showing the action name and key combination. Helps learn shortcuts. Disable for a quieter interface.</td></tr>
           <tr><td><strong>Undo/Redo buttons</strong></td><td>On / Off</td><td>Show or hide the undo/redo arrow buttons in the top-right corner of the canvas. The keyboard shortcuts <span class="help-key">⌘</span>+<span class="help-key">[</span> / <span class="help-key">⌘</span>+<span class="help-key">]</span> (or <span class="help-key">⌘</span>+<span class="help-key">Z</span> / <span class="help-key">⌘</span>+<span class="help-key">Shift</span>+<span class="help-key">Z</span>) always work regardless.</td></tr>
           <tr><td><strong>Auto-unload on disconnect</strong></td><td>On / Off</td><td>When enabled, the server automatically frees the loaded dataset from memory if no browser tab is connected. Useful for liberating RAM when you close the FLEEK window. The timeout (default 1 second) can be adjusted in the Debug panel.</td></tr>
-          <tr><td><strong>Claude API key</strong></td><td>Text input</td><td>Enter your Anthropic API key directly in the UI — it is saved to <code>~/.fleek.env</code> on the server. This is an alternative to setting the <code>ANTHROPIC_API_KEY</code> environment variable. A green check appears when a key is active.</td></tr>
+          <tr><td><strong>Claude API key</strong></td><td>Text input + Save / Test / Clear</td><td>Enter your Anthropic API key and click <strong>Save</strong> — it's written to <code>~/.fleek.env</code> (chmod 600) on the server. <strong>Test</strong> sends a minimal ping to <code>api.anthropic.com</code> and reports back the model name on success, or the verbatim Anthropic error body (401 / 403 / 429 / network) on failure — paste a key into the field and click Test to verify before saving, or leave the field empty and click Test to re-verify the already-saved key. <strong>Clear</strong> removes it from memory and the file. If the <code>ANTHROPIC_API_KEY</code> env var is set at server startup, it takes priority over the saved file.</td></tr>
           <tr><td><strong>Cache mode</strong></td><td>Dataset / Server</td><td><em>Dataset</em> stores caches alongside the .h5ad file (portable — cache moves with the data). <em>Server</em> stores caches in <code>~/.fleek_cache/</code> (works with read-only or networked data). If the dataset directory is not writable, FLEEK falls back to server mode automatically.</td></tr>
         </table>
         <p><strong>Debug panel</strong> (click gear icon, then scroll down): Contains developer-oriented settings including <strong>Zoom target</strong> (Cursor/Center), <strong>FPS counter</strong>, <strong>Selection highlight</strong> mode (Ring/Fill), <strong>Unload timeout</strong> (seconds), raycast visualization, and background scheme. These are primarily for troubleshooting and advanced use.</p>
@@ -1612,8 +1613,11 @@
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+click</td><td>Select only this node (not descendants)</td></tr>
           <tr><td>Caret (&#9656;/&#9662;)</td><td>Collapse/expand branch (<span class="help-key">⌥</span>+click: recursive)</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">View Splits</th></tr>
-          <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Switch to Split N (creates if needed)</td></tr>
+          <tr><td><span class="help-key">1</span>–<span class="help-key">9</span></td><td>Switch to Split N by name (creates if needed)</td></tr>
+          <tr><td><span class="help-key">⌘</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Switch to Nth split in the panel list (no create)</td></tr>
+          <tr><td><span class="help-key">S</span></td><td>Toggle split-screen (requires 2+ splits)</td></tr>
           <tr><td><span class="help-key">⧉</span> button</td><td>Toggle split-screen (requires 2+ splits)</td></tr>
+          <tr><td>Chain-link icon</td><td>Toggle tether per split — works even in single-view mode</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Groups</th></tr>
           <tr><td><span class="help-key">Shift</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Activate group (creates if needed)</td></tr>
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
@@ -1792,7 +1796,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.6";
+var FLEEK_VERSION="v0.3.7";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=true; /* scale point size with expression level in gene mode */
@@ -10729,51 +10733,31 @@ function setupScrollTraps(){
   if(!sb)return;
   var scrollTimer=null;
   var _sbScrolling=false;
-  var _dwellTimer=null;
-  var _activeTrap=null;
-  /* B: Lock traps while sidebar is scrolling */
+  /* Traps are now always clickable. The only lock we still apply is the brief
+     post-scroll window (sb-scrolling class → pointer-events:none on .sb-trap)
+     so that a running wheel-scroll of the outer sidebar doesn't get hijacked
+     by a sub-scrollable the cursor happened to cross over mid-scroll. The
+     mousedown handler below cancels even that window so first-click-after-scroll
+     works without waiting out the 150 ms. The old dwell-based locking
+     (`sb-locked`) has been removed — it caused clicks to be swallowed when the
+     user's cursor hadn't yet hovered a trap for the full dwell interval. */
   sb.addEventListener("scroll",function(){
     _sbScrolling=true;
     sb.classList.add("sb-scrolling");
-    /* Re-lock whatever was unlocked */
-    if(_activeTrap){_activeTrap.classList.add("sb-locked");_activeTrap=null;}
-    clearTimeout(_dwellTimer);
     clearTimeout(scrollTimer);
     scrollTimer=setTimeout(function(){_sbScrolling=false;sb.classList.remove("sb-scrolling");},150);
   });
-  /* A: Track mouse position on sidebar — unlock trap after dwell.
-     Uses bounding rect hit-test since locked traps have pointer-events:none. */
-  function _trapAtPoint(x,y){
-    var traps=sb.querySelectorAll(".sb-trap");
-    for(var i=0;i<traps.length;i++){
-      var r=traps[i].getBoundingClientRect();
-      if(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom)return traps[i];
-    }
-    return null;
-  }
-  sb.addEventListener("mousemove",function(e){
-    if(_sbScrolling)return;
-    var el=_trapAtPoint(e.clientX,e.clientY);
-    if(el===_activeTrap)return;
-    clearTimeout(_dwellTimer);
-    if(_activeTrap){_activeTrap.classList.add("sb-locked");_activeTrap=null;}
-    if(!el)return;
-    _dwellTimer=setTimeout(function(){
-      if(!_sbScrolling){el.classList.remove("sb-locked");_activeTrap=el;}
-    },250);
-  });
-  sb.addEventListener("mouseleave",function(){
-    clearTimeout(_dwellTimer);
-    if(_activeTrap){_activeTrap.classList.add("sb-locked");_activeTrap=null;}
-  });
-  /* Click shortcut: if the user clicks anywhere inside the sidebar while a trap
-     is currently locked (from dwell logic or the post-scroll lock), unlock it
-     immediately and re-dispatch the click at the intended element. Without this
-     the mousedown is absorbed by pointer-events:none and the trap only becomes
-     active after the 250 ms dwell, making first-click-after-scroll feel broken. */
+  /* Any click inside the sidebar during the post-scroll lock window has its
+     mousedown absorbed by pointer-events:none on the trap. The real click
+     then fires on the common ancestor (the sidebar itself), not the trap's
+     child, so normal onclick handlers are never invoked. Unlock the trap
+     immediately and re-dispatch the click at the intended child using
+     elementsFromPoint (which sees elements even when pointer-events:none). */
   sb.addEventListener("mousedown",function(e){
-    var locked=_sbScrolling||sb.querySelector(".sb-trap.sb-locked");
-    if(!locked)return;
+    if(!_sbScrolling)return;
+    clearTimeout(scrollTimer);
+    _sbScrolling=false;
+    sb.classList.remove("sb-scrolling");
     var els=document.elementsFromPoint(e.clientX,e.clientY);
     var trap=null,intended=null;
     for(var i=0;i<els.length;i++){
@@ -10783,12 +10767,6 @@ function setupScrollTraps(){
     for(var j=0;j<els.length;j++){
       if(els[j]!==trap&&trap.contains(els[j])){intended=els[j];break;}
     }
-    clearTimeout(_dwellTimer);
-    clearTimeout(scrollTimer);
-    _sbScrolling=false;
-    sb.classList.remove("sb-scrolling");
-    trap.classList.remove("sb-locked");
-    _activeTrap=trap;
     if(intended){
       e.preventDefault();
       var ev=new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:e.clientX,clientY:e.clientY,button:0,shiftKey:e.shiftKey,altKey:e.altKey,metaKey:e.metaKey,ctrlKey:e.ctrlKey});
