@@ -559,6 +559,55 @@
         </div>
       </div>
     </div>
+    <!-- Upload popover: placed here (outside .col-body) so it always appears near
+         the top of the panel right after a file is dropped or the upload icon is
+         clicked, regardless of matrix info, load badges, or other transient UI
+         below. Progress / status / stop-button follow the popover in the same
+         slot so the whole upload flow stays at the top. -->
+    <div id="upload-popover" style="display:none;margin:6px 14px 0;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
+      <div id="upload-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
+        <label class="s-toggle"><input type="checkbox" id="fast-umap-toggle" checked><span class="s-slider"></span></label>
+        <span>QuickMap (UMAP)</span>
+      </label>
+      <div id="fast-umap-opts" style="margin:4px 0 0 16px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Fit cells:</span>
+          <input type="range" id="fast-umap-n" min="10000" max="200000" step="10000" value="50000" oninput="updateFastLabel()" style="flex:1;min-width:0;">
+          <span id="fast-umap-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
+        <label class="s-toggle"><input type="checkbox" id="fast-pacmap-toggle" checked><span class="s-slider"></span></label>
+        <span>QuickMap (PaCMAP)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10–20× faster.">
+        <label class="s-toggle"><input type="checkbox" id="fast-deg-toggle" checked><span class="s-slider"></span></label>
+        <span>QuickDEG</span>
+      </label>
+      <div id="fast-deg-opts" style="margin:4px 0 0 16px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Max cells:</span>
+          <input type="range" id="fast-deg-n" min="10000" max="200000" step="10000" value="50000" oninput="updateDegLabel()" style="flex:1;min-width:0;">
+          <span id="fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
+        <label class="s-toggle"><input type="checkbox" id="native-2d-toggle" checked><span class="s-slider"></span></label>
+        <span>Native 2D embeddings</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
+        <label class="s-toggle"><input type="checkbox" id="backed-toggle"><span class="s-slider"></span></label>
+        <span>Disk-backed</span>
+      </label>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <button class="btn" id="upload-go-btn" onclick="confirmUpload()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
+        <button class="btn" onclick="cancelUpload()" style="color:var(--text4);">Cancel</button>
+      </div>
+    </div>
+    <div id="upload-progress" style="margin:4px 14px 0;"><div id="upload-progress-bar"></div></div>
+    <div id="upload-status" style="margin:0 14px;"></div>
+    <button id="upload-stop-btn" onclick="abortUpload()" style="display:none;background:none;border:1px solid #f87171;border-radius:3px;color:#f87171;font-size:9px;font-family:inherit;padding:2px 6px;cursor:pointer;margin:4px 14px 0;">Stop Loading</button>
     <div id="data-summary" style="padding:0 14px;">
       <div id="loaded-file" style="display:none;font-size:9px;color:var(--text2);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="">
         <span id="loaded-file-text"></span>
@@ -593,51 +642,8 @@
         <span id="csc-spinner-static"></span>
         Building gene index — first lookups may be slow
       </div>
-      <!-- Upload popover: shown after file selection, hidden after load -->
-      <div id="upload-popover" style="display:none;margin-top:6px;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
-        <div id="upload-file-name" style="font-size:10px;color:var(--text);font-weight:600;margin-bottom:6px;word-break:break-all;"></div>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);" title="Subsample-and-project: fits UMAP on a subset of cells, projects the rest via nearest-neighbor. Much faster for large datasets with near-identical quality.">
-          <label class="s-toggle"><input type="checkbox" id="fast-umap-toggle" checked><span class="s-slider"></span></label>
-          <span>QuickMap (UMAP)</span>
-        </label>
-        <div id="fast-umap-opts" style="margin:4px 0 0 16px;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Fit cells:</span>
-            <input type="range" id="fast-umap-n" min="10000" max="200000" step="10000" value="50000" oninput="updateFastLabel()" style="flex:1;min-width:0;">
-            <span id="fast-umap-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
-          </div>
-        </div>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample-and-project PaCMAP: fits on a subset, projects remaining cells via k=5 inverse-distance weighted interpolation in PCA space.">
-          <label class="s-toggle"><input type="checkbox" id="fast-pacmap-toggle" checked><span class="s-slider"></span></label>
-          <span>QuickMap (PaCMAP)</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Subsample cells for annotation DEG (stratified by cluster). Marker genes are virtually identical on 50k vs 600k+ cells but 10–20× faster.">
-          <label class="s-toggle"><input type="checkbox" id="fast-deg-toggle" checked><span class="s-slider"></span></label>
-          <span>QuickDEG</span>
-        </label>
-        <div id="fast-deg-opts" style="margin:4px 0 0 16px;">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:9px;color:var(--text4);white-space:nowrap;">Max cells:</span>
-            <input type="range" id="fast-deg-n" min="10000" max="200000" step="10000" value="50000" oninput="updateDegLabel()" style="flex:1;min-width:0;">
-            <span id="fast-deg-label" style="font-size:9px;color:var(--text3);white-space:nowrap;min-width:28px;text-align:right;font-variant-numeric:tabular-nums;">50k</span>
-          </div>
-        </div>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Compute 2D embeddings independently instead of deriving from 3D. Slower but produces tighter cluster separation in 2D views.">
-          <label class="s-toggle"><input type="checkbox" id="native-2d-toggle" checked><span class="s-slider"></span></label>
-          <span>Native 2D embeddings</span>
-        </label>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:9px;color:var(--text3);margin-top:4px;" title="Keep expression matrix on disk instead of RAM. Slower gene lookups but allows loading datasets larger than available memory.">
-          <label class="s-toggle"><input type="checkbox" id="backed-toggle"><span class="s-slider"></span></label>
-          <span>Disk-backed</span>
-        </label>
-        <div style="display:flex;gap:6px;margin-top:8px;">
-          <button class="btn" id="upload-go-btn" onclick="confirmUpload()" style="flex:1;background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;">Load</button>
-          <button class="btn" onclick="cancelUpload()" style="color:var(--text4);">Cancel</button>
-        </div>
-      </div>
-      <div id="upload-progress"><div id="upload-progress-bar"></div></div>
-      <div id="upload-status"></div>
-      <button id="upload-stop-btn" onclick="abortUpload()" style="display:none;background:none;border:1px solid #f87171;border-radius:3px;color:#f87171;font-size:9px;font-family:inherit;padding:2px 6px;cursor:pointer;margin-top:4px;">Stop Loading</button>
+      <!-- Upload popover + progress/status/stop moved above .col-body so they
+           always appear near the top of the Data panel on drop/upload. -->
     </div>
   </div>
   <!-- View: 2D/3D toggle -->
