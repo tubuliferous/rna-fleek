@@ -1798,7 +1798,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.13";
+var FLEEK_VERSION="v0.3.14";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -4955,8 +4955,11 @@ function _gvToggleSort(){
 function _gvUpdateSortBtn(){
   var btn=document.getElementById("gv-sort-btn");
   if(!btn)return;
-  var labels={alpha:"A→Z",count:"#↓",lineage:"\u2642"};
-  btn.textContent=labels[_gvSortMode]||"A→Z";
+  /* Lineage icon reuses the same SVG as the Cell Types panel's Lineage
+     toggle so the visual language stays consistent. alpha and count
+     stay as compact text glyphs. */
+  var labels={alpha:"A\u2192Z",count:"#\u2193",lineage:_linIconTree};
+  btn.innerHTML=labels[_gvSortMode]||"A\u2192Z";
   var titles={
     alpha:"Sort: alphabetical \u00b7 click to cycle (alpha \u2192 count"+(lineageTree?" \u2192 lineage":"")+")",
     count:"Sort: by cell count (descending) \u00b7 click to cycle"+(lineageTree?" to lineage":" back to alpha"),
@@ -5013,9 +5016,33 @@ function _gvPopulateClusterDropdown(){
   list.innerHTML="";
   function _addItem(cid,depth){
     var c=cc(cid);
-    var html='<div class="gv-dd-item'+(cid===_gvClusterId?' active':'')+'" data-cid="'+cid+'" onclick="_gvDdSelect('+cid+')" style="padding-left:'+(6+depth*12)+'px;">'
+    /* Build a two-part label so both names survive on small widths:
+       bold AI-inferred name on top, muted file cluster name beneath. When
+       no AI annotation exists the file name just shows by itself. Wraps at
+       word boundaries instead of ellipsizing so long names stay fully
+       readable. */
+    var fileName=(D&&D.header&&D.header.cluster_names?D.header.cluster_names[cid]:null)||("Cluster "+cid);
+    var aiName="";
+    if(llmAnnotations&&llmAnnotations[cid]&&llmAnnotations[cid].length>0){
+      var _aiRaw=llmAnnotations[cid][0].cell_type||"";
+      if(_aiRaw&&_aiRaw!==fileName)aiName=_aiRaw;
+    }
+    /* Hover tooltip: both names + reasoning from Claude if available. */
+    var _tip=(aiName?"AI: "+aiName+"\nFile: "+fileName:fileName);
+    if(aiName&&llmAnnotations[cid][0].reasoning){_tip+="\n\n"+llmAnnotations[cid][0].reasoning;}
+    _tip=_tip.replace(/"/g,"&quot;");
+    var labelHtml;
+    if(aiName){
+      labelHtml='<span style="display:flex;flex-direction:column;min-width:0;line-height:1.25;">'
+        +'<span style="overflow-wrap:break-word;word-break:break-word;">'+aiName+'<\/span>'
+        +'<span style="font-size:8px;color:var(--text4);overflow-wrap:break-word;word-break:break-word;">'+fileName+'<\/span>'
+        +'<\/span>';
+    }else{
+      labelHtml='<span style="overflow-wrap:break-word;word-break:break-word;">'+fileName+'<\/span>';
+    }
+    var html='<div class="gv-dd-item'+(cid===_gvClusterId?' active':'')+'" data-cid="'+cid+'" onclick="_gvDdSelect('+cid+')" style="padding-left:'+(6+depth*12)+'px;white-space:normal;align-items:flex-start;" title="'+_tip+'">'
       +_gvDotHtml(cid,7)
-      +'<span style="margin-left:4px;overflow:hidden;text-overflow:ellipsis;">'+_gvClusterLabel(cid)+'<\/span>'
+      +'<span style="margin-left:4px;flex:1;min-width:0;">'+labelHtml+'<\/span>'
       +'<\/div>';
     return html;
   }
@@ -5595,7 +5622,13 @@ function _legRenderRow(j){
     var top2=llmAnnotations[i][0];
     var conf=top2.confidence||"";
     var reason=top2.reasoning||"";
-    annot+='<div class="annot-pred annot-llm" title="Claude: '+(reason?reason.replace(/"/g,"&quot;"):(conf+" confidence"))+'">'
+    /* Tooltip shows the full cell-type name (not truncated by the ellipsized
+       span), the confidence, and the model's justification reasoning on the
+       next line so the user can see why this label was assigned without
+       opening any dialog. */
+    var _aiTip="AI: "+top2.cell_type+(conf?" \u00b7 "+conf+" confidence":"")+(reason?"\n\n"+reason:"");
+    _aiTip=_aiTip.replace(/"/g,"&quot;");
+    annot+='<div class="annot-pred annot-llm" title="'+_aiTip+'">'
       +'<span class="annot-tag annot-tag-llm">AI<\/span>'
       +'<span class="annot-type">'+top2.cell_type+'<\/span>'
       +'<span class="annot-score">'+(conf||"")+'<\/span>'
