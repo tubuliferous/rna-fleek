@@ -1796,7 +1796,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.8";
+var FLEEK_VERSION="v0.3.9";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=true; /* scale point size with expression level in gene mode */
@@ -8880,14 +8880,42 @@ function _showPseudoBulkResult(data){
     genes:geneObjs,
     grpAName:data.group_a_name,grpBName:data.group_b_name,
     grpASize:data.n_samples_a,grpBSize:data.n_samples_b,
-    method:data.method
+    method:data.method,
+    _pb:true   /* pseudo-bulk marker — renderDEGTable hides the d column and
+                  renderVolcano pins y-axis to padj. */
   };
   document.getElementById("deg-note").textContent="Pseudo-bulk "+data.method+" \u00b7 "+data.group_a_name+" ("+data.n_samples_a+" replicates) vs "+data.group_b_name+" ("+data.n_samples_b+" replicates) \u00b7 "+data.n_genes_tested+" genes";
   degSort={col:"padj",asc:true};
   degHlGene=null;
   vZoom={x:1,y:1};vPan={x:0,y:0};vGlobalZoom=1;_vScrollTarget=1;
+  _applyDegUIForKind();
   renderVolcano();
   renderDEGTable();
+}
+
+/* Apply pseudo-bulk-specific UI adjustments: hide Cohen's d column and force
+   volcano y-axis to padj (the Cohen's d option is pinned to 0 for every PB
+   gene so offering it would just show a flat cloud on the y=0 axis). */
+function _applyDegUIForKind(){
+  var isPB=!!(degData&&degData._pb);
+  var hdr=document.getElementById("deg-d-hdr");
+  if(hdr)hdr.style.display=isPB?"none":"";
+  var ysel=document.getElementById("deg-yaxis");
+  if(ysel){
+    if(isPB){
+      ysel.value="padj";
+      ysel.disabled=true;
+      ysel.title="Cohen's d isn't computed for pseudo-bulk (n per group too small for a stable standardized effect size). Y-axis is pinned to −log₁₀ padj.";
+      /* Darken the cohens_d option so its disabled state is visually obvious. */
+      var opts=ysel.querySelectorAll("option");
+      for(var i=0;i<opts.length;i++){opts[i].disabled=(opts[i].value==="cohens_d");}
+    }else{
+      ysel.disabled=false;
+      ysel.title="Volcano Y-axis";
+      var opts2=ysel.querySelectorAll("option");
+      for(var j=0;j<opts2.length;j++){opts2[j].disabled=false;}
+    }
+  }
 }
 
 function openDEG(){
@@ -8921,6 +8949,7 @@ function openDEG(){
   _pbUpdateCountsInfo();
   /* If results already exist (e.g. restored from sessionStorage), render them */
   if(degData){
+    _applyDegUIForKind();
     renderDEGTable();
     var _wrap=document.getElementById("volcano-wrap");
     var _ro=new ResizeObserver(function(){_ro.disconnect();renderVolcano();});
@@ -9592,6 +9621,9 @@ function _saveDEGState(){
 
 function _showDEGResult(data,grpA,grpB){
   degData=data;
+  /* Explicitly unset the pseudo-bulk marker when a single-cell DEG lands here
+     (history re-hydration reuses the same path and could inherit a stale flag). */
+  if(degData)degData._pb=false;
   degGrpA=grpA;
   degGrpB=grpB;
   /* Use a short timeout so dropdown values are set before hashing */
@@ -9623,6 +9655,7 @@ function _showDEGResult(data,grpA,grpB){
   /* Auto-expand panel if too small for a usable volcano */
   var panel=document.getElementById("deg-panel");
   if(degPanelH<320){degPanelH=320;panel.style.height=degPanelH+"px";}
+  _applyDegUIForKind();
   renderDEGTable();
   syncCanvasSize();
   /* Wait for panel layout to settle before rendering volcano */
@@ -9910,10 +9943,14 @@ function sortDEG(col,ev){
 
 function renderDEGTable(){
   if(!degData)return;
+  var isPB=!!degData._pb;
   var genes=degData.genes.slice();
   var q=(document.getElementById("deg-search")||{}).value||"";
   if(q){q=q.toUpperCase();genes=genes.filter(function(g){return g.gene.toUpperCase().indexOf(q)>=0;});}
   var col=degSort.col,asc=degSort.asc;
+  /* If the user had sorted by Cohen's d on a single-cell run and now a pseudo-bulk
+     result is shown, fall back to padj so the sort isn't silently tying on 0. */
+  if(isPB&&col==="cohens_d"){col="padj";asc=true;degSort={col:"padj",asc:true};}
   genes.sort(function(a,b){
     var va=a[col],vb=b[col];
     if(col==="gene")return asc?va.localeCompare(vb):vb.localeCompare(va);
@@ -9930,7 +9967,7 @@ function renderDEGTable(){
     return '<tr class="'+hl+'" data-gene="'+g.gene+'" onclick="degClickGene(\''+g.gene+'\')" onmouseenter="degHoverGene(\''+g.gene+'\')" onmouseleave="degHoverGene(null)">'
       +'<td style="color:'+(sig?"var(--text)":"var(--text3)")+'">'+g.gene+'</td>'
       +'<td style="color:'+fcCol+'">'+g.log2fc.toFixed(2)+'</td>'
-      +'<td>'+(degAbsD?Math.abs(g.cohens_d):g.cohens_d).toFixed(2)+'</td>'
+      +(isPB?"":'<td>'+(degAbsD?Math.abs(g.cohens_d):g.cohens_d).toFixed(2)+'<\/td>')
       +'<td>'+g.padj.toExponential(1)+'</td>'
       +'</tr>';
   }).join("");
@@ -9960,9 +9997,10 @@ function downloadDEG(){
   if(!degData)return;
   var nameA=degGrpA?degGrpA.name:"Group_A";
   var nameB=degGrpB?degGrpB.name:"Group_B";
-  var header="gene\tlog2fc\tcohens_d\tpadj\n";
+  var isPB=!!degData._pb;
+  var header=isPB?"gene\tlog2fc\tpadj\n":"gene\tlog2fc\tcohens_d\tpadj\n";
   var rows=degData.genes.map(function(g){
-    return g.gene+"\t"+g.log2fc+"\t"+g.cohens_d+"\t"+g.padj;
+    return isPB?(g.gene+"\t"+g.log2fc+"\t"+g.padj):(g.gene+"\t"+g.log2fc+"\t"+g.cohens_d+"\t"+g.padj);
   }).join("\n");
   var blob=new Blob([header+rows],{type:"text/tab-separated-values"});
   var a=document.createElement("a");
@@ -10036,7 +10074,10 @@ function renderVolcano(){
   ctx.scale(dpr,dpr);
   volcanoCtx=ctx;
 
-  var yMode=document.getElementById("deg-yaxis").value; /* "padj" or "cohens_d" */
+  /* Pseudo-bulk doesn't compute a real Cohen's d, so force y-axis to padj
+     regardless of the dropdown state. _applyDegUIForKind also disables the
+     cohens_d option, but pin it here for defense-in-depth on cached renders. */
+  var yMode=(degData&&degData._pb)?"padj":document.getElementById("deg-yaxis").value;
   var colA=degGrpA?degGrpA.color:[1,0.3,0.3];
   var colB=degGrpB?degGrpB.color:[0.4,0.65,1];
   var nameA=degGrpA?degGrpA.name:"Group A";
