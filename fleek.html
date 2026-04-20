@@ -297,8 +297,8 @@
   .sg-toolbar{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap;}
   .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:9px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;}
   .sg-toolbar button:hover{background:var(--bg-hover);border-color:var(--border2);color:var(--text2);}
-  .sg-toolbar button.deg-run{background:rgba(99,102,241,0.08);border-color:rgba(99,102,241,0.3);color:var(--accent2);font-weight:600;}
-  .sg-toolbar button.deg-run:hover{background:rgba(99,102,241,0.15);border-color:var(--accent);}
+  .sg-toolbar button.deg-run{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981;font-weight:600;}
+  .sg-toolbar button.deg-run:hover{background:rgba(16,185,129,0.28);border-color:#059669;color:#059669;}
   .sg-toolbar button.deg-run:disabled{opacity:0.25;cursor:default;pointer-events:none;}
   /* DEG panel */
   #deg-panel{display:none;background:var(--bg2);flex-shrink:0;flex-direction:column;height:280px;}
@@ -1798,7 +1798,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.16";
+var FLEEK_VERSION="v0.3.17";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -1841,7 +1841,9 @@ var _boundaryOpacity=0; /* current animated opacity */
 var cloudBounds={center:new THREE.Vector3(),radius:50}; /* bounding sphere of point cloud */
 var autoRotate=false, viewIs3d=true;
 var embMethod="umap"; /* "umap", "pca", etc. */
-var introAnim=null; /* {startTime, startTheta, startRadius, endRadius, duration} or null */
+var introAnim=null; /* {startTime, startTheta, endTheta, startRadius, endRadius, duration} or null */
+var _introTimer=null; /* pending intro-animation setTimeout ID, so we can cancel it if a saved camera arrives first */
+var _introTargetCam=null; /* {sph,tgt3,pan2,zoom2} — when set, intro orbits INTO this saved pose rather than to a default home */
 var _flyAnim=null; /* fly-to animation state */
 var _homeCamera=null; /* saved post-intro camera state for resetView() */
 var _homeCameras={}; /* per-embedding home cameras, keyed by method name */
@@ -3210,11 +3212,34 @@ function buildPts(data){
   _homeCamera={theta:0.3+Math.PI,phi:1.0,radius:fullR,tgt:{x:cloudBounds.center.x,y:cloudBounds.center.y,z:cloudBounds.center.z},
     pan2:{x:cloudBounds.center.x,y:cloudBounds.center.y},zoom2:Math.min(_zV,_zH)};
   _homeCameras={};_homeCameras["umap"]=_homeCamera;
-  /* Start intro orbit animation after GPU settles */
+  /* Start intro orbit animation after GPU settles. If a saved camera pose
+     arrives (auto-session) before this fires, the intro orbits INTO that
+     pose: we seed sph a half-turn away and ~30% further out, and animate to
+     the saved values. Otherwise we use the default tour (0.3 → 0.3+π, closer → full). */
   var _introR=introR,_fullR=fullR;
   introAnim=null;
-  setTimeout(function(){
-    if(!introAnim&&!_flyAnim)introAnim={startTime:performance.now(),startTheta:0.3,startRadius:_introR,endRadius:_fullR,duration:2800};
+  if(_introTimer){clearTimeout(_introTimer);_introTimer=null;}
+  _introTimer=setTimeout(function(){
+    _introTimer=null;
+    if(introAnim||_flyAnim)return;
+    var tc=_introTargetCam;_introTargetCam=null;
+    if(tc&&tc.sph){
+      /* Orbit INTO the saved camera pose */
+      var startTheta=tc.sph.theta-Math.PI;          /* half-turn away */
+      var startRadius=(tc.sph.radius||_fullR)*1.3;  /* zoomed out */
+      sph.theta=startTheta;
+      sph.phi=(tc.sph.phi!==undefined)?tc.sph.phi:sph.phi;
+      sph.radius=startRadius;
+      if(tc.tgt3){tgt3.set(tc.tgt3.x,tc.tgt3.y,tc.tgt3.z);}
+      if(tc.pan2){pan2.x=tc.pan2.x;pan2.y=tc.pan2.y;}
+      if(tc.zoom2!==undefined)zoom2=tc.zoom2;
+      introAnim={startTime:performance.now(),startTheta:startTheta,endTheta:tc.sph.theta,
+                 startRadius:startRadius,endRadius:tc.sph.radius,duration:2800};
+    }else{
+      /* Default tour — no saved pose to target */
+      introAnim={startTime:performance.now(),startTheta:0.3,endTheta:0.3+Math.PI,
+                 startRadius:_introR,endRadius:_fullR,duration:2800};
+    }
   },300);
 }
 
@@ -3325,6 +3350,32 @@ function recolor(){
   }
 
   var _nHidden=0;
+  /* Hoist scheme + theme lookups OUT of the per-cell loop. Previously
+     _getBgScheme() and ec() each called document.body.classList.contains("light")
+     on every iteration — ~2.4M DOM lookups on a 600k-cell dataset per gene
+     switch. Precompute once here. */
+  var _ghostColor=_bsu.ghostColor;
+  var _ghostSize=_bsu.ghostSize;
+  var _ghostAlpha=_bsu.ghostAlpha;
+  var _ec=isLight?function(v){
+    if(v<.01)return[1,1,1];
+    if(v<.25){var t=v/.25;return[.97-t*.19,.98-t*.12,1-.06*t];}
+    if(v<.5){var t=(v-.25)/.25;return[.78-t*.36,.86-t*.18,.94-t*.10];}
+    if(v<.75){var t=(v-.5)/.25;return[.42-t*.29,.68-t*.24,.84-t*.13];}
+    var t=(v-.75)/.25;return[.13-t*.10,.44-t*.25,.71-t*.29];
+  }:function(v){
+    if(v<.01)return[.07,.04,.11];
+    if(v<.25){var t=v/.25;return[.07+t*.20,.04+t*.27,.11+t*.33];}
+    if(v<.5){var t=(v-.25)/.25;return[.27-t*.08,.31+t*.27,.44-t*.02];}
+    if(v<.75){var t=(v-.5)/.25;return[.19+t*.42,.58+t*.17,.42-t*.18];}
+    var t=(v-.75)/.25;return[.61+t*.39,.75+t*.18,.24-t*.13];
+  };
+  var _szAttr=pts.geometry.attributes.aSize;
+  var _alAttr=pts.geometry.attributes.aAlpha;
+  var _szArr=(_szAttr&&_alAttr)?_szAttr.array:null;
+  var _alArr=(_szAttr&&_alAttr)?_alAttr.array:null;
+  var _updateSz=!!_szArr;
+  var _exSizeOn=useGene&&showExprSize&&ex;
   for(var i=0;i<n;i++){
     var cid=D.cluster_ids[i];
     if(visibleClusters[cid]===false||(sliceMask&&!sliceMask[i])||(_deletedCells&&_deletedCells.has(i))){
@@ -3332,6 +3383,11 @@ function recolor(){
       col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
       pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
       if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+      if(_updateSz){
+        var _exi=useGene&&ex?ex[i]:0;
+        _szArr[i]=_exSizeOn?(_exi<0.01?_ghostSize:Math.max(0.38,Math.sqrt(_exi)*1.8)):1.0;
+        _alArr[i]=(useGene&&ex&&_exi<0.01)?_ghostAlpha:1.0;
+      }
       continue;
     }
     pos[i*3]=D._cachedPos[i*3];pos[i*3+1]=D._cachedPos[i*3+1];pos[i*3+2]=D._cachedPos[i*3+2];
@@ -3339,19 +3395,23 @@ function recolor(){
     var inGroup=sg>=0&&sg<selGroups.length&&groupVisible[selGroups[sg].id]!==false;
     /* Base color from gene expression or cluster */
     var c;
+    var _exi2=useGene&&ex?ex[i]:0;
     if(useGene){
-      var isZero=ex[i]<0.01;
+      var isZero=_exi2<0.01;
       if(isZero&&!showNonExpressing){
         _nHidden++;
         col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
         pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
         if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+        if(_updateSz){
+          _szArr[i]=_exSizeOn?_ghostSize:1.0;
+          _alArr[i]=_ghostAlpha;
+        }
         continue;
       }
-      var _bs=_getBgScheme();
-      c=isZero?_bs.ghostColor:ec(ex[i]);
+      c=isZero?_ghostColor:_ec(_exi2);
     }else if(mode==="gene"&&!useGene){
-      c=_getBgScheme().ghostColor;
+      c=_ghostColor;
     }else{c=cc(cid);}
     if(inGroup&&!useRing){
       var sc=selGroups[sg].color;
@@ -3370,17 +3430,12 @@ function recolor(){
         ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;
       }
     }
-  }
-  /* Update per-vertex point sizes and alpha for expression mode */
-  var _szAttr=pts.geometry.attributes.aSize;
-  var _alAttr=pts.geometry.attributes.aAlpha;
-  if(_szAttr&&_alAttr){
-    var _szArr=_szAttr.array,_alArr=_alAttr.array;
-    for(var _si=0;_si<n;_si++){
-      var _bss=_getBgScheme();
-      _szArr[_si]=(useGene&&showExprSize&&ex)?(ex[_si]<0.01?_bss.ghostSize:Math.max(0.38,Math.sqrt(ex[_si])*1.8)):1.0;
-      _alArr[_si]=(useGene&&ex&&ex[_si]<0.01)?_bss.ghostAlpha:1.0;
+    if(_updateSz){
+      _szArr[i]=_exSizeOn?(_exi2<0.01?_ghostSize:Math.max(0.38,Math.sqrt(_exi2)*1.8)):1.0;
+      _alArr[i]=(useGene&&ex&&_exi2<0.01)?_ghostAlpha:1.0;
     }
+  }
+  if(_updateSz){
     _szAttr.needsUpdate=true;
     _alAttr.needsUpdate=true;
   }
@@ -3468,7 +3523,7 @@ function animate(){
     if(introAnim){
       var t=Math.min(1,(performance.now()-introAnim.startTime)/introAnim.duration);
       var ease=1-Math.pow(1-t,3); /* ease-out cubic */
-      sph.theta=introAnim.startTheta+ease*Math.PI;
+      sph.theta=introAnim.startTheta+(introAnim.endTheta-introAnim.startTheta)*ease;
       sph.radius=introAnim.startRadius+(introAnim.endRadius-introAnim.startRadius)*ease;
       if(t>=1)introAnim=null;
     }else if(autoRotate&&!dragging&&!panning&&!dollying&&!lassoActive&&!shiftHeld){
@@ -3753,7 +3808,7 @@ function setupCtrl(){
   cv.addEventListener("mousedown",function(e){
     /* Release focus from any slider/input so keyboard shortcuts work */
     if(document.activeElement&&document.activeElement!==cv)document.activeElement.blur();
-    introAnim=null;_flyAnim=null;
+    introAnim=null;_flyAnim=null;_introTargetCam=null;
     /* Click in split half → activate that split */
     if(_splitActive&&_splitViewIds.length===2){
       var _clickId=_splitViewIds[_hoveredViewIdx];
@@ -3912,7 +3967,7 @@ function setupCtrl(){
   });
   var wheelSaveTimer=null;
   cv.addEventListener("wheel",function(e){e.preventDefault();
-    introAnim=null;_flyAnim=null;
+    introAnim=null;_flyAnim=null;_introTargetCam=null;
     if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
     /* Determine target camera state for split-view routing */
     var _wSph=sph,_wTgt3=tgt3,_wPan2=pan2,_wZoom2Ref=null;
@@ -3953,7 +4008,7 @@ function setupCtrl(){
     clearTimeout(wheelSaveTimer);wheelSaveTimer=setTimeout(saveCameraOnly,300);
   },{passive:false});
   var ltd=0;
-  cv.addEventListener("touchstart",function(e){e.preventDefault();introAnim=null;if(e.touches.length===1){dragging=true;prev={x:e.touches[0].clientX,y:e.touches[0].clientY};}else if(e.touches.length===2){dragging=false;ltd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:false});
+  cv.addEventListener("touchstart",function(e){e.preventDefault();introAnim=null;_introTargetCam=null;if(e.touches.length===1){dragging=true;prev={x:e.touches[0].clientX,y:e.touches[0].clientY};}else if(e.touches.length===2){dragging=false;ltd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:false});
   cv.addEventListener("touchmove",function(e){e.preventDefault();
     if(e.touches.length===1&&dragging){var dx=e.touches[0].clientX-prev.x,dy=e.touches[0].clientY-prev.y;
       if(viewIs3d){sph.theta-=dx*.005;sph.phi-=dy*.005;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
@@ -4455,6 +4510,42 @@ function _resetEmbOption(m){
     if(sel.options[i].value===m){sel.options[i].textContent=labels[m]||m.toUpperCase();break;}
   }
 }
+/* ── Gene expression prefetch + LRU cache ──
+   Prefetch on hover so clicks feel instant. Keep an LRU bound so a user
+   browsing hundreds of genes doesn't balloon memory (each column is ~2.8 MB
+   on a 700k-cell dataset). */
+var _geneLru=[]; /* gene names, most-recent last */
+var GENE_CACHE_MAX=50;
+var _genePrefetchInflight={}; /* name -> Promise */
+var _genePrefetchTimer=null;
+function _geneLruBump(name){
+  var k=_geneLru.indexOf(name);
+  if(k>=0)_geneLru.splice(k,1);
+  _geneLru.push(name);
+  while(_geneLru.length>GENE_CACHE_MAX){
+    var evict=_geneLru.shift();
+    if(evict===selGene){_geneLru.push(evict);break;} /* guard current gene; tolerate one extra */
+    delete geneExprCache[evict];
+  }
+}
+function prefetchGene(name){
+  if(!name||geneExprCache[name]||_genePrefetchInflight[name])return;
+  var p=fetch("/api/gene?name="+encodeURIComponent(name))
+    .then(function(r){if(!r.ok)throw new Error("Gene not found");return r.arrayBuffer();})
+    .then(function(buf){
+      geneExprCache[name]=new Float32Array(buf);
+      _geneLruBump(name);
+      delete _genePrefetchInflight[name];
+    })
+    .catch(function(){delete _genePrefetchInflight[name];});
+  _genePrefetchInflight[name]=p;
+  return p;
+}
+function prefetchGeneHover(name){
+  /* Debounced hover prefetch: only fire if the pointer lingers briefly. */
+  clearTimeout(_genePrefetchTimer);
+  _genePrefetchTimer=setTimeout(function(){prefetchGene(name);},80);
+}
 function loadGene(name){
   /* Track recent genes */
   recentGenes=recentGenes.filter(function(g){return g!==name;});
@@ -4462,12 +4553,24 @@ function loadGene(name){
   if(recentGenes.length>MAX_RECENT)recentGenes.pop();
   try{sessionStorage.setItem("fleek_recent_genes",JSON.stringify(recentGenes));}catch(e){}
 
-  if(geneExprCache[name]){selGene=name;recolor();showRecentGenes();return;}
+  if(geneExprCache[name]){selGene=name;_geneLruBump(name);recolor();showRecentGenes();return;}
+  /* Piggy-back on an in-flight prefetch instead of firing a duplicate request. */
+  if(_genePrefetchInflight[name]){
+    document.getElementById("gene-loading").style.display="inline";
+    _genePrefetchInflight[name].then(function(){
+      if(!geneExprCache[name])return;
+      selGene=name;
+      document.getElementById("gene-loading").style.display="none";
+      recolor();showRecentGenes();
+    });
+    return;
+  }
   document.getElementById("gene-loading").style.display="inline";
   fetch("/api/gene?name="+encodeURIComponent(name))
     .then(function(r){if(!r.ok)throw new Error("Gene not found");return r.arrayBuffer();})
     .then(function(buf){
       geneExprCache[name]=new Float32Array(buf);
+      _geneLruBump(name);
       selGene=name;
       document.getElementById("gene-loading").style.display="none";
       recolor();
@@ -4686,7 +4789,15 @@ function renderHVGChips(){
   var sec=document.getElementById("hvg-section");
   var listEl=document.getElementById("hvg-list");
   if(!sec||!listEl)return;
-  if(!hvgGenes||hvgGenes.length===0){sec.style.display="none";return;}
+  /* Cluster mode pulls its ranked list from /api/cluster-genes — it doesn't
+     need hvgGenes. Only global mode depends on hvgGenes. Gating the whole
+     section on hvgGenes meant the panel stayed hidden on datasets where HVGs
+     are computed asynchronously (no precomputed `highly_variable` column),
+     making it look like picking a gene was what unhid the panel. */
+  var haveClusters=!!(D&&D.header&&D.header.cluster_names&&D.header.cluster_names.length>0);
+  var haveHvgs=!!(hvgGenes&&hvgGenes.length>0);
+  var showSec=_gvMode==="cluster"?haveClusters:haveHvgs;
+  if(!showSec){sec.style.display="none";return;}
   sec.style.display="block";
 
   /* In cluster mode, use cluster rendering path */
@@ -4777,8 +4888,9 @@ function _gvRenderRow(i){
     if(flagBits&8)reasons.push("low detection rate (< 0.5% of cells expressing)");
     tip+='\n\u26a0 Would be excluded by traditional cutoffs due to '+reasons.join(', ');
   }
+  var gEsc=g.replace(/'/g,"\\'");
   return '<div style="position:absolute;left:0;right:0;top:'+(i*_gvRowH)+'px;height:'+_gvRowH+'px;display:flex;align-items:center;font-size:9px;padding:0 4px;cursor:pointer;border-radius:2px;'+rowStyle
-    +'" onclick="pickGene(\''+g.replace(/'/g,"\\'")+'\')" title="'+tip.replace(/"/g,'&quot;')+'">'
+    +'" onclick="pickGene(\''+gEsc+'\')" onmouseenter="prefetchGeneHover(\''+gEsc+'\')" title="'+tip.replace(/"/g,'&quot;')+'">'
     +'<span style="width:28px;flex-shrink:0;color:'+(flagged?'#d45':'var(--text4)')+';font-size:9px;">'+(i+1)+'</span>'
     +'<span style="flex:3;padding-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'+(isHvg&&!flagged?'font-weight:600;':'')+'">'+g+'</span>'
     +'<span style="flex:3;padding-left:6px;font-variant-numeric:tabular-nums;font-size:9px;color:'+(flagged?'#d45':'var(--text3)')+';">'+v.toFixed(2)+'</span>'
@@ -5314,8 +5426,9 @@ function _gvRenderClusterRow(rank){
   var rowStyle=isSel?'background:rgba(99,102,241,0.18);color:var(--accent2);':'color:var(--text);';
   var tip=g+'\nlog\u2082FC: '+lfc.toFixed(3)+'\npadj: '+(padj<0.001?padj.toExponential(2):padj.toFixed(4))
     +"\nCohen's d: "+cd.toFixed(3)+'\nRank: '+(rank+1)+' / '+_clusterGeneSorted.length;
+  var gEsc=g.replace(/'/g,"\\'");
   return '<div style="position:absolute;left:0;right:0;top:'+(rank*_gvRowH)+'px;height:'+_gvRowH+'px;display:flex;align-items:center;font-size:9px;padding:0 4px;cursor:pointer;border-radius:2px;'+rowStyle
-    +'" onclick="pickGene(\''+g.replace(/'/g,"\\'")+'\')" title="'+tip.replace(/"/g,'&quot;')+'">'
+    +'" onclick="pickGene(\''+gEsc+'\')" onmouseenter="prefetchGeneHover(\''+gEsc+'\')" title="'+tip.replace(/"/g,'&quot;')+'">'
     +'<span style="width:28px;flex-shrink:0;color:var(--text4);font-size:9px;">'+(rank+1)+'<\/span>'
     +'<span style="flex:3;padding-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+g+'<\/span>'
     +'<span style="flex:2;text-align:right;font-variant-numeric:tabular-nums;font-size:9px;color:var(--text3);">'+displayVal+'<\/span>'
@@ -5329,7 +5442,7 @@ function renderGeneList(genes){
     var tip=g;
     var v=varMap[g];
     if(v!==undefined)tip+="\nVariability: "+v.toFixed(4);
-    return '<button class="gbtn'+(selGene===g?' on':'')+'" data-g="'+g+'" onclick="pickGene(\''+g+'\')" title="'+tip.replace(/"/g,"&quot;")+'">'+g+'<\/button>';
+    return '<button class="gbtn'+(selGene===g?' on':'')+'" data-g="'+g+'" onclick="pickGene(\''+g+'\')" onmouseenter="prefetchGeneHover(\''+g+'\')" title="'+tip.replace(/"/g,"&quot;")+'">'+g+'<\/button>';
   }).join("");
 }
 
@@ -8848,13 +8961,31 @@ function _pbPopulate(){
   var cols=Object.keys(cats);
   var repSel=document.getElementById("pb-replicate");
   if(!repSel)return;
+  var prior=repSel.value;
   repSel.innerHTML="";
+  var eligible=[];
   for(var i=0;i<cols.length;i++){
     var n=cats[cols[i]].categories.length;
     if(n>=2&&n<=50){
       repSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
+      eligible.push(cols[i]);
     }
   }
+  /* Preserve a prior explicit user pick; otherwise auto-select a column whose
+     name looks like a biological replicate key (donor/sample/batch/etc).
+     Rank: exact match < prefix match < substring match. */
+  if(prior&&eligible.indexOf(prior)>=0){repSel.value=prior;return;}
+  var preferred=["replicate","replicates","donor","donor_id","sample","sample_id","subject","subject_id","biosample","batch"];
+  var bestCol=null,bestRank=99;
+  for(var j=0;j<eligible.length;j++){
+    var lc=eligible[j].toLowerCase();
+    for(var k=0;k<preferred.length;k++){
+      var p=preferred[k];
+      var rank=(lc===p)?0:(lc.indexOf(p)===0?1:(lc.indexOf(p)>=0?2:-1));
+      if(rank>=0&&rank<bestRank){bestRank=rank;bestCol=eligible[j];}
+    }
+  }
+  if(bestCol)repSel.value=bestCol;
 }
 var _pbAbort=null;   /* AbortController for the in-flight request */
 var _pbRunning=false;
@@ -11434,6 +11565,19 @@ document.addEventListener("DOMContentLoaded",function(){
   var _savedT0=null;
   try{_savedT0=sessionStorage.getItem("fleek_loadT0");sessionStorage.removeItem("fleek_loadT0");}catch(e){}
   _loadT0=_savedT0?parseInt(_savedT0):0; /* 0 means no active load — skip timing */
+  /* Kick off the auto-session fetch NOW, in parallel with /api/init. The
+     server-side _auto session carries the last-used camera. By the time the
+     (larger) init payload arrives and buildPts runs, this smaller fetch has
+     usually already resolved — so we can apply the saved camera immediately
+     and avoid the "flash of intro-start position before jumping to saved"
+     that otherwise happens when the session arrives mid-render. Only fire if
+     sessionStorage has no preloaded state to override it. */
+  window._autoSessionPromise=null;
+  if(!loadState()){
+    window._autoSessionPromise=fetch("/api/session-load",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"_auto"})})
+      .then(function(r){return r.json();})
+      .catch(function(){return null;});
+  }
   fetch("/api/init")
     .then(function(r){
       if(!r.ok)throw new Error("Server error "+r.status);
@@ -11536,7 +11680,11 @@ document.addEventListener("DOMContentLoaded",function(){
         document.getElementById("gene-sec").style.display="block";
         _restoring=false;
         if(saved){
-          introAnim=null; /* skip intro when restoring state */
+          /* Restoring from sessionStorage — cancel the pending intro scheduler
+             too so the 300ms timer doesn't fire after restoreState() and snap
+             the camera back to the intro-start position. */
+          if(_introTimer){clearTimeout(_introTimer);_introTimer=null;}
+          introAnim=null;_flyAnim=null;
           restoreState(saved);
         }else{
           mode="cluster";selGene="";setMode("cluster");
@@ -11554,14 +11702,51 @@ document.addEventListener("DOMContentLoaded",function(){
            when the user actually picks a cluster in the Gene-variability
            dropdown (see _gvClusterChanged → _fetchClusterGenes). The first
            click pays a one-time wait; every click after that hits the cache. */
-        /* Load session list and try auto-saved session if no sessionStorage state */
+        /* Load session list */
         _loadSessionList("_auto");
-        if(!saved){
-          fetch("/api/session-load",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"_auto"})})
-          .then(function(r){return r.json();})
-          .then(function(d){
-            if(d.ok&&d.state){_applySessionState(d.state);_sessionName="_auto";}
-          }).catch(function(){});
+        /* Consume the auto-session fetch (kicked off at page init in parallel
+           with /api/init). Apply non-camera state immediately. Stash the
+           saved camera as the intro's target — the intro orbit will then
+           end AT that pose instead of a generic home position. */
+        if(!saved&&window._autoSessionPromise){
+          window._autoSessionPromise.then(function(d){
+            if(!d||!d.ok||!d.state)return;
+            var camState={};
+            if(d.state.sph){camState.sph=d.state.sph;delete d.state.sph;}
+            if(d.state.tgt3){camState.tgt3=d.state.tgt3;delete d.state.tgt3;}
+            if(d.state.pan2){camState.pan2=d.state.pan2;delete d.state.pan2;}
+            if(d.state.zoom2!==undefined){camState.zoom2=d.state.zoom2;delete d.state.zoom2;}
+            _applySessionState(d.state);_sessionName="_auto";
+            if(!camState.sph)return;
+            if(_introTimer){
+              /* Intro not started yet → will pick up _introTargetCam when it fires. */
+              _introTargetCam=camState;
+            }else if(introAnim){
+              /* Intro already running → retarget it to end at saved pose.
+                 Keep remaining duration; snap non-animated fields directly. */
+              var _rem=Math.max(900,introAnim.duration-(performance.now()-introAnim.startTime));
+              introAnim.startTime=performance.now();
+              introAnim.startTheta=sph.theta;introAnim.endTheta=camState.sph.theta;
+              introAnim.startRadius=sph.radius;introAnim.endRadius=camState.sph.radius;
+              introAnim.duration=_rem;
+              if(camState.sph.phi!==undefined)sph.phi=camState.sph.phi;
+              if(camState.tgt3){tgt3.set(camState.tgt3.x,camState.tgt3.y,camState.tgt3.z);}
+              if(camState.pan2){pan2.x=camState.pan2.x;pan2.y=camState.pan2.y;}
+              if(camState.zoom2!==undefined)zoom2=camState.zoom2;
+            }else{
+              /* Intro already finished (or never started) → fly to saved. */
+              _flyAnim={t0:performance.now(),dur:900,mode:"3d",_noHist:true,
+                fromTgt:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
+                toTgt:camState.tgt3?{x:camState.tgt3.x,y:camState.tgt3.y,z:camState.tgt3.z}:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
+                fromR:sph.radius,toR:camState.sph.radius,
+                fromTheta:sph.theta,toTheta:camState.sph.theta,
+                fromPhi:sph.phi,toPhi:camState.sph.phi,
+                fromPan:{x:pan2.x,y:pan2.y},
+                toPan:camState.pan2?{x:camState.pan2.x,y:camState.pan2.y}:{x:pan2.x,y:pan2.y},
+                fromZoom:zoom2,toZoom:camState.zoom2!==undefined?camState.zoom2:zoom2};
+            }
+          });
+          window._autoSessionPromise=null;
         }
         /* Show CSC spinner immediately — server starts building right after init.
            Keep visible until we get multiple consecutive "done" responses,
@@ -11578,7 +11763,7 @@ document.addEventListener("DOMContentLoaded",function(){
             if(p.hvg_genes&&p.hvg_genes.length>0&&hvgGenes.length===0){
               hvgGenes=p.hvg_genes;
               if(p.hvg_var)hvgVar=p.hvg_var;
-              if(mode==="gene")renderHVGChips();
+              renderHVGChips();
             }
             /* PaCMAP readiness check */
             if(!_pacmapLoaded&&p.pacmap_ready){
