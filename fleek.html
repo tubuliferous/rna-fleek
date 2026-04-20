@@ -778,6 +778,7 @@
             <button class="gv-dd-btn" onclick="_gvDdToggle(this)"><span id="gv-dd-label" style="display:flex;align-items:center;gap:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">Select cluster...</span></button>
             <div class="gv-dd-list" id="gv-dd-list"></div>
           </div>
+          <button id="gv-sort-btn" onclick="_gvToggleSort()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:9px;font-family:inherit;padding:0 2px;flex-shrink:0;" title="Toggle dropdown sort: alphabetical / cell count / lineage (lineage only available after Lineage is computed)">A→Z</button>
           <span id="gv-dot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;cursor:pointer;box-sizing:border-box;" title="Click: toggle · Alt: solo · Shift: select" onclick="_gvDotClick(event)"></span>
         </div>
         <div id="hvg-scroll" class="sb-trap" style="max-height:200px;overflow-y:auto;overflow-x:hidden;" onscroll="_gvVirtualRender()">
@@ -1797,7 +1798,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.10";
+var FLEEK_VERSION="v0.3.12";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=true; /* scale point size with expression level in gene mode */
@@ -4937,6 +4938,32 @@ function _gvClusterLabel(i){
   }
   return raw;
 }
+/* Cluster-dropdown sort mode for the Gene-variability panel. Cycles
+   alpha → count → lineage. Lineage is only reachable once `lineageTree` is
+   populated (user ran the Claude lineage inference). Stored on window so it
+   survives hot reloads during dev. */
+var _gvSortMode="alpha"; /* "alpha" | "count" | "lineage" */
+function _gvToggleSort(){
+  var next;
+  if(_gvSortMode==="alpha")next="count";
+  else if(_gvSortMode==="count")next=lineageTree?"lineage":"alpha";
+  else next="alpha";
+  _gvSortMode=next;
+  _gvUpdateSortBtn();
+  _gvPopulateClusterDropdown();
+}
+function _gvUpdateSortBtn(){
+  var btn=document.getElementById("gv-sort-btn");
+  if(!btn)return;
+  var labels={alpha:"A→Z",count:"#↓",lineage:"\u2642"};
+  btn.textContent=labels[_gvSortMode]||"A→Z";
+  var titles={
+    alpha:"Sort: alphabetical \u00b7 click to cycle (alpha \u2192 count"+(lineageTree?" \u2192 lineage":"")+")",
+    count:"Sort: by cell count (descending) \u00b7 click to cycle"+(lineageTree?" to lineage":" back to alpha"),
+    lineage:"Sort: developmental lineage (inferred) \u00b7 click to cycle back to alpha"
+  };
+  btn.title=titles[_gvSortMode]||"Toggle sort";
+}
 function _gvDotHtml(cid,sz){
   var c=cc(cid);
   var rgb='rgb('+(c[0]*255|0)+','+(c[1]*255|0)+','+(c[2]*255|0)+')';
@@ -4992,8 +5019,12 @@ function _gvPopulateClusterDropdown(){
       +'<\/div>';
     return html;
   }
+  /* If user picked the lineage sort but the tree hasn't been inferred yet,
+     silently fall back to alpha so the dropdown still populates. */
+  var effectiveMode=_gvSortMode;
+  if(effectiveMode==="lineage"&&!lineageTree)effectiveMode="alpha";
   var h="";
-  if(lineageTree){
+  if(effectiveMode==="lineage"){
     function _addNode(node,depth){
       var cids=node.cluster_ids||[];
       /* Non-leaf node label */
@@ -5010,7 +5041,16 @@ function _gvPopulateClusterDropdown(){
   }else{
     var indices=[];
     for(var i=0;i<names.length;i++)indices.push(i);
-    indices.sort(function(a,b){return _gvClusterLabel(a).localeCompare(_gvClusterLabel(b));});
+    if(effectiveMode==="count"){
+      indices.sort(function(a,b){
+        var ca=clusterCounts&&clusterCounts[a]?clusterCounts[a]:0;
+        var cb=clusterCounts&&clusterCounts[b]?clusterCounts[b]:0;
+        if(cb!==ca)return cb-ca;
+        return _gvClusterLabel(a).localeCompare(_gvClusterLabel(b));
+      });
+    }else{
+      indices.sort(function(a,b){return _gvClusterLabel(a).localeCompare(_gvClusterLabel(b));});
+    }
     for(var j=0;j<indices.length;j++)h+=_addItem(indices[j],0);
   }
   list.innerHTML=h;
@@ -5860,6 +5900,9 @@ function _doFetchLineage(){
     }
     lineageTree=data.tree;
     if(_lastLoadSettings){_lastLoadSettings.annot_lineage_cached=true;showLoadBadges(_lastLoadSettings);}
+    /* Refresh the Gene-variability sort button tooltip so "lineage" becomes a
+       reachable option in the cycle now that a tree exists. */
+    _gvUpdateSortBtn();
     if(_gvMode==="cluster")_gvPopulateClusterDropdown();
     _showLineageView();
   })
@@ -11399,6 +11442,10 @@ document.addEventListener("DOMContentLoaded",function(){
         if(markerAnnotations||llmAnnotations)renderLeg();
         if(data.header.cached_lineage){lineageTree=data.header.cached_lineage;}
         _setLinBtn(null,lineageView?"tree":"flat");
+        /* Reset Gene-variability dropdown sort to its default + sync button
+           label/tooltip for the newly-loaded dataset. */
+        _gvSortMode="alpha";
+        if(typeof _gvUpdateSortBtn==="function")_gvUpdateSortBtn();
         var _org=data.header.organism||"";
         var _orgReason=data.header.organism_reason||"";
         var _orgHtml=_org?(' \u00b7 <span style="cursor:help;border-bottom:1px dotted var(--text4);" title="Inferred: '+_orgReason.replace(/"/g,'&quot;')+'">'+_org+' (inferred)<\/span>'):"";
@@ -11461,8 +11508,14 @@ document.addEventListener("DOMContentLoaded",function(){
           updateHistBtn();
         }
         hideL();
-        /* Prefetch all cluster gene rankings in background (triggers shared DEG if needed) */
-        setTimeout(function(){if(D&&Object.keys(_clusterGeneCache).length===0)_fetchClusterGenes(0);},2000);
+        /* Cluster-gene rankings (one-vs-rest DEG across all clusters) used to be
+           auto-prefetched 2s after load. That was convenient for the Gene
+           panel's variability list — but it locked up /api/deg and the browser
+           connection pool for minutes on large datasets, making user-initiated
+           DEG runs queue indefinitely behind it. Now it's triggered on-demand
+           when the user actually picks a cluster in the Gene-variability
+           dropdown (see _gvClusterChanged → _fetchClusterGenes). The first
+           click pays a one-time wait; every click after that hits the cache. */
         /* Load session list and try auto-saved session if no sessionStorage state */
         _loadSessionList("_auto");
         if(!saved){
