@@ -701,11 +701,11 @@
         </label>
         <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Scale point area with expression level. High-expressing cells appear larger; non-expressing cells shrink to a tiny dot.">
           <span style="font-size:9px;color:var(--text3);flex:1;">Expression → size</span>
-          <span class="se-switch"><input type="checkbox" id="show-expr-size" checked onchange="showExprSize=this.checked;recolor();"><span class="se-track"></span></span>
+          <span class="se-switch"><input type="checkbox" id="show-expr-size" onchange="showExprSize=this.checked;recolor();"><span class="se-track"></span></span>
         </label>
         <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Show a glow halo around expressing cells. Visible especially when zoomed out.">
           <span style="font-size:9px;color:var(--text3);flex:1;">Expression glow</span>
-          <span class="se-switch"><input type="checkbox" id="show-glow" checked onchange="showGlow=this.checked;if(typeof recolor==='function')recolor();"><span class="se-track"></span></span>
+          <span class="se-switch"><input type="checkbox" id="show-glow" onchange="showGlow=this.checked;if(typeof recolor==='function')recolor();"><span class="se-track"></span></span>
         </label>
         <label style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Slowly pulse expressing cells (and glow if enabled) brighter to help spot them.">
           <span style="font-size:9px;color:var(--text3);flex:1;">Pulse expressing cells</span>
@@ -1798,11 +1798,11 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.12";
+var FLEEK_VERSION="v0.3.13";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
-var showExprSize=true; /* scale point size with expression level in gene mode */
-var showGlow=true; /* show expression halo glow */
+var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
+var showGlow=false; /* show expression halo glow (default off) */
 var pulseGlow=false; /* pulse expression halo on/off */
 /* Background point schemes — each defines ghost color, alpha, size for non-expressing cells,
    halo colors, and pulse target for both dark and light themes */
