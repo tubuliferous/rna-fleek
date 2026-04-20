@@ -1267,7 +1267,8 @@
       </div>
       <div class="help-sec-body">
         <p><strong>View splits</strong> are named snapshots of your current slice filter and cluster visibility. They let you save and switch between different "angles" on the data — for example, one split filtered to organ=heart, another to organ=liver — without losing state.</p>
-        <p>Create a new view split with the <strong>+</strong> button in the Split Views panel, or press <span class="help-key">1</span>–<span class="help-key">9</span> to create/switch to "Split N" by number. You can create as many splits as you want. Switch between them using the sidebar dropdown, or press the number key matching the split name. Each split remembers its slice filter, cluster visibility, deleted cells, <strong>and camera position</strong> — switching between splits preserves where you were looking in each one, even outside of split-screen mode.</p>
+        <p>Create a new view split with the <strong>+</strong> button in the Split Views panel, or press <span class="help-key">1</span>–<span class="help-key">9</span> to create/switch to "Split N" by number. You can create as many splits as you want. Switch between them using the sidebar dropdown, or press the number key matching the split name. Each split remembers its slice filter, cluster visibility, deleted cells, color mode + active gene, <strong>and camera position</strong> — switching between splits preserves where you were looking in each one, even outside of split-screen mode.</p>
+        <p><strong>Selections are global across splits.</strong> Selection groups, group visibility, and the active group are <em>not</em> part of a split's state — they stay the same when you switch splits. This lets you build a selection in one split and use it in another (run DEG across splits, carry a lasso of interesting cells through different slice filters, etc.). The same shared-selection behavior already applies inside split-screen mode.</p>
         <p><strong>Split-screen (<span style="font-size:13px;">⧉</span>):</strong> When you have two or more view splits, click the split-screen button to show two side by side in real time. Each half renders its own cell population based on its split's slice filter. Selection groups are shared across both halves — lasso in one half, see the highlights in both. A subtle vertical divider marks the boundary between the halves; the accent-colored focus border on the active half overlaps it on that side.</p>
         <p><strong>Reassigning halves:</strong> The split name in each half's label is a dropdown. Change it to show a different split in that half — if you pick a split already in the other half, they swap. Each half's camera state follows the split shown there.</p>
         <table class="help-table">
@@ -1796,7 +1797,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.9";
+var FLEEK_VERSION="v0.3.10";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=true; /* scale point size with expression level in gene mode */
@@ -8252,15 +8253,18 @@ function _viewAdd(isDefault){
   if(!isDefault)_viewSaveCurrent();
   var id=_viewIdCounter++;
   var name=isDefault?"Split 1":_nextSplitName();
-  /* Snapshot current state as the new view */
+  /* Snapshot current per-view state. NOTE: selGroups / activeGroupId /
+     selGroupIdCounter / groupVisible are intentionally NOT saved per-split —
+     selections are fully global across splits so that cross-split DEG and
+     other selection-based analyses work as expected. Per-view state is:
+     slice filter, cluster visibility, color mode + active gene, deleted-cells
+     mask, camera, tether flag. */
   var sf={};
   if(sliceFilter){for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
   var vc=JSON.parse(JSON.stringify(visibleClusters));
-  var sg=selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:Array.from(g.cells)};});
   var dc=_deletedCells?Array.from(_deletedCells):null;
   _views.push({id:id,name:name,sliceFilter:sf,visibleClusters:vc,
-    selGroups:sg,deletedCells:dc,activeGroupId:activeGroupId,
-    selGroupIdCounter:selGroupIdCounter,groupVisible:JSON.parse(JSON.stringify(groupVisible)),
+    deletedCells:dc,
     mode:mode,selGene:selGene||"",
     tethered:true,
     camera:_snapCameraFromGlobals()});
@@ -8302,18 +8306,22 @@ function _applyCameraToLive(c,lv){
   if(typeof c.zoom2==="number")lv.zoom2=c.zoom2;
 }
 function _viewSaveCurrent(){
-  /* Save current state back to the active view */
+  /* Save current state back to the active view. Selections (selGroups /
+     activeGroupId / selGroupIdCounter / groupVisible) are intentionally NOT
+     written here — selection state is global across splits so cross-split
+     analyses (DEG, Select All Visible, etc.) stay wired to one shared set of
+     groups instead of swapping out when you switch splits. Clear any legacy
+     per-view selection fields so older saved sessions don't re-overwrite the
+     globals on switch. */
   var v=_views.find(function(v){return v.id===_activeViewId;});
   if(!v)return;
   var sf={};
   if(sliceFilter){for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
   v.sliceFilter=sf;
   v.visibleClusters=JSON.parse(JSON.stringify(visibleClusters));
-  v.selGroups=selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:Array.from(g.cells)};});
   v.deletedCells=_deletedCells?Array.from(_deletedCells):null;
-  v.activeGroupId=activeGroupId;
-  v.selGroupIdCounter=selGroupIdCounter;
-  v.groupVisible=JSON.parse(JSON.stringify(groupVisible));
+  /* Strip legacy per-view selection fields. */
+  delete v.selGroups;delete v.activeGroupId;delete v.selGroupIdCounter;delete v.groupVisible;
   /* Per-view color mode + selected gene so split views can show different genes /
      one cluster-colored, one gene-colored, etc. */
   v.mode=mode;
@@ -8378,21 +8386,20 @@ function _buildSliceMask(sfObj){
   return mask;
 }
 function _restoreViewState(v,opts){
-  /* Load a snapshot view's FULL state into globals (slice, visibility, selections, deleted cells, camera).
-     Camera sharing: caller decides via opts.shareCam — true only when BOTH source
-     and target views are tethered (same rule as dual-view split mode). When
-     shareCam is true we keep the current camera; otherwise we restore the
-     target's saved camera. Default (no opts) = restore stored camera. */
+  /* Load a snapshot view's per-view state into globals (slice, cluster
+     visibility, deleted cells, color mode, selected gene, camera). Selection
+     state (selGroups / activeGroupId / selGroupIdCounter / groupVisible) is
+     NOT restored — it's global across splits so the user can carry one set
+     of selection groups between splits for cross-split analyses like DEG.
+     Camera sharing: caller decides via opts.shareCam — true only when BOTH
+     source and target views are tethered (same rule as dual-view split
+     mode). When shareCam is true we keep the current camera; otherwise we
+     restore the target's saved camera. Default (no opts) = restore stored
+     camera. */
   if(!v)return;
   _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
   for(var k in v.visibleClusters)visibleClusters[k]=v.visibleClusters[k];
-  selGroups=v.selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:new Set(g.cells)};});
-  activeGroupId=v.activeGroupId;
-  selGroupIdCounter=v.selGroupIdCounter;
-  groupVisible={};
-  for(var k in v.groupVisible)groupVisible[k]=v.groupVisible[k];
-  rebuildCellGroupMap();
   _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
   _preShowAllVis=null;_preDeletedCells=null;
   if(typeof v.mode==="string")mode=v.mode;
