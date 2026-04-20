@@ -1798,7 +1798,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.17";
+var FLEEK_VERSION="v0.3.18";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -11693,7 +11693,6 @@ document.addEventListener("DOMContentLoaded",function(){
           _histIdx=0;
           updateHistBtn();
         }
-        hideL();
         /* Cluster-gene rankings (one-vs-rest DEG across all clusters) used to be
            auto-prefetched 2s after load. That was convenient for the Gene
            panel's variability list — but it locked up /api/deg and the browser
@@ -11708,8 +11707,9 @@ document.addEventListener("DOMContentLoaded",function(){
            with /api/init). Apply non-camera state immediately. Stash the
            saved camera as the intro's target — the intro orbit will then
            end AT that pose instead of a generic home position. */
+        var _sessionDone=null;
         if(!saved&&window._autoSessionPromise){
-          window._autoSessionPromise.then(function(d){
+          _sessionDone=window._autoSessionPromise.then(function(d){
             if(!d||!d.ok||!d.state)return;
             var camState={};
             if(d.state.sph){camState.sph=d.state.sph;delete d.state.sph;}
@@ -11719,8 +11719,19 @@ document.addEventListener("DOMContentLoaded",function(){
             _applySessionState(d.state);_sessionName="_auto";
             if(!camState.sph)return;
             if(_introTimer){
-              /* Intro not started yet → will pick up _introTargetCam when it fires. */
+              /* Intro not started yet → will pick up _introTargetCam when it
+                 fires. Also SEED sph to the orbit-start pose right now, so the
+                 300ms GPU-settle window renders the rotation's starting frame
+                 instead of flashing the default intro-start from positionPts. */
               _introTargetCam=camState;
+              var _sT=camState.sph.theta-Math.PI;
+              var _sR=(camState.sph.radius||sph.radius)*1.3;
+              sph.theta=_sT;
+              if(camState.sph.phi!==undefined)sph.phi=camState.sph.phi;
+              sph.radius=_sR;
+              if(camState.tgt3){tgt3.set(camState.tgt3.x,camState.tgt3.y,camState.tgt3.z);}
+              if(camState.pan2){pan2.x=camState.pan2.x;pan2.y=camState.pan2.y;}
+              if(camState.zoom2!==undefined)zoom2=camState.zoom2;
             }else if(introAnim){
               /* Intro already running → retarget it to end at saved pose.
                  Keep remaining duration; snap non-animated fields directly. */
@@ -11747,6 +11758,18 @@ document.addEventListener("DOMContentLoaded",function(){
             }
           });
           window._autoSessionPromise=null;
+        }
+        /* Defer un-hiding the canvas until the session handler above has had
+           a chance to seed sph to the orbit-start pose. Otherwise the first
+           visible frames flash the default intro-start from positionPts
+           before jumping to the real start. Capped at 250ms so a dead/slow
+           server never holds up the reveal. */
+        if(_sessionDone){
+          var _hidden=true,_reveal=function(){if(_hidden){_hidden=false;hideL();}};
+          _sessionDone.then(_reveal,_reveal);
+          setTimeout(_reveal,250);
+        }else{
+          hideL();
         }
         /* Show CSC spinner immediately — server starts building right after init.
            Keep visible until we get multiple consecutive "done" responses,
