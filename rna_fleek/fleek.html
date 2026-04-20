@@ -227,14 +227,14 @@
   .gv-dd{position:relative;flex:1;min-width:0;}
   .gv-dd-btn{display:flex;align-items:center;gap:4px;width:100%;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:4px 24px 4px 6px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center;}
   .gv-dd-btn:hover{border-color:var(--border2);}
-  .gv-dd-list{display:none;position:fixed;min-width:280px;width:max-content;background:var(--bg2);border:1px solid var(--border2);border-radius:4px;max-height:70vh;overflow-y:auto;overflow-x:hidden;z-index:100;padding:3px 0;box-shadow:0 4px 16px rgba(0,0,0,0.25);}
+  .gv-dd-list{display:none;position:fixed;min-width:320px;width:max-content;background:var(--bg2);border:1px solid var(--border2);border-radius:4px;max-height:70vh;overflow-y:auto;overflow-x:hidden;z-index:100;padding:3px 0;box-shadow:0 4px 16px rgba(0,0,0,0.25);}
   .gv-dd.open .gv-dd-list{display:block;}
-  .gv-dd-item{display:flex;align-items:center;padding:3px 6px;font-size:9px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:2px;margin:0 2px;}
+  .gv-dd-item{display:flex;align-items:center;padding:4px 6px;font-size:11px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:2px;margin:0 2px;}
   .gv-dd-item:hover{background:var(--bg-hover);}
   .gv-dd-item.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
   .gv-dd-dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex-shrink:0;}
   .gv-dd-indent{border-left:1px solid var(--border);margin-left:4px;padding-left:4px;}
-  .gv-dd-group{font-size:8px;color:var(--text4);padding:4px 6px 2px;font-weight:600;cursor:default;}
+  .gv-dd-group{font-size:9px;color:var(--text4);padding:5px 6px 2px;font-weight:600;cursor:default;}
   /* Lineage tree */
   .lin-node{padding:1px 0;user-select:none;}
   .lin-row{display:flex;align-items:center;gap:4px;padding:3px 5px;border-radius:3px;font-size:9px;cursor:pointer;}
@@ -1798,7 +1798,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.14";
+var FLEEK_VERSION="v0.3.15";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -5027,22 +5027,27 @@ function _gvPopulateClusterDropdown(){
       var _aiRaw=llmAnnotations[cid][0].cell_type||"";
       if(_aiRaw&&_aiRaw!==fileName)aiName=_aiRaw;
     }
-    /* Hover tooltip: both names + reasoning from Claude if available. */
+    var nCells=(clusterCounts&&clusterCounts[cid]!=null)?clusterCounts[cid]:0;
+    var nCellsStr=nCells.toLocaleString();
+    /* Hover tooltip: both names + cell count + reasoning from Claude if available. */
     var _tip=(aiName?"AI: "+aiName+"\nFile: "+fileName:fileName);
+    _tip+="\n"+nCellsStr+" cell"+(nCells===1?"":"s");
     if(aiName&&llmAnnotations[cid][0].reasoning){_tip+="\n\n"+llmAnnotations[cid][0].reasoning;}
     _tip=_tip.replace(/"/g,"&quot;");
     var labelHtml;
     if(aiName){
       labelHtml='<span style="display:flex;flex-direction:column;min-width:0;line-height:1.25;">'
         +'<span style="overflow-wrap:break-word;word-break:break-word;">'+aiName+'<\/span>'
-        +'<span style="font-size:8px;color:var(--text4);overflow-wrap:break-word;word-break:break-word;">'+fileName+'<\/span>'
+        +'<span style="font-size:9px;color:var(--text4);overflow-wrap:break-word;word-break:break-word;">'+fileName+'<\/span>'
         +'<\/span>';
     }else{
       labelHtml='<span style="overflow-wrap:break-word;word-break:break-word;">'+fileName+'<\/span>';
     }
+    var countHtml='<span style="margin-left:8px;font-size:9px;color:var(--text4);font-variant-numeric:tabular-nums;flex-shrink:0;align-self:center;">'+nCellsStr+'<\/span>';
     var html='<div class="gv-dd-item'+(cid===_gvClusterId?' active':'')+'" data-cid="'+cid+'" onclick="_gvDdSelect('+cid+')" style="padding-left:'+(6+depth*12)+'px;white-space:normal;align-items:flex-start;" title="'+_tip+'">'
       +_gvDotHtml(cid,7)
       +'<span style="margin-left:4px;flex:1;min-width:0;">'+labelHtml+'<\/span>'
+      +countHtml
       +'<\/div>';
     return html;
   }
