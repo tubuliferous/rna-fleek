@@ -3587,7 +3587,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
                     flag = int(GENE_CUTOFF_FLAG[i]) if has_flags else 0
                     genes.append([str(GENE_NAMES_LIST[i]), round(v, 4), flag])
                 result = {"genes": genes, "metric": ALL_GENE_VAR_METRIC, "total": len(GENE_NAMES_LIST)}
-            data = json.dumps(result, separators=(",", ":")).encode("utf-8")
+            data = json.dumps(_json_safe(result), separators=(",", ":")).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
@@ -3652,7 +3652,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
                         "cluster": cname, "cluster_id": cluster_id,
                         "n_cells": n_cells, "n_genes": len(cdata["genes"]),
                     }
-            data = json.dumps(result, separators=(",", ":")).encode("utf-8")
+            data = json.dumps(_json_safe(result), separators=(",", ":")).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
@@ -3842,7 +3842,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
                                          method_pref=method_pref)
             result["elapsed"] = round(time.time() - t0, 1)
 
-            data = json.dumps(result, separators=(",", ":")).encode("utf-8")
+            data = json.dumps(_json_safe(result), separators=(",", ":")).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
@@ -3892,7 +3892,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 group_b=req["group_b"],
                 test=req.get("test", "wilcoxon"),
             )
-            data = json.dumps(result).encode("utf-8")
+            data = json.dumps(_json_safe(result)).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
@@ -4007,7 +4007,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
             top_n = req.get("top_n", 50)
             test = req.get("test", "wilcoxon")
             result = annotate_clusters(top_n=top_n, test=test)
-            data = json.dumps(result).encode("utf-8")
+            data = json.dumps(_json_safe(result)).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
@@ -4036,7 +4036,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
             top_n = req.get("top_n", 30)
             tissue = req.get("tissue", "")
             result = annotate_clusters_llm(top_n=top_n, tissue_hint=tissue)
-            data = json.dumps(result).encode("utf-8")
+            data = json.dumps(_json_safe(result)).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(data)))
