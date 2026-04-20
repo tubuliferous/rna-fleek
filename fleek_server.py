@@ -1274,13 +1274,38 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         return {}, set()
 
     cache_key = (N_CELLS, len(CLUSTER_NAMES), test, DEG_MAX_CELLS)
-    
+
     with _DEG_LOCK:
         # Cache hit — return immediately (full_rankings must also be populated if present in cache schema)
         if (_DEG_CACHE["key"] == cache_key and _DEG_CACHE["cluster_genes"] is not None
                 and _DEG_CACHE["full_rankings"] is not None):
             print("  DEG results from memory cache")
             return _DEG_CACHE["cluster_genes"], _DEG_CACHE["small_clusters"]
+
+        # ── Disk-cache hit ─────────────────────────────────────────────────
+        # The full shared-DEG rankings (used by the Gene-variability cluster
+        # dropdown and by both annotation paths) are expensive to recompute.
+        # Persist them to .fleek_cluster_genes.json alongside the dataset so a
+        # fresh server start / page reload can skip the recomputation.
+        try:
+            _cr, _ = _cache_read_path(".fleek_cluster_genes.json")
+            if _cr:
+                with open(_cr) as _f:
+                    _disk = json.load(_f)
+                _dk = tuple(_disk.get("key", []))
+                if list(_dk) == list(cache_key):
+                    # Hydrate caches from disk.
+                    _DEG_CACHE["key"] = cache_key
+                    _DEG_CACHE["cluster_genes"] = _disk.get("cluster_genes", {})
+                    _DEG_CACHE["small_clusters"] = set(_disk.get("small_clusters", []))
+                    _fr = _disk.get("full_rankings", {})
+                    # full_rankings may have encoded `None` cluster entries as null
+                    # in JSON — keep them as None in memory.
+                    _DEG_CACHE["full_rankings"] = {k: v for k, v in _fr.items()}
+                    print("  Shared DEG loaded from disk cache (.fleek_cluster_genes.json)")
+                    return _DEG_CACHE["cluster_genes"], _DEG_CACHE["small_clusters"]
+        except Exception as _ce:
+            print(f"  Shared-DEG disk cache read failed ({_ce}); recomputing")
 
         t_deg = time.time()
         ANNOT_STATUS["step"] = "Preparing data..."
@@ -1455,6 +1480,23 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         _DEG_CACHE["cluster_genes"] = result
         _DEG_CACHE["small_clusters"] = small_clusters
         _DEG_CACHE["full_rankings"] = full_rankings
+
+        # Persist to disk so subsequent server starts / page reloads skip
+        # this (can be multi-minute) recomputation on large datasets.
+        try:
+            _wp = _cache_write_path(".fleek_cluster_genes.json")
+            if _wp:
+                _payload = {
+                    "key": list(cache_key),
+                    "cluster_genes": result,
+                    "small_clusters": list(small_clusters),
+                    "full_rankings": full_rankings,
+                }
+                with open(_wp, "w") as _wf:
+                    json.dump(_json_safe(_payload), _wf, separators=(",", ":"))
+                print(f"  Shared DEG written to {_wp}")
+        except Exception as _we:
+            print(f"  Shared-DEG disk cache write failed ({_we}) — keeping in-memory only")
 
         return result, small_clusters
 
@@ -4069,6 +4111,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 "markers": ".annot_markers.json",
                 "claude": ".annot_llm.json",
                 "lineage": ".annot_lineage.json",
+                "cluster_genes": ".fleek_cluster_genes.json",
             }
             if cache_type not in suffix_map:
                 raise ValueError(f"Unknown cache type: {cache_type}")
@@ -4094,6 +4137,13 @@ class FleekHandler(SimpleHTTPRequestHandler):
             }
             for key in settings_map.get(cache_type, []):
                 LOAD_SETTINGS[key] = False
+            # Also wipe the in-memory shared-DEG cache when its disk copy is
+            # cleared, so the next /api/cluster-genes forces a fresh compute.
+            if cache_type == "cluster_genes":
+                _DEG_CACHE["key"] = None
+                _DEG_CACHE["cluster_genes"] = None
+                _DEG_CACHE["small_clusters"] = None
+                _DEG_CACHE["full_rankings"] = None
             result = {"ok": True, "deleted": deleted, "type": cache_type}
             data = json.dumps(result).encode("utf-8")
             self.send_response(200)
