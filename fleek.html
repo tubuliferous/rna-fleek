@@ -13,6 +13,10 @@
     --border:#2c3045;--border2:#3a3f55;
     --text:#e8eaf0;--text2:#a0a5b8;--text3:#7580a0;--text4:#556080;
     --accent:#6366f1;--accent2:#a5b4fc;
+    /* Semantic icon-hover colors: --danger for destructive actions (delete,
+       close, unload), --success for downloads / file exports. Light-mode
+       overrides below swap to the darker variants that read better on white. */
+    --danger:#f87171;--success:#10b981;
     --canvas-bg:#08080e;
   }
   body{color-scheme:dark;}
@@ -21,6 +25,7 @@
     --border:#d0d4dc;--border2:#bcc0cc;
     --text:#1a1c26;--text2:#4a4e5c;--text3:#6b7080;--text4:#8b90a0;
     --accent:#4f46e5;--accent2:#4338ca;
+    --danger:#dc2626;--success:#059669;
     --canvas-bg:#f5f7fa;
   }
   body.light{color-scheme:light;}
@@ -31,13 +36,21 @@
   #sidebar-toggle{position:absolute;top:10px;left:10px;z-index:10;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--text3);cursor:pointer;font-size:20px;line-height:1;padding:6px 9px;opacity:0;transition:opacity 0.2s;pointer-events:none;}
   #sidebar-toggle.show{opacity:0.7;pointer-events:auto;}
   #sidebar-toggle.show:hover{opacity:1;}
-  #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
+  /* The sidebar columns draw their OWN custom overlay thumb (see
+     setupCustomScrollbars + .scroll-thumb). Hide the native scrollbar on
+     them so macOS doesn't show its own overlay scrollbar on top of ours
+     during a scroll — that produced the "big scrollbar over small scrollbar"
+     double-thumb visual. Scrolling via wheel still works; the custom thumb
+     is our visible indicator. */
+  #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;scrollbar-width:none;}
+  #sidebar-upper::-webkit-scrollbar{display:none;}
   #sidebar-upper.sb-scrolling .sb-trap{pointer-events:none;}
   /* Second sidebar column — appears when a panel is dragged into it */
   #sidebar-right{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;transition:margin-left 0.25s ease,opacity 0.25s ease;}
   #sidebar-right.active{display:flex;}
   #sidebar-right.active.hidden{margin-left:-260px;opacity:0;pointer-events:none;}
-  #sidebar-right-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;}
+  #sidebar-right-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;scrollbar-width:none;}
+  #sidebar-right-upper::-webkit-scrollbar{display:none;}
   /* Drag-drop visuals for panel reordering */
   .sec[data-col]{cursor:default;}
   .sec[data-col].panel-dragging{opacity:0.35;}
@@ -118,6 +131,10 @@
   .split-view-label .tether-btn{cursor:pointer;opacity:0.6;transition:opacity 0.15s,color 0.15s,transform 0.15s;}
   .split-view-label .tether-btn:hover{opacity:1;color:var(--accent2);transform:scale(1.15);}
   .split-view-label .tether-btn.tethered{opacity:1;color:var(--accent2);}
+  /* Download button in the top-of-view label — matches tether-btn behavior
+     but hovers --success (green) since it triggers a file download. */
+  .split-view-label .dl-btn,#view-label .dl-btn{cursor:pointer;opacity:0.6;transition:opacity 0.15s,color 0.15s,transform 0.15s;display:inline-flex;align-items:center;}
+  .split-view-label .dl-btn:hover,#view-label .dl-btn:hover{opacity:1;color:var(--success);transform:scale(1.15);}
   /* Floating top-center indicator showing the currently-colored gene for a
      view. One element per split half; in single-view mode, the left one is
      centered over the whole canvas and the right one is hidden. Purely
@@ -174,8 +191,7 @@
   .load-badge .badge-x{position:absolute;left:2px;top:0;bottom:0;width:0;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;font-size:9px;line-height:1;border-radius:2px;opacity:0;pointer-events:none;transition:width 0.12s,opacity 0.12s;color:inherit;}
   .load-badge.cached:hover{padding-left:14px;}
   .load-badge.cached:hover .badge-x{width:10px;opacity:0.5;pointer-events:auto;}
-  .load-badge .badge-x:hover{opacity:1;color:#f87171;}
-  .light .load-badge .badge-x:hover{opacity:1;color:#ef4444;}
+  .load-badge .badge-x:hover{opacity:1;color:var(--danger);}
   /* ── Light-mode button color overrides: darken pastel colors for white bg ── */
   /* Yellow (#fbbf24) → darker amber */
   #lineage-btn-flat:hover,#lineage-btn-tree:hover{opacity:1!important;}
@@ -202,8 +218,9 @@
   .light #upload-stop-btn{color:#dc2626!important;border-color:#dc2626!important;}
   .light #deg-run-btn.deg-stop{color:#dc2626!important;border-color:#dc2626!important;background:rgba(220,38,38,0.12)!important;}
   .light #confirm-ok{color:#dc2626!important;background:rgba(220,38,38,0.1)!important;}
-  .light .sg-del:hover{color:#dc2626!important;}
-  .light .deg-close:hover{color:#dc2626!important;}
+  /* Destructive/close/download hover colors now driven by the --danger /
+     --success CSS vars (defined in :root with light-mode overrides above),
+     so per-component light overrides aren't needed anymore. */
   .browse-entry{display:flex;align-items:center;gap:6px;padding:4px 8px;cursor:pointer;font-size:10px;color:var(--text2);border-bottom:1px solid var(--border);}
   .browse-entry:last-child{border-bottom:none;}
   .browse-entry:hover{background:var(--bg3);}
@@ -281,10 +298,12 @@
   .sg-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;font:inherit;padding:0;min-width:0;cursor:pointer;}
   .sg-rename{flex:1;min-width:0;background:none;border:none;border-bottom:1px solid var(--text3);color:var(--text);font:inherit;padding:0;outline:none;}
   .sg-count{font-size:9px;color:var(--text4);flex-shrink:0;}
-  .sg-del{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;}
-  .sg-del:hover{color:#f87171;}
-  .sg-save{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;margin-right:8px;}
-  .sg-save:hover{color:#6366f1;}
+  .sg-del{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
+  .sg-item:hover .sg-del{opacity:1;}
+  .sg-del:hover{color:var(--danger);}
+  .sg-save{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;margin-right:8px;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
+  .sg-item:hover .sg-save{opacity:1;}
+  .sg-save:hover,.icon-btn.sg-save:hover{color:var(--success);}
   /* Split view panel rows — mirrors sg-item styling */
   .sv-item{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:4px;cursor:pointer;font-size:10px;color:var(--text2);transition:all 0.1s;user-select:none;margin-bottom:1px;}
   .sv-item:hover{background:var(--bg-hover);}
@@ -292,19 +311,22 @@
   .sv-num{font-size:9px;font-weight:700;flex-shrink:0;width:10px;text-align:center;opacity:0.7;font-variant-numeric:tabular-nums;color:var(--text4);}
   .sv-item.active .sv-num{color:var(--accent2);}
   .sv-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .sv-del{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;opacity:0;transition:opacity 0.1s;}
+  .sv-del{background:none;border:none;color:var(--text4);cursor:pointer;font-size:11px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;opacity:0;transition:opacity 0.1s,color 0.1s;}
   .sv-item:hover .sv-del{opacity:1;}
-  .sv-del:hover{color:#f87171!important;}
-  .sv-tether{background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.5;transition:opacity 0.1s,color 0.1s;display:inline-flex;align-items:center;justify-content:center;}
-  .sv-item:hover .sv-tether{opacity:0.9;}
+  .sv-del:hover{color:var(--danger)!important;}
+  .sv-tether{background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.7;transition:opacity 0.1s,color 0.1s;display:inline-flex;align-items:center;justify-content:center;}
+  .sv-item:hover .sv-tether{opacity:1;}
   .sv-tether:hover{color:var(--accent2)!important;opacity:1!important;}
   .sv-tether.tethered{color:var(--accent2);opacity:0.9;}
+  .sv-export{background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.7;transition:opacity 0.1s,color 0.1s;display:inline-flex;align-items:center;justify-content:center;}
+  .sv-item:hover .sv-export{opacity:1;}
+  .sv-export:hover{color:var(--success)!important;opacity:1!important;}
   /* sg-add-btn removed — replaced by + button in header */
   .sg-toolbar{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap;}
   .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:9px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;}
   .sg-toolbar button:hover{background:var(--bg-hover);border-color:var(--border2);color:var(--text2);}
-  .sg-toolbar button.deg-run{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981;font-weight:600;}
-  .sg-toolbar button.deg-run:hover{background:rgba(16,185,129,0.28);border-color:#059669;color:#059669;}
+  .sg-toolbar button.deg-run{background:rgba(16,185,129,0.15);border-color:var(--success);color:var(--success);font-weight:600;}
+  .sg-toolbar button.deg-run:hover{background:rgba(16,185,129,0.28);border-color:var(--success);color:var(--success);filter:brightness(0.92);}
   .sg-toolbar button.deg-run:disabled{opacity:0.25;cursor:default;pointer-events:none;}
   /* DEG panel */
   #deg-panel{display:none;background:var(--bg2);flex-shrink:0;flex-direction:column;height:280px;}
@@ -396,7 +418,7 @@
   .help-table td:first-child{white-space:nowrap;color:var(--text);font-weight:600;min-width:120px;}
   .help-key{display:inline-block;padding:1px 5px;border-radius:3px;background:var(--bg3);border:1px solid var(--border);font-size:9px;font-weight:600;color:var(--text2);font-family:inherit;}
   .deg-close{background:none!important;border:none!important;color:var(--text4)!important;font-size:14px;cursor:pointer;padding:0 4px!important;line-height:1;}
-  .deg-close:hover{color:#f87171!important;}
+  .deg-close:hover{color:var(--danger)!important;}
   /* Universal hover for small text/icon buttons without a class-specific rule */
   #upload-stop-btn:hover{background:rgba(248,113,113,0.12)!important;}
   #slice-reset-btn:hover{color:var(--text2)!important;}
@@ -407,9 +429,27 @@
   #deg-mode-sc:hover,#deg-mode-pb:hover{opacity:0.8;}
   #pb-run-btn:hover{background:rgba(99,102,241,0.35)!important;}
   #prompt-overlay button:hover{opacity:0.8;}
+  /* Export modal rows — radio/checkbox rows with muted description text */
+  #export-overlay .ex-fmt{display:flex;align-items:baseline;gap:8px;font-size:10px;color:var(--text2);cursor:pointer;padding:6px 8px;border:1px solid var(--border);border-radius:5px;background:var(--bg3);transition:border-color 0.1s;}
+  #export-overlay .ex-fmt:hover{border-color:var(--border2);}
+  #export-overlay .ex-fmt input[type=radio]{margin:0 2px 0 0;}
+  #export-overlay .ex-fmt .ex-fmt-name{font-weight:700;color:var(--text);min-width:32px;}
+  #export-overlay .ex-fmt .ex-fmt-desc{color:var(--text4);font-size:9px;}
+  #export-overlay .ex-fmt.disabled{opacity:0.35;cursor:not-allowed;}
+  #export-overlay .export-opts-box{border:1px solid var(--border);border-radius:5px;background:var(--bg3);padding:8px 10px;display:flex;flex-direction:column;gap:4px;}
+  #export-overlay .ex-opt{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);cursor:pointer;}
+  #export-overlay .ex-opt input{margin:0;}
+  #export-overlay button:hover{opacity:0.88;}
   /* Save icons */
-  .icon-btn{background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text4);line-height:1;font-size:10px;display:inline-flex;align-items:center;}
-  .icon-btn:hover{color:var(--text2);}
+  /* Baseline icon-button: 70% opacity at rest, full on hover; color bumps to
+     --text2 (neutral) unless a semantic modifier class is added:
+       .icon-btn.download → hover turns --success (green)
+       .icon-btn.danger   → hover turns --danger  (red)  */
+  .icon-btn{background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text4);line-height:1;font-size:10px;display:inline-flex;align-items:center;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
+  .icon-btn:hover{color:var(--text2);opacity:1;}
+  .icon-btn.download:hover{color:var(--success);}
+  .icon-btn.danger:hover{color:var(--danger);}
+  .icon-btn:disabled,.icon-btn[disabled]{opacity:0.3!important;cursor:default;pointer-events:none;}
   .icon-btn svg{width:12px;height:12px;fill:currentColor;}
   /* Settings */
   #settings-btn{position:absolute;bottom:12px;right:12px;z-index:50;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer;color:var(--text4);line-height:1;display:flex;align-items:center;justify-content:center;}
@@ -503,7 +543,7 @@
     <div class="col-hdr" onclick="toggleSec('data')">
       <span class="lbl" style="margin-bottom:0;">Data</span>
       <div style="display:flex;align-items:center;gap:6px;margin-left:auto;margin-right:8px;" onclick="event.stopPropagation()">
-        <button class="icon-btn" id="unload-btn" onclick="unloadDataset()" title="Unload dataset and free memory" style="display:none;color:#f87171;opacity:0.5;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.5'"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;"><line x1="12" y1="3" x2="12" y2="12"/><path d="M6.3 7.7A8 8 0 1 0 17.7 7.7" fill="none"/></svg></button>
+        <button class="icon-btn danger" id="unload-btn" onclick="unloadDataset()" title="Unload dataset and free memory" style="display:none;"><svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;"><line x1="12" y1="3" x2="12" y2="12"/><path d="M6.3 7.7A8 8 0 1 0 17.7 7.7" fill="none"/></svg></button>
         <button class="icon-btn" id="browse-btn" onclick="openBrowser()" title="Browse server files"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
         <button class="icon-btn" id="upload-btn" onclick="showUploadPopover()" title="Upload h5ad dataset (or drag &amp; drop)"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 0l-8 8h5v7h6V8h5l-8-8z" fill="currentColor"/><path d="M4 19v2h16v-2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <input type="file" id="h5ad-upload" accept=".h5ad" style="display:none;" onchange="onFileSelected(this)">
@@ -631,7 +671,7 @@
         <button class="icon-btn" onclick="saveSessionAs()" title="Save session as...">
           <svg viewBox="0 0 24 24" width="12" height="12" style="fill:currentColor;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
         </button>
-        <button class="icon-btn" id="session-delete-btn" onclick="deleteSession()" title="Delete this session" style="display:none;">
+        <button class="icon-btn danger" id="session-delete-btn" onclick="deleteSession()" title="Delete this session" style="display:none;">
           <svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         </button>
         <button class="icon-btn" onclick="resetSession()" title="Reset to fresh session">
@@ -816,7 +856,7 @@
         <span id="slice-total-count" style="color:var(--text4);"></span>
         <span style="flex:1;"></span>
         <label class="se-wrap" title="Show/hide empty values (0 cells) in all categories"><span class="se-label">Show<br>Empty</span><span class="se-switch"><input type="checkbox" id="slice-empty-global" onchange="toggleAllEmptySlices()"><span class="se-track"></span></span></label>
-        <button id="slice-save-btn" onclick="exportSlice()" class="icon-btn" style="color:var(--text4);padding:1px 3px;" title="Save all cells in current slice as h5ad subset"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:currentColor;vertical-align:-2px;"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
+        <button id="slice-save-btn" onclick="exportSlice()" class="icon-btn download" style="padding:1px 3px;" title="Download all cells in current slice as h5ad subset"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
       </div>
     </div>
   </div>
@@ -863,13 +903,14 @@
   <div id="compare-label" style="display:none;position:absolute;top:8px;left:8px;z-index:3;font-size:10px;color:var(--accent2);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:none;"></div>
   <div id="view-label" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;font-size:10px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);align-items:center;gap:6px;">
     <span id="view-label-name" style="cursor:pointer;" onclick="_viewRename()" title="Click to rename this view split"></span>
+    <span class="dl-btn" onclick="if(_activeViewId)_exportOpen(_activeViewId)" title="Download points shown in this view (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
     <span id="view-label-tether" class="tether-btn" onclick="_toggleTetherById(_activeViewId)" title="Toggle camera tether"></span>
   </div>
   <div id="split-divider"></div>
   <div id="split-focus-L" class="split-focus-box"></div>
   <div id="split-focus-R" class="split-focus-box"></div>
-  <div id="split-label-L" class="split-view-label" style="left:8px;"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
-  <div id="split-label-R" class="split-view-label" style="left:calc(50% + 8px);"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
+  <div id="split-label-L" class="split-view-label" style="left:8px;"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0])_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
+  <div id="split-label-R" class="split-view-label" style="left:calc(50% + 8px);"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1])_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
   <div id="gene-indicator-L" class="gene-indicator" title="Gene being visualized"></div>
   <div id="gene-indicator-R" class="gene-indicator" title="Gene being visualized"></div>
   <canvas id="c"></canvas>
@@ -949,6 +990,10 @@
     <div class="s-row">
       <span>Auto-unload on disconnect</span>
       <label class="s-toggle"><input type="checkbox" id="set-auto-unload" onchange="_setAutoUnload(this.checked)"><span class="s-slider"></span></label>
+    </div>
+    <div class="s-row" title="When on, Delete/Backspace hides whichever arbitrary cells are in the active selection group — distinct from cluster, slice, and group-visibility filters, which hide principled subsets. Arbitrary hiding silently exiles specific cell indices and is hard to undo (restore with H / Show All).">
+      <span>Allow arbitrary cell hiding (Delete key)</span>
+      <label class="s-toggle"><input type="checkbox" id="set-allow-cell-delete" onchange="_setAllowCellDelete(this.checked)"><span class="s-slider"></span></label>
     </div>
     <div class="s-row">
       <span>Cache location</span>
@@ -1033,7 +1078,7 @@
     <button onclick="toggleDEG()" id="deg-run-btn">Run</button>
     <span id="deg-status"></span>
     <select id="deg-history" onchange="loadDEGFromHistory()" title="Previously computed DEG analyses" style="display:none;margin-left:4px;color:var(--text3);max-width:140px;"></select>
-    <button id="deg-clear-history" onclick="clearDEGHistory()" class="icon-btn" style="display:none;color:var(--text4);padding:1px 2px;margin-left:1px;" title="Clear DEG history">
+    <button id="deg-clear-history" onclick="clearDEGHistory()" class="icon-btn danger" style="display:none;padding:1px 2px;margin-left:1px;" title="Clear DEG history">
       <svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
     </button>
     <div style="flex:1;"></div>
@@ -1041,7 +1086,7 @@
       <option value="padj">-log₁₀ padj</option>
       <option value="cohens_d">|Cohen's d|</option>
     </select>
-    <button class="icon-btn" onclick="downloadDEG()" title="Download DEG table (TSV)"><svg viewBox="0 0 24 24" width="12" height="12"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
+    <button class="icon-btn download" onclick="downloadDEG()" title="Download DEG table (TSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
     <button class="deg-close" onclick="closeDEG()" title="Close">&times;</button>
   </div>
   <div id="pb-controls" style="display:none;padding:4px 12px;border-bottom:1px solid var(--border);font-size:9px;color:var(--text3);">
@@ -1213,7 +1258,7 @@
           <tr><td>Clear visible cells</td><td><span class="help-key">Esc</span></td></tr>
           <tr><td>Clear ALL cells (all groups)</td><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td></tr>
           <tr><td>Rename</td><td>Double-click the name</td></tr>
-          <tr><td>Export subset</td><td>Click the save icon (downloads .h5ad)</td></tr>
+          <tr><td>Export subset</td><td>Click the download icon (downloads .h5ad)</td></tr>
         </table>
         <p>Cells are assigned to the <em>active</em> group (highlighted row). Groups are non-overlapping: adding a cell to one group removes it from any other.</p>
         <p><strong>Highlight modes</strong> (Settings): <em>Ring</em> (default) draws a colored ring around selected cells, preserving the underlying cluster/expression color — ideal for seeing how selected cells relate to expression patterns. <em>Fill</em> replaces the cell color entirely with the group color. In both modes, non-selected cells can be faded using the <strong>Unselected Brightness</strong> slider in the View panel — slide left to dim unselected cells, right for full brightness. Selected cells are never dimmed.</p>
@@ -1263,7 +1308,7 @@
         </table>
         <p>Empty values (cells with no entry for a column) are hidden by default. Click the <strong>N empty</strong> toggle (per column) or the global <strong>empty</strong> toggle in the footer to reveal them — the label highlights when empty values are visible. Counts next to each column header show non-empty active / total values.</p>
         <p>Cells that fall outside the current filter are exiled from the visualization — they are not just faded, they are removed entirely. All downstream tools (selection, DEG analysis, cell type visibility) respect the active slice.</p>
-        <p><strong>Save slice:</strong> Click the save button to export all cells matching the current filter as an .h5ad file.</p>
+        <p><strong>Download slice:</strong> Click the download button to export all cells matching the current filter as an .h5ad file.</p>
         <p>Session auto-save captures the current slice state, so your filter persists across browser sessions.</p>
       </div>
     </div>
@@ -1633,7 +1678,7 @@
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+<span class="help-key">1</span>–<span class="help-key">9</span></td><td>Toggle group visibility</td></tr>
           <tr><td><span class="help-key">Shift</span>+<span class="help-key">H</span></td><td>Hide/restore all group highlights</td></tr>
           <tr><td><span class="help-key">Shift</span>+<span class="help-key">V</span></td><td>Select all visible cells into active group</td></tr>
-          <tr><td><span class="help-key">Delete</span></td><td>Hide individual selected cells in active group</td></tr>
+          <tr><td><span class="help-key">Delete</span></td><td>Arbitrarily hide individual selected cells in active group <em style="color:var(--text4);">(off by default &mdash; enable in Settings: "Allow arbitrary cell hiding")</em></td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">Delete</span></td><td>Hide entire clusters containing selected cells</td></tr>
           <tr><td><span class="help-key">Esc</span></td><td>Clear visible cells in active group / close dialogs</td></tr>
           <tr><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Esc</span></td><td>Clear ALL cells in ALL groups</td></tr>
@@ -1763,6 +1808,40 @@
     </div>
   </div>
 </div>
+<div id="export-overlay" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.45);justify-content:center;align-items:center;" onclick="if(event.target===this)_exportClose()">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 22px;max-width:440px;width:92vw;box-shadow:0 16px 48px rgba(0,0,0,0.4);">
+    <div style="font-size:12px;color:var(--text);font-weight:600;margin-bottom:2px;">Export points</div>
+    <div id="export-subtitle" style="font-size:10px;color:var(--text4);margin-bottom:14px;"></div>
+    <div style="font-size:9px;color:var(--text4);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Format</div>
+    <div id="export-formats" style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+      <label class="ex-fmt"><input type="radio" name="export-fmt" value="svg" checked onchange="_exportShowOpts()"><span class="ex-fmt-name">SVG</span><span class="ex-fmt-desc">current view as vector (Illustrator/Inkscape/Figma)</span></label>
+      <label class="ex-fmt" id="ex-fmt-ply"><input type="radio" name="export-fmt" value="ply" onchange="_exportShowOpts()"><span class="ex-fmt-name">PLY</span><span class="ex-fmt-desc">3D point cloud (Blender/MeshLab/ParaView)</span></label>
+      <label class="ex-fmt"><input type="radio" name="export-fmt" value="csv" onchange="_exportShowOpts()"><span class="ex-fmt-name">CSV</span><span class="ex-fmt-desc">coordinates + metadata (ggplot/matplotlib)</span></label>
+    </div>
+    <div id="export-opts-svg" class="export-opts-box">
+      <label class="ex-opt"><input type="checkbox" id="export-svg-rings" checked onchange="_exportUpdateEstimate()">Include selection-group highlight rings</label>
+      <label class="ex-opt"><input type="checkbox" id="export-svg-ghost" onchange="_exportUpdateEstimate()">Include ghosted (near-zero expression) cells</label>
+      <label class="ex-opt"><input type="checkbox" id="export-svg-bg" checked>Include background rectangle</label>
+    </div>
+    <div id="export-opts-ply" class="export-opts-box" style="display:none;">
+      <label class="ex-opt"><input type="radio" name="ply-enc" value="binary" checked onchange="_exportUpdateEstimate()">Binary (smaller file)</label>
+      <label class="ex-opt"><input type="radio" name="ply-enc" value="ascii" onchange="_exportUpdateEstimate()">ASCII (human-readable)</label>
+    </div>
+    <div id="export-opts-csv" class="export-opts-box" style="display:none;">
+      <label class="ex-opt"><input type="checkbox" id="export-csv-coords" checked onchange="_exportUpdateEstimate()">Coordinates</label>
+      <label class="ex-opt"><input type="checkbox" id="export-csv-cluster" checked onchange="_exportUpdateEstimate()">Cluster ID + name</label>
+      <label class="ex-opt"><input type="checkbox" id="export-csv-color" checked onchange="_exportUpdateEstimate()">RGB color (as rendered)</label>
+      <label class="ex-opt"><input type="checkbox" id="export-csv-gene" onchange="_exportUpdateEstimate()">Gene expression (when active)</label>
+      <label class="ex-opt"><input type="checkbox" id="export-csv-size" onchange="_exportUpdateEstimate()">Point size (pixels, rendered)</label>
+      <label class="ex-opt"><input type="checkbox" id="export-csv-group" onchange="_exportUpdateEstimate()">Selection group ID</label>
+    </div>
+    <div id="export-estimate" style="font-size:9px;color:var(--text4);margin:12px 0 6px 0;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+      <button onclick="_exportClose()" style="border-radius:5px;font-size:10px;font-family:inherit;padding:6px 16px;cursor:pointer;font-weight:600;border:none;background:var(--bg3);color:var(--text3);">Cancel</button>
+      <button id="export-go-btn" onclick="_exportRun()" style="border-radius:5px;font-size:10px;font-family:inherit;padding:6px 16px;cursor:pointer;font-weight:700;border:none;background:#10b981;color:#fff;">Export</button>
+    </div>
+  </div>
+</div>
 <div id="confirm-overlay" onclick="if(event.target===this)_confirmResolve(false)">
   <div id="confirm-panel">
     <div id="confirm-msg"></div>
@@ -1806,7 +1885,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.19";
+var FLEEK_VERSION="v0.3.20";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2813,7 +2892,7 @@ function renderSelPanel(){
       +'<div class="sg-dot" style="'+dotStyle+'" onclick="event.stopPropagation();toggleGroupVis('+g.id+',event)" title="Click: '+(vis?"hide":"show")+' · '+_ALT+'-click: solo · '+_ALT+num+': toggle"></div>'
       +'<span class="sg-name" style="color:'+textColor+'" ondblclick="startRenameGroup('+g.id+',event)">'+g.name.replace(/\x3c/g,"&lt;")+'</span>'
       +'<span class="sg-count">'+countHtml+'</span>'
-      +'<button class="icon-btn sg-save" onclick="event.stopPropagation();exportGroup('+g.id+')" title="Save cells in selection group as h5ad subset"><svg viewBox="0 0 24 24"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/><\/svg><\/button>'
+      +'<button class="icon-btn sg-save" onclick="event.stopPropagation();exportGroup('+g.id+')" title="Download cells in selection group as h5ad subset"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><\/svg><\/button>'
       +'<button class="sg-del" onclick="event.stopPropagation();removeSelGroup('+g.id+')" title="Delete group">&times;<\/button>'
       +'</div>';
   }).join("");
@@ -3278,6 +3357,13 @@ function recolor(){
        into globals before calling _recolorView (which reads globals) ── */
   if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
     _hoverIdx=-1;_hoverPrevColor=null;
+    /* Defensive: the split recolor path cycles globals through each view's
+       snapshot. If cellGroupMap got out of sync with selGroups (e.g. after a
+       group delete, or a bulk selection change while switching splits), the
+       per-view ring-visibility check silently fails and highlights disappear
+       without dropping the dim. Rebuild from the authoritative selGroups so
+       hasAnyVisible always matches reality. */
+    if(cellGroupMap&&typeof rebuildCellGroupMap==="function")rebuildCellGroupMap();
     _viewSaveCurrent(); /* save active's latest state */
     for(var _svi=0;_svi<2;_svi++){
       var _svSnap=_splitViewById(_splitViewIds[_svi]);
@@ -4258,9 +4344,12 @@ function setupCtrl(){
       _toggleShowAll();
       _flashAction(_hadSaved?"Restore Hidden":"Show All","H");
     }
-    /* Delete/Backspace = hide individual selected cells */
+    /* Delete/Backspace = hide individual selected cells (opt-in setting) */
     if((e.key==="Delete"||e.key==="Backspace")&&!e[_MOD_KEY]&&!e.altKey){
-      _deleteSelectedCells();
+      if(_allowCellDelete){_deleteSelectedCells();}
+      else if(selGroups.length>0&&getActiveGroup()&&getActiveGroup().cells.size>0){
+        _flashAction("Arbitrary cell hiding is off \u2014 enable in Settings","Del");
+      }
     }
     /* Cmd/Ctrl+Delete = hide entire clusters of selected cells */
     if((e.key==="Delete"||e.key==="Backspace")&&e[_MOD_KEY]&&!e.altKey){
@@ -6419,6 +6508,13 @@ function soloCluster(i){
 }
 var _preShowAllVis=null;
 var _deletedCells=null; /* Set of individually hidden cell indices, or null */
+var _allowCellDelete=false; /* Delete-key cell hiding is off by default (footgun: cells exile silently, hard to undo) — opt-in via Settings. */
+function _setAllowCellDelete(v){
+  _allowCellDelete=!!v;
+  var cb=document.getElementById("set-allow-cell-delete");
+  if(cb&&cb.checked!==_allowCellDelete)cb.checked=_allowCellDelete;
+  saveSettings();
+}
 var _visStats=null; /* {clusterVis:Int32Array, sliceVis:{col:Int32Array}} */
 var _visStatsTimer=null;
 var _sliceTotals=null; /* pre-computed per-slice-value totals, rebuilt on dataset load */
@@ -7383,7 +7479,7 @@ function unloadDataset(){
     markerAnnotations=null;llmAnnotations=null;lineageTree=null;lineageView=false;_lineageCollapsed={};window.CLUSTER_NAMES_LC=null;
     /* Dispose live split views before removing globals */
     if(_splitActive){_splitViewDeactivate();}
-    for(var _dvi=1;_dvi<_liveViews.length;_dvi++){_disposeLiveView(_liveViews[_dvi]);}
+    for(var _dvi=0;_dvi<_liveViews.length;_dvi++){_disposeLiveView(_liveViews[_dvi]);}
     _liveViews=[];_splitActive=false;
     var cw=document.getElementById("cw");if(cw)cw.classList.remove("split-active");
     /* Remove Three.js objects */
@@ -8044,8 +8140,14 @@ function _createLiveView(idx,name){
   };
 }
 function _disposeLiveView(v){
-  /* Dispose GPU resources for a secondary live view (never view 0 — those are the globals) */
-  if(v.id===0)return;
+  /* Dispose GPU resources for a live view. All live views — including view 0
+     — hold CLONED pts/ringPts/haloPts (see _createLiveView), not the globals.
+     Previously this function skipped id===0 based on a stale assumption,
+     which leaked cloned ring/halo objects into the scene across every split
+     activate/deactivate cycle. Orphaned vRing objects could later render
+     with stale visibility flags on top of real buffers, masking the real
+     rings. */
+  if(!v)return;
   if(v.pts){scene.remove(v.pts);v.pts.geometry.dispose();v.pts.material.dispose();}
   if(v.ringPts){scene.remove(v.ringPts);v.ringPts.geometry.dispose();v.ringPts.material.dispose();}
   if(v.haloPts){scene.remove(v.haloPts);v.haloPts.material.dispose();}
@@ -8318,8 +8420,11 @@ function _splitViewDeactivate(){
   _splitViewIds=[];
   /* Hide right HUD */
   var _hudR=document.getElementById("hud-R");if(_hudR)_hudR.style.display="none";
-  /* Dispose secondary view's GPU resources */
-  if(_liveViews.length>1)_disposeLiveView(_liveViews[1]);
+  /* Dispose BOTH live views' GPU resources — both halves hold clones, not
+     globals. Leaving view 0 behind (as the pre-fix code did) leaked cloned
+     pts/ringPts/haloPts across activate/deactivate cycles and could mask
+     real highlight rings on later split sessions. */
+  for(var _dvi=_liveViews.length-1;_dvi>=0;_dvi--)_disposeLiveView(_liveViews[_dvi]);
   _liveViews=[];
   /* Remove split class */
   var cw=document.getElementById("cw");
@@ -8791,9 +8896,12 @@ function _viewUpdateUI(){
         ?'<svg viewBox="0 0 24 24" width="11" height="11" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-1px;"><path d="M13.54 10.46C11.84 8.75 9.07 8.75 7.37 10.46L4.28 13.54C2.57 15.25 2.57 18.02 4.28 19.72C5.98 21.43 8.75 21.43 10.46 19.72L12 18.18"/><path d="M10.46 13.54C12.16 15.25 14.93 15.25 16.63 13.54L19.72 10.46C21.43 8.75 21.43 5.98 19.72 4.28C18.02 2.57 15.25 2.57 13.54 4.28L12 5.82"/><\/svg>'
         :'<svg viewBox="0 0 512 512" width="11" height="11" style="fill:currentColor;vertical-align:-1px;"><path d="M212.3 390.2l-60.3 60.3c-25 25-65.5 25-90.5 0-25-25-25-65.5 0-90.5l120.7-120.7c25-25 65.5-25 90.5 0 8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2-41.7-41.7-109.2-41.7-150.8 0L31.3 329.9c-41.7 41.7-41.7 109.2 0 150.8 41.6 41.7 109.2 41.7 150.9 0l60.3-60.3c8.3-8.3 8.3-21.8 0-30.2s-21.8-8.3-30.2 0z"/><path d="M480.8 182.1c41.7-41.7 41.7-109.2 0-150.8-41.7-41.7-109.2-41.7-150.8 0l-72.4 72.4c-8.3 8.3-8.3 21.8 0 30.2s21.8 8.3 30.2 0l72.4-72.4c25-25 65.5-25 90.5 0s25 65.5 0 90.5L317.9 284.6c-25 25-65.5 25-90.5 0-8.3-8.3-21.8-8.3-30.2 0s-8.3 21.8 0 30.2c41.7 41.7 109.2 41.7 150.8 0L480.8 182.1z"/><path d="M399.1 368.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64c8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2l-64-64z"/><path d="M112.9 143.1c8.3 8.3 21.8 8.3 30.2 0s8.3-21.8 0-30.2L79.1 48.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64z"/><path d="M490.7 320h-64c-11.8 0-21.3 9.6-21.3 21.3s9.6 21.3 21.3 21.3h64c11.8 0 21.3-9.6 21.3-21.3S502.5 320 490.7 320z"/><path d="M170.7 106.7c11.8 0 21.3-9.6 21.3-21.3v-64C192 9.6 182.5 0 170.7 0s-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3z"/><path d="M21.3 192h64c11.8 0 21.3-9.6 21.3-21.3 0-11.8-9.6-21.3-21.3-21.3h-64C9.6 149.3 0 158.9 0 170.7 0 182.4 9.6 192 21.3 192z"/><path d="M341.3 405.3c-11.8 0-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3s21.3-9.6 21.3-21.3v-64c0-11.8-9.5-21.3-21.3-21.3z"/><\/svg>';
       var tetherBtn='<button class="sv-tether'+(isTethered?" tethered":"")+'" onclick="event.stopPropagation();_toggleTetherById('+v.id+')" title="'+tetherTitle+'">'+tetherIcon+'<\/button>';
+      var exportIcon='<svg viewBox="0 0 24 24" width="11" height="11" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-1px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><\/svg>';
+      var exportBtn='<button class="sv-export" onclick="event.stopPropagation();_exportOpen('+v.id+')" title="Export this split\u2019s currently-shown points (SVG / PLY / CSV)">'+exportIcon+'<\/button>';
       html+='<div class="sv-item'+(isActive?" active":"")+'" onclick="_viewSwitch('+v.id+')" title="'+tip.replace(/"/g,"&quot;")+'">'
         +'<span class="sv-num">'+num+'<\/span>'
         +'<span class="sv-name">'+v.name.replace(/</g,"&lt;")+splitBadge+'<\/span>'
+        +exportBtn
         +tetherBtn
         +(_views.length>1?'<button class="sv-del" onclick="event.stopPropagation();_viewDeleteById('+v.id+')" title="Delete split">&times;<\/button>':"")
         +'<\/div>';
@@ -8827,6 +8935,429 @@ function _viewUpdateUI(){
     }else{label.style.display="none";}
   }
 }
+/* ── Export points (SVG / PLY / CSV) ──────────────────────────────────────
+   Per-split exporter triggered from the disk icon on each Split Views row.
+   Reads the snapshot's slice/visibility/cluster filters so "currently shown"
+   is well-defined for any split — including ones not currently rendered.
+   Uses each snapshot's saved camera (or live camera if it's currently in a
+   split half) so the SVG matches what the user sees in that view. */
+var _exportViewId=null;
+
+function _exportGetCamera(snap){
+  if(!snap)return _snapCameraFromGlobals();
+  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+    var hIdx=_splitViewIds.indexOf(snap.id);
+    if(hIdx>=0)return _snapCameraFromLive(_liveViews[hIdx]);
+  }
+  if(snap.id===_activeViewId)return _snapCameraFromGlobals();
+  return snap.camera||_snapCameraFromGlobals();
+}
+
+function _exportOpen(viewId){
+  var snap=_splitViewById(viewId);
+  if(!snap||!D)return;
+  _exportViewId=viewId;
+  var sub=document.getElementById("export-subtitle");
+  if(sub)sub.textContent=snap.name+" \u00b7 "+(viewIs3d?"3D":"2D")+" view";
+  /* PLY makes no sense in 2D — disable the radio (and force selection back to SVG). */
+  var plyOpt=document.getElementById("ex-fmt-ply");
+  var plyInput=plyOpt?plyOpt.querySelector("input"):null;
+  if(plyOpt&&plyInput){
+    if(viewIs3d){
+      plyOpt.classList.remove("disabled");
+      plyInput.disabled=false;
+      plyOpt.title="";
+    }else{
+      plyOpt.classList.add("disabled");
+      plyInput.disabled=true;
+      if(plyInput.checked){var sR=document.querySelector('input[name=export-fmt][value=svg]');if(sR)sR.checked=true;}
+      plyOpt.title="PLY needs 3D coordinates. Switch to 3D view first.";
+    }
+  }
+  _exportShowOpts();
+  _exportUpdateEstimate();
+  document.getElementById("export-overlay").style.display="flex";
+}
+
+function _exportClose(){
+  document.getElementById("export-overlay").style.display="none";
+  _exportViewId=null;
+}
+
+function _exportFmt(){
+  var r=document.querySelector('input[name=export-fmt]:checked');
+  return r?r.value:"svg";
+}
+
+function _exportShowOpts(){
+  var fmt=_exportFmt();
+  var boxes={svg:"export-opts-svg",ply:"export-opts-ply",csv:"export-opts-csv"};
+  for(var k in boxes){var el=document.getElementById(boxes[k]);if(el)el.style.display=k===fmt?"flex":"none";}
+  _exportUpdateEstimate();
+}
+
+function _exportFmtBytes(b){
+  if(b<1024)return b+" B";
+  if(b<1024*1024)return (b/1024).toFixed(1)+" KB";
+  return (b/(1024*1024)).toFixed(1)+" MB";
+}
+
+/* Quick visibility-only count for the size estimate (no per-cell color/size). */
+function _exportCountVisible(snap, includeGhost){
+  if(!D)return 0;
+  var sliceM=_buildSliceMask(snap.sliceFilter||{});
+  var visClus=snap.visibleClusters||{};
+  var delSet=snap.deletedCells?new Set(snap.deletedCells):null;
+  var snapMode=snap.mode||mode;
+  var snapGene=snap.selGene||"";
+  var ex=(snapMode==="gene"&&snapGene&&geneExprCache[snapGene])?geneExprCache[snapGene]:null;
+  var n=D.header.n_cells, c=0;
+  for(var i=0;i<n;i++){
+    var cid=D.cluster_ids[i];
+    if(visClus[cid]===false)continue;
+    if(sliceM&&!sliceM[i])continue;
+    if(delSet&&delSet.has(i))continue;
+    if(ex&&!includeGhost&&ex[i]<0.01)continue;
+    c++;
+  }
+  return c;
+}
+
+function _exportUpdateEstimate(){
+  var est=document.getElementById("export-estimate");
+  if(!est||!D||_exportViewId===null)return;
+  var snap=_splitViewById(_exportViewId);
+  if(!snap){est.textContent="";return;}
+  var fmt=_exportFmt();
+  var ghostEl=document.getElementById("export-svg-ghost");
+  var includeGhost=fmt==="svg"&&ghostEl&&ghostEl.checked;
+  var count=_exportCountVisible(snap, includeGhost);
+  var bytes=0;
+  if(fmt==="svg")bytes=count*70+1500;
+  else if(fmt==="ply"){var enc=document.querySelector('input[name=ply-enc]:checked');bytes=(enc&&enc.value==="ascii")?count*40+200:count*16+250;}
+  else if(fmt==="csv")bytes=count*60+100;
+  est.textContent=count.toLocaleString()+" points \u00b7 ~"+_exportFmtBytes(bytes);
+}
+
+/* Per-cell render state from a snapshot — mirrors _recolorView's logic so the
+   export reflects the visible state. Returns kept indices + parallel color/size/
+   alpha/group arrays. Selection groups are global so we read them directly. */
+function _exportComputeRenderState(snap, includeGhost){
+  var n=D.header.n_cells;
+  var sliceM=_buildSliceMask(snap.sliceFilter||{});
+  var visClus=snap.visibleClusters||{};
+  var delSet=snap.deletedCells?new Set(snap.deletedCells):null;
+  var snapMode=snap.mode||mode;
+  var snapGene=snap.selGene||"";
+  var ex=(snapMode==="gene"&&snapGene&&geneExprCache[snapGene])?geneExprCache[snapGene]:null;
+  var useGene=!!ex;
+  var isLight=document.body.classList.contains("light");
+  var bgScheme=_getBgScheme();
+  var ghostColor=bgScheme.ghostColor;
+  var ghostSize=bgScheme.ghostSize;
+  var ghostAlpha=bgScheme.ghostAlpha;
+  var _ec=isLight?function(v){
+    if(v<.01)return[1,1,1];
+    if(v<.25){var t=v/.25;return[.97-t*.19,.98-t*.12,1-.06*t];}
+    if(v<.5){var t=(v-.25)/.25;return[.78-t*.36,.86-t*.18,.94-t*.10];}
+    if(v<.75){var t=(v-.5)/.25;return[.42-t*.29,.68-t*.24,.84-t*.13];}
+    var t=(v-.75)/.25;return[.13-t*.10,.44-t*.25,.71-t*.29];
+  }:function(v){
+    if(v<.01)return[.07,.04,.11];
+    if(v<.25){var t=v/.25;return[.07+t*.20,.04+t*.27,.11+t*.33];}
+    if(v<.5){var t=(v-.25)/.25;return[.27-t*.08,.31+t*.27,.44-t*.02];}
+    if(v<.75){var t=(v-.5)/.25;return[.19+t*.42,.58+t*.17,.42-t*.18];}
+    var t=(v-.75)/.25;return[.61+t*.39,.75+t*.18,.24-t*.13];
+  };
+  var kept=[];
+  var color=new Float32Array(n*3);
+  var sizeArr=new Float32Array(n);
+  var alpha=new Float32Array(n);
+  var group=new Int8Array(n);
+  for(var i=0;i<n;i++)group[i]=cellGroupMap?cellGroupMap[i]:-1;
+  for(var i=0;i<n;i++){
+    var cid=D.cluster_ids[i];
+    if(visClus[cid]===false)continue;
+    if(sliceM&&!sliceM[i])continue;
+    if(delSet&&delSet.has(i))continue;
+    var c;var sz=1.0;var al=1.0;
+    if(useGene){
+      var v=ex[i],isZero=v<0.01;
+      if(isZero&&!includeGhost)continue;
+      c=isZero?ghostColor:_ec(v);
+      sz=showExprSize?(isZero?ghostSize:Math.max(0.38,Math.sqrt(v)*1.8)):1.0;
+      al=isZero?ghostAlpha:1.0;
+    }else{
+      c=cc(cid);
+    }
+    color[i*3]=c[0];color[i*3+1]=c[1];color[i*3+2]=c[2];
+    sizeArr[i]=sz;alpha[i]=al;
+    kept.push(i);
+  }
+  return {kept:kept,color:color,size:sizeArr,alpha:alpha,group:group,
+          mode:snapMode,gene:snapGene,hasExpr:useGene,exprValues:ex};
+}
+
+function _exportFilename(snap,ext){
+  var base="fleek";
+  if(D&&D.header&&D.header.loaded_path){
+    var fn=D.header.loaded_path.split("/").pop();
+    base=fn.replace(/\.h5ad$/i,"");
+  }
+  var nm=(snap.name||"split").replace(/[^A-Za-z0-9_-]+/g,"-");
+  var when=new Date().toISOString().replace(/[:T]/g,"-").slice(0,19);
+  return base+"."+nm+"."+when+"."+ext;
+}
+
+function _exportDownload(blob, filename){
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);a.remove();},200);
+}
+
+function _exportRun(){
+  if(_exportViewId===null)return;
+  var btn=document.getElementById("export-go-btn");
+  if(btn){btn.disabled=true;btn.textContent="Exporting\u2026";}
+  /* defer to next tick so the button label updates before the (possibly slow)
+     synchronous build runs */
+  setTimeout(function(){
+    try{
+      var fmt=_exportFmt();
+      if(fmt==="svg")_exportSVG();
+      else if(fmt==="ply")_exportPLY();
+      else if(fmt==="csv")_exportCSV();
+    }catch(e){console.error("Export failed:",e);}
+    if(btn){btn.disabled=false;btn.textContent="Export";}
+  },20);
+}
+
+function _exportSVG(){
+  var snap=_splitViewById(_exportViewId);
+  if(!snap||!D)return;
+  var includeGhost=document.getElementById("export-svg-ghost").checked;
+  var includeRings=document.getElementById("export-svg-rings").checked;
+  var includeBg=document.getElementById("export-svg-bg").checked;
+  var w=Math.max(800,Math.round(_cvRect.width||canvasW||1200));
+  var h=Math.max(600,Math.round(_cvRect.height||canvasH||800));
+  var cam=_exportGetCamera(snap);
+  var rs=_exportComputeRenderState(snap,includeGhost);
+  var bg=getBG();
+  function _hex(c){var v=Math.round(c*255);if(v<0)v=0;if(v>255)v=255;return (v<16?'0':'')+v.toString(16);}
+  var bgHex='#'+_hex(bg[0])+_hex(bg[1])+_hex(bg[2]);
+  var dpr=window.devicePixelRatio||1;
+  var dprCap=Math.min(dpr,2);
+  var worldSz=basePtSz/100*(cloudBounds.radius||50)*0.018;
+  var entries=[];
+  var v=new THREE.Vector3();
+  if(viewIs3d){
+    var aspect=w/h;
+    var pcam=new THREE.PerspectiveCamera(cam3d?cam3d.fov:60, aspect, cam3d?cam3d.near:0.1, cam3d?cam3d.far:10000);
+    var s=cam.sph;
+    pcam.position.set(
+      cam.tgt3.x+s.radius*Math.sin(s.phi)*Math.cos(s.theta),
+      cam.tgt3.y+s.radius*Math.cos(s.phi),
+      cam.tgt3.z+s.radius*Math.sin(s.phi)*Math.sin(s.theta));
+    pcam.lookAt(new THREE.Vector3(cam.tgt3.x,cam.tgt3.y,cam.tgt3.z));
+    pcam.updateMatrixWorld();pcam.updateProjectionMatrix();
+    var uVpH=h*dprCap*0.5;
+    for(var k=0;k<rs.kept.length;k++){
+      var i=rs.kept[k];
+      v.set(D._cachedPos[i*3],D._cachedPos[i*3+1],D._cachedPos[i*3+2]);
+      var vw=v.clone().applyMatrix4(pcam.matrixWorldInverse);
+      var camZ=vw.z;
+      if(camZ>=-0.0001)continue;
+      v.project(pcam);
+      if(v.x<-1.05||v.x>1.05||v.y<-1.05||v.y>1.05)continue;
+      var px=(v.x*0.5+0.5)*w;
+      var py=(-v.y*0.5+0.5)*h;
+      var glPx=worldSz*rs.size[i]*uVpH/(-camZ);
+      var rPx=glPx/dpr/2;
+      if(rPx<0.3)rPx=0.3;
+      entries.push({i:i,x:px,y:py,r:rPx,depth:camZ});
+    }
+    /* Back-to-front so nearer points draw on top (matches WebGL depth ordering). */
+    entries.sort(function(a,b){return a.depth-b.depth;});
+  }else{
+    var aspect2=w/h;
+    var z2=cam.zoom2!==undefined?cam.zoom2:zoom2;
+    var pn2=cam.pan2||pan2;
+    var px2World=h*z2/(2*frustum2);
+    var basePtPx=worldSz*px2World*0.5/dpr;
+    for(var k=0;k<rs.kept.length;k++){
+      var i=rs.kept[k];
+      var px=D._cachedPos[i*3],py=D._cachedPos[i*3+1];
+      var ndcX=(px-pn2.x)*z2/(frustum2*aspect2);
+      var ndcY=(py-pn2.y)*z2/frustum2;
+      if(ndcX<-1.05||ndcX>1.05||ndcY<-1.05||ndcY>1.05)continue;
+      var sx=(ndcX*0.5+0.5)*w;
+      var sy=(-ndcY*0.5+0.5)*h;
+      var rPx=basePtPx*rs.size[i];
+      if(rPx<0.3)rPx=0.3;
+      entries.push({i:i,x:sx,y:sy,r:rPx});
+    }
+  }
+  /* Build SVG. Use buffered string concatenation; small numeric formatting to
+     keep file size reasonable. */
+  var parts=[];
+  parts.push('<?xml version="1.0" encoding="UTF-8"?>\n');
+  parts.push('<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">\n');
+  parts.push('<title>'+(snap.name||"FLEEK export")+(rs.hasExpr?' \u00b7 '+rs.gene:'')+'<\/title>\n');
+  if(includeBg)parts.push('<rect width="'+w+'" height="'+h+'" fill="'+bgHex+'"/>\n');
+  parts.push('<g id="points">\n');
+  for(var e=0;e<entries.length;e++){
+    var en=entries[e],i=en.i;
+    var rC='#'+_hex(rs.color[i*3])+_hex(rs.color[i*3+1])+_hex(rs.color[i*3+2]);
+    var op=rs.alpha[i];
+    parts.push('<circle cx="'+en.x.toFixed(1)+'" cy="'+en.y.toFixed(1)+'" r="'+en.r.toFixed(2)+'" fill="'+rC+'"');
+    if(op<0.999)parts.push(' fill-opacity="'+op.toFixed(2)+'"');
+    parts.push('/>\n');
+  }
+  parts.push('</g>\n');
+  if(includeRings){
+    parts.push('<g id="rings" fill="none" stroke-width="1.4">\n');
+    for(var e=0;e<entries.length;e++){
+      var en=entries[e],i=en.i;
+      var sg=rs.group[i];
+      if(sg<0||!selGroups[sg]||groupVisible[selGroups[sg].id]===false)continue;
+      var sc=selGroups[sg].color;
+      var rC='#'+_hex(sc[0])+_hex(sc[1])+_hex(sc[2]);
+      var rOut=en.r*1.4+1.0;
+      parts.push('<circle cx="'+en.x.toFixed(1)+'" cy="'+en.y.toFixed(1)+'" r="'+rOut.toFixed(2)+'" stroke="'+rC+'"/>\n');
+    }
+    parts.push('</g>\n');
+  }
+  parts.push('<\/svg>\n');
+  _exportDownload(new Blob(parts,{type:"image/svg+xml"}), _exportFilename(snap,"svg"));
+  _exportClose();
+}
+
+function _exportPLY(){
+  var snap=_splitViewById(_exportViewId);
+  if(!snap||!viewIs3d||!D)return;
+  var rs=_exportComputeRenderState(snap,false);
+  var n=rs.kept.length;
+  var encEl=document.querySelector('input[name=ply-enc]:checked');
+  var ascii=encEl&&encEl.value==="ascii";
+  var header="ply\n"+(ascii?"format ascii 1.0\n":"format binary_little_endian 1.0\n");
+  header+="comment Generated by FLEEK"+(typeof FLEEK_VERSION==='string'?" "+FLEEK_VERSION:"")+"\n";
+  header+="comment Snapshot: "+(snap.name||"")+"\n";
+  if(rs.hasExpr)header+="comment Coloring: gene "+rs.gene+"\n";
+  header+="element vertex "+n+"\n";
+  header+="property float x\nproperty float y\nproperty float z\n";
+  header+="property uchar red\nproperty uchar green\nproperty uchar blue\nproperty uchar alpha\n";
+  header+="end_header\n";
+  function _u8(c){var v=Math.round(c*255);return v<0?0:(v>255?255:v);}
+  if(ascii){
+    var lines=[header];
+    for(var k=0;k<n;k++){
+      var i=rs.kept[k];
+      lines.push(D._cachedPos[i*3].toFixed(4)+" "+D._cachedPos[i*3+1].toFixed(4)+" "+D._cachedPos[i*3+2].toFixed(4)+" "+_u8(rs.color[i*3])+" "+_u8(rs.color[i*3+1])+" "+_u8(rs.color[i*3+2])+" "+_u8(rs.alpha[i]));
+    }
+    _exportDownload(new Blob([lines.join("\n")+"\n"],{type:"text/plain"}), _exportFilename(snap,"ply"));
+  }else{
+    var hdrBytes=new TextEncoder().encode(header);
+    var bodySize=n*(3*4+4);
+    var buf=new ArrayBuffer(hdrBytes.byteLength+bodySize);
+    new Uint8Array(buf).set(hdrBytes,0);
+    var dv=new DataView(buf,hdrBytes.byteLength);
+    var off=0;
+    for(var k=0;k<n;k++){
+      var i=rs.kept[k];
+      dv.setFloat32(off,D._cachedPos[i*3],true);off+=4;
+      dv.setFloat32(off,D._cachedPos[i*3+1],true);off+=4;
+      dv.setFloat32(off,D._cachedPos[i*3+2],true);off+=4;
+      dv.setUint8(off,_u8(rs.color[i*3]));off+=1;
+      dv.setUint8(off,_u8(rs.color[i*3+1]));off+=1;
+      dv.setUint8(off,_u8(rs.color[i*3+2]));off+=1;
+      dv.setUint8(off,_u8(rs.alpha[i]));off+=1;
+    }
+    _exportDownload(new Blob([buf],{type:"application/octet-stream"}), _exportFilename(snap,"ply"));
+  }
+  _exportClose();
+}
+
+function _exportCSV(){
+  var snap=_splitViewById(_exportViewId);
+  if(!snap||!D)return;
+  var rs=_exportComputeRenderState(snap,false);
+  var n=rs.kept.length;
+  var oc=document.getElementById("export-csv-coords").checked;
+  var ocl=document.getElementById("export-csv-cluster").checked;
+  var ocol=document.getElementById("export-csv-color").checked;
+  var ogene=document.getElementById("export-csv-gene").checked&&rs.hasExpr;
+  var osz=document.getElementById("export-csv-size").checked;
+  var ogp=document.getElementById("export-csv-group").checked;
+  var hdr=["index"];
+  if(oc){hdr.push("x","y");if(viewIs3d)hdr.push("z");}
+  if(ocl)hdr.push("cluster_id","cluster_name");
+  if(ocol)hdr.push("r","g","b","alpha");
+  if(ogene)hdr.push("expr_"+rs.gene);
+  if(osz)hdr.push("size_px");
+  if(ogp)hdr.push("group_id","group_name");
+  /* Approximate per-cell pixel size for the size column. Uses snapshot's camera
+     (3D: scaled by typical depth = camera radius; 2D: exact). */
+  var dpr=window.devicePixelRatio||1;
+  var w=canvasW||1, h=canvasH||1;
+  var worldSz=basePtSz/100*(cloudBounds.radius||50)*0.018;
+  var cam=_exportGetCamera(snap);
+  var sizePxFn=null;
+  if(osz){
+    if(viewIs3d){
+      var depth=(cam.sph&&cam.sph.radius)?cam.sph.radius:100;
+      var uVpH=h*Math.min(dpr,2)*0.5;
+      sizePxFn=function(asize,i){
+        var dx=D._cachedPos[i*3]-(cam.tgt3.x+cam.sph.radius*Math.sin(cam.sph.phi)*Math.cos(cam.sph.theta));
+        var dy=D._cachedPos[i*3+1]-(cam.tgt3.y+cam.sph.radius*Math.cos(cam.sph.phi));
+        var dz=D._cachedPos[i*3+2]-(cam.tgt3.z+cam.sph.radius*Math.sin(cam.sph.phi)*Math.sin(cam.sph.theta));
+        var d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        return worldSz*asize*uVpH/d/dpr;
+      };
+    }else{
+      var z2=cam.zoom2!==undefined?cam.zoom2:zoom2;
+      var basePtPx=worldSz*(h*z2/(2*frustum2))*0.5/dpr;
+      sizePxFn=function(asize){return basePtPx*asize;};
+    }
+  }
+  var cluNames=D&&D.header&&D.header.cluster_names||[];
+  function _esc(s){s=String(s);if(s.indexOf(",")>=0||s.indexOf('"')>=0||s.indexOf("\n")>=0)return '"'+s.replace(/"/g,'""')+'"';return s;}
+  var lines=[hdr.join(",")];
+  for(var k=0;k<n;k++){
+    var i=rs.kept[k];
+    var row=[i];
+    if(oc){
+      row.push(D._cachedPos[i*3].toFixed(4));
+      row.push(D._cachedPos[i*3+1].toFixed(4));
+      if(viewIs3d)row.push(D._cachedPos[i*3+2].toFixed(4));
+    }
+    if(ocl){
+      var cid=D.cluster_ids[i];
+      row.push(cid);
+      row.push(_esc(cluNames[cid]||""));
+    }
+    if(ocol){
+      row.push(Math.round(rs.color[i*3]*255));
+      row.push(Math.round(rs.color[i*3+1]*255));
+      row.push(Math.round(rs.color[i*3+2]*255));
+      row.push(rs.alpha[i].toFixed(3));
+    }
+    if(ogene)row.push(rs.exprValues[i].toFixed(4));
+    if(osz)row.push(sizePxFn(rs.size[i],i).toFixed(2));
+    if(ogp){
+      var sg=rs.group[i];
+      if(sg>=0&&selGroups[sg]){
+        row.push(selGroups[sg].id);
+        row.push(_esc(selGroups[sg].name||""));
+      }else{row.push("");row.push("");}
+    }
+    lines.push(row.join(","));
+  }
+  _exportDownload(new Blob([lines.join("\n")+"\n"],{type:"text/csv"}), _exportFilename(snap,"csv"));
+  _exportClose();
+}
+
 function _viewCompare(){
   if(_views.length<2||!renderer){console.warn("_viewCompare bail: views="+_views.length+" renderer="+(!!renderer));return;}
   if(_splitActive){
@@ -10952,7 +11483,7 @@ function saveSettings(){
   var showHistBtns=document.getElementById("set-hist-btns").checked;
   var showFlash=document.getElementById("set-flash").checked;
   applyTheme(theme);
-  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns,showFlash:showFlash,autoUnload:_autoUnload,autoUnloadTimeout:_autoUnloadTimeout}));}catch(e){}
+  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns,showFlash:showFlash,autoUnload:_autoUnload,autoUnloadTimeout:_autoUnloadTimeout,allowCellDelete:_allowCellDelete}));}catch(e){}
 }
 function applyUIScale(v){
   var s=parseFloat(v);
@@ -11010,6 +11541,11 @@ function loadSettings(){
       if(o.autoUnloadTimeout){
         _autoUnloadTimeout=o.autoUnloadTimeout;
         document.getElementById("dbg-unload-timeout").value=_autoUnloadTimeout;
+      }
+      if(o.allowCellDelete){
+        _allowCellDelete=true;
+        var _acd=document.getElementById("set-allow-cell-delete");
+        if(_acd)_acd.checked=true;
       }
     }
     document.getElementById("set-zoom-mode").value=zoomMode;
