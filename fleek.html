@@ -18,6 +18,57 @@
        overrides below swap to the darker variants that read better on white. */
     --danger:#f87171;--success:#10b981;
     --canvas-bg:#08080e;
+
+    /* ── Design tokens (FLEEK design system) ─────────────────────────────
+       Every size / spacing / radius / duration value in the app should
+       resolve to one of these tokens. New rules MUST reference these; old
+       rules can be migrated opportunistically. Adding a new ad-hoc value
+       means the app has outgrown a token — add a token, don't inline. */
+    /* Font size scale */
+    --fs-xs:9px;    /* micro labels (badge counts, hints) */
+    --fs-sm:10px;   /* default sidebar / panel body text */
+    --fs-md:11px;   /* section labels, row text */
+    --fs-lg:12px;   /* modal titles, emphatic labels */
+    --fs-xl:13px;   /* section headings */
+    /* Font weights (5 allowed) */
+    --fw-regular:400;
+    --fw-medium:500;
+    --fw-semibold:600;
+    --fw-bold:700;
+    /* Line heights */
+    --lh-tight:1.2;
+    --lh-base:1.4;
+    --lh-relaxed:1.6;
+    /* Spacing scale (4px base) */
+    --sp-0:0px;
+    --sp-1:2px;
+    --sp-2:4px;
+    --sp-3:6px;
+    --sp-4:8px;
+    --sp-5:12px;
+    --sp-6:16px;
+    --sp-7:20px;
+    --sp-8:24px;
+    /* Icon size scale */
+    --ic-xs:10px;
+    --ic-sm:11px;  /* row-level icons (split views) */
+    --ic-md:12px;  /* default icon-btn */
+    --ic-lg:14px;  /* prominent icons (unload) */
+    --ic-xl:16px;
+    /* Border radius */
+    --rad-sm:3px;
+    --rad-md:4px;
+    --rad-lg:5px;
+    --rad-xl:8px;
+    --rad-pill:999px;
+    /* Transition durations */
+    --dur-fast:0.1s;
+    --dur-med:0.2s;
+    --dur-slow:0.3s;
+    /* Icon interaction opacity curve (resting / hovered / disabled) */
+    --op-rest:0.7;
+    --op-active:1;
+    --op-disabled:0.3;
   }
   body{color-scheme:dark;}
   .light{
@@ -187,6 +238,13 @@
   #upload-status{font-size:9px;color:var(--accent);margin-top:4px;display:none;}
   #upload-progress{height:3px;background:var(--border);border-radius:2px;margin-top:4px;overflow:hidden;display:none;}
   #upload-progress-bar{height:100%;background:linear-gradient(90deg,#4338ca,#6366f1);width:0%;border-radius:2px;transition:width 0.2s;}
+  /* Pill primitive — tinted rounded chip. Variants colorize border/bg/text.
+     Used for load badges, slice labels, gene indicator, stale markers, etc. */
+  .pill{display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);padding:var(--sp-1) var(--sp-3);border-radius:var(--rad-sm);font-weight:var(--fw-semibold);letter-spacing:0.02em;border:1px solid transparent;background:rgba(128,128,160,0.1);color:var(--text3);line-height:var(--lh-tight);white-space:nowrap;}
+  .pill.accent{color:var(--accent2);background:rgba(99,102,241,0.14);border-color:rgba(99,102,241,0.35);}
+  .pill.danger{color:var(--danger);background:rgba(248,113,113,0.12);border-color:rgba(248,113,113,0.35);}
+  .pill.success{color:var(--success);background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.35);}
+  .pill.warning{color:#fbbf24;background:rgba(251,191,36,0.1);border-color:rgba(251,191,36,0.3);}
   .load-badge{display:inline-flex;align-items:center;gap:0;font-size:9px;padding:1px 5px 1px 5px;border-radius:3px;font-weight:600;letter-spacing:0.02em;position:relative;transition:padding-left 0.12s;}
   .load-badge .badge-x{position:absolute;left:2px;top:0;bottom:0;width:0;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;font-size:9px;line-height:1;border-radius:2px;opacity:0;pointer-events:none;transition:width 0.12s,opacity 0.12s;color:inherit;}
   .load-badge.cached:hover{padding-left:14px;}
@@ -441,23 +499,51 @@
   #export-overlay .ex-opt input{margin:0;}
   #export-overlay button:hover{opacity:0.88;}
   /* Save icons */
-  /* Baseline icon-button: 70% opacity at rest, full on hover; color bumps to
-     --text2 (neutral) unless a semantic modifier class is added:
-       .icon-btn.download → hover turns --success (green)
-       .icon-btn.danger   → hover turns --danger  (red)  */
-  .icon-btn{background:none;border:none;cursor:pointer;padding:2px 4px;color:var(--text4);line-height:1;font-size:10px;display:inline-flex;align-items:center;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
-  .icon-btn:hover{color:var(--text2);opacity:1;}
+  /* ── FLEEK button primitives ────────────────────────────────────────────
+     .btn-icon  — icon-only button, 70% → 100% opacity on hover, color bumps
+                  to --text2 (neutral). Semantic modifiers:
+                    .btn-icon.download → hover = --success (green)
+                    .btn-icon.danger   → hover = --danger  (red)
+                    .btn-icon.accent   → hover = --accent2 (indigo)
+                  Size modifiers: .btn-icon.sm (11px) | .btn-icon.lg (14px).
+                  Row-hover pattern: put .btn-icon inside a container with
+                  .btn-icon--row-hover and it fades with the row.
+     .btn       — text button base (background, border, hover color change).
+     .btn-primary — filled emerald "go" buttons (DEG run).
+     .btn-ghost — no background, borderless text button (cancels, etc.)
+     .pill      — small rounded tint chip (badges, slice labels, gene indicator).
+     Legacy aliases (.icon-btn, .tether-btn, .dl-btn, .sg-save, .sg-del,
+     .sv-*) are rewritten below as thin wrappers that just extend .btn-icon. */
+  .btn-icon{background:none;border:none;cursor:pointer;padding:var(--sp-1) var(--sp-2);color:var(--text4);line-height:1;font-size:var(--fs-sm);display:inline-flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  .btn-icon:hover{color:var(--text2);opacity:var(--op-active);}
+  .btn-icon.download:hover{color:var(--success);}
+  .btn-icon.danger:hover{color:var(--danger);}
+  .btn-icon.accent:hover{color:var(--accent2);}
+  .btn-icon:disabled,.btn-icon[disabled]{opacity:var(--op-disabled)!important;cursor:default;pointer-events:none;}
+  .btn-icon svg{width:var(--ic-md);height:var(--ic-md);fill:currentColor;}
+  .btn-icon.sm svg{width:var(--ic-sm);height:var(--ic-sm);}
+  .btn-icon.lg svg{width:var(--ic-lg);height:var(--ic-lg);}
+  .btn-icon.xl svg{width:var(--ic-xl);height:var(--ic-xl);}
+  /* Row-hover pattern: icons are dimmer until the surrounding row is hovered */
+  .btn-icon--row-hover{opacity:0;}
+  .btn-icon--row-hover.always{opacity:var(--op-rest);} /* opt back into always-visible */
+
+  /* Legacy alias — .icon-btn is still in use throughout the HTML. Keeping
+     it as a simple alias for .btn-icon so existing markup keeps working
+     unchanged; new code should prefer .btn-icon. */
+  .icon-btn{background:none;border:none;cursor:pointer;padding:var(--sp-1) var(--sp-2);color:var(--text4);line-height:1;font-size:var(--fs-sm);display:inline-flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  .icon-btn:hover{color:var(--text2);opacity:var(--op-active);}
   .icon-btn.download:hover{color:var(--success);}
   .icon-btn.danger:hover{color:var(--danger);}
-  .icon-btn:disabled,.icon-btn[disabled]{opacity:0.3!important;cursor:default;pointer-events:none;}
-  .icon-btn svg{width:12px;height:12px;fill:currentColor;}
+  .icon-btn:disabled,.icon-btn[disabled]{opacity:var(--op-disabled)!important;cursor:default;pointer-events:none;}
+  .icon-btn svg{width:var(--ic-md);height:var(--ic-md);fill:currentColor;}
   /* Settings */
   #settings-btn{position:absolute;bottom:12px;right:12px;z-index:50;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer;color:var(--text4);line-height:1;display:flex;align-items:center;justify-content:center;}
   #settings-btn:hover{color:var(--text2);border-color:var(--border2);}
   #settings-btn svg{width:14px;height:14px;fill:currentColor;}
   #settings-popup{display:none;position:absolute;bottom:42px;right:12px;z-index:55;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;min-width:220px;backdrop-filter:blur(8px);}
-  #debug-popup{display:none;position:absolute;top:12px;right:12px;z-index:55;background:var(--bg2);border:1px solid #f87171;border-radius:8px;padding:12px 16px;min-width:200px;backdrop-filter:blur(8px);}
-  #debug-popup .s-title{font-size:10px;color:#f87171;font-weight:700;margin-bottom:8px;}
+  #debug-popup{display:none;position:absolute;top:12px;right:12px;z-index:55;background:var(--bg2);border:1px solid var(--danger);border-radius:var(--rad-xl);padding:var(--sp-5) var(--sp-6);min-width:200px;backdrop-filter:blur(8px);}
+  #debug-popup .s-title{font-size:var(--fs-sm);color:var(--danger);font-weight:var(--fw-bold);margin-bottom:var(--sp-4);}
   #debug-popup .s-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:10px;color:var(--text2);}
   #debug-popup .dbg-info{font-size:8px;color:var(--text4);font-family:monospace;padding:4px 0;border-top:1px solid var(--border);margin-top:4px;white-space:pre-wrap;word-break:break-all;}
   #settings-popup .s-title{font-size:10px;color:var(--text2);font-weight:700;margin-bottom:8px;}
@@ -467,8 +553,8 @@
   #settings-popup .s-key-input-wrap{display:flex;gap:4px;width:100%;}
   #settings-popup .s-key-input-wrap input{flex:1;min-width:0;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-size:10px;font-family:inherit;padding:2px 6px;outline:none;}
   #settings-popup .s-key-input-wrap input:focus{border-color:var(--border2);}
-  #settings-popup .s-key-save{background:#3b82f6;color:#fff;border:none;border-radius:3px;font-size:10px;font-family:inherit;padding:2px 8px;cursor:pointer;white-space:nowrap;}
-  #settings-popup .s-key-save:hover{background:#2563eb;}
+  #settings-popup .s-key-save{background:var(--accent);color:#fff;border:none;border-radius:var(--rad-sm);font-size:var(--fs-sm);font-family:inherit;padding:var(--sp-1) var(--sp-4);cursor:pointer;white-space:nowrap;transition:filter var(--dur-fast);}
+  #settings-popup .s-key-save:hover{filter:brightness(0.9);}
   #settings-popup .s-key-status{font-size:9px;color:var(--text4);}
   #no-key-banner{display:none;position:absolute;bottom:48px;left:50%;transform:translateX(-50%);z-index:60;background:#1e1b2e;border:1px solid rgba(196,181,253,0.4);border-radius:6px;padding:7px 12px;font-size:10px;color:#c4b5fd;white-space:nowrap;display:none;align-items:center;gap:8px;}
   #no-key-banner button{background:rgba(196,181,253,0.15);border:1px solid rgba(196,181,253,0.4);border-radius:3px;color:#c4b5fd;font-size:10px;font-family:inherit;padding:2px 8px;cursor:pointer;}
@@ -478,7 +564,7 @@
   .s-toggle input{opacity:0;width:0;height:0;position:absolute;}
   .s-toggle .s-slider{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background 0.15s,border-color 0.15s;}
   .s-toggle .s-slider:before{content:"";position:absolute;width:10px;height:10px;left:2px;top:2px;background:var(--text4);border-radius:50%;transition:transform 0.15s,background 0.15s;}
-  .s-toggle input:checked+.s-slider{background:#3b82f6;border-color:#3b82f6;}
+  .s-toggle input:checked+.s-slider{background:var(--accent);border-color:var(--accent);}
   .s-toggle input:checked+.s-slider:before{transform:translateX(12px);background:#fff;}
   /* Slice panel */
   #slice-body .slice-col{margin-bottom:6px;}
@@ -511,9 +597,16 @@
   #slice-footer{font-size:9px;color:var(--text3);margin-top:4px;display:flex;align-items:center;gap:6px;}
   #slice-footer .sf-count{color:#34d399;font-weight:600;}
 
-  /* Custom scrollbar overlay — macOS hides native scrollbars, so we draw our own */
+  /* Custom scrollbar overlay — on macOS "automatic" scrollbar mode, native
+     overlay scrollbars thicken when hovered, so panel scrollbars can end up
+     wider than the sidebar's custom 6px thumb. We instead draw our own thumb
+     on both the sidebar AND the panel-level scrollables for consistent
+     width + behavior. .custom-scroll hides the native scrollbar on the
+     wrapped element; .scroll-thumb is the draggable overlay indicator. */
   .scroll-host{position:relative;}
-  .scroll-thumb{position:absolute;right:1px;width:6px;border-radius:3px;background:var(--border);opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:5;min-height:20px;}
+  .custom-scroll{scrollbar-width:none;}
+  .custom-scroll::-webkit-scrollbar{display:none;}
+  .scroll-thumb{position:absolute;right:1px;width:6px;border-radius:3px;background:var(--border);opacity:0;transition:opacity 0.15s;pointer-events:none;z-index:5;min-height:20px;}
   .scroll-thumb.visible{opacity:1;pointer-events:auto;cursor:grab;}
   .scroll-thumb.visible:hover,.scroll-thumb.dragging{background:var(--border2);}
   ::-webkit-scrollbar{width:7px;height:7px;}
@@ -987,9 +1080,9 @@
       </div>
       <span class="s-key-status" id="api-key-status"></span>
     </div>
-    <div class="s-row">
-      <span>Auto-unload on disconnect</span>
-      <label class="s-toggle"><input type="checkbox" id="set-auto-unload" onchange="_setAutoUnload(this.checked)"><span class="s-slider"></span></label>
+    <div class="s-row" title="When on, FLEEK's background server auto-quits ~20 seconds after the last browser tab closes — it unloads the dataset from memory and then exits the process, so there's no lingering local server after you close the window. Turn off for shared/dev setups where the server should keep running.">
+      <span>Auto-quit server on disconnect</span>
+      <label class="s-toggle"><input type="checkbox" id="set-auto-unload" onchange="_setAutoUnload(this.checked)" checked><span class="s-slider"></span></label>
     </div>
     <div class="s-row" title="When on, Delete/Backspace hides whichever arbitrary cells are in the active selection group — distinct from cluster, slice, and group-visibility filters, which hide principled subsets. Arbitrary hiding silently exiles specific cell indices and is hard to undo (restore with H / Show All).">
       <span>Allow arbitrary cell hiding (Delete key)</span>
@@ -1151,6 +1244,7 @@
       <a href="#" onclick="event.preventDefault();helpJump('help-celltypes')">Cell Types</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-slice')">Slice</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-views')">View Splits</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-export')">Export</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-annot')">Annotation</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-lineage')">Lineage</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-gene')">Gene Expression</a>
@@ -1333,10 +1427,34 @@
           <tr><td>Navigation</td><td>Mouse interactions (rotate, zoom, pan, lasso) affect the half the cursor is over. Dragging across the divider stays locked to the original half. Fly/pan direction is computed from the hovered view's own orientation, so untethered halves navigate correctly regardless of where the other view is pointing.</td></tr>
           <tr><td>Double-click</td><td>Zoom-focus works in each half independently (untethered only).</td></tr>
           <tr><td>Per-split coloring</td><td>Each half has its own color mode and active gene. One split can show gene X, the other can show gene Y, or one clusters and the other gene expression. Switch the active split to see its coloring reflected in the sidebar (gene search, color dropdown, expression legend).</td></tr>
+          <tr><td>Gene indicator pill</td><td>A small pill at the top of each view shows the gene currently coloring it — top-left in single-view mode, top-center of each half in split-screen. Hides automatically when the view is in cluster-color mode.</td></tr>
+          <tr><td>Download icon</td><td>Every view row (and every split label at the top of the canvas) has a download icon. Click it to open the Export modal for that split's currently-shown points — see the Export section below.</td></tr>
           <tr><td>Expression glow</td><td>Glow is per-split — it only appears on halves currently in gene-expression mode. Toggling the Glow switch refreshes all halves.</td></tr>
           <tr><td>HUD</td><td>Each half has its own cell-count HUD in the bottom corner showing visible/hidden/total for that half's split.</td></tr>
           <tr><td>Undo</td><td>Entering and exiting split-screen is captured in undo history. All changes within split-screen are undoable.</td></tr>
         </table>
+      </div>
+    </div>
+
+    <!-- Export -->
+    <div class="help-sec" id="help-export">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Export</span>
+      </div>
+      <div class="help-sec-body">
+        <p>Every view split has its own <strong>Export</strong> action, triggered by the download icon on each row in the Split Views panel or on the view label at the top of the canvas. Exports what's <em>currently shown</em> in that split — cells that pass the split's slice, cluster-visibility, and deleted-cell filters, colored exactly as you see them on screen.</p>
+        <p>The Export modal offers three formats:</p>
+        <table class="help-table">
+          <tr><th>Format</th><th>What it gives you</th><th>Opens in</th></tr>
+          <tr><td><strong>SVG</strong></td><td>Vector render of the split's current camera view. Each cell becomes a <code>&lt;circle&gt;</code> with its rendered color, opacity, and per-point pixel size (matching the shader's size-attenuation formula). Selection-group highlight rings optionally included as outline circles. Both 2D and 3D views supported — 3D uses back-to-front depth sorting so layering matches the on-screen image.</td><td>Illustrator, Inkscape, Figma, browser</td></tr>
+          <tr><td><strong>PLY</strong></td><td>True 3D point cloud with x/y/z + RGBA per vertex. Binary (compact) or ASCII (human-readable). 3D view only — disabled in the modal when you're in 2D since a flat PLY isn't useful.</td><td>Blender, MeshLab, CloudCompare, ParaView</td></tr>
+          <tr><td><strong>CSV</strong></td><td>Tabular columns: coordinates, cluster ID + name, RGB + alpha, gene expression (when in gene mode), rendered pixel size, selection-group ID. Each column is opt-in.</td><td>Anything tabular — R/ggplot, Python/matplotlib, Excel</td></tr>
+        </table>
+        <p><strong>Active camera:</strong> SVG uses the camera currently in use for that split — what's rendered is what gets exported. If you're in split-screen mode, each half uses its own camera. If the split isn't currently rendered (not in a split half, not the active single-view), SVG falls back to the split's saved camera snapshot.</p>
+        <p><strong>File naming:</strong> <code>&lt;dataset&gt;.&lt;split-name&gt;.&lt;timestamp&gt;.&lt;ext&gt;</code>. The modal shows an estimated file size before you commit.</p>
+        <p><strong>Selection-group subset export:</strong> Each selection group in the Selection Groups panel has its own download icon that exports just the cells in that group as an <code>.h5ad</code> subset (the server writes a proper AnnData file). For exporting all cells matching a slice filter (not a selection), use the download button in the Slice panel header.</p>
+        <p><strong>DEG results:</strong> The DEG panel has its own download icon that writes the current DEG table as TSV.</p>
       </div>
     </div>
 
@@ -1626,11 +1744,12 @@
           <tr><td><strong>Hint bar</strong></td><td>On / Off</td><td>The hint bar at the bottom of the canvas shows contextual tips about modifier keys and available actions. Disable for a cleaner view once you know the shortcuts.</td></tr>
           <tr><td><strong>Shortcut flash</strong></td><td>On / Off</td><td>Brief overlay that flashes on screen when you press a keyboard shortcut, showing the action name and key combination. Helps learn shortcuts. Disable for a quieter interface.</td></tr>
           <tr><td><strong>Undo/Redo buttons</strong></td><td>On / Off</td><td>Show or hide the undo/redo arrow buttons in the top-right corner of the canvas. The keyboard shortcuts <span class="help-key">⌘</span>+<span class="help-key">[</span> / <span class="help-key">⌘</span>+<span class="help-key">]</span> (or <span class="help-key">⌘</span>+<span class="help-key">Z</span> / <span class="help-key">⌘</span>+<span class="help-key">Shift</span>+<span class="help-key">Z</span>) always work regardless.</td></tr>
-          <tr><td><strong>Auto-unload on disconnect</strong></td><td>On / Off</td><td>When enabled, the server automatically frees the loaded dataset from memory if no browser tab is connected. Useful for liberating RAM when you close the FLEEK window. The timeout (default 1 second) can be adjusted in the Debug panel.</td></tr>
+          <tr><td><strong>Auto-quit server on disconnect</strong></td><td>On / Off (on by default)</td><td>When on, FLEEK's background server auto-quits after a short grace period (default 20 seconds) once the last browser tab has closed. It unloads the dataset and exits the process, so there's no lingering local server eating RAM or holding a port. A page reload within the grace window cancels the quit. Turn off for shared servers or dev sessions where the server should keep running between browser tabs. Timeout can be tuned in the Debug panel.</td></tr>
           <tr><td><strong>Claude API key</strong></td><td>Text input + Save / Test / Clear</td><td>Enter your Anthropic API key and click <strong>Save</strong> — it's written to <code>~/.fleek.env</code> (chmod 600) on the server. <strong>Test</strong> sends a minimal ping to <code>api.anthropic.com</code> and reports back the model name on success, or the verbatim Anthropic error body (401 / 403 / 429 / network) on failure — paste a key into the field and click Test to verify before saving, or leave the field empty and click Test to re-verify the already-saved key. <strong>Clear</strong> removes it from memory and the file. If the <code>ANTHROPIC_API_KEY</code> env var is set at server startup, it takes priority over the saved file.</td></tr>
           <tr><td><strong>Cache mode</strong></td><td>Dataset / Server</td><td><em>Dataset</em> stores caches alongside the .h5ad file (portable — cache moves with the data). <em>Server</em> stores caches in <code>~/.fleek_cache/</code> (works with read-only or networked data). If the dataset directory is not writable, FLEEK falls back to server mode automatically.</td></tr>
         </table>
         <p><strong>Debug panel</strong> (click gear icon, then scroll down): Contains developer-oriented settings including <strong>Zoom target</strong> (Cursor/Center), <strong>FPS counter</strong>, <strong>Selection highlight</strong> mode (Ring/Fill), <strong>Unload timeout</strong> (seconds), raycast visualization, and background scheme. These are primarily for troubleshooting and advanced use.</p>
+        <p><strong>Point-size auto-scaling:</strong> FLEEK adjusts the <em>default</em> point size based on cell count so sparse datasets look legible and dense ones stay tight. All embeddings normalize to the same spatial extent, so without this correction a 1 k-cell dataset would render as scattered pinpricks while a 1 M-cell dataset packs tightly. The point-size slider still works normally on top of this — the scaling only changes what "50 %" looks like per dataset.</p>
       </div>
     </div>
 
@@ -1885,7 +2004,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.20";
+var FLEEK_VERSION="v0.3.21";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -3130,11 +3249,33 @@ function positionPts(data,nD){
   }
   cloudBounds.center.set(0,0,0);
   cloudBounds.radius=Math.sqrt(maxDist2)+0.5;
+  /* Density multiplier for default point size. Embeddings are always
+     normalized to the same spatial extent (positionPts scales to 50 units),
+     so a 1k-cell UMAP has the same cloud radius as a 500k-cell UMAP — but
+     each cell sits in ~500× more empty space and looks like a scattered
+     pinprick. Scale point size with a sub-linear power of cell density so
+     sparse datasets default to visible points, dense datasets stay tight.
+     Multiplier is floored/capped so extremes don't blow up. */
+  cloudBounds.sizeMult=(function(nc){
+    if(!nc||nc<=0)return 1;
+    var ref=100000;
+    var m=Math.pow(ref/Math.max(nc,50),0.3);
+    return Math.min(5,Math.max(0.7,m));
+  })(n);
   /* Compute and store per-embedding home camera from new bounds */
   _homeCameras[embMethod]=_computeHomeCamera();
   /* Cache positions so recolor can exile/restore hidden cells */
   if(!data._cachedPos)data._cachedPos=new Float32Array(pos.length);
   data._cachedPos.set(pos);
+}
+
+/* Helper: max point world-size at slider=100 (includes density multiplier).
+   All point-size computations should use this so adding a new call site
+   doesn't forget the density factor. */
+function _maxPtWorldSize(){
+  var r=(cloudBounds&&cloudBounds.radius>0)?cloudBounds.radius:50;
+  var m=(cloudBounds&&cloudBounds.sizeMult)?cloudBounds.sizeMult:1;
+  return r*0.018*m;
 }
 
 function buildPts(data){
@@ -3701,7 +3842,7 @@ function animate(){
      3D: world units (sizeAttenuation scales with distance).
      2D: convert to pixels to match 3D visual at equivalent zoom. */
   if(pts&&cloudBounds.radius>0){
-    var maxWorldSz=cloudBounds.radius*0.018; /* at slider=100, ~4% of cloud radius */
+    var maxWorldSz=_maxPtWorldSize(); /* radius × 0.018 × density_mult */
     var worldSz=basePtSz/100*maxWorldSz;
     var _vpH=viewIs3d?(canvasH*Math.min(window.devicePixelRatio,2)*0.5):0;
     var _pulse=(pulseGlow&&mode==="gene"&&selGene&&geneExprCache[selGene])?1.0+1.5*(0.5+0.5*Math.sin(performance.now()*0.002)):1.0;
@@ -3828,7 +3969,7 @@ function animate(){
           _dbgMarker.position.copy(_dp);
           var _dSzArr=pts.geometry.attributes.aSize?pts.geometry.attributes.aSize.array:null;
           var _dAs=_dSzArr?_dSzArr[idx]:1.0;
-          var _dWs=cloudBounds.radius>0?basePtSz/100*cloudBounds.radius*0.018:0.5;
+          var _dWs=cloudBounds.radius>0?basePtSz/100*_maxPtWorldSize():0.5;
           var _dSzMul=parseFloat(document.getElementById("dbg-marker-sz").value)||0.6;
           _dbgMarker.scale.setScalar(_dWs*_dAs*_dSzMul);
           _dbgMarker.visible=true;
@@ -6669,7 +6810,7 @@ function _pick2DScreen(ndc,targetPts){
   var szArr=targetPts.geometry.attributes.aSize?targetPts.geometry.attributes.aSize.array:null;
   var n=D.header.n_cells;
   var baseWSz=0;
-  if(cloudBounds&&cloudBounds.radius>0)baseWSz=basePtSz/100*cloudBounds.radius*0.018;
+  if(cloudBounds&&cloudBounds.radius>0)baseWSz=basePtSz/100*_maxPtWorldSize();
   /* animate() sets material.size = worldSz * canvasH*zoom2/(2*frustum2) * 0.5
      gl_PointSize = uSize * aSize (in framebuffer pixels, NOT CSS pixels)
      Visual CSS-pixel radius = gl_PointSize / 2 / DPR */
@@ -6715,7 +6856,7 @@ function _pick2DScreen(ndc,targetPts){
 function pickThreshold(){
   /* Threshold in world units for 3D raycaster. Not used in 2D (pixel picking instead). */
   if(!cloudBounds||cloudBounds.radius<=0)return 0.5;
-  var maxWorldSz=cloudBounds.radius*0.018;
+  var maxWorldSz=_maxPtWorldSize();
   var worldSz=basePtSz/100*maxWorldSz;
   var maxASize=showExprSize?1.8:1.0;
   return Math.max(0.01, worldSz*maxASize);
@@ -9149,7 +9290,7 @@ function _exportSVG(){
   var bgHex='#'+_hex(bg[0])+_hex(bg[1])+_hex(bg[2]);
   var dpr=window.devicePixelRatio||1;
   var dprCap=Math.min(dpr,2);
-  var worldSz=basePtSz/100*(cloudBounds.radius||50)*0.018;
+  var worldSz=basePtSz/100*_maxPtWorldSize();
   var entries=[];
   var v=new THREE.Vector3();
   if(viewIs3d){
@@ -9301,7 +9442,7 @@ function _exportCSV(){
      (3D: scaled by typical depth = camera radius; 2D: exact). */
   var dpr=window.devicePixelRatio||1;
   var w=canvasW||1, h=canvasH||1;
-  var worldSz=basePtSz/100*(cloudBounds.radius||50)*0.018;
+  var worldSz=basePtSz/100*_maxPtWorldSize();
   var cam=_exportGetCamera(snap);
   var sizePxFn=null;
   if(osz){
@@ -11533,14 +11674,17 @@ function loadSettings(){
       if(o.showFlash===false){
         document.getElementById("set-flash").checked=false;
       }
-      if(o.autoUnload){
-        _autoUnload=true;
-        document.getElementById("set-auto-unload").checked=true;
-        _startHeartbeat();
+      /* Auto-quit (formerly auto-unload). Default is ON, so only flip it off
+         if the user explicitly saved {autoUnload:false} previously. */
+      if(o.autoUnload===false){
+        _autoUnload=false;
+        var _auCb=document.getElementById("set-auto-unload");
+        if(_auCb)_auCb.checked=false;
       }
       if(o.autoUnloadTimeout){
         _autoUnloadTimeout=o.autoUnloadTimeout;
-        document.getElementById("dbg-unload-timeout").value=_autoUnloadTimeout;
+        var _dbgUt=document.getElementById("dbg-unload-timeout");
+        if(_dbgUt)_dbgUt.value=_autoUnloadTimeout;
       }
       if(o.allowCellDelete){
         _allowCellDelete=true;
@@ -11550,6 +11694,10 @@ function loadSettings(){
     }
     document.getElementById("set-zoom-mode").value=zoomMode;
   }catch(e){}
+  /* Start heartbeats if auto-quit is on (default). Resolves the "user closes
+     the tab and the server keeps running" footgun. If the user disabled it
+     in a prior session, the block above already flipped _autoUnload off. */
+  if(_autoUnload)_startHeartbeat();
   /* Close settings on outside click */
   document.addEventListener("click",function(e){
     var popup=document.getElementById("settings-popup");
@@ -11651,7 +11799,7 @@ function setupCustomScrollbars(){
       hoverTimer=setTimeout(function(){
         updateThumb();
         if(el.scrollHeight>el.clientHeight)thumb.classList.add("visible");
-      },800);
+      },120);
     });
     wrapper.addEventListener("mouseleave",function(){
       clearTimeout(hoverTimer);
@@ -11699,9 +11847,114 @@ function setupCustomScrollbars(){
   });
 }
 
-/* ── Auto-unload heartbeat ── */
-var _autoUnload=false;
-var _autoUnloadTimeout=1;
+/* Attach a custom thumb to a panel-level scrollable element (e.g. #leg-scroll,
+   #hvg-scroll). Same visual + drag behavior as the sidebar thumb, but uses a
+   simple position:relative wrapper (no flex plumbing) so it works inside any
+   max-height-constrained container. Also hides the native scrollbar so macOS
+   overlay thickness doesn't fight our custom width. Safe to call multiple
+   times on the same element — second call is a no-op. */
+function setupPanelScrollbar(el){
+  if(!el||el.dataset.customScroll==="1")return;
+  el.dataset.customScroll="1";
+  el.classList.add("custom-scroll");
+  var wrapper=document.createElement("div");
+  wrapper.className="scroll-host";
+  wrapper.style.cssText="position:relative;";
+  /* Transplant any inline margin from the element to the wrapper so external
+     layout still works. Otherwise margins cling to the inner element and
+     collapse in unexpected ways. */
+  var cs=getComputedStyle(el);
+  if(cs.marginTop!=="0px")wrapper.style.marginTop=cs.marginTop;
+  if(cs.marginBottom!=="0px")wrapper.style.marginBottom=cs.marginBottom;
+  el.parentNode.insertBefore(wrapper,el);
+  wrapper.appendChild(el);
+  if(el.style.marginTop)el.style.marginTop="";
+  if(el.style.marginBottom)el.style.marginBottom="";
+  var thumb=document.createElement("div");
+  thumb.className="scroll-thumb";
+  wrapper.appendChild(thumb);
+  var hoverTimer=null, dragging=false, dragStartY=0, dragStartScroll=0;
+  function updateThumb(){
+    var sh=el.scrollHeight, ch=el.clientHeight;
+    if(sh<=ch){thumb.classList.remove("visible");return;}
+    var ratio=ch/sh;
+    var thumbH=Math.max(20, ratio*ch);
+    var maxScroll=sh-ch;
+    var scrollRatio=el.scrollTop/maxScroll;
+    var thumbTop=scrollRatio*(ch-thumbH);
+    thumb.style.height=thumbH+"px";
+    thumb.style.top=thumbTop+"px";
+  }
+  /* Expose the updater so virtual-scroll renderers can refresh the thumb
+     after row count changes. */
+  el._updateScrollThumb=updateThumb;
+  el.addEventListener("scroll",function(){
+    if(thumb.classList.contains("visible"))updateThumb();
+  });
+  wrapper.addEventListener("mouseenter",function(){
+    hoverTimer=setTimeout(function(){
+      updateThumb();
+      if(el.scrollHeight>el.clientHeight)thumb.classList.add("visible");
+    },120);
+  });
+  wrapper.addEventListener("mouseleave",function(){
+    clearTimeout(hoverTimer);
+    if(!dragging)thumb.classList.remove("visible");
+  });
+  el.addEventListener("wheel",function(){
+    updateThumb();
+    if(el.scrollHeight>el.clientHeight){
+      thumb.classList.add("visible");
+      clearTimeout(hoverTimer);
+      hoverTimer=setTimeout(function(){if(!dragging)thumb.classList.remove("visible");},1500);
+    }
+  },{passive:true});
+  thumb.addEventListener("mousedown",function(e){
+    e.preventDefault();e.stopPropagation();
+    dragging=true;
+    dragStartY=e.clientY;
+    dragStartScroll=el.scrollTop;
+    thumb.classList.add("dragging");
+    thumb.style.cursor="grabbing";
+  });
+  document.addEventListener("mousemove",function(e){
+    if(!dragging)return;
+    var dy=e.clientY-dragStartY;
+    var ch=el.clientHeight, sh=el.scrollHeight;
+    var ratio=sh/ch;
+    el.scrollTop=dragStartScroll+dy*ratio;
+    updateThumb();
+  });
+  document.addEventListener("mouseup",function(){
+    if(!dragging)return;
+    dragging=false;
+    thumb.classList.remove("dragging");
+    thumb.style.cursor="";
+    hoverTimer=setTimeout(function(){
+      if(!wrapper.matches(":hover"))thumb.classList.remove("visible");
+    },1000);
+  });
+}
+
+function setupPanelScrollbars(){
+  /* Apply custom thumbs to panel-level scrollable lists so they share the
+     sidebar's look + behavior (6px constant width, quick appear, draggable).
+     Run after DOM is ready. */
+  ["leg-scroll","hvg-scroll","lineage-tree","go-results","browse-complete"].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)setupPanelScrollbar(el);
+  });
+}
+
+/* ── Auto-quit heartbeat ──
+   Defaults: ON, 20-second grace window. The server receives a heartbeat POST
+   every _autoUnloadTimeout/2 seconds; after 20s without one, it unloads the
+   dataset and exits the process. Users who close the browser tab get no
+   lingering background server; a page reload within the grace window
+   cancels the pending quit. Variable names kept as "auto_unload*" for
+   compatibility with existing settings + server payload fields. */
+var _autoUnload=true;
+var _autoUnloadTimeout=20;
 var _heartbeatInterval=null;
 function _startHeartbeat(){
   _stopHeartbeat();
@@ -12133,7 +12386,7 @@ document.addEventListener("DOMContentLoaded",function(){
   /* Stamp the version into both the sidebar title pill and the help-overlay header. */
   var _sbv=document.getElementById("fleek-version");if(_sbv)_sbv.textContent=FLEEK_VERSION;
   var _hv=document.getElementById("help-version");if(_hv)_hv.textContent=FLEEK_VERSION;
-  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupScrollTraps();_patchOS();_setupCustomSelects();_panelsInit();animate();_checkKeyStatus();
+  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupPanelScrollbars();setupScrollTraps();_patchOS();_setupCustomSelects();_panelsInit();animate();_checkKeyStatus();
   /* Apply initial theme */
   applyTheme(document.getElementById("set-theme").value||"dark");
   showL("Connecting to server...");

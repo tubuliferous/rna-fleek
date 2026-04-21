@@ -157,6 +157,42 @@ Two-stage locally standardized trend residual:
 
 Red-flagged genes: bitmask (bit 0: no expression, bit 1: low mean, bit 2: high mean, bit 3: low fraction)
 
+### Design system (tokens + primitives)
+Every new style rule MUST resolve size/spacing/radius/duration values to the design tokens in `:root` at the top of `fleek.html`. If a hard-coded pixel value is tempting, the right answer is almost always "use a token"; if no existing token fits, add a new one rather than inlining.
+
+**Token families:**
+- Color: `--text / --text2..4`, `--bg / --bg2..3`, `--bg-hover`, `--bg-active`, `--border / --border2`, `--accent / --accent2`, `--danger`, `--success`. Light-mode overrides under `.light`.
+- Font size: `--fs-xs` (9px) · `--fs-sm` (10px) · `--fs-md` (11px) · `--fs-lg` (12px) · `--fs-xl` (13px).
+- Font weight: `--fw-regular / medium / semibold / bold`.
+- Line height: `--lh-tight / base / relaxed`.
+- Spacing (4px-ish base): `--sp-0..8`.
+- Icon size: `--ic-xs` (10px) · `--ic-sm` (11px) · `--ic-md` (12px, default) · `--ic-lg` (14px) · `--ic-xl` (16px).
+- Radius: `--rad-sm` (3px) · `--rad-md` (4px) · `--rad-lg` (5px) · `--rad-xl` (8px) · `--rad-pill`.
+- Duration: `--dur-fast` (0.1s) · `--dur-med` (0.2s) · `--dur-slow` (0.3s).
+- Icon interaction opacity: `--op-rest` (0.7) · `--op-active` (1) · `--op-disabled` (0.3).
+
+**Component primitives:**
+- `.btn-icon` — icon-only button. Baseline: `--op-rest` opacity, brightens to `--op-active` on hover, color bumps to `--text2`. Modifiers:
+  - `.btn-icon.download` → hover = `--success`
+  - `.btn-icon.danger`   → hover = `--danger`
+  - `.btn-icon.accent`   → hover = `--accent2`
+  - Size: `.sm` / `.md` (default) / `.lg` / `.xl`.
+  - `.btn-icon--row-hover` → starts invisible, fades in with the surrounding row's hover.
+- `.pill` — rounded tint chip. Variants: `.accent` / `.danger` / `.success` / `.warning`. Used for load badges, gene indicator, status chips.
+- Legacy alias `.icon-btn` is kept working but NEW markup should prefer `.btn-icon`.
+
+**Scrollbar strategy:**
+- Global native scrollbars: 7px, `--border` thumb, thin (see `::-webkit-scrollbar` + `scrollbar-width:thin`).
+- Two exceptions (`#sidebar-upper`, `#sidebar-right-upper`) draw their OWN custom overlay thumb via `setupCustomScrollbars()` → native is explicitly hidden on these containers with `scrollbar-width:none` + `::-webkit-scrollbar{display:none}`, otherwise macOS shows both during scroll and they visually stack.
+- Rule: if a container gets a custom thumb, hide its native scrollbar. Never let both render simultaneously.
+
+**Semantic colors for actions:**
+- Destructive (delete / close / unload): `--danger`
+- Download / file export: `--success`
+- Neutral interactive: `--text2` (hover only)
+- Active/selected state: `--accent2`
+Any other ad-hoc color (`#3b82f6`, `#f59e0b`, hardcoded `#f87171`) should be replaced with the matching var.
+
 ## Testing
 
 ```bash
@@ -191,10 +227,19 @@ Uses selection groups as conditions (not obs columns). User selects a single "Re
 - Selections are fully global — shared across all split views
 - Split Views panel in sidebar (between Selection Groups and Slice)
 
-### Auto-unload
-- Client sends heartbeat POST every `timeout/2` seconds when enabled
-- Server cancels/resets a `threading.Timer` on each heartbeat
-- If no heartbeat within `timeout + 0.5s`, server calls `_reset_all()` + `gc.collect()`
+### Auto-quit (heartbeat)
+- Renamed from "auto-unload" but variables/settings keep the `auto_unload`
+  name for session-storage compatibility. Default: ON, 20-second timeout.
+- Client sends heartbeat POST every `timeout/2` seconds when enabled.
+- Server cancels/resets a `threading.Timer` on each heartbeat.
+- If no heartbeat within `timeout + 0.5s`, server: (a) unloads any loaded
+  dataset via `_reset_all()` + `gc.collect()`, then (b) `os._exit(0)` the
+  process. Runs even when no dataset is loaded — the point is to kill the
+  server process so a naive user who closes the browser tab doesn't leave
+  a background server holding a port + RAM.
+- A page reload within the grace window reconnects and cancels the quit.
+- Disable via Settings → "Auto-quit server on disconnect" (for shared
+  servers, dev sessions, or multi-tab users who want the server to persist).
 
 ### Organism Detection
 - `_detect_organism()` returns `(name, reason)` tuple

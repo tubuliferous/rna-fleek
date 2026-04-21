@@ -90,8 +90,8 @@ except Exception:
     PYDESEQ2_AVAILABLE = False
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
 _DETECTED_ORGANISM = None  # (name, reason) tuple from _detect_organism()
-AUTO_UNLOAD = False   # If True, unload dataset when no client heartbeat
-AUTO_UNLOAD_TIMEOUT = 1.0  # seconds without heartbeat before unload
+AUTO_UNLOAD = True    # If True, auto-quit (unload dataset + exit process) when no client heartbeat
+AUTO_UNLOAD_TIMEOUT = 20.0  # seconds without heartbeat before auto-quit
 _LAST_HEARTBEAT = 0.0  # time.time() of last heartbeat
 _HEARTBEAT_TIMER = None  # threading.Timer for delayed unload
 
@@ -4866,11 +4866,10 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
         self.wfile.write(data)
 
     def _serve_heartbeat(self, req):
-        """Client heartbeat — resets the auto-unload timer."""
+        """Client heartbeat — resets the auto-quit timer (unload + process exit)."""
         global AUTO_UNLOAD, AUTO_UNLOAD_TIMEOUT, _LAST_HEARTBEAT, _HEARTBEAT_TIMER
         _LAST_HEARTBEAT = time.time()
-        print(f"  ♥ heartbeat (auto_unload={req.get('auto_unload') if req else '?'}, timeout={req.get('timeout') if req else '?'})")
-        # Cancel any pending unload timer
+        # Cancel any pending timer
         if _HEARTBEAT_TIMER:
             _HEARTBEAT_TIMER.cancel()
             _HEARTBEAT_TIMER = None
@@ -4880,19 +4879,29 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 AUTO_UNLOAD = bool(req["auto_unload"])
             if "timeout" in req:
                 AUTO_UNLOAD_TIMEOUT = max(0.5, float(req["timeout"]))
-        # Schedule next unload check
-        if AUTO_UNLOAD and ADATA is not None:
-            def _check_unload():
+        # Schedule next quit check — runs even when no dataset is loaded, since
+        # the server should shut down after a disconnect regardless. The timer
+        # frees the dataset (if any) and then exits the process so the user
+        # doesn't need to know a background server exists.
+        if AUTO_UNLOAD:
+            def _check_quit():
                 global _HEARTBEAT_TIMER
                 _HEARTBEAT_TIMER = None
                 elapsed = time.time() - _LAST_HEARTBEAT
-                if elapsed >= AUTO_UNLOAD_TIMEOUT and AUTO_UNLOAD and ADATA is not None:
-                    print(f"  Auto-unloading dataset (no heartbeat for {elapsed:.1f}s)")
-                    _reset_all()
-                    PROGRESS["status"] = "idle"
-                    PROGRESS["message"] = "Dataset auto-unloaded"
-                    import gc; gc.collect()
-            _HEARTBEAT_TIMER = threading.Timer(AUTO_UNLOAD_TIMEOUT + 0.5, _check_unload)
+                if elapsed >= AUTO_UNLOAD_TIMEOUT and AUTO_UNLOAD:
+                    if ADATA is not None:
+                        print(f"  Auto-quit: unloading dataset (no heartbeat for {elapsed:.1f}s)")
+                        try:
+                            _reset_all()
+                        except Exception as _e:
+                            print(f"  Auto-quit: _reset_all failed ({_e})")
+                        import gc; gc.collect()
+                    print(f"  Auto-quit: stopping FLEEK server (no heartbeat for {elapsed:.1f}s)")
+                    # os._exit avoids running atexit handlers / blocking on
+                    # lingering threads. Safe here — we've already cleaned up.
+                    import os as _os
+                    _os._exit(0)
+            _HEARTBEAT_TIMER = threading.Timer(AUTO_UNLOAD_TIMEOUT + 0.5, _check_quit)
             _HEARTBEAT_TIMER.daemon = True
             _HEARTBEAT_TIMER.start()
         data = json.dumps({"ok": True, "auto_unload": AUTO_UNLOAD, "timeout": AUTO_UNLOAD_TIMEOUT}).encode("utf-8")
