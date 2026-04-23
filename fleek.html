@@ -99,7 +99,7 @@
   #app{display:flex;width:100vw;height:100vh;}
   #sidebar{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:margin-left 0.25s ease,opacity 0.25s ease;}
   #sidebar.hidden{margin-left:-260px;opacity:0;pointer-events:none;}
-  #sidebar-toggle{position:absolute;top:10px;left:10px;z-index:10;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--text3);cursor:pointer;font-size:20px;line-height:1;padding:6px 9px;opacity:0;transition:opacity 0.2s;pointer-events:none;}
+  #sidebar-toggle{position:absolute;top:10px;left:10px;z-index:10;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--accent2);cursor:pointer;font-size:20px;line-height:1;padding:6px 9px;opacity:0;transition:opacity 0.2s;pointer-events:none;}
   #sidebar-toggle.show{opacity:0.7;pointer-events:auto;}
   #sidebar-toggle.show:hover{opacity:1;}
   /* The sidebar columns draw their OWN custom overlay thumb (see
@@ -194,22 +194,40 @@
   .split-view-label{display:none;position:absolute;top:8px;z-index:7;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:auto;user-select:none;white-space:nowrap;}
   #cw.split-active .split-view-label{display:flex;align-items:center;gap:4px;}
   .split-view-select{background:transparent;border:none;color:inherit;font:inherit;font-size:11px;padding:0;cursor:pointer;outline:none;}
-  .split-view-label .tether-btn{cursor:pointer;opacity:0.6;transition:opacity 0.15s,color 0.15s,transform 0.15s;}
-  .split-view-label .tether-btn:hover{opacity:1;color:var(--accent2);transform:scale(1.15);}
-  .split-view-label .tether-btn.tethered{opacity:1;color:var(--accent2);}
+  /* Tether chain icon — shown in both the single-view label (#view-label) and
+     each half's label in split mode (.split-view-label). Baseline opacity and
+     hover-brighten match the neutral .btn-icon primitive so the chain reads at
+     the same weight as every other accent2 icon in the app; no color swap or
+     scale transform on hover (that's reserved for the "special" icons that go
+     red/green). The tethered/untethered distinction comes from the icon SHAPE
+     (linked chain vs. stroke-matched unlink icon), not from opacity — so the
+     chain, the broken chain, and the download icon all read at the same
+     weight in the view label. */
+  .split-view-label .tether-btn,#view-label .tether-btn{cursor:pointer;opacity:var(--op-rest);color:var(--accent2);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  /* Single hover rule that also wins for .tethered — equal specificity with
+     the old `.tether-btn.tethered` rule meant a tethered chain got no visible
+     hover feedback (source-order tie went to .tethered). Now hover always
+     brightens to --op-active regardless of tether state, matching the folder
+     icon's hover behaviour. Tethered vs untethered is conveyed by icon shape
+     alone, so no separate .tethered appearance rule is needed. */
+  .split-view-label .tether-btn:hover,#view-label .tether-btn:hover,
+  .split-view-label .tether-btn.tethered:hover,#view-label .tether-btn.tethered:hover{opacity:var(--op-active);}
   /* Disabled tether: shown (so the button stays in the label) but non-interactive
      since there's nothing to tether to with only one split. */
   .tether-btn.disabled{opacity:0.35!important;cursor:not-allowed!important;color:var(--text4)!important;transform:none!important;pointer-events:auto;}
   .tether-btn.disabled:hover{opacity:0.35!important;color:var(--text4)!important;transform:none!important;}
   /* Download button in the top-of-view label — matches tether-btn behavior
      but hovers --success (green) since it triggers a file download. */
-  .split-view-label .dl-btn,#view-label .dl-btn{cursor:pointer;opacity:0.6;transition:opacity 0.15s,color 0.15s,transform 0.15s;display:inline-flex;align-items:center;}
-  .split-view-label .dl-btn:hover,#view-label .dl-btn:hover{opacity:1;color:var(--success);}
+  /* Download icon in the view label — same baseline weight as other accent2
+     icons, but hover swaps to --success since it's a file-export action. */
+  .split-view-label .dl-btn,#view-label .dl-btn{cursor:pointer;opacity:var(--op-rest);color:var(--accent2);transition:opacity var(--dur-fast),color var(--dur-fast);display:inline-flex;align-items:center;}
+  .split-view-label .dl-btn:hover,#view-label .dl-btn:hover{opacity:var(--op-active);color:var(--success);}
   /* Floating top-center indicator showing the currently-colored gene for a
      view. One element per split half; in single-view mode, the left one is
      centered over the whole canvas and the right one is hidden. Purely
      informational — pointer-events:none so it doesn't block clicks. */
-  .gene-indicator{display:none;position:absolute;top:8px;z-index:6;font-size:11px;color:var(--accent2);font-weight:600;padding:3px 10px;border-radius:4px;background:rgba(99,102,241,0.14);border:1px solid rgba(99,102,241,0.35);pointer-events:none;transform:translateX(-50%);font-variant-numeric:tabular-nums;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:0.2px;}
+  .gene-indicator{display:none;position:absolute;top:8px;z-index:6;font-size:11px;color:var(--accent2);font-weight:600;padding:3px 10px;border-radius:4px;background:rgba(99,102,241,0.14);border:1px solid rgba(99,102,241,0.35);pointer-events:auto;cursor:pointer;transform:translateX(-50%);font-variant-numeric:tabular-nums;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:0.2px;transition:background var(--dur-fast),border-color var(--dur-fast);}
+  .gene-indicator.on:hover{background:rgba(99,102,241,0.22);border-color:rgba(99,102,241,0.55);}
   .gene-indicator.on{display:block;}
   /* Plots panel — cluster chips + render button + gene search dropdown */
   #plot-clusters .plot-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;font-size:10px;line-height:1.2;border-radius:12px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);cursor:pointer;user-select:none;transition:border-color 0.1s,color 0.1s,background 0.1s;}
@@ -220,8 +238,8 @@
   #plot-gene-results .pg-hit{padding:3px 8px;font-size:10px;color:var(--text2);cursor:pointer;}
   #plot-gene-results .pg-hit:hover{background:var(--bg-hover);color:var(--text);}
   #plot-gene-results .pg-hit.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
-  #hud-toggle,#hud-R-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;color:var(--text4);display:inline-flex;align-items:center;gap:4px;user-select:none;}
-  #hud-toggle:hover,#hud-R-toggle:hover{color:var(--text2);border-color:var(--border2);}
+  #hud-toggle,#hud-R-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;color:var(--accent2);display:inline-flex;align-items:center;gap:4px;user-select:none;opacity:var(--op-rest);transition:opacity var(--dur-fast),border-color var(--dur-fast);}
+  #hud-toggle:hover,#hud-R-toggle:hover{opacity:var(--op-active);border-color:var(--border2);}
   #hud-body,#hud-R-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
   #hud.open #hud-body,#hud-R.open #hud-R-body{display:block;}
   #hud .hud-row,#hud-R .hud-row{display:flex;justify-content:space-between;gap:8px;}
@@ -370,7 +388,8 @@
   /* Mini view buttons in header — hidden when expanded, shown when collapsed */
   #view-mini-btns{display:none;align-items:center;gap:4px;margin-left:12px;margin-right:auto;}
   #view-mini-btns .vbtn{padding:1px 6px;font-size:10px;margin-right:0;}
-  #view-reset-mini{background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;line-height:1;display:inline-flex;align-items:center;}
+  #view-reset-mini{background:none;border:none;color:var(--accent2);cursor:pointer;padding:0 2px;line-height:1;display:inline-flex;align-items:center;opacity:var(--op-rest);transition:opacity var(--dur-fast);}
+  #view-reset-mini:hover{opacity:var(--op-active);}
   /* Hover for split toggle buttons (2D/3D, Gene/GO, List/Lineage) */
   #vb2m:hover,#vb3m:hover,#vb2:hover,#vb3:hover,#go-btn-gene:hover,#go-btn-go:hover{opacity:0.8;}
   #view-reset-mini:hover{color:var(--text2);}
@@ -384,10 +403,10 @@
   .sg-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:inherit;font:inherit;padding:0;min-width:0;cursor:pointer;}
   .sg-rename{flex:1;min-width:0;background:none;border:none;border-bottom:1px solid var(--text3);color:var(--text);font:inherit;padding:0;outline:none;}
   .sg-count{font-size:10px;color:var(--text4);flex-shrink:0;}
-  .sg-del{background:none;border:none;color:var(--text4);cursor:pointer;font-size:12px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
+  .sg-del{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
   .sg-item:hover .sg-del{opacity:1;}
   .sg-del:hover{color:var(--danger);}
-  .sg-save{background:none;border:none;color:var(--text4);cursor:pointer;font-size:12px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;margin-right:8px;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
+  .sg-save{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;margin-right:8px;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
   .sg-item:hover .sg-save{opacity:1;}
   .sg-save:hover,.icon-btn.sg-save:hover{color:var(--success);}
   /* Split view panel rows — mirrors sg-item styling */
@@ -397,16 +416,18 @@
   .sv-num{font-size:10px;font-weight:700;flex-shrink:0;width:10px;text-align:center;opacity:0.7;font-variant-numeric:tabular-nums;color:var(--text4);}
   .sv-item.active .sv-num{color:var(--accent2);}
   .sv-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .sv-del{background:none;border:none;color:var(--text4);cursor:pointer;font-size:12px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;margin-left:8px;opacity:0.7;transition:opacity 0.1s,color 0.1s;}
-  .sv-item:hover .sv-del{opacity:1;}
-  .sv-del:hover{color:var(--danger)!important;}
-  .sv-tether{background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.7;transition:opacity 0.1s,color 0.1s;display:inline-flex;align-items:center;justify-content:center;}
-  .sv-item:hover .sv-tether{opacity:1;}
-  .sv-tether:hover{color:var(--accent2)!important;opacity:1!important;}
-  .sv-tether.tethered{color:var(--accent2);opacity:0.9;}
-  .sv-export{background:none;border:none;color:var(--text4);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;opacity:0.7;transition:opacity 0.1s,color 0.1s;display:inline-flex;align-items:center;justify-content:center;}
-  .sv-item:hover .sv-export{opacity:1;}
-  .sv-export:hover{color:var(--success)!important;opacity:1!important;}
+  /* Split-view row icons (delete, chain, download): each icon brightens ONLY
+     when individually hovered, not when the row is hovered. Previous
+     `.sv-item:hover .<icon>` rules caused the whole icon set to flash
+     together whenever the mouse crossed the row — hiding which icon the
+     pointer was actually over. Row hover still tints the row background
+     (.sv-item:hover) so the row itself reads as focused. */
+  .sv-del{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:0 2px;flex-shrink:0;line-height:1;margin-left:8px;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  .sv-del:hover{opacity:var(--op-active);color:var(--danger)!important;}
+  .sv-tether{background:none;border:none;color:var(--accent2);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);display:inline-flex;align-items:center;justify-content:center;}
+  .sv-tether:hover{opacity:var(--op-active);}
+  .sv-export{background:none;border:none;color:var(--accent2);cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);display:inline-flex;align-items:center;justify-content:center;}
+  .sv-export:hover{opacity:var(--op-active);color:var(--success)!important;}
   /* sg-add-btn removed — replaced by + button in header */
   .sg-toolbar{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap;}
   .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:10px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;}
@@ -470,7 +491,8 @@
   #help-hdr h1{font-size:15px;font-weight:800;margin:0;color:var(--text);}
   #help-hdr h1 span:first-child{color:var(--text3);font-weight:600;}
   #help-hdr h1 span:last-child{color:var(--accent2);}
-  #help-close{background:none;border:none;color:var(--text4);cursor:pointer;font-size:20px;font-family:inherit;padding:0 4px;line-height:1;}
+  #help-close{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:20px;font-family:inherit;padding:0 4px;line-height:1;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  #help-close:hover{opacity:var(--op-active);color:var(--danger);}
   #help-close:hover{color:var(--text);}
   /* Custom confirm dialog */
   #confirm-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.45);justify-content:center;align-items:center;}
@@ -503,7 +525,8 @@
   .help-table td{padding:4px 8px 4px 0;color:var(--text2);border-bottom:1px solid var(--bg3);vertical-align:top;line-height:1.5;}
   .help-table td:first-child{white-space:nowrap;color:var(--text);font-weight:600;min-width:120px;}
   .help-key{display:inline-block;padding:1px 5px;border-radius:3px;background:var(--bg3);border:1px solid var(--border);font-size:10px;font-weight:600;color:var(--text2);font-family:inherit;}
-  .deg-close{background:none!important;border:none!important;color:var(--text4)!important;font-size:14px;cursor:pointer;padding:0 4px!important;line-height:1;}
+  .deg-close{background:none!important;border:none!important;color:var(--accent2)!important;font-size:14px;cursor:pointer;padding:0 4px!important;line-height:1;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  .deg-close:hover{opacity:var(--op-active);color:var(--danger)!important;}
   .deg-close:hover{color:var(--danger)!important;}
   /* Universal hover for small text/icon buttons without a class-specific rule */
   #upload-stop-btn:hover{background:rgba(248,113,113,0.12)!important;}
@@ -545,8 +568,11 @@
      .pill      — small rounded tint chip (badges, slice labels, gene indicator).
      Legacy aliases (.icon-btn, .tether-btn, .dl-btn, .sg-save, .sg-del,
      .sv-*) are rewritten below as thin wrappers that just extend .btn-icon. */
-  .btn-icon{background:none;border:none;cursor:pointer;padding:var(--sp-1) var(--sp-2);color:var(--text4);line-height:1;font-size:var(--fs-sm);display:inline-flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
-  .btn-icon:hover{color:var(--text2);opacity:var(--op-active);}
+  /* Icon baseline: --accent2 at rest so all action icons share one brand blue.
+     Neutral hover brightens via opacity only (no color change). Semantic
+     hovers (.download/.danger) override with their own color. */
+  .btn-icon{background:none;border:none;cursor:pointer;padding:var(--sp-1) var(--sp-2);color:var(--accent2);line-height:1;font-size:var(--fs-sm);display:inline-flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  .btn-icon:hover{opacity:var(--op-active);}
   .btn-icon.download:hover{color:var(--success);}
   .btn-icon.danger:hover{color:var(--danger);}
   .btn-icon.accent:hover{color:var(--accent2);}
@@ -562,14 +588,15 @@
   /* Legacy alias — .icon-btn is still in use throughout the HTML. Keeping
      it as a simple alias for .btn-icon so existing markup keeps working
      unchanged; new code should prefer .btn-icon. */
-  .icon-btn{background:none;border:none;cursor:pointer;padding:var(--sp-1) var(--sp-2);color:var(--text4);line-height:1;font-size:var(--fs-sm);display:inline-flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
-  .icon-btn:hover{color:var(--text2);opacity:var(--op-active);}
+  .icon-btn{background:none;border:none;cursor:pointer;padding:var(--sp-1) var(--sp-2);color:var(--accent2);line-height:1;font-size:var(--fs-sm);display:inline-flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  .icon-btn:hover{opacity:var(--op-active);}
   .icon-btn.download:hover{color:var(--success);}
   .icon-btn.danger:hover{color:var(--danger);}
   .icon-btn:disabled,.icon-btn[disabled]{opacity:var(--op-disabled)!important;cursor:default;pointer-events:none;}
   .icon-btn svg{width:var(--ic-md);height:var(--ic-md);fill:currentColor;}
   /* Settings */
-  #settings-btn{position:absolute;bottom:12px;right:12px;z-index:50;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer;color:var(--text4);line-height:1;display:flex;align-items:center;justify-content:center;}
+  #settings-btn{position:absolute;bottom:12px;right:12px;z-index:50;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer;color:var(--accent2);line-height:1;display:flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast);}
+  #settings-btn:hover{opacity:var(--op-active);}
   #settings-btn:hover{color:var(--text2);border-color:var(--border2);}
   #settings-btn svg{width:14px;height:14px;fill:currentColor;}
   #settings-popup{display:none;position:absolute;bottom:42px;right:12px;z-index:55;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;min-width:220px;backdrop-filter:blur(8px);}
@@ -590,7 +617,8 @@
   #no-key-banner{display:none;position:absolute;bottom:48px;left:50%;transform:translateX(-50%);z-index:60;background:#1e1b2e;border:1px solid rgba(196,181,253,0.4);border-radius:6px;padding:7px 12px;font-size:11px;color:#c4b5fd;white-space:nowrap;display:none;align-items:center;gap:8px;}
   #no-key-banner button{background:rgba(196,181,253,0.15);border:1px solid rgba(196,181,253,0.4);border-radius:3px;color:#c4b5fd;font-size:11px;font-family:inherit;padding:2px 8px;cursor:pointer;}
   #no-key-banner button:hover{background:rgba(196,181,253,0.25);}
-  #no-key-banner .nbr-close{background:none;border:none;color:var(--text4);font-size:12px;padding:0 2px;cursor:pointer;line-height:1;}
+  #no-key-banner .nbr-close{background:none;border:none;color:var(--accent2);font-size:12px;padding:0 2px;cursor:pointer;line-height:1;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  #no-key-banner .nbr-close:hover{opacity:var(--op-active);color:var(--danger);}
   .s-toggle{position:relative;display:inline-block;width:28px;height:16px;flex-shrink:0;}
   .s-toggle input{opacity:0;width:0;height:0;position:absolute;}
   .s-toggle .s-slider{position:absolute;inset:0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:background 0.15s,border-color 0.15s;}
@@ -659,7 +687,7 @@
       <span id="fleek-version" style="font-size:10px;color:var(--text4);opacity:0.7;font-variant-numeric:tabular-nums;cursor:pointer;" onclick="toggleHelp()" title="Version — click for About & Help"></span>
     </div>
     <div style="display:flex;gap:2px;align-items:center;">
-      <button onclick="toggleSidebar()" title="Hide sidebar (\)" style="background:none;border:none;color:var(--text4);cursor:pointer;font-size:20px;font-family:inherit;padding:2px 6px;line-height:1;opacity:0.4;margin-left:2px;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">&laquo;</button>
+      <button onclick="toggleSidebar()" title="Hide sidebar (\)" style="background:none;border:none;color:var(--accent2);cursor:pointer;font-size:20px;font-family:inherit;padding:2px 6px;line-height:1;opacity:0.4;margin-left:2px;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">&laquo;</button>
     </div>
   </div>
   <!-- Data: collapsible -->
@@ -680,8 +708,8 @@
     <div id="browse-popover" style="display:none;margin:6px 6px 0;padding:8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">
       <div style="display:flex;align-items:center;gap:2px;margin-bottom:6px;">
         <div style="display:flex;align-items:center;gap:1px;margin-right:4px;">
-          <button class="btn" id="browse-back" onclick="browseBack()" title="Step Back" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--text4);">&#8634;</button>
-          <button class="btn" id="browse-fwd" onclick="browseFwd()" title="Step Forward" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--text4);">&#8635;</button>
+          <button class="btn" id="browse-back" onclick="browseBack()" title="Step Back" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--accent2);">&#8634;</button>
+          <button class="btn" id="browse-fwd" onclick="browseFwd()" title="Step Forward" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--accent2);">&#8635;</button>
           <button class="btn" onclick="browseTo('..')" title="Parent directory" style="padding:2px 4px;font-size:13px;line-height:1;">&#8593;</button>
           <button class="btn" onclick="browseTo('~')" title="Home directory" style="padding:2px 4px;font-size:12px;line-height:1;"><svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:middle;fill:currentColor;"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg></button>
         </div>
@@ -894,8 +922,8 @@
     <div class="col-body">
       <div id="split-list"></div>
       <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
-        <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split (or press 1-9)" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
-        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--text4);cursor:pointer;font-size:12px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border2)';this.style.color=_splitActive?'var(--accent2)':'var(--text4)'">⧉</button>
+        <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split (or press 1-9)" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">+</button>
+        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border2)'">⧉</button>
       </div>
     </div>
   </div>
@@ -907,7 +935,7 @@
     </div>
     <div class="col-body">
       <div id="sel-groups"></div>
-      <button onclick="addSelGroup()" title="Add selection group (or press Shift+1-9)" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--text4);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;margin:4px 0;" onmouseenter="this.style.borderColor='var(--accent)';this.style.color='var(--accent2)'" onmouseleave="this.style.borderColor='var(--border)';this.style.color='var(--text4)'">+</button>
+      <button onclick="addSelGroup()" title="Add selection group (or press Shift+1-9)" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;margin:4px 0;" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">+</button>
       <div class="sg-toolbar">
         <button onclick="selAllVisible()" title="Select all visible cells into active group (Shift+V)">Sel. Vis.</button>
         <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)" title="Clear visible cells from active group (Esc)">Clear</button>
@@ -994,7 +1022,7 @@
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
         <span style="font-size:10px;color:var(--text4);">Type</span>
         <select id="plot-type" onchange="_plotTypeChanged();if(typeof saveState==='function')saveState();" style="flex:1;">
-          <option value="raincloud">Raindrop plot</option>
+          <option value="raincloud">Raincloud plot</option>
         </select>
       </div>
       <!-- Raincloud options. Plot reflects the active view's state: visible
@@ -1074,14 +1102,14 @@
   <div id="split-focus-R" class="split-focus-box"></div>
   <div id="split-label-L" class="split-view-label" style="left:8px;"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0]!=null)_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
   <div id="split-label-R" class="split-view-label" style="left:calc(50% + 8px);"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1]!=null)_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
-  <div id="gene-indicator-L" class="gene-indicator" title="Gene being visualized"></div>
-  <div id="gene-indicator-R" class="gene-indicator" title="Gene being visualized"></div>
+  <div id="gene-indicator-L" class="gene-indicator" title="Click for gene info" onclick="if(this.textContent)_geneInfoOpen(this.textContent)"></div>
+  <div id="gene-indicator-R" class="gene-indicator" title="Click for gene info" onclick="if(this.textContent)_geneInfoOpen(this.textContent)"></div>
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:10px;color:var(--text4);margin-left:4px;">FPS</span></div>
   <div id="hist-btns" style="position:absolute;top:8px;right:44px;display:flex;gap:1px;z-index:15;">
-    <button id="hist-back" onclick="histUndo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px 0 0 4px;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
-    <button id="hist-fwd" onclick="histRedo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:0 4px 4px 0;color:var(--text4);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
+    <button id="hist-back" onclick="histUndo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px 0 0 4px;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
+    <button id="hist-fwd" onclick="histRedo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:0 4px 4px 0;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
   <div id="hud" class="open">
     <div id="hud-body">
@@ -1643,6 +1671,14 @@
         <p><strong>Partial visibility indicators:</strong> Cell type dots, lineage tree dots, and slice pills all show proportional fill when some of their cells are hidden by other filters. A dot that's half-filled means roughly half of that cluster's cells are visible. Hover over any dot or pill for exact counts. A hidden-cell counter appears in the bottom-left HUD.</p>
         <p><strong>Selection highlight rings:</strong> scale proportionally with cell size — they get thinner when zoomed out and thicker when zoomed in, always sitting on the cell's visual circumference.</p>
         <p><strong>Expression rendering:</strong> In Gene Expression mode, expressing cells can optionally have their gradient edge removed for a flat disc appearance when halos are active, reducing visual noise. Non-expressing cells retain the soft gradient. This switches automatically when Expression Glow is toggled.</p>
+        <p><strong>Gene Info panel:</strong> click the floating gene pill at the top of the main viewer to open a draggable Gene Info modal. The top block is a thin bundled info card — full name, one-line summary, aliases, chromosomal location, gene type, Entrez ID — fetched on demand from <a href="https://mygene.info/" target="_blank" rel="noopener">mygene.info</a> and cached locally under <code>~/.fleek_cache/gene_info_&lt;species&gt;.json</code> so each unique symbol is only fetched once per organism. The second block is an <strong>organism-aware links grid</strong> that opens authoritative resources in your default browser:</p>
+        <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
+          <li><strong>All species:</strong> NCBI Gene, UniProt, Ensembl, PubMed, AlphaFold.</li>
+          <li><strong>Human:</strong> GeneCards, Human Protein Atlas, Open Targets, OMIM, GTEx.</li>
+          <li><strong>Mouse:</strong> MGI / Mouse Genome Informatics.</li>
+          <li><strong>Zebrafish:</strong> ZFIN. <strong>Fruitfly:</strong> FlyBase. <strong>Rat:</strong> RGD. <strong>Nematode:</strong> WormBase.</li>
+        </ul>
+        <p>External resources are never iframed — most block cross-frame embedding via <code>X-Frame-Options</code>, and keeping them as plain outbound links means the user always sees the authoritative site in its native UI. Offline note: external links need internet. If mygene.info is unreachable (HPC node with no egress), the info block degrades to a "couldn't reach gene info service" message but the links grid is still rendered from the symbol alone, so they'll work later when you're back online. The modal is closable with <strong>Esc</strong>, the close button, or a click outside; its header is draggable if you want to reposition it while keeping the main viewer visible.</p>
       </div>
     </div>
 
@@ -1654,7 +1690,7 @@
       </div>
       <div class="help-sec-body">
         <p>The <strong>Plots panel</strong> lets you render summary visualizations of gene expression. Currently one plot type is available, with more planned.</p>
-        <p><strong>Raindrop plot (a.k.a. raincloud):</strong> per-cluster expression distribution for a single gene. Each cluster column has three layered components:</p>
+        <p><strong>Raincloud plot:</strong> per-cluster expression distribution for a single gene. Each cluster column has three layered components:</p>
         <ul>
           <li><strong>Density curve</strong> (half-violin, right side) — the distribution shape of cells that <em>actually express</em> the gene, histogram-smoothed with a 5-tap gaussian filter.</li>
           <li><strong>Raindrops</strong> (dots, left side) — every expressing cell is drawn as a tiny semi-transparent dot. Horizontal placement is beeswarm-style: dots at similar y values are spread evenly across the full width of the dot column, with alternate-row offsets so adjacent y-bands don't line up into vertical stripes. Each dot's y is exact — no vertical shift. Zeros are subsampled and piled at y=0 so the zero mass is visible without dominating the render.</li>
@@ -2036,6 +2072,39 @@
     <div id="plot-canvas" style="overflow:auto;padding:16px;background:var(--bg);"></div>
   </div>
 </div>
+<div id="gene-info-overlay" style="display:none;position:fixed;inset:0;z-index:285;background:rgba(0,0,0,0.5);justify-content:center;align-items:center;" onclick="if(event.target===this)_geneInfoClose()">
+  <div id="gene-info-window" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;width:540px;max-width:94vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,0.4);">
+    <div id="gene-info-header" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:move;user-select:none;" onmousedown="_geneInfoDragStart(event)">
+      <span id="gene-info-symbol" style="font-size:14px;color:var(--text);font-weight:700;letter-spacing:0.3px;"></span>
+      <span id="gene-info-species" style="font-size:10px;color:var(--text4);font-style:italic;"></span>
+      <span style="flex:1;"></span>
+      <button onclick="_geneInfoClose()" class="btn-icon danger" title="Close (Esc)"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+    </div>
+    <div id="gene-info-body" style="overflow:auto;padding:14px 16px;font-size:11px;line-height:1.55;color:var(--text);">
+      <div id="gene-info-loading" style="color:var(--text4);font-style:italic;padding:8px 2px;">Loading gene info&hellip;</div>
+      <div id="gene-info-content" style="display:none;">
+        <div id="gene-info-name" style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;"></div>
+        <div id="gene-info-meta" style="font-size:10px;color:var(--text4);margin-bottom:10px;display:flex;flex-wrap:wrap;gap:10px;"></div>
+        <div id="gene-info-summary" style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:10px;"></div>
+        <div id="gene-info-aliases-wrap" style="margin-bottom:12px;display:none;">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text4);margin-bottom:4px;">Aliases</div>
+          <div id="gene-info-aliases" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+        </div>
+        <div id="gene-info-generifs-wrap" style="margin-bottom:12px;display:none;">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text4);margin-bottom:4px;">Known function <span style="text-transform:none;letter-spacing:0;font-style:italic;opacity:0.7;">(NCBI GeneRIFs)</span></div>
+          <div id="gene-info-generifs"></div>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text4);">External resources</div>
+          <div id="gene-info-bgtab-hint" style="font-size:9px;color:var(--text4);font-style:italic;" title="Modern browsers don't let web apps open background tabs programmatically. Use the key combo shown to keep focus on FLEEK while opening a link."></div>
+        </div>
+        <div id="gene-info-links" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="export-overlay" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.45);justify-content:center;align-items:center;" onclick="if(event.target===this)_exportClose()">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 22px;max-width:440px;width:92vw;box-shadow:0 16px 48px rgba(0,0,0,0.4);">
     <div style="font-size:12px;color:var(--text);font-weight:600;margin-bottom:2px;">Export points</div>
@@ -2113,7 +2182,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.3.22";
+var FLEEK_VERSION="v0.4.0";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2454,8 +2523,8 @@ function updateHistBtn(){
   var ub=document.getElementById("hist-back");
   var uf=document.getElementById("hist-fwd");
   var canUndo=_histIdx>0,canRedo=_histIdx<_history.length-1;
-  if(ub){ub.style.color=canUndo?"var(--text2)":"var(--text4)";ub.style.opacity=canUndo?"1":"0.35";}
-  if(uf){uf.style.color=canRedo?"var(--text2)":"var(--text4)";uf.style.opacity=canRedo?"1":"0.35";}
+  if(ub){ub.style.color="var(--accent2)";ub.style.opacity=canUndo?"1":"0.35";}
+  if(uf){uf.style.color="var(--accent2)";uf.style.opacity=canRedo?"1":"0.35";}
   if(ub)ub.style.cursor=_histIdx>0?"pointer":"default";
   if(uf)uf.style.cursor=_histIdx<_history.length-1?"pointer":"default";
 }
@@ -3829,6 +3898,7 @@ function recolor(){
   _scheduleVisStats();
   if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
   if(typeof _plotPopulate==="function")_plotPopulate();
+  if(typeof _plotSyncGeneFromViewer==="function")_plotSyncGeneFromViewer();
   pts.geometry.attributes.color.needsUpdate=true;
   pts.geometry.attributes.position.needsUpdate=true;
   if(ringPts){
@@ -4553,6 +4623,8 @@ function setupCtrl(){
       if(help.style.display==="block"){help.style.display="none";return;}
       var plov=document.getElementById("plot-overlay");
       if(plov&&plov.style.display==="flex"){_plotClose();return;}
+      var giov=document.getElementById("gene-info-overlay");
+      if(giov&&giov.style.display==="flex"){_geneInfoClose();return;}
       clearActiveGroup(e.altKey);
       _flashAction(e.altKey?"Clear All":"Clear Visible","Esc");
       return;
@@ -7420,8 +7492,8 @@ function browseFwd(){
 function _updateBrowseNav(){
   var bb=document.getElementById("browse-back");
   var bf=document.getElementById("browse-fwd");
-  if(bb){bb.style.color=_browseHistIdx>0?"var(--text2)":"var(--text4)";bb.style.cursor=_browseHistIdx>0?"pointer":"default";}
-  if(bf){bf.style.color=_browseHistIdx<_browseHistory.length-1?"var(--text2)":"var(--text4)";bf.style.cursor=_browseHistIdx<_browseHistory.length-1?"pointer":"default";}
+  if(bb){bb.style.color="var(--accent2)";bb.style.opacity=_browseHistIdx>0?"1":"0.35";bb.style.cursor=_browseHistIdx>0?"pointer":"default";}
+  if(bf){bf.style.color="var(--accent2)";bf.style.opacity=_browseHistIdx<_browseHistory.length-1?"1":"0.35";bf.style.cursor=_browseHistIdx<_browseHistory.length-1?"pointer":"default";}
 }
 
 /* ── Browse path input: Enter to navigate, Tab to complete ── */
@@ -8737,7 +8809,7 @@ function _updateGeneIndicators(){
   var iR=document.getElementById("gene-indicator-R");
   if(!iL||!iR)return;
   function _setPill(el,gene){
-    if(gene){el.textContent=gene;el.title="Gene expression: "+gene;el.classList.add("on");}
+    if(gene){el.textContent=gene;el.title="Click for info on "+gene;el.classList.add("on");}
     else{el.textContent="";el.title="";el.classList.remove("on");}
   }
   if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
@@ -9204,7 +9276,7 @@ function _viewUpdateUI(){
   if(cmpBtn){
     cmpBtn.style.display=_views.length>1?"inline-flex":"none";
     cmpBtn.style.background=_splitActive?"rgba(99,102,241,0.2)":"none";
-    cmpBtn.style.color=_splitActive?"var(--accent2)":"var(--text4)";
+    cmpBtn.style.color="var(--accent2)";
   }
   /* Canvas overlay label: name + download + tether toggle. Shown whenever a
      dataset is loaded and split-screen isn't active (in split mode the
@@ -9244,9 +9316,11 @@ function _viewUpdateUI(){
 var _exportViewId=null;
 
 /* ── Plots panel ──────────────────────────────────────────────────────────
-   Currently hosts the "Raindrop plot" (a raincloud-style composite: density
-   curve + jittered dots + thin median/IQR box). Scaffolded for additional
-   plot types to be added later (switched via #plot-type dropdown). */
+   Currently hosts the Raincloud plot (density curve + beeswarm raindrops +
+   thin median/IQR box). Scaffolded for additional plot types to be added
+   later (switched via #plot-type dropdown). "Raindrops" is the standard
+   term for the individual dots inside a raincloud plot; the plot itself
+   is a raincloud. */
 var _plotSelectedGene="";
 var _plotInflight=null;       /* AbortController for the in-flight fetch, or null */
 var _plotRendering=false;     /* true between click-to-render and result/abort */
@@ -9378,12 +9452,39 @@ function _plotGeneInput(q){
       }).catch(function(){});
   },150);
 }
+/* Canonical "user picked a gene inside a plot panel" entrypoint. Any future
+   plot type should route its gene-selection here so the behaviour stays
+   uniform — the choice propagates to the main viewer via pickGene(), which
+   recolors the cloud and updates the gene indicator pill. The same
+   _plotSyncGeneFromViewer runs at the end of pickGene's recolor, so the
+   plot input stays in sync with the viewer afterwards (a no-op since we
+   set it here already). Guard on selGene so we don't re-fire the gene
+   fetch when the plot already matches what's onscreen. */
 function _plotGenePick(g){
   _plotSelectedGene=g;
   document.getElementById("plot-gene-input").value=g;
   var host=document.getElementById("plot-gene-results");
   if(host){host.style.display="none";host.innerHTML="";}
+  if(typeof pickGene==="function"&&g&&selGene!==g)pickGene(g);
   if(typeof saveState==="function")saveState();
+}
+
+/* Mirror the main viewer's currently-colored gene into the raincloud-plot
+   gene input so the plot is always "aimed" at whatever the user is
+   exploring. Runs on every recolor / view switch via _updateGeneIndicators.
+   If the main viewer isn't in gene-expression mode (mode==="cluster"), we
+   leave whatever was already in the plot input alone — that way the user
+   can line up a plot gene independently if they want to. */
+function _plotSyncGeneFromViewer(){
+  if(!D)return;
+  if(mode!=="gene"||!selGene)return;
+  var inp=document.getElementById("plot-gene-input");
+  if(!inp)return;
+  if(inp.value===selGene&&_plotSelectedGene===selGene)return;
+  _plotSelectedGene=selGene;
+  inp.value=selGene;
+  var host=document.getElementById("plot-gene-results");
+  if(host){host.style.display="none";host.innerHTML="";}
 }
 
 function _plotStatus(msg,err){
@@ -9439,6 +9540,303 @@ function _plotDragEnd(){
   document.removeEventListener("mousemove", _plotDragMove);
   document.removeEventListener("mouseup", _plotDragEnd);
 }
+
+/* Gene Info modal — triggered by clicking the gene-expression pill in the
+   main viewer. Fetches cached gene metadata (symbol, name, summary, aliases,
+   chromosome, xrefs) from /api/gene-info and renders an info block plus a
+   grid of organism-aware external links (NCBI, GeneCards/MGI, UniProt, HPA,
+   Ensembl, PubMed, Open Targets). Links open in the default browser; we
+   never iframe external content (X-Frame-Options / CORS). */
+var _geneInfoLast=null;
+var _geneInfoInflight=null;
+
+/* Organism-keyed URL templates. {s} = symbol, {e} = entrez id, {ens} = ensembl
+   gene id, {up} = uniprot id. Templates that require an id we don't have will
+   be skipped at render time. */
+function _geneInfoLinks(p){
+  var s=encodeURIComponent(p.symbol||"");
+  var e=encodeURIComponent(p.entrez||"");
+  var ens=encodeURIComponent(p.ensembl||"");
+  var up=encodeURIComponent(p.uniprot||"");
+  var species=(p.species||"human").toLowerCase();
+  var L=[];
+  L.push({name:"NCBI Gene", url: e?("https://www.ncbi.nlm.nih.gov/gene/"+e):("https://www.ncbi.nlm.nih.gov/gene/?term="+s)});
+  if(species==="human"){
+    L.push({name:"GeneCards", url:"https://www.genecards.org/cgi-bin/carddisp.pl?gene="+s});
+    L.push({name:"Human Protein Atlas", url:"https://www.proteinatlas.org/search/"+s});
+    L.push({name:"Open Targets", url: ens?("https://platform.opentargets.org/target/"+ens):("https://platform.opentargets.org/search?q="+s+"&page=1")});
+    L.push({name:"OMIM", url: p.mim?("https://www.omim.org/entry/"+encodeURIComponent(p.mim)):("https://www.omim.org/search?search="+s)});
+    L.push({name:"GTEx", url:"https://www.gtexportal.org/home/gene/"+s});
+  }else if(species==="mouse"){
+    /* MGI (Mouse Genome Informatics) — the marker/summary endpoint is the
+       working canonical lookup by symbol; the older searchtool URL often
+       returns empty results, so only one entry here. */
+    L.push({name:"MGI", url:"https://www.informatics.jax.org/marker/summary?nomen="+s});
+  }else if(species==="zebrafish"){
+    L.push({name:"ZFIN", url:"https://zfin.org/action/quicksearch?query.q="+s});
+  }else if(species==="fruitfly"){
+    L.push({name:"FlyBase", url:"https://flybase.org/cgi-bin/quicksearch.html?input="+s});
+  }else if(species==="rat"){
+    L.push({name:"RGD", url:"https://rgd.mcw.edu/rgdweb/search/genes.html?term="+s});
+  }else if(species==="nematode"){
+    L.push({name:"WormBase", url:"https://wormbase.org/species/all/gene?query="+s});
+  }
+  L.push({name:"UniProt", url: up?("https://www.uniprot.org/uniprotkb/"+up+"/entry"):("https://www.uniprot.org/uniprotkb?query="+s+"+AND+organism_name:"+species)});
+  L.push({name:"Ensembl", url: ens?("https://www.ensembl.org/id/"+ens):("https://www.ensembl.org/Multi/Search/Results?q="+s+";species="+species)});
+  L.push({name:"PubMed", url:"https://pubmed.ncbi.nlm.nih.gov/?term="+s+"%5BTitle%2FAbstract%5D"});
+  L.push({name:"AlphaFold", url: up?("https://alphafold.ebi.ac.uk/entry/"+up):("https://alphafold.ebi.ac.uk/search/text/"+s)});
+  return L;
+}
+
+function _geneInfoOpen(symbol){
+  symbol=(symbol||"").trim();
+  if(!symbol)return;
+  var ov=document.getElementById("gene-info-overlay");
+  if(!ov)return;
+  document.getElementById("gene-info-symbol").textContent=symbol;
+  var org=(D&&D.header&&D.header.organism)||"";
+  document.getElementById("gene-info-species").textContent=org;
+  document.getElementById("gene-info-loading").style.display="block";
+  document.getElementById("gene-info-loading").textContent="Loading gene info\u2026";
+  document.getElementById("gene-info-content").style.display="none";
+  /* Render external links immediately — they work from symbol alone and don't
+     wait on the network. Fill with the org hint from D.header until the server
+     echoes back the authoritative species. */
+  var tmpSpecies=(org||"Human").toLowerCase();
+  _geneInfoRenderLinks({symbol:symbol, species:tmpSpecies});
+  ov.style.display="flex";
+  /* Reset any previous drag offset so it re-centers. */
+  var win=document.getElementById("gene-info-window");
+  if(win){win.style.left="";win.style.top="";win.style.position="";win.style.margin="";}
+  /* Abort any inflight fetch for a prior gene */
+  if(_geneInfoInflight){try{_geneInfoInflight.abort();}catch(_){}_geneInfoInflight=null;}
+  _geneInfoInflight=new AbortController();
+  fetch("/api/gene-info?symbol="+encodeURIComponent(symbol),{signal:_geneInfoInflight.signal})
+    .then(function(r){return r.json();})
+    .then(function(p){
+      _geneInfoInflight=null;
+      _geneInfoLast=p;
+      _geneInfoRender(p);
+    })
+    .catch(function(err){
+      if(err&&err.name==="AbortError")return;
+      _geneInfoInflight=null;
+      document.getElementById("gene-info-loading").textContent="Couldn't reach gene info service. External links below still work.";
+    });
+}
+
+function _geneInfoRender(p){
+  var loading=document.getElementById("gene-info-loading");
+  var content=document.getElementById("gene-info-content");
+  if(!p||p.found===false){
+    loading.style.display="block";
+    loading.textContent=p&&p.error?("No info found for this gene ("+p.error+"). External links below still work."):"No info found for this gene. External links below still work.";
+    content.style.display="none";
+    _geneInfoRenderLinks(p||{symbol:document.getElementById("gene-info-symbol").textContent});
+    return;
+  }
+  loading.style.display="none";
+  content.style.display="block";
+  document.getElementById("gene-info-name").textContent=p.name||p.symbol;
+  var meta=[];
+  if(p.type)meta.push('<span>'+_esc(p.type.replace(/-/g," "))+'<\/span>');
+  if(p.chromosome)meta.push('<span>chr '+_esc(p.chromosome)+(p.map_location?(" \u00b7 "+_esc(p.map_location)):"")+'<\/span>');
+  else if(p.map_location)meta.push('<span>'+_esc(p.map_location)+'<\/span>');
+  if(p.entrez)meta.push('<span>Entrez '+_esc(p.entrez)+'<\/span>');
+  document.getElementById("gene-info-meta").innerHTML=meta.join("");
+  /* Summary: Entrez text when available, otherwise a short paragraph stitched
+     from top NCBI GeneRIFs (short PubMed-linked function statements curated
+     by NCBI). GeneRIFs are the common fallback for mouse and less-studied
+     genes where the Entrez summary field is empty, and render with a small
+     source-attribution line. */
+  var sumEl=document.getElementById("gene-info-summary");
+  sumEl.innerHTML="";
+  if(p.summary){
+    var body=document.createElement("div");
+    body.textContent=p.summary;
+    sumEl.appendChild(body);
+    if(p.summary_source==="ncbi"){
+      var src=document.createElement("div");
+      src.style.cssText="font-size:9px;color:var(--text4);margin-top:4px;font-style:italic;";
+      src.textContent="From NCBI Gene (Alliance of Genome Resources or model-organism consortium).";
+      sumEl.appendChild(src);
+    }else if(p.summary_source==="generif"){
+      var src2=document.createElement("div");
+      src2.style.cssText="font-size:9px;color:var(--text4);margin-top:4px;font-style:italic;";
+      src2.textContent="Assembled from NCBI GeneRIFs \u2014 no curated summary is published for this gene.";
+      sumEl.appendChild(src2);
+    }
+  }else{
+    var none=document.createElement("span");
+    none.style.cssText="color:var(--text4);font-style:italic;";
+    none.textContent="No description available from mygene.info. Try the external resources below \u2014 GeneCards or HPA usually have a write-up even when NCBI doesn't.";
+    sumEl.appendChild(none);
+  }
+  /* Extra GeneRIFs (beyond the first few used for the synthesized summary)
+     go into a small collapsible "Known function" block so the user can see
+     the primary-literature context without chasing external links. */
+  var grWrap=document.getElementById("gene-info-generifs-wrap");
+  var grBox=document.getElementById("gene-info-generifs");
+  if(grWrap&&grBox){
+    grBox.innerHTML="";
+    var rifs=(p.generifs||[]);
+    var startIdx=(p.summary_source==="generif")?3:0;
+    var extras=rifs.slice(startIdx,startIdx+3);
+    if(extras.length){
+      grWrap.style.display="block";
+      for(var ri=0;ri<extras.length;ri++){
+        var li=document.createElement("div");
+        li.style.cssText="font-size:10px;color:var(--text2);line-height:1.5;padding:4px 0;border-top:1px solid var(--border);";
+        if(ri===0)li.style.borderTop="none";
+        var txt=document.createElement("span");
+        txt.textContent=extras[ri].text;
+        li.appendChild(txt);
+        if(extras[ri].pmid){
+          var a=document.createElement("a");
+          a.href="https://pubmed.ncbi.nlm.nih.gov/"+encodeURIComponent(extras[ri].pmid)+"/";
+          a.target="_blank";
+          a.rel="noopener noreferrer";
+          a.textContent=" PMID "+extras[ri].pmid;
+          a.style.cssText="color:var(--accent2);text-decoration:none;margin-left:4px;font-size:9px;";
+          li.appendChild(a);
+        }
+        grBox.appendChild(li);
+      }
+    }else{grWrap.style.display="none";}
+  }
+  var aw=document.getElementById("gene-info-aliases-wrap");
+  var aliasesBox=document.getElementById("gene-info-aliases");
+  aliasesBox.innerHTML="";
+  if(p.aliases&&p.aliases.length){
+    aw.style.display="block";
+    for(var i=0;i<p.aliases.length&&i<20;i++){
+      var chip=document.createElement("span");
+      chip.className="pill";
+      chip.style.fontSize="10px";
+      chip.style.padding="2px 7px";
+      chip.textContent=p.aliases[i];
+      aliasesBox.appendChild(chip);
+    }
+  }else{aw.style.display="none";}
+  _geneInfoRenderLinks(p);
+}
+
+/* Detect OS + browser to produce a short per-user hint on how to open a
+   link in a background tab without losing focus on FLEEK. Programmatically
+   forcing a background tab isn't possible in modern browsers (Chromium,
+   Firefox, and Safari all ignore synthetic modifier keys and window.focus
+   cross-window tricks for navigation disposition — this was locked down
+   around 2018 to stop adware). So instead we surface the correct modifier
+   key for the user's OS. Returns an object describing the hint. */
+function _bgTabHint(){
+  var ua=navigator.userAgent||"";
+  var plat=navigator.platform||"";
+  var isMac=/Mac|iPhone|iPad|iPod/.test(plat)||/Mac OS X/.test(ua);
+  var isWin=/Win/.test(plat);
+  var isLinux=/Linux|X11/.test(plat)&&!/Android/.test(ua);
+  /* Browser detection — needed because Firefox and Safari have settings that
+     can flip the default behaviour of the modifier click, and we want to
+     mention that when relevant. */
+  var isEdge=/Edg\//.test(ua);
+  var isOpera=/OPR\//.test(ua);
+  var isFirefox=/Firefox\//.test(ua)&&!isEdge;
+  var isSafari=/Safari\//.test(ua)&&!/Chrome|Chromium|Edg|OPR/.test(ua);
+  var mod=isMac?"\u2318":"Ctrl";      /* ⌘ on mac, Ctrl elsewhere */
+  var osLbl=isMac?"macOS":(isWin?"Windows":(isLinux?"Linux":"your OS"));
+  var shortText=mod+"+click to open in background";
+  var longTip="On "+osLbl+", "+mod+"+click on any link here opens it in a background tab so focus stays on FLEEK.";
+  if(isFirefox){
+    longTip+=" (If Firefox foregrounds instead, uncheck about:preferences#general \u2192 Tabs \u2192 \u201cWhen you open a link... switch to it immediately\u201d.)";
+  }else if(isSafari){
+    longTip+=" (If Safari foregrounds instead, uncheck Settings \u2192 Tabs \u2192 \u201cWhen a new tab or window opens, make it active\u201d.)";
+  }else if(isOpera){
+    longTip+=" (If Opera foregrounds instead, check Settings \u2192 Browser \u2192 Tabs for a focus preference.)";
+  }
+  /* Middle-click always opens background regardless of OS/browser — useful
+     for users on trackpads that support three-finger tap. */
+  longTip+=" Middle-click works too.";
+  return {shortText:shortText, longTip:longTip};
+}
+
+function _geneInfoRenderLinks(p){
+  var box=document.getElementById("gene-info-links");
+  if(!box)return;
+  /* Populate the OS-aware modifier-click hint once per render. Cheap to
+     recompute — the hint only depends on userAgent which doesn't change. */
+  var hintEl=document.getElementById("gene-info-bgtab-hint");
+  if(hintEl){
+    var _h=_bgTabHint();
+    hintEl.textContent=_h.shortText;
+    hintEl.title=_h.longTip;
+  }
+  box.innerHTML="";
+  var links=_geneInfoLinks(p);
+  for(var i=0;i<links.length;i++){
+    var a=document.createElement("a");
+    a.href=links[i].url;
+    a.target="_blank";
+    a.rel="noopener noreferrer";
+    a.textContent=links[i].name;
+    a.style.cssText="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rad-md);color:var(--text2);font-size:11px;text-decoration:none;transition:background var(--dur-fast),border-color var(--dur-fast),color var(--dur-fast);";
+    a.onmouseenter=function(){this.style.background="var(--bg-hover)";this.style.borderColor="var(--border2)";this.style.color="var(--text)";};
+    a.onmouseleave=function(){this.style.background="var(--bg3)";this.style.borderColor="var(--border)";this.style.color="var(--text2)";};
+    /* small external-link glyph */
+    var glyph=document.createElement("span");
+    glyph.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:0.6;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"\/><polyline points="15 3 21 3 21 9"\/><line x1="10" y1="14" x2="21" y2="3"\/><\/svg>';
+    a.appendChild(glyph);
+    box.appendChild(a);
+  }
+}
+
+function _geneInfoClose(){
+  var ov=document.getElementById("gene-info-overlay");
+  if(ov)ov.style.display="none";
+  if(_geneInfoInflight){try{_geneInfoInflight.abort();}catch(_){}_geneInfoInflight=null;}
+  var win=document.getElementById("gene-info-window");
+  if(win){win.style.left="";win.style.top="";win.style.position="";win.style.margin="";}
+}
+
+/* Draggable header — same pattern as plot popup. */
+var _geneInfoDrag=null;
+function _geneInfoDragStart(e){
+  if(e.target.closest("button,input,select,a"))return;
+  var win=document.getElementById("gene-info-window");
+  if(!win)return;
+  var r=win.getBoundingClientRect();
+  win.style.position="absolute";
+  win.style.left=r.left+"px";
+  win.style.top=r.top+"px";
+  win.style.margin="0";
+  _geneInfoDrag={dx:e.clientX-r.left, dy:e.clientY-r.top, w:r.width, h:r.height};
+  document.addEventListener("mousemove", _geneInfoDragMove);
+  document.addEventListener("mouseup", _geneInfoDragEnd);
+  e.preventDefault();
+}
+function _geneInfoDragMove(e){
+  if(!_geneInfoDrag)return;
+  var win=document.getElementById("gene-info-window");
+  if(!win)return;
+  var pad=8;
+  var maxX=window.innerWidth - _geneInfoDrag.w + pad;
+  var maxY=window.innerHeight - 32;
+  var x=e.clientX - _geneInfoDrag.dx;
+  var y=e.clientY - _geneInfoDrag.dy;
+  if(x<-_geneInfoDrag.w+pad*4)x=-_geneInfoDrag.w+pad*4;
+  if(x>maxX)x=maxX;
+  if(y<0)y=0;
+  if(y>maxY)y=maxY;
+  win.style.left=x+"px";
+  win.style.top=y+"px";
+}
+function _geneInfoDragEnd(){
+  _geneInfoDrag=null;
+  document.removeEventListener("mousemove", _geneInfoDragMove);
+  document.removeEventListener("mouseup", _geneInfoDragEnd);
+}
+
+/* Tiny HTML escaper — shared by multiple renderers would be ideal but not
+   worth a rename refactor here. Keep it local and private. */
+function _esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 
 /* Re-skin the currently displayed plot in-place when the theme changes.
    Cheap because we keep the fully-computed distribution in _plotLast — only
@@ -9531,6 +9929,11 @@ function _plotRender(){
   if(type!=="raincloud"){_plotStatus("Unknown plot type",true);return;}
   var gene=(_plotSelectedGene||document.getElementById("plot-gene-input").value||"").trim();
   if(!gene){_plotStatus("Pick a gene",true);return;}
+  /* Hitting Render with a typed-but-not-picked gene should also sync the
+     main viewer — same contract as clicking a type-ahead suggestion.
+     pickGene() will fetch the expression array; the subsequent _plotRender
+     call below gets the cached value for free. */
+  if(typeof pickGene==="function"&&selGene!==gene)pickGene(gene);
   var facetCol=document.getElementById("plot-facet").value||"";
   /* Cell types to include = currently visible clusters on the active view.
      Change them in the Cell Types panel, not here. */
@@ -9556,7 +9959,7 @@ function _plotRender(){
         if(!_plotRendering)return;
         var svg=_plotDrawRaincloud(gene, facetCol, data);
         _plotLast={type:"raincloud", gene:gene, facetCol:facetCol, data:data};
-        document.getElementById("plot-title").textContent="Raindrop plot \u00b7 "+gene;
+        document.getElementById("plot-title").textContent="Raincloud plot \u00b7 "+gene;
         var sub=facetCol?("faceted by "+facetCol+" \u00b7 "+data.facets.length+" panel"+(data.facets.length!==1?"s":"")):("single panel");
         sub+=" \u00b7 "+selClus.length+" cell type"+(selClus.length!==1?"s":"");
         /* Slice summary: per-column "col=v1,v2" if small, "col=k/N" if broad.
@@ -11291,19 +11694,31 @@ function _applySessionState(s){
   _restoring=false;_sessionLoading=false;
 }
 
-function _doSaveSession(name){
+function _doSaveSession(name, overwrite){
   var state=_buildSessionState();
   fetch("/api/session-save",{
     method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name:name,state:state})
+    body:JSON.stringify({name:name,state:state,overwrite:!!overwrite})
   })
   .then(function(r){return r.json();})
   .then(function(d){
     if(d.ok){
       _sessionName=name;
       _loadSessionList(name);
+      return;
     }
-    else{alert(d.error||"Failed to save session.");}
+    /* Server refused because a session of this name is on disk — ask
+       explicitly before retrying with overwrite=true. Covers cases where
+       the client dropdown was stale (another tab saved it, manual copy
+       into the cache dir, etc.) so the client-side existence check
+       wouldn't have caught it. */
+    if(d.code==="exists"){
+      fleekConfirm("Overwrite session \u201c"+name+"\u201d?","A session with this name already exists on disk. Overwriting it cannot be undone.","Overwrite",function(ok){
+        if(ok)_doSaveSession(name,true);
+      });
+      return;
+    }
+    alert(d.error||"Failed to save session.");
   }).catch(function(){alert("Server error saving session.");});
 }
 
@@ -11312,17 +11727,11 @@ function saveSessionAs(){
     if(!name||!name.trim())return;
     name=name.trim();
     if(name==="_auto"){alert("Name '_auto' is reserved for auto-save.");return;}
-    /* Check if session already exists */
-    var sel=document.getElementById("session-select");
-    var exists=false;
-    if(sel){for(var i=0;i<sel.options.length;i++){if(sel.options[i].value===name){exists=true;break;}}}
-    if(exists){
-      fleekConfirm("Overwrite session \u201c"+name+"\u201d?","The existing session will be replaced.","Overwrite",function(ok){
-        if(ok)_doSaveSession(name);
-      });
-    }else{
-      _doSaveSession(name);
-    }
+    /* First attempt with overwrite=false — the server is authoritative
+       and will return code:"exists" if there's a file on disk, which
+       triggers the confirm flow inside _doSaveSession. This replaces the
+       old client-only dropdown check that could miss a stale render. */
+    _doSaveSession(name,false);
   });
 }
 
@@ -12575,6 +12984,21 @@ function loadSettings(){
 /* Scroll-trap prevention: sub-scrollable areas inside the sidebar don't
    hijack scroll during active sidebar scrolling (B), and require a brief
    hover dwell before activating (A). */
+/* Keep wheel over range sliders from being absorbed to adjust the slider's
+   value (Firefox does this by default, other browsers vary). Forward the
+   delta to the nearest scrollable ancestor so the user can scroll past a
+   slider-heavy section like the View panel without getting wedged. */
+function setupSliderWheelPassthrough(){
+  document.querySelectorAll('input[type="range"]').forEach(function(inp){
+    if(inp._wheelFwd)return;
+    inp._wheelFwd=true;
+    inp.addEventListener("wheel",function(e){
+      var outer=_findOuterScrollable(inp);
+      if(outer){e.preventDefault();outer.scrollTop+=e.deltaY;}
+    },{passive:false});
+  });
+}
+
 function setupScrollTraps(){
   var sb=document.getElementById("sidebar-upper");
   if(!sb)return;
@@ -12621,6 +13045,91 @@ function setupScrollTraps(){
     }
   },true);
 }
+/* Find the nearest scrollable ancestor that isn't `el` itself. Used when an
+   inner scroll container is at its boundary and we want the outer sidebar to
+   take over the wheel event. Walks the DOM tree looking for overflow-y that
+   actually has content to scroll through. Returns null if nothing found. */
+function _findOuterScrollable(el){
+  var p=el.parentNode;
+  while(p&&p.nodeType===1){
+    if(p.scrollHeight>p.clientHeight){
+      var oy=getComputedStyle(p).overflowY;
+      if(oy==="auto"||oy==="scroll")return p;
+    }
+    p=p.parentNode;
+  }
+  return null;
+}
+
+/* Forward wheel events that a scroll-thumb or a saturated inner scroller
+   would otherwise swallow. Attach to:
+   1. A .scroll-thumb (the absolute-positioned overlay thumb) — wheel events
+      on the thumb don't reach the underlying scrollable since it's a sibling
+      and the thumb has pointer-events:auto while visible. Forward the delta
+      to `scrollEl`.
+   2. An inner scrollable (e.g. .sb-trap, a setupPanelScrollbar target) —
+      when the inner container is already at top/bottom, forward wheel to the
+      nearest outer scrollable ancestor so the user can "push through" to
+      the enclosing sidebar instead of getting wedged.
+   Browsers don't always chain to the parent smoothly (especially if the
+   inner scroll has momentum or a scroll-timeline), so we do it explicitly. */
+function _forwardWheelToElement(fromEl, scrollEl){
+  fromEl.addEventListener("wheel",function(e){
+    e.preventDefault();
+    scrollEl.scrollTop+=e.deltaY;
+  },{passive:false});
+}
+/* Resistance threshold for "push through": cumulative wheel delta in pixels
+   that has to pile up at the boundary before we start forwarding to the
+   outer sidebar. Roughly 1-2 wheel notches on a trackpad; more on a mouse.
+   Keeps a user who just reached the end of a list from immediately flinging
+   the whole sidebar — they get a soft "you've hit the edge" pause, then
+   persistent scrolling starts pushing through. */
+var _OVERSCROLL_THRESHOLD=90;
+/* Reset the accumulated boundary delta after this many ms of no wheel. */
+var _OVERSCROLL_RESET_MS=350;
+function _attachOverscrollForward(el){
+  if(!el||el._overscrollForward)return;
+  el._overscrollForward=true;
+  var boundaryDelta=0;
+  var lastDir=0;
+  var resetTimer=null;
+  function reset(){boundaryDelta=0;lastDir=0;}
+  el.addEventListener("wheel",function(e){
+    var max=el.scrollHeight-el.clientHeight;
+    /* No scroll possible here — forward immediately, no resistance. */
+    if(max<=0){
+      var outerA=_findOuterScrollable(el);
+      if(outerA){e.preventDefault();outerA.scrollTop+=e.deltaY;}
+      return;
+    }
+    var atTop=el.scrollTop<=0, atBot=el.scrollTop>=max-1;
+    var atBoundary=(atTop&&e.deltaY<0)||(atBot&&e.deltaY>0);
+    if(!atBoundary){
+      /* Scrolled back into the body of the list — drop any buffered delta so
+         the user doesn't get a sudden outer flush when they next overshoot. */
+      reset();
+      return;
+    }
+    /* Direction flip resets the buffer (going bottom→top after building up
+       at the bottom shouldn't instantly push the outer upward). */
+    var dir=e.deltaY>0?1:-1;
+    if(dir!==lastDir){boundaryDelta=0;lastDir=dir;}
+    boundaryDelta+=e.deltaY;
+    clearTimeout(resetTimer);
+    resetTimer=setTimeout(reset,_OVERSCROLL_RESET_MS);
+    /* Always consume the event while at the boundary so the browser's own
+       scroll-chaining doesn't fire in parallel. Only forward to the outer
+       once the cumulative push crosses the threshold — then the outer
+       tracks further wheel ticks 1:1 until the user lets go. */
+    e.preventDefault();
+    if(Math.abs(boundaryDelta)>=_OVERSCROLL_THRESHOLD){
+      var outerB=_findOuterScrollable(el);
+      if(outerB)outerB.scrollTop+=e.deltaY;
+    }
+  },{passive:false});
+}
+
 function setupCustomScrollbars(){
   /* Custom overlay scrollbars for macOS (which hides native scrollbars).
      Shows a draggable thumb on hover after a short delay. */
@@ -12707,6 +13216,10 @@ function setupCustomScrollbars(){
         if(!wrapper.matches(":hover"))thumb.classList.remove("visible");
       },1000);
     });
+    /* Wheel over the grab-cursor thumb should still scroll the sidebar —
+       previously the thumb's pointer-events:auto made wheel events stop at
+       the thumb without reaching the sibling scrollable beneath. */
+    _forwardWheelToElement(thumb, el);
   });
 }
 
@@ -12797,6 +13310,11 @@ function setupPanelScrollbar(el){
       if(!wrapper.matches(":hover"))thumb.classList.remove("visible");
     },1000);
   });
+  /* Wheel over the grab-cursor thumb should scroll the list beneath it. */
+  _forwardWheelToElement(thumb, el);
+  /* When the panel list is already saturated at top/bottom, let the user
+     "push through" to the outer sidebar instead of getting stuck. */
+  _attachOverscrollForward(el);
 }
 
 function setupPanelScrollbars(){
@@ -13298,7 +13816,7 @@ document.addEventListener("DOMContentLoaded",function(){
   /* Stamp the version into both the sidebar title pill and the help-overlay header. */
   var _sbv=document.getElementById("fleek-version");if(_sbv)_sbv.textContent=FLEEK_VERSION;
   var _hv=document.getElementById("help-version");if(_hv)_hv.textContent=FLEEK_VERSION;
-  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupPanelScrollbars();setupScrollTraps();_patchOS();_setupCustomSelects();_panelsInit();animate();_checkKeyStatus();
+  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupPanelScrollbars();setupScrollTraps();setupSliderWheelPassthrough();_patchOS();_setupCustomSelects();_panelsInit();animate();_checkKeyStatus();
   /* Apply initial theme */
   applyTheme(document.getElementById("set-theme").value||"dark");
   showL("Connecting to server...");

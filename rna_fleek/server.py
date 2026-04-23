@@ -306,6 +306,32 @@ def load_marker_db(marker_path=None):
     print(f"  (Run download_markers.py for the full CellMarker2 database)")
 
 
+def _fetch_ncbi_gene_summary(entrez_id, timeout=8):
+    """Pull the authoritative gene summary straight from NCBI E-utilities
+    (the same text rendered on the public https://www.ncbi.nlm.nih.gov/gene/
+    page). mygene.info's `summary` field is NCBI RefSeq-curated and often
+    empty for model organisms — the Alliance of Genome Resources / MGI / RGD
+    / ZFIN-contributed summaries that NCBI shows live in the `esummary`
+    response instead. Low call volume (cached per-gene per-organism), so we
+    run unauthenticated; E-utilities rate-limits at 3 req/s without an API
+    key which we'll never approach here. Returns a stripped string or "". """
+    if not entrez_id:
+        return ""
+    try:
+        import urllib.request, urllib.parse
+        url = ("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+               "?db=gene&retmode=json&id=" + urllib.parse.quote(str(entrez_id)))
+        req = urllib.request.Request(url, headers={"User-Agent": "RNA-FLEEK"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        rec = (data.get("result") or {}).get(str(entrez_id)) or {}
+        s = (rec.get("summary") or "").strip()
+        return s
+    except Exception as e:
+        print(f"  NCBI esummary fallback failed for {entrez_id}: {e}")
+        return ""
+
+
 def _detect_organism():
     """Detect organism from gene names using marker genes + casing heuristic.
     Returns (organism, reason) tuple."""
@@ -3376,6 +3402,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_gene_var()
         elif path == "/api/cluster-genes":
             self._serve_cluster_genes(params)
+        elif path == "/api/gene-info":
+            self._serve_gene_info(params.get("symbol", [""])[0])
         else:
             self.send_error(404)
 
@@ -3785,6 +3813,162 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    # Bump this when the gene-info payload schema changes so cached entries
+    # from an older shape get re-fetched automatically. Entries without a
+    # matching _v are treated as stale.
+    _GENE_INFO_SCHEMA = 3
+
+    def _serve_gene_info(self, symbol):
+        """Fetch gene metadata from mygene.info for `symbol`, normalize into a
+        compact payload, and cache per-organism to CACHE_DIR/gene_info_{species}.json
+        so each symbol is only fetched once per organism across sessions.
+
+        Fields returned: symbol, name, summary, summary_source, generifs,
+        aliases, chromosome, map_location, type, entrez, ensembl, uniprot,
+        hgnc, mim, species, found, _v. `generifs` is a list of up-to-4 short
+        Gene Reference Into Function statements (NCBI-curated) used as a
+        fallback when the Entrez summary field is empty — common for mouse
+        genes and less-studied loci. `summary_source` is "entrez" or "generif"
+        so the client can explain where the text came from.
+        Errors degrade gracefully — a {"found": False, "error": ...} response
+        still lets the client render the external-links grid (which needs only
+        the symbol + organism)."""
+        symbol = (symbol or "").strip()
+        def _send(payload, status=200):
+            data = json.dumps(payload).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        if not symbol:
+            _send({"error": "empty symbol", "found": False}); return
+        # Map detected organism name -> mygene.info species key
+        org_name = (_DETECTED_ORGANISM[0] if _DETECTED_ORGANISM else "Human").lower()
+        species_map = {"human": "human", "mouse": "mouse", "rat": "rat",
+                       "zebrafish": "zebrafish", "fruitfly": "fruitfly",
+                       "nematode": "nematode"}
+        species = species_map.get(org_name, "human")
+        # Cross-dataset cache — keyed by organism, not dataset
+        _init_cache_dir()
+        cache_file = CACHE_DIR / f"gene_info_{species}.json" if CACHE_DIR else None
+        cache = {}
+        if cache_file and cache_file.exists():
+            try:
+                with open(cache_file) as f: cache = json.load(f)
+            except Exception: cache = {}
+        key = symbol.upper()
+        cached = cache.get(key)
+        if cached and cached.get("_v") == self._GENE_INFO_SCHEMA:
+            _send(cached); return
+        # Miss or stale-schema entry — fetch fresh
+        try:
+            import urllib.request, urllib.parse
+            fields = ("symbol,name,summary,alias,other_names,genomic_pos,type_of_gene,"
+                      "entrezgene,ensembl,uniprot,HGNC,MIM,map_location,generif")
+            url = ("https://mygene.info/v3/query?q=" + urllib.parse.quote(symbol)
+                   + "&species=" + species + "&fields=" + fields + "&size=1")
+            req = urllib.request.Request(url, headers={"User-Agent": "RNA-FLEEK"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            hits = data.get("hits") or []
+            if not hits:
+                payload = {"symbol": symbol, "species": species, "found": False,
+                           "_v": self._GENE_INFO_SCHEMA}
+            else:
+                h = hits[0]
+                # The query endpoint returns a summary field in the hit, but when
+                # genome annotations are rich it may only expose generif. If
+                # summary is empty, fetch the full gene record too — /v3/gene/
+                # returns everything including `entrezgene_summary` on occasion.
+                pos = h.get("genomic_pos") or {}
+                if isinstance(pos, list): pos = pos[0] if pos else {}
+                chrom = str(pos.get("chr", "")) if isinstance(pos, dict) else ""
+                ensembl = h.get("ensembl") or {}
+                if isinstance(ensembl, list): ensembl = ensembl[0] if ensembl else {}
+                ens_gene = ensembl.get("gene", "") if isinstance(ensembl, dict) else ""
+                uniprot = h.get("uniprot") or {}
+                up = ""
+                if isinstance(uniprot, dict):
+                    up = uniprot.get("Swiss-Prot") or uniprot.get("TrEMBL") or ""
+                    if isinstance(up, list): up = up[0] if up else ""
+                aliases = h.get("alias") or []
+                if isinstance(aliases, str): aliases = [aliases]
+                other_names = h.get("other_names") or []
+                if isinstance(other_names, str): other_names = [other_names]
+                # Extract generifs — each is {text, pubmed} or a string
+                raw_generif = h.get("generif") or []
+                if isinstance(raw_generif, dict): raw_generif = [raw_generif]
+                generifs = []
+                for g in raw_generif[:8]:
+                    if isinstance(g, dict):
+                        t = (g.get("text") or "").strip()
+                        pm = g.get("pubmed") or g.get("pmid") or ""
+                        if isinstance(pm, list): pm = pm[0] if pm else ""
+                        if t:
+                            generifs.append({"text": t, "pmid": str(pm)})
+                    elif isinstance(g, str) and g.strip():
+                        generifs.append({"text": g.strip(), "pmid": ""})
+                # Summary priority:
+                #   1. mygene.info `summary` (NCBI RefSeq-curated; strongest
+                #      coverage for human).
+                #   2. NCBI E-utilities `esummary` on db=gene — carries the
+                #      Alliance-of-Genome-Resources / MGI / RGD / ZFIN text
+                #      that NCBI Gene pages actually display for model
+                #      organisms. mygene.info doesn't always sync this field,
+                #      which is why Sort1 (mouse) and similar genes looked
+                #      bare before. Quality match: what you see on the web
+                #      page is what you get here.
+                #   3. First 2-3 NCBI GeneRIFs assembled into a paragraph,
+                #      kept as a last-resort fallback for genes that have
+                #      neither of the above (rare but possible for lncRNAs
+                #      and newly-annotated loci).
+                entrez_summary = (h.get("summary") or "").strip()
+                entrez_id = str(h.get("entrezgene") or "")
+                summary_text = ""
+                summary_source = ""
+                if entrez_summary:
+                    summary_text = entrez_summary
+                    summary_source = "entrez"
+                else:
+                    ncbi_summary = _fetch_ncbi_gene_summary(entrez_id)
+                    if ncbi_summary:
+                        summary_text = ncbi_summary
+                        summary_source = "ncbi"
+                    elif generifs:
+                        summary_text = " ".join(g["text"] for g in generifs[:3])
+                        summary_source = "generif"
+                payload = {
+                    "symbol": h.get("symbol") or symbol,
+                    "name": h.get("name") or "",
+                    "summary": summary_text,
+                    "summary_source": summary_source,
+                    "generifs": generifs[:4],
+                    "aliases": list(aliases),
+                    "other_names": [n for n in other_names if isinstance(n, str)][:4],
+                    "chromosome": chrom,
+                    "map_location": str(h.get("map_location") or ""),
+                    "type": h.get("type_of_gene") or "",
+                    "entrez": entrez_id,
+                    "ensembl": ens_gene,
+                    "uniprot": up,
+                    "hgnc": str(h.get("HGNC") or ""),
+                    "mim": str(h.get("MIM") or ""),
+                    "species": species,
+                    "found": True,
+                    "_v": self._GENE_INFO_SCHEMA,
+                }
+            if cache_file is not None:
+                cache[key] = payload
+                try:
+                    with open(cache_file, "w") as f: json.dump(cache, f)
+                except Exception as _e:
+                    print(f"  gene-info cache write failed: {_e}")
+            _send(payload)
+        except Exception as e:
+            _send({"symbol": symbol, "species": species, "found": False,
+                   "error": str(e)})
 
     def _serve_go_search(self, query):
         """Search GO term names, return matches with dataset gene counts."""
@@ -4394,18 +4578,34 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(result)
 
     def _serve_session_save(self, req):
-        """Save a named session."""
+        """Save a named session. Reject silent overwrites: if a session file
+        with the same name already exists on disk and the request didn't pass
+        `overwrite: true`, return {"ok":false, "code":"exists"} so the client
+        can prompt and retry explicitly. The auto-save slot "_auto" is exempt
+        — it's the point of an auto-save to overwrite itself on every write."""
         try:
             if not LOADED_PATH:
                 raise ValueError("No dataset loaded")
             name = req.get("name", "").strip()
             if not name:
                 raise ValueError("Session name is empty")
+            overwrite = bool(req.get("overwrite", False))
+            suffix = self._session_suffix(name)
+            # Existence check across both dataset and server cache dirs
+            existing, _ = _cache_read_path(suffix)
+            if existing is not None and not overwrite and name != "_auto":
+                result = json.dumps({"ok": False, "code": "exists",
+                                     "error": f"Session '{name}' already exists"}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(result)))
+                self.end_headers()
+                self.wfile.write(result)
+                return
             state = req.get("state", {})
             state["_meta"] = {"n_cells": N_CELLS, "n_clusters": len(CLUSTER_NAMES or []),
                               "dataset": Path(LOADED_PATH).name,
                               "saved": time.time()}
-            suffix = self._session_suffix(name)
             wp = _cache_write_path(suffix)
             with open(wp, "w") as f:
                 json.dump(state, f, separators=(",", ":"))
