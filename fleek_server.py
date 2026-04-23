@@ -587,6 +587,97 @@ def _classify_all_matrices():
             })
 
 
+def _load_csc_mmap(npz_path):
+    """Open an uncompressed scipy-sparse .npz (CSC/CSR) and memory-map each
+    of its three array members in place — no buffered read through Python's
+    zipfile stream, no full pull into RAM. Returns a scipy.sparse matrix
+    whose data/indices/indptr are np.memmap views of the file on disk;
+    pages fault in only when a column is actually touched. Near-instant
+    startup replaces the previous full-RAM load, which for a 1.6M-cell
+    matrix was several GB of I/O routed through the zipfile reader.
+
+    The scipy .npz format is a standard zip archive containing four .npy
+    members: data, indices, indptr, shape, and format. When saved with
+    `compressed=False` the members are stored with ZIP_STORED, which
+    means the bytes inside each .npy are at a known offset in the outer
+    file — perfect for np.memmap. Compressed caches (which FLEEK doesn't
+    create but someone might have copied in) fall back to the slow
+    sp.load_npz path via the caller.
+
+    Returns None on any parse error or compressed-entry encounter — the
+    caller then does scipy's regular load_npz.
+    """
+    import zipfile
+    import struct
+    from numpy.lib import format as _npfmt
+    import scipy.sparse as _sp
+    try:
+        entries = {}
+        data_offsets = {}
+        with zipfile.ZipFile(str(npz_path), "r") as zf:
+            for info in zf.infolist():
+                if info.compress_type != zipfile.ZIP_STORED:
+                    return None  # compressed — needs decompression, skip mmap
+                entries[info.filename] = info
+        # Resolve each entry's absolute file offset by reading its local
+        # file header (30 bytes + variable-length filename + extra fields).
+        # ZipInfo uses __slots__ so we can't attach attributes to it; keep a
+        # parallel dict instead.
+        with open(str(npz_path), "rb") as fp:
+            for fname, info in entries.items():
+                fp.seek(info.header_offset)
+                lh = fp.read(30)
+                if len(lh) < 30 or lh[:4] != b"PK\x03\x04":
+                    return None
+                fname_len = struct.unpack("<H", lh[26:28])[0]
+                extra_len = struct.unpack("<H", lh[28:30])[0]
+                data_offsets[fname] = info.header_offset + 30 + fname_len + extra_len
+        def _mmap_npy(name):
+            if name not in entries:
+                return None
+            with open(str(npz_path), "rb") as fp:
+                fp.seek(data_offsets[name])
+                version = _npfmt.read_magic(fp)
+                if version == (1, 0):
+                    shape, fortran, dtype = _npfmt.read_array_header_1_0(fp)
+                elif version == (2, 0):
+                    shape, fortran, dtype = _npfmt.read_array_header_2_0(fp)
+                else:
+                    return None
+                array_offset = fp.tell()
+            if fortran:
+                return None
+            # np.memmap with offset requires the offset to be aligned to the
+            # OS page size. The .npy header is padded to a 64-byte boundary
+            # from the start of the member, but the member itself starts at
+            # info._data_offset which may not be page-aligned. Fall back to
+            # np.load (buffered read) for that specific array if the stars
+            # don't align — extremely rare in practice since STORED zips
+            # typically start each entry at well-aligned positions.
+            try:
+                return np.memmap(str(npz_path), dtype=dtype, mode="r",
+                                 offset=array_offset, shape=shape)
+            except Exception:
+                return None
+        data = _mmap_npy("data.npy")
+        indices = _mmap_npy("indices.npy")
+        indptr = _mmap_npy("indptr.npy")
+        if data is None or indices is None or indptr is None:
+            return None
+        # shape + format are tiny; read normally via np.load.
+        with np.load(str(npz_path)) as loaded:
+            shape_arr = tuple(int(x) for x in loaded["shape"].tolist())
+            fmt_raw = loaded["format"].item()
+        fmt = fmt_raw.decode() if isinstance(fmt_raw, (bytes, bytearray)) else str(fmt_raw)
+        if fmt == "csc":
+            return _sp.csc_matrix((data, indices, indptr), shape=shape_arr)
+        elif fmt == "csr":
+            return _sp.csr_matrix((data, indices, indptr), shape=shape_arr)
+        return None
+    except Exception:
+        return None
+
+
 def _get_matrix_by_path(path):
     """Resolve a MATRIX_REGISTRY path string back to an actual matrix reference."""
     if ADATA is None:
@@ -2732,14 +2823,27 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 print("  Loading cached CSC index...")
                 try:
                     t1 = time.time()
-                    X_CSC = _sp.load_npz(str(csc_cache_path))
+                    # Prefer memory-mapped load: data/indices/indptr become
+                    # np.memmap views and pages fault in only when a gene
+                    # column is actually requested. Previously the full
+                    # matrix (several GB for >1M-cell datasets) was read
+                    # into RAM through Python's zipfile reader on every
+                    # startup — that's the "long time to load" the user
+                    # experienced. Falls back to scipy's load_npz on any
+                    # parse error or compressed entry.
+                    X_CSC = _load_csc_mmap(csc_cache_path)
+                    if X_CSC is None:
+                        X_CSC = _sp.load_npz(str(csc_cache_path))
+                        _mmap_note = ""
+                    else:
+                        _mmap_note = " (mmap)"
                     if X_CSC.shape != ADATA.X.shape:
                         print(f"  CSC cache shape mismatch ({X_CSC.shape} vs {ADATA.X.shape}), rebuilding...")
                         X_CSC = None
                     else:
                         loaded_from_cache = True
                         CSC_CACHED = True
-                        print(f"  CSC index loaded from cache ({time.time()-t1:.1f}s)")
+                        print(f"  CSC index loaded from cache{_mmap_note} ({time.time()-t1:.2f}s)")
                 except Exception as e:
                     print(f"  CSC cache load failed ({e}), rebuilding...")
                     X_CSC = None
@@ -2780,9 +2884,10 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                         if _disp_read is not None:
                             try:
                                 t2 = time.time()
-                                DISPLAY_CSC = _sp.load_npz(str(_disp_read))
-                                if DISPLAY_CSC.shape == _dmat.shape:
-                                    print(f"  Display CSC ({_dpath}) loaded from cache ({time.time()-t2:.1f}s)")
+                                DISPLAY_CSC = _load_csc_mmap(_disp_read) or _sp.load_npz(str(_disp_read))
+                                _disp_note = " (mmap)" if isinstance(getattr(DISPLAY_CSC, "data", None), np.memmap) else ""
+                                if DISPLAY_CSC is not None and DISPLAY_CSC.shape == _dmat.shape:
+                                    print(f"  Display CSC ({_dpath}) loaded from cache{_disp_note} ({time.time()-t2:.2f}s)")
                                     _loaded_disp = True
                                 else:
                                     DISPLAY_CSC = None
