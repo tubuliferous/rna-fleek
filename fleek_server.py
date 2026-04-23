@@ -64,7 +64,14 @@ DEG_SETTINGS = {"fast": True, "max_cells": 50000}  # QuickDEG defaults
 PACMAP_SETTINGS = {"fast": True, "max_cells": 50000}  # QuickPaCMAP defaults
 PACMAP_FAST = True  # QuickMap (PaCMAP) — subsample-and-project
 BACKED = False  # True if adata.X is on disk (backed mode)
-X_CSC = None  # CSC copy of expression matrix for fast column access
+X_CSC = None  # CSC copy of adata.X for fast column access
+# Secondary CSC index used when the gene_display routing picks a matrix other
+# than adata.X (e.g. log_normalized stored in a layer, or raw.X when X holds
+# something else). Built lazily on load. Without it, gene lookups on that
+# route would fall into CSR column-slicing — O(nnz) per call, catastrophic
+# on >1M-cell datasets.
+DISPLAY_CSC = None
+DISPLAY_CSC_PATH = None
 HVG_NAMES = []  # ordered list of HVG names for the client
 HVG_VAR = {}    # gene_name -> variance (for tooltip/list display)
 ALL_GENE_VAR = None  # numpy array of variance for all genes (computed in background)
@@ -1851,6 +1858,8 @@ def _reset_all():
     OBS_COLS.clear()
     GENE_NAMES_LIST = None; N_CELLS = 0
     BACKED = False; X_CSC = None
+    global DISPLAY_CSC, DISPLAY_CSC_PATH
+    DISPLAY_CSC = None; DISPLAY_CSC_PATH = None
     HVG_NAMES = []; HVG_VAR = {}; ALL_GENE_VAR = None; GENE_CUTOFF_FLAG = None; GENE_INDEX = {}
     CSC_BUILDING = False; CSC_CACHED = False; CSC_TIME = 0
     LOADED_PATH = ""; LOAD_SETTINGS.clear()
@@ -2551,7 +2560,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
         _csc_cr, _ = _cache_read_path(".csc_cache.npz")
         csc_cache_path = _csc_cr if _csc_cr else _cache_write_path(".csc_cache.npz")
         def _build_gene_index():
-            global HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, X_CSC, CSC_BUILDING, CSC_CACHED, CSC_TIME
+            global HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, X_CSC, CSC_BUILDING, CSC_CACHED, CSC_TIME, DISPLAY_CSC, DISPLAY_CSC_PATH
             _csc_t0 = time.time()
 
             # ── Gene Variability: Locally Standardized Trend Residual ──
@@ -2751,6 +2760,49 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 except Exception as e:
                     print(f"  CSC cache save failed ({e}) — will rebuild next time")
 
+            # If the gene-display route points somewhere other than adata.X
+            # (common when log_normalized lives in a layer while X holds raw
+            # counts), build a second CSC for that matrix so gene lookups on
+            # the display route also stay O(nnz_column) instead of falling
+            # into CSR column-slicing. Cached to disk separately.
+            try:
+                _dr = MATRIX_ROUTING.get("gene_display", {}) if MATRIX_ROUTING else {}
+                _dpath = _dr.get("path") or "X"
+                if _dpath != "X" and not BACKED:
+                    _dmat = _get_matrix_by_path(_dpath)
+                    if _dmat is not None and _sp.issparse(_dmat):
+                        DISPLAY_CSC_PATH = _dpath
+                        # Sanitize path into a filename-safe suffix.
+                        _safe = _dpath.replace("/", "_").replace("[", "_").replace("]", "_").replace("'", "").replace('"', "")
+                        _disp_suffix = f".display_csc_{_safe}.npz"
+                        _disp_read, _ = _cache_read_path(_disp_suffix)
+                        _loaded_disp = False
+                        if _disp_read is not None:
+                            try:
+                                t2 = time.time()
+                                DISPLAY_CSC = _sp.load_npz(str(_disp_read))
+                                if DISPLAY_CSC.shape == _dmat.shape:
+                                    print(f"  Display CSC ({_dpath}) loaded from cache ({time.time()-t2:.1f}s)")
+                                    _loaded_disp = True
+                                else:
+                                    DISPLAY_CSC = None
+                            except Exception:
+                                DISPLAY_CSC = None
+                        if not _loaded_disp:
+                            t2 = time.time()
+                            print(f"  Building display CSC index for route {_dpath!r}...")
+                            DISPLAY_CSC = _dmat.tocsc()
+                            print(f"  Display CSC ready ({time.time()-t2:.0f}s)")
+                            try:
+                                _disp_wp = _cache_write_path(_disp_suffix)
+                                _sp.save_npz(str(_disp_wp), DISPLAY_CSC, compressed=False)
+                                _dmb = os.path.getsize(str(_disp_wp)) / 1e6
+                                print(f"  Display CSC cache saved ({_dmb:.0f} MB)")
+                            except Exception as e:
+                                print(f"  Display CSC cache save failed ({e}) — will rebuild next time")
+            except Exception as e:
+                print(f"  Display CSC build skipped ({e})")
+
             CSC_TIME = round(time.time() - _csc_t0, 1)
             CSC_BUILDING = False
         threading.Thread(target=_build_gene_index, daemon=True).start()
@@ -2882,32 +2934,42 @@ def _get_lib_sizes(src_mat):
 def get_gene_expression(gene_name):
     """Get normalized 0-1 expression for a single gene, routed to the best
     available matrix per MATRIX_ROUTING['gene_display']. Applies normalize+log1p
-    on the fly if the chosen matrix is raw/denoised counts."""
+    on the fly if the chosen matrix is raw/denoised counts.
+
+    Fast-path philosophy: whenever the routed matrix has a CSC index available
+    (either X_CSC, which covers adata.X, or DISPLAY_CSC, a lazily-built CSC
+    for a routed non-X display matrix), we pull the column from the index in
+    O(nnz_column) time and apply any transform AFTER extraction. Previous
+    versions skipped the CSC path whenever a transform was requested, which
+    forced the slow scipy-CSR column-slice (scans all nnz — ~100M+ entries
+    for a 1.6M×20k matrix) and turned a single gene fetch into a 40+ second
+    wait on large census datasets. Now the CSC is used even for the
+    normalize+log1p display path.
+    """
     import scipy.sparse as sp
 
     idx = GENE_INDEX.get(gene_name)
     if idx is None:
         return None
 
-    # Which matrix + transform are we using for display?
     route = MATRIX_ROUTING.get("gene_display", {}) if MATRIX_ROUTING else {}
     src_path = route.get("path") or "X"
     transform = route.get("transform", "none")
 
-    # Fast path: the CSC index was built from adata.X. If the route points to a
-    # different matrix OR asks for a transform, we need to read raw values from
-    # the routed matrix directly.
-    use_csc = X_CSC is not None and src_path == "X" and transform == "none"
-
-    if use_csc:
+    col = None
+    # Try a CSC-backed fast extraction first.
+    if src_path == "X" and X_CSC is not None:
         col = X_CSC[:, idx].toarray().ravel().astype(np.float32)
-    else:
+    elif DISPLAY_CSC is not None and DISPLAY_CSC_PATH == src_path:
+        col = DISPLAY_CSC[:, idx].toarray().ravel().astype(np.float32)
+
+    # Fall back to matrix slicing if no CSC covers this route.
+    if col is None:
         src_mat = _get_matrix_by_path(src_path) if src_path else None
         if src_mat is None:
             src_mat = ADATA.X
-        # Read the column
         if BACKED and src_path == "X":
-            # Can't use CSC when backed; fall back to per-batch reads of raw X.
+            # Backed-mode batched reads of raw X (can't CSC a backed matrix).
             n = ADATA.n_obs
             col = np.empty(n, dtype=np.float32)
             batch = 50000
@@ -2920,6 +2982,10 @@ def get_gene_expression(gene_name):
                     chunk = np.asarray(chunk).ravel()
                 col[bi:be] = chunk
         else:
+            # WARNING: on large CSR matrices this is O(nnz) per call and is
+            # the pathological slow path. DISPLAY_CSC should be built at
+            # load time for any routed display matrix that isn't adata.X.
+            print(f"  gene lookup slow path: no CSC for route {src_path!r}, column-slicing CSR")
             col_src = src_mat[:, idx]
             if sp.issparse(col_src):
                 col = col_src.toarray().ravel()
@@ -2927,11 +2993,13 @@ def get_gene_expression(gene_name):
                 col = np.asarray(col_src).ravel()
             col = col.astype(np.float32)
 
-        if transform == "normalize+log1p":
-            lib = _get_lib_sizes(src_mat)
-            col = np.asarray(col, dtype=np.float64)
-            col = col / lib * 1e4
-            col = np.log1p(col).astype(np.float32)
+    # Apply on-the-fly normalisation for routes that expose raw-ish counts.
+    if transform == "normalize+log1p":
+        src_mat = _get_matrix_by_path(src_path) if src_path else ADATA.X
+        lib = _get_lib_sizes(src_mat)
+        col = np.asarray(col, dtype=np.float64)
+        col = col / lib * 1e4
+        col = np.log1p(col).astype(np.float32)
 
     # Normalize to 0-1 for the client's colormap.
     pos = col[col > 0]

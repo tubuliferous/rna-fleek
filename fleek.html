@@ -2066,6 +2066,10 @@
     <div id="plot-header" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:move;user-select:none;" onmousedown="_plotDragStart(event)">
       <span id="plot-title" style="font-size:12px;color:var(--text);font-weight:600;"></span>
       <span id="plot-subtitle" style="font-size:10px;color:var(--text4);flex:1;"></span>
+      <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);cursor:pointer;user-select:none;" title="When off, the density curve and raindrops switch to a single neutral tone so the distribution shape stands out without the palette. The cluster-colour dot under each label stays coloured so you can still tell the columns apart." onmousedown="event.stopPropagation();">
+        <span>Color</span>
+        <span class="s-toggle"><input type="checkbox" id="plot-color" checked onchange="_plotSetColor(this.checked)"><span class="s-slider"></span></span>
+      </label>
       <button onclick="_plotSave()" class="btn-icon download" title="Save as SVG"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
       <button onclick="_plotClose()" class="btn-icon danger" title="Close (Esc)"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
     </div>
@@ -2182,7 +2186,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.0";
+var FLEEK_VERSION="v0.4.1";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2553,7 +2557,8 @@ function saveState(){
       plotGene:(_plotSelectedGene||(document.getElementById("plot-gene-input")?document.getElementById("plot-gene-input").value:""))||"",
       plotFacet:(document.getElementById("plot-facet")?document.getElementById("plot-facet").value:"")||"",
       plotType:(document.getElementById("plot-type")?document.getElementById("plot-type").value:"raincloud")||"raincloud",
-      plotWidthPct:(function(){var el=document.getElementById("plot-width-pct");return el?!!el.checked:true;})()
+      plotWidthPct:(function(){var el=document.getElementById("plot-width-pct");return el?!!el.checked:true;})(),
+      plotColor:_plotColor
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
@@ -2584,7 +2589,8 @@ function saveCameraOnly(){
       plotGene:(_plotSelectedGene||(document.getElementById("plot-gene-input")?document.getElementById("plot-gene-input").value:""))||"",
       plotFacet:(document.getElementById("plot-facet")?document.getElementById("plot-facet").value:"")||"",
       plotType:(document.getElementById("plot-type")?document.getElementById("plot-type").value:"raincloud")||"raincloud",
-      plotWidthPct:(function(){var el=document.getElementById("plot-width-pct");return el?!!el.checked:true;})()
+      plotWidthPct:(function(){var el=document.getElementById("plot-width-pct");return el?!!el.checked:true;})(),
+      plotColor:_plotColor
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
@@ -2677,6 +2683,11 @@ function restoreState(preloaded){
   if(typeof s.plotWidthPct==="boolean"){
     var pwEl=document.getElementById("plot-width-pct");
     if(pwEl)pwEl.checked=s.plotWidthPct;
+  }
+  if(typeof s.plotColor==="boolean"){
+    _plotColor=s.plotColor;
+    var pcEl=document.getElementById("plot-color");
+    if(pcEl)pcEl.checked=_plotColor;
   }
   _restoring=false;
   /* Seed undo history with restored state */
@@ -3506,6 +3517,7 @@ function buildPts(data){
   selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
   degData=null;degCache={};
   geneExprCache={}; /* free old gene expression arrays */
+  if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
   /* Clear recent genes only when switching to a different dataset */
   var _newPath=data.header.loaded_path||"";
   var _prevPath="";try{_prevPath=sessionStorage.getItem("fleek_dataset_path")||"";}catch(e){}
@@ -3703,6 +3715,50 @@ function _updateHudGroup(){
     else{_gr.style.display="none";}
   }
 }
+/* ── Gene-expression buffer cache ──
+   When the user flips between a handful of genes to compare them, we end up
+   re-running the full recolor loop on every switch. With >1M cells that's
+   tens of millions of writes per switch even with the LUT optimizations.
+   Here we cache the fully-computed per-cell buffers (colour, position, size,
+   alpha + ring layer) keyed by gene symbol. On the next recolor for a
+   cached gene, if the rest of the view state hasn't drifted, we memcpy the
+   saved buffers into the GPU attributes and skip the inner loop entirely.
+   LRU-bounded to keep memory use sane. */
+var _GENE_BUF_CACHE_MAX=4;
+var _geneBufCache=new Map();
+/* WeakMap-based stable IDs for sliceMask / _deletedCells objects. Lets us
+   include "same object reference" in the fingerprint without stringifying
+   a 1M-element typed array. sliceMask is always reassigned wholesale (see
+   every sliceMask= site), and _deletedCells is also replaced on reset;
+   in-place .add() bumps the separate mutation counter below. */
+var _objIdMap=new WeakMap(), _objIdSeq=0;
+function _objId(o){
+  if(!o)return 0;
+  var id=_objIdMap.get(o);
+  if(!id){id=++_objIdSeq;_objIdMap.set(o,id);}
+  return id;
+}
+var _deletedCellsMut=0;
+function _geneBufCacheInvalidate(){ _geneBufCache.clear(); }
+/* Cheap fingerprint of every piece of state the recolor main loop reads
+   other than selGene/ex (which is the cache key). Clusters visibility map
+   is small (~hundreds of entries max); selGroups is a handful. */
+function _recolorFingerprint(isLight,bgDimPct,showNonExpr,showExprSize,highlightMode){
+  var parts=[isLight?"L":"D",bgDimPct,showNonExpr?1:0,showExprSize?1:0,highlightMode,
+             "sm"+_objId(sliceMask),
+             "dc"+_objId(_deletedCells)+":"+((_deletedCells&&_deletedCells.size)||0)+":"+_deletedCellsMut];
+  var hid=[];
+  for(var ck in visibleClusters){if(visibleClusters[ck]===false)hid.push(ck);}
+  hid.sort();
+  parts.push("v"+hid.join(","));
+  parts.push("g"+selGroups.length);
+  for(var gi=0;gi<selGroups.length;gi++){
+    var g=selGroups[gi];
+    parts.push(g.id+":"+g.cells.size+":"+(groupVisible[g.id]===false?"h":"v")+":"+g.color[0].toFixed(2)+","+g.color[1].toFixed(2)+","+g.color[2].toFixed(2));
+  }
+  return parts.join("|");
+}
+
 function recolor(){
   if(!D||!pts)return;
   /* ── Split mode: save active snapshot, then load each view's snapshot
@@ -3818,69 +3874,179 @@ function recolor(){
     if(v<.75){var t=(v-.5)/.25;return[.19+t*.42,.58+t*.17,.42-t*.18];}
     var t=(v-.75)/.25;return[.61+t*.39,.75+t*.18,.24-t*.13];
   };
+  /* Expression colour LUT — 256 bins × 3 floats. Replaces the _ec() call
+     (and its per-cell [r,g,b] allocation) in the hot loop with three
+     Float32Array reads. Millions of transient arrays → millions of GC
+     objects avoided on each gene switch; this is the single biggest
+     contributor to the "slow to switch genes" feel on >1M-cell datasets.
+     Rebuilt every recolor because _ec's curve depends on theme. */
+  var LUT_N=256;
+  var _exprLUT=new Float32Array(LUT_N*3);
+  for(var _li=0;_li<LUT_N;_li++){
+    var _cv=_ec(_li/(LUT_N-1));
+    _exprLUT[_li*3]=_cv[0];_exprLUT[_li*3+1]=_cv[1];_exprLUT[_li*3+2]=_cv[2];
+  }
+  /* Cluster colour LUT — cached on D and invalidated when the dataset's
+     cluster palette changes. `cc(id)` does a dict lookup and potentially
+     a hex-to-rgb allocation per call; in cluster mode the hot loop hits
+     this per cell, and on switches between gene/cluster colouring both
+     paths fire. One upfront build, then 3 Float32Array reads per cell. */
+  var _cluCount=((D.header&&D.header.cluster_names)||[]).length;
+  if(!D._cluLUT||D._cluLUT.length!==_cluCount*3){
+    D._cluLUT=new Float32Array(_cluCount*3);
+    for(var _ki=0;_ki<_cluCount;_ki++){
+      var _kv=cc(_ki);
+      D._cluLUT[_ki*3]=_kv[0];D._cluLUT[_ki*3+1]=_kv[1];D._cluLUT[_ki*3+2]=_kv[2];
+    }
+  }
+  var _cluLUT=D._cluLUT;
+  var _ghR=_ghostColor[0],_ghG=_ghostColor[1],_ghB=_ghostColor[2];
   var _szAttr=pts.geometry.attributes.aSize;
   var _alAttr=pts.geometry.attributes.aAlpha;
   var _szArr=(_szAttr&&_alAttr)?_szAttr.array:null;
   var _alArr=(_szAttr&&_alAttr)?_alAttr.array:null;
   var _updateSz=!!_szArr;
   var _exSizeOn=useGene&&showExprSize&&ex;
+  /* Ring size buffer — previously synced in a second full-array pass after
+     the main loop; fold it in here so we only touch each cell once. */
+  var _ringSzAttr=ringPts?ringPts.geometry.attributes.aSize:null;
+  var _rszArr=_ringSzAttr?_ringSzAttr.array:null;
+  /* Dim math fast path: when dimFactor===1 and dimBias===0 the per-cell
+     mix-with-BG reduces to a plain copy. Skip the six multiplies and
+     three additions when selection dimming is off. */
+  var _dimOff=(dimFactor===1&&dimBias===0);
+  /* Cache hit? If this gene was recently rendered and nothing that affects
+     per-cell colour/position/size has drifted since then, the stored
+     buffers are still valid — memcpy them into the GPU attributes and
+     skip the O(N) inner loop entirely. Falls through to the full loop
+     on miss, then caches the result at the end. Only active in gene-
+     expression mode on the single-view path (split mode already has its
+     own per-view path with independent state). */
+  var _cacheKey=useGene?selGene:null;
+  var _fp=_cacheKey?_recolorFingerprint(isLight,bgDimPct,showNonExpressing,showExprSize,highlightMode):null;
+  var _cached=_cacheKey?_geneBufCache.get(_cacheKey):null;
+  if(_cached&&_cached.fp===_fp&&_cached.col.length===col.length){
+    col.set(_cached.col);
+    pos.set(_cached.pos);
+    if(_updateSz&&_cached.aSize){_szArr.set(_cached.aSize);_alArr.set(_cached.aAlpha);}
+    if(ringPos&&_cached.ringPos){
+      ringPos.set(_cached.ringPos);
+      ringCol.set(_cached.ringCol);
+      if(_rszArr&&_cached.ringSize)_rszArr.set(_cached.ringSize);
+    }
+    _nHidden=_cached.nHidden;
+    /* Refresh LRU ordering so frequently-used genes stay cached. */
+    _geneBufCache.delete(_cacheKey);
+    _geneBufCache.set(_cacheKey,_cached);
+    /* Skip to the tail of recolor (uploads + HUD). */
+    if(_updateSz){_szAttr.needsUpdate=true;_alAttr.needsUpdate=true;}
+    var _hudVc=document.getElementById("hud-visible");
+    var _hudHc=document.getElementById("hud-hidden");
+    var _hudTc=document.getElementById("hud-total");
+    if(_hudVc)_hudVc.textContent=(n-_nHidden).toLocaleString();
+    if(_hudHc)_hudHc.textContent=_nHidden>0?_nHidden.toLocaleString():"0";
+    if(_hudTc)_hudTc.textContent=n.toLocaleString();
+    _updateHudGroup();
+    _scheduleVisStats();
+    if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
+    if(typeof _plotPopulate==="function")_plotPopulate();
+    if(typeof _plotSyncGeneFromViewer==="function")_plotSyncGeneFromViewer();
+    pts.geometry.attributes.color.needsUpdate=true;
+    pts.geometry.attributes.position.needsUpdate=true;
+    if(ringPts){
+      ringPts.visible=showRingLayer;
+      ringPts.geometry.attributes.color.needsUpdate=true;
+      ringPts.geometry.attributes.position.needsUpdate=true;
+      if(_ringSzAttr&&_rszArr)_ringSzAttr.needsUpdate=true;
+    }
+    if(_haloActive&&haloPts){
+      haloPts.geometry.attributes.position.needsUpdate=true;
+      if(haloPts.geometry.attributes.color)haloPts.geometry.attributes.color.needsUpdate=true;
+    }
+    return;
+  }
+
+  /* Hot loop: runs once per cell per recolor (so ~1M-2M times per gene
+     switch on big datasets). Every branch was reshaped to use plain
+     number locals (rC/gC/bC) instead of allocating a [r,g,b] array; the
+     expression and cluster colours come from the pre-built LUTs above;
+     the ring-size sync that used to be a second full pass happens inline. */
   for(var i=0;i<n;i++){
+    var i3=i*3;
     var cid=D.cluster_ids[i];
     if(visibleClusters[cid]===false||(sliceMask&&!sliceMask[i])||(_deletedCells&&_deletedCells.has(i))){
       _nHidden++;
-      col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
-      pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
-      if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+      col[i3]=BG[0];col[i3+1]=BG[1];col[i3+2]=BG[2];
+      pos[i3]=EXILE;pos[i3+1]=EXILE;pos[i3+2]=EXILE;
+      if(ringPos){ringPos[i3]=EXILE;ringPos[i3+1]=EXILE;ringPos[i3+2]=EXILE;}
       if(_updateSz){
         var _exi=useGene&&ex?ex[i]:0;
-        _szArr[i]=_exSizeOn?(_exi<0.01?_ghostSize:Math.max(0.38,Math.sqrt(_exi)*1.8)):1.0;
+        var _sz=_exSizeOn?(_exi<0.01?_ghostSize:Math.max(0.38,Math.sqrt(_exi)*1.8)):1.0;
+        _szArr[i]=_sz;
         _alArr[i]=(useGene&&ex&&_exi<0.01)?_ghostAlpha:1.0;
+        if(_rszArr)_rszArr[i]=_sz;
       }
       continue;
     }
-    pos[i*3]=D._cachedPos[i*3];pos[i*3+1]=D._cachedPos[i*3+1];pos[i*3+2]=D._cachedPos[i*3+2];
+    pos[i3]=D._cachedPos[i3];pos[i3+1]=D._cachedPos[i3+1];pos[i3+2]=D._cachedPos[i3+2];
     var sg=cellGroupMap?cellGroupMap[i]:-1;
     var inGroup=sg>=0&&sg<selGroups.length&&groupVisible[selGroups[sg].id]!==false;
-    /* Base color from gene expression or cluster */
-    var c;
     var _exi2=useGene&&ex?ex[i]:0;
+    var rC,gC,bC;
     if(useGene){
       var isZero=_exi2<0.01;
       if(isZero&&!showNonExpressing){
         _nHidden++;
-        col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
-        pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
-        if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+        col[i3]=BG[0];col[i3+1]=BG[1];col[i3+2]=BG[2];
+        pos[i3]=EXILE;pos[i3+1]=EXILE;pos[i3+2]=EXILE;
+        if(ringPos){ringPos[i3]=EXILE;ringPos[i3+1]=EXILE;ringPos[i3+2]=EXILE;}
         if(_updateSz){
-          _szArr[i]=_exSizeOn?_ghostSize:1.0;
+          var _sz2=_exSizeOn?_ghostSize:1.0;
+          _szArr[i]=_sz2;
           _alArr[i]=_ghostAlpha;
+          if(_rszArr)_rszArr[i]=_sz2;
         }
         continue;
       }
-      c=isZero?_ghostColor:_ec(_exi2);
+      if(isZero){rC=_ghR;gC=_ghG;bC=_ghB;}
+      else{
+        /* 256-bin expression LUT lookup — same mapping as _ec(v). */
+        var lb=_exi2>=1?(LUT_N-1):(_exi2<=0?0:(_exi2*(LUT_N-1))|0);
+        var lb3=lb*3;
+        rC=_exprLUT[lb3];gC=_exprLUT[lb3+1];bC=_exprLUT[lb3+2];
+      }
     }else if(mode==="gene"&&!useGene){
-      c=_ghostColor;
-    }else{c=cc(cid);}
+      rC=_ghR;gC=_ghG;bC=_ghB;
+    }else{
+      var ci3=cid*3;
+      rC=_cluLUT[ci3];gC=_cluLUT[ci3+1];bC=_cluLUT[ci3+2];
+    }
     if(inGroup&&!useRing){
       var sc=selGroups[sg].color;
-      col[i*3]=sc[0];col[i*3+1]=sc[1];col[i*3+2]=sc[2];
+      col[i3]=sc[0];col[i3+1]=sc[1];col[i3+2]=sc[2];
     }else if(inGroup&&useRing){
-      col[i*3]=c[0];col[i*3+1]=c[1];col[i*3+2]=c[2];
+      col[i3]=rC;col[i3+1]=gC;col[i3+2]=bC;
+    }else if(_dimOff){
+      col[i3]=rC;col[i3+1]=gC;col[i3+2]=bC;
     }else{
-      col[i*3]=c[0]*dimFactor+BG[0]*dimBias;col[i*3+1]=c[1]*dimFactor+BG[1]*dimBias;col[i*3+2]=c[2]*dimFactor+BG[2]*dimBias;
+      col[i3]=rC*dimFactor+BG[0]*dimBias;
+      col[i3+1]=gC*dimFactor+BG[1]*dimBias;
+      col[i3+2]=bC*dimFactor+BG[2]*dimBias;
     }
     if(ringPos){
       if(inGroup&&useRing){
-        var sc=selGroups[sg].color;
-        ringPos[i*3]=D._cachedPos[i*3];ringPos[i*3+1]=D._cachedPos[i*3+1];ringPos[i*3+2]=D._cachedPos[i*3+2];
-        ringCol[i*3]=sc[0];ringCol[i*3+1]=sc[1];ringCol[i*3+2]=sc[2];
+        var sc2=selGroups[sg].color;
+        ringPos[i3]=D._cachedPos[i3];ringPos[i3+1]=D._cachedPos[i3+1];ringPos[i3+2]=D._cachedPos[i3+2];
+        ringCol[i3]=sc2[0];ringCol[i3+1]=sc2[1];ringCol[i3+2]=sc2[2];
       }else{
-        ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;
+        ringPos[i3]=EXILE;ringPos[i3+1]=EXILE;ringPos[i3+2]=EXILE;
       }
     }
     if(_updateSz){
-      _szArr[i]=_exSizeOn?(_exi2<0.01?_ghostSize:Math.max(0.38,Math.sqrt(_exi2)*1.8)):1.0;
+      var _sz3=_exSizeOn?(_exi2<0.01?_ghostSize:Math.max(0.38,Math.sqrt(_exi2)*1.8)):1.0;
+      _szArr[i]=_sz3;
       _alArr[i]=(useGene&&ex&&_exi2<0.01)?_ghostAlpha:1.0;
+      if(_rszArr)_rszArr[i]=_sz3;
     }
   }
   if(_updateSz){
@@ -3905,11 +4071,32 @@ function recolor(){
     ringPts.visible=showRingLayer;
     ringPts.geometry.attributes.color.needsUpdate=true;
     ringPts.geometry.attributes.position.needsUpdate=true;
-    var _rszAttr=ringPts.geometry.attributes.aSize;
-    if(_rszAttr&&_szAttr){
-      var _rszArr=_rszAttr.array,_mszArr=_szAttr.array;
-      for(var _ri=0;_ri<n;_ri++)_rszArr[_ri]=_mszArr[_ri];
-      _rszAttr.needsUpdate=true;
+    /* Ring sizes are now written inside the main loop (inline alongside
+       the base _szArr write), so we just flag the upload here — no second
+       O(N) copy pass. */
+    if(_ringSzAttr&&_rszArr)_ringSzAttr.needsUpdate=true;
+  }
+  /* Cache the freshly-computed buffers so the next recolor for this gene
+     (with the same view state) can memcpy instead of re-running the loop.
+     LRU-evict once we exceed the cap — Map iteration order is insertion
+     order, so the first key is the least-recently-touched. */
+  if(_cacheKey){
+    var entry={
+      fp:_fp,
+      col:new Float32Array(col),
+      pos:new Float32Array(pos),
+      aSize:_updateSz?new Float32Array(_szArr):null,
+      aAlpha:_updateSz?new Float32Array(_alArr):null,
+      ringPos:ringPos?new Float32Array(ringPos):null,
+      ringCol:ringCol?new Float32Array(ringCol):null,
+      ringSize:_rszArr?new Float32Array(_rszArr):null,
+      nHidden:_nHidden
+    };
+    if(_geneBufCache.has(_cacheKey))_geneBufCache.delete(_cacheKey);
+    _geneBufCache.set(_cacheKey,entry);
+    while(_geneBufCache.size>_GENE_BUF_CACHE_MAX){
+      var firstKey=_geneBufCache.keys().next().value;
+      _geneBufCache.delete(firstKey);
     }
   }
 }
@@ -6971,6 +7158,7 @@ function _deleteSelectedCells(){
     _deletedCells.add(ci);
     count++;
   });
+  if(count>0)_deletedCellsMut++;
   ag.cells.clear();
   if(count===0)return;
   rebuildCellGroupMap();
@@ -7821,6 +8009,7 @@ function unloadDataset(){
   .then(function(){
     /* Clear client state */
     D=null;mode="cluster";selGene="";geneExprCache={};
+    if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
     _clusterGeneCache={};_clusterGenesFetching=false;_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="cluster";
     _gvFilteredIdx=null;_clusterFilteredIdx=null;
@@ -9328,6 +9517,12 @@ var _plotRendering=false;     /* true between click-to-render and result/abort *
    without re-fetching the gene or recomputing the distribution. Keys:
    type, gene, facetCol, data (the computed distribution). */
 var _plotLast=null;
+/* Colour toggle for the raincloud plot popup. When false, every cluster is
+   drawn in a single theme-neutral colour (the distribution SHAPE carries
+   all the signal, the palette carries nothing). Default on. Persisted in
+   sessionStorage with the rest of the plot settings so a refresh restores
+   the user's choice. */
+var _plotColor=true;
 
 /* Derive the slice-filter categories active on column `col` — a Set of
    category codes currently included. If no filter is active for that column,
@@ -9851,6 +10046,16 @@ function _plotRerenderForTheme(){
   }catch(e){console.error(e);}
 }
 
+/* Toggle handler for the header Color switch. Updates state, persists it
+   via saveState (plotColor is now part of the session payload), and re-
+   renders the open plot from the cached data — same cheap path as the
+   theme re-render. */
+function _plotSetColor(on){
+  _plotColor=!!on;
+  if(typeof saveState==="function")saveState();
+  _plotRerenderForTheme();
+}
+
 /* Download the currently displayed plot as a standalone SVG file.
    Faceted plots render as multiple side-by-side <svg> elements inside a
    flex row — we combine them all into a single outer <svg> so the export
@@ -9982,6 +10187,11 @@ function _plotRender(){
         document.getElementById("plot-subtitle").textContent=sub;
         var canvas=document.getElementById("plot-canvas");
         canvas.innerHTML=svg;
+        /* Keep the header Color switch in sync with state on every render
+           — restoreState may have changed _plotColor while the popup was
+           closed. */
+        var _pcEl=document.getElementById("plot-color");
+        if(_pcEl)_pcEl.checked=_plotColor;
         document.getElementById("plot-overlay").style.display="flex";
         _plotStatus("");
       }catch(e){console.error(e);_plotStatus("Render failed: "+e.message,true);}
@@ -10214,10 +10424,17 @@ function _plotDrawRaincloud(gene, facetCol, data){
     }
     svg+='<text x="12" y="'+(TOP+plotH/2)+'" text-anchor="middle" font-size="9" fill="'+axisColor+'" transform="rotate(-90 12,'+(TOP+plotH/2)+')">expression<\/text>';
     /* Per cluster: density right half, raindrops center, median/IQR */
+    /* When the Color switch is off, density + raindrops use a single neutral
+       tone (labelColor — same hue as axis/IQR lines so the plot reads as a
+       monochrome figure). The cluster-palette dot under each label still
+       uses colHex regardless, so columns stay identifiable. */
+    var plotMono=!_plotColor;
+    var monoHex=labelColor;
     for(var ci=0;ci<facet.clusters.length;ci++){
       var c=facet.clusters[ci];
       var cx=xCenter(ci);
       var colHex=_ccHex(c.cid);
+      var paintHex=plotMono?monoHex:colHex;
       var colRGBA=colHex; /* fill uses same color with opacity via fill-opacity */
       var halfW=W_PER_CLU*0.38;
       if(widthByPct)halfW=Math.max(2,halfW*Math.sqrt(c.pctExpr||0));
@@ -10246,7 +10463,7 @@ function _plotDrawRaincloud(gene, facetCol, data){
         for(var p=0;p<pts.length;p++)path+=" L "+pts[p][0].toFixed(1)+" "+pts[p][1].toFixed(1);
         path+=" L "+(cx+wTop).toFixed(1)+" "+TOP.toFixed(1);
         path+=" L "+cx.toFixed(1)+" "+TOP.toFixed(1)+" Z";
-        svg+='<path d="'+path+'" fill="'+colHex+'" fill-opacity="'+densityAlpha+'" stroke="'+colHex+'" stroke-width="1" stroke-opacity="'+densityStrokeAlpha+'"/>';
+        svg+='<path d="'+path+'" fill="'+paintHex+'" fill-opacity="'+densityAlpha+'" stroke="'+paintHex+'" stroke-width="1" stroke-opacity="'+densityStrokeAlpha+'"/>';
         /* Raindrops: draw every drop at tiny radius with low opacity, jittered
            horizontally. Dense regions darken via alpha blending — gives a
            natural visual density cue AND guarantees every cell is represented.
@@ -10291,7 +10508,7 @@ function _plotDrawRaincloud(gene, facetCol, data){
           var xFrac=(idx+0.5)*step+bandOffset;
           if(xFrac>1)xFrac-=1; /* wrap the half-step overflow back into the band */
           var jx=jitterBase-xFrac*jitter;
-          svg+='<circle cx="'+jx.toFixed(1)+'" cy="'+dy.toFixed(1)+'" r="'+dotR+'" fill="'+colHex+'" fill-opacity="'+raindropAlpha+'"/>';
+          svg+='<circle cx="'+jx.toFixed(1)+'" cy="'+dy.toFixed(1)+'" r="'+dotR+'" fill="'+paintHex+'" fill-opacity="'+raindropAlpha+'"/>';
         }
         /* IQR bar + median tick */
         var y1=yScale(c.q1), y3=yScale(c.q3), ym=yScale(c.med);
