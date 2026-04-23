@@ -90,7 +90,7 @@ except Exception:
     PYDESEQ2_AVAILABLE = False
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
 _DETECTED_ORGANISM = None  # (name, reason) tuple from _detect_organism()
-AUTO_UNLOAD = True    # If True, auto-quit (unload dataset + exit process) when no client heartbeat
+AUTO_UNLOAD = False   # If True, auto-quit (unload dataset + exit process) when no client heartbeat. Off by default — users opt in via the Settings toggle.
 AUTO_UNLOAD_TIMEOUT = 20.0  # seconds without heartbeat before auto-quit
 _LAST_HEARTBEAT = 0.0  # time.time() of last heartbeat
 _HEARTBEAT_TIMER = None  # threading.Timer for delayed unload

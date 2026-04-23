@@ -56,6 +56,26 @@ RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool
 
 ## Critical Conventions
 
+### Keep Help/About in sync with user-facing changes
+**When adding or changing a user-facing feature, update the corresponding Help panel section in `fleek.html` (inside `#help-body`) as part of the same change.** This is a workflow rule, not an optional polish step — the Help panel is the app's only built-in documentation, and each drift is a small paper cut for users.
+
+**Applies to:**
+- New panels, controls, toggles, dropdowns, chips, keyboard shortcuts.
+- New plot types, export formats, new modal dialogs.
+- Semantic changes to existing controls (e.g., threshold flips, default changes, renames).
+- New visual encodings (e.g., size / width / opacity mapping to data).
+- New `obs` / metadata interpretations or filter rules.
+
+**Doesn't apply to:**
+- Pure refactors, performance tweaks, internal plumbing changes.
+- Bug fixes that restore previously-documented behavior.
+- Theme/styling tweaks that don't change meaning.
+
+**How to update:**
+- If an existing `<div class="help-sec" id="help-…">` covers the feature, edit that section's `<div class="help-sec-body">` inline.
+- If the feature is novel, add a new `<div class="help-sec" id="help-…">` block **and** add a matching `<a href="#" onclick="event.preventDefault();helpJump('help-…')">…</a>` entry to the TOC in `#help-body` so it's navigable.
+- Help sections use `<p>`, `<ul>`, `<table class="help-table">`, `<code>`, `<strong>`, `<em>` — keep the tone consistent with existing sections: matter-of-fact, explain the *why* where it's non-obvious, and include worked examples for compound interactions.
+
 ### SVG in `<script>` blocks
 **ALL closing HTML tags inside `<script>` must be escaped.** The HTML parser sees `</` followed by a letter as a potential end tag, which prematurely terminates the script block — silently breaking all JS that follows (Three.js controls, rendering, highlights, everything).
 
@@ -133,6 +153,7 @@ In lineage view, **dot** and **name** have different scopes:
 - Children sort by current `typeSortMode` (alpha or count)
 
 ### Theme Rules (Dark / Light)
+- **Both themes are first-class. Every new feature MUST work and look correct in light mode AND dark mode** — not as an afterthought. When adding a UI element, plot, modal, indicator, etc., explicitly read `document.body.classList.contains("light")` for any decisions that need different colors / opacities / contrasts in the two themes (e.g., density-curve fill alpha that reads as faint on white may need to be bumped up vs the dark-mode value; SVG renderers should pick axis/grid/label/background colors per theme rather than assume one).
 - **All CSS must work in both themes.** Use `var(--text)`, `var(--bg3)`, etc. — never hardcode colors that only look right in one theme.
 - **`color-scheme`**: `:root` has `color-scheme:dark`, `.light` has `color-scheme:light`. Native form elements (`select`, `input`, scrollbars) inherit from this. Never hardcode `color-scheme:dark` on individual elements — use `inherit`.
 - **`<meta name="color-scheme">`**: toggled by `applyTheme()` — tells the browser which native UI style to use (affects select dropdown popups on Safari/WebKit).
@@ -229,7 +250,8 @@ Uses selection groups as conditions (not obs columns). User selects a single "Re
 
 ### Auto-quit (heartbeat)
 - Renamed from "auto-unload" but variables/settings keep the `auto_unload`
-  name for session-storage compatibility. Default: ON, 20-second timeout.
+  name for session-storage compatibility. Default: OFF (opt-in), 20-second
+  foreground timeout and 180-second hidden-tab timeout.
 - Client sends heartbeat POST every `timeout/2` seconds when enabled.
 - Server cancels/resets a `threading.Timer` on each heartbeat.
 - If no heartbeat within `timeout + 0.5s`, server: (a) unloads any loaded

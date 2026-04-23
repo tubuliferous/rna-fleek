@@ -90,8 +90,8 @@ except Exception:
     PYDESEQ2_AVAILABLE = False
 OBS_COLS = {}       # {col_name: {"categories": [...], "counts": [...], "codes": np.int16 array}}
 _DETECTED_ORGANISM = None  # (name, reason) tuple from _detect_organism()
-AUTO_UNLOAD = False   # If True, unload dataset when no client heartbeat
-AUTO_UNLOAD_TIMEOUT = 1.0  # seconds without heartbeat before unload
+AUTO_UNLOAD = False   # If True, auto-quit (unload dataset + exit process) when no client heartbeat. Off by default — users opt in via the Settings toggle.
+AUTO_UNLOAD_TIMEOUT = 20.0  # seconds without heartbeat before auto-quit
 _LAST_HEARTBEAT = 0.0  # time.time() of last heartbeat
 _HEARTBEAT_TIMER = None  # threading.Timer for delayed unload
 
@@ -185,7 +185,8 @@ def _cache_read_path(suffix):
 def _cache_write_path(suffix):
     """Determine where to write a new cache file.
     In 'dataset' mode, tries dataset dir first, falls back to server dir.
-    In 'server' mode, always uses server dir."""
+    In 'server' mode, always uses server dir.
+    Returns None if no writable path is resolvable (e.g. LOADED_PATH unset)."""
     _init_cache_dir()
     if CACHE_MODE == "dataset":
         dp = _dataset_cache_path(suffix)
@@ -193,6 +194,23 @@ def _cache_write_path(suffix):
             return dp
         print(f"  Cache: dataset dir not writable, using server cache dir")
     return _server_cache_path(suffix)
+
+def _safe_savez(suffix, **kwargs):
+    """Resolve a write path and np.savez into it — but never raise. Returning
+    None for suffix is always possible in edge cases (unset LOADED_PATH, wiped
+    CACHE_DIR). Previously these paths flowed straight into np.savez, producing
+    "expected str, bytes or os.PathLike object, not NoneType" and failing the
+    whole load. Now cache-save failures just log and continue."""
+    try:
+        wp = _cache_write_path(suffix)
+        if wp is None:
+            print(f"  Cache write skipped ({suffix}): no writable path (LOADED_PATH or CACHE_DIR unset)")
+            return None
+        np.savez(wp, **kwargs)
+        return wp
+    except Exception as _e:
+        print(f"  Cache write failed ({suffix}): {_e} — continuing")
+        return None
 
 # ── Built-in compact marker set for common human cell types ──
 _BUILTIN_MARKERS = {
@@ -1428,6 +1446,36 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         ANNOT_STATUS["pct"] = 55
         X = adata_deg.X
         cluster_labels = adata_deg.obs["fleek_cluster"].values
+        n_cells_deg = adata_deg.n_obs
+
+        # Pre-compute per-cluster sum and sum-of-squares ONCE via one sparse
+        # matmul with a cluster indicator matrix. Previously the loop did
+        # X[~mask].power(2).mean() per cluster — O(n_clusters × nnz(X)) of
+        # wasted work that cost several minutes on large datasets.
+        valid_cnames = [c for c in CLUSTER_NAMES if c not in small_clusters]
+        cname_to_cidx = {c: i for i, c in enumerate(valid_cnames)}
+        sum_per_cluster = None
+        sumsq_per_cluster = None
+        n_per_cluster = None
+        total_sum = None
+        total_sumsq = None
+        gene_to_varidx = {str(g): j for j, g in enumerate(adata_deg.var_names)}
+        if valid_cnames:
+            row_ids = np.array([cname_to_cidx.get(c, -1) for c in cluster_labels], dtype=np.int64)
+            keep = row_ids >= 0
+            rows = row_ids[keep]
+            cols = np.where(keep)[0]
+            C = sp.csr_matrix((np.ones(len(rows), dtype=np.float64), (rows, cols)),
+                              shape=(len(valid_cnames), n_cells_deg))
+            CX = C @ X
+            sum_per_cluster = CX.toarray() if sp.issparse(CX) else np.asarray(CX)
+            X_sq = X.power(2) if sp.issparse(X) else (np.asarray(X) ** 2)
+            CX2 = C @ X_sq
+            sumsq_per_cluster = CX2.toarray() if sp.issparse(CX2) else np.asarray(CX2)
+            n_per_cluster = np.asarray(C.sum(axis=1)).ravel().astype(np.int64)
+            total_sum = sum_per_cluster.sum(axis=0)
+            total_sumsq = sumsq_per_cluster.sum(axis=0)
+
         for cname in CLUSTER_NAMES:
             if cname in small_clusters:
                 full_rankings[cname] = None
@@ -1436,24 +1484,29 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
                 all_names = [str(g) for g in rgg["names"][cname]]
                 all_lfc = rgg["logfoldchanges"][cname].astype(np.float64)
                 all_padj = rgg["pvals_adj"][cname].astype(np.float64)
-                # Cohen's d: vectorized over all genes
-                mask_in = cluster_labels == cname
-                n1 = int(mask_in.sum())
-                n2 = int((~mask_in).sum())
+                cidx = cname_to_cidx.get(cname, -1)
+                if cidx >= 0 and sum_per_cluster is not None:
+                    n1 = int(n_per_cluster[cidx])
+                    n2 = n_cells_deg - n1
+                else:
+                    n1 = n2 = 0
                 if n1 >= 2 and n2 >= 2:
-                    X_in = X[mask_in]
-                    X_out = X[~mask_in]
-                    m1 = np.asarray(X_in.mean(axis=0)).ravel()
-                    m2 = np.asarray(X_out.mean(axis=0)).ravel()
-                    sq1 = np.asarray(X_in.power(2).mean(axis=0)).ravel() if sp.issparse(X_in) else np.asarray((X_in**2).mean(axis=0)).ravel()
-                    sq2 = np.asarray(X_out.power(2).mean(axis=0)).ravel() if sp.issparse(X_out) else np.asarray((X_out**2).mean(axis=0)).ravel()
-                    v1 = np.maximum(sq1 - m1**2, 0) * n1 / (n1 - 1)
-                    v2 = np.maximum(sq2 - m2**2, 0) * n2 / (n2 - 1)
+                    s1 = sum_per_cluster[cidx]
+                    s2 = total_sum - s1
+                    q1 = sumsq_per_cluster[cidx]
+                    q2 = total_sumsq - q1
+                    m1 = s1 / n1
+                    m2 = s2 / n2
+                    # sample variance: (sumsq - n*mean^2) / (n-1)
+                    v1 = np.maximum(q1 - n1 * m1 * m1, 0.0) / (n1 - 1)
+                    v2 = np.maximum(q2 - n2 * m2 * m2, 0.0) / (n2 - 1)
                     pooled = np.sqrt(((n1 - 1) * v1 + (n2 - 1) * v2) / (n1 + n2 - 2))
                     d_all = (m1 - m2) / np.maximum(pooled, 1e-9)
-                    # Map Cohen's d by gene name (d_all is indexed by var position, not by ranking)
-                    gene_to_varidx = {g: j for j, g in enumerate(adata_deg.var_names)}
-                    all_d = np.array([float(d_all[gene_to_varidx[g]]) if g in gene_to_varidx else 0.0 for g in all_names])
+                    # Reorder Cohen's d to match rgg ranking order
+                    idx_arr = np.fromiter((gene_to_varidx.get(g, -1) for g in all_names),
+                                          dtype=np.int64, count=len(all_names))
+                    safe_idx = np.where(idx_arr >= 0, idx_arr, 0)
+                    all_d = np.where(idx_arr >= 0, d_all[safe_idx], 0.0)
                 else:
                     all_d = np.zeros(len(all_names))
                 # Replace non-finite values
@@ -2190,7 +2243,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             cached["pca_3d"] = pca_arr[:, :3].copy()
             cached["pca_full"] = pca_arr.copy()
         _progress("Saving UMAP cache...", 95)
-        np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
+        _safe_savez(".fleek_cache.npz", **cached)
 
     ADATA = adata
 
@@ -2244,7 +2297,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 cached["pca_3d"] = PCA_3D
                 cached["pca_full"] = pca_arr.copy()
                 try:
-                    np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
+                    _safe_savez(".fleek_cache.npz", **cached)
                 except Exception:
                     pass
                 print(f"  PCA computed in background ({pca_arr.shape[1]} components)")
@@ -2423,7 +2476,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 cached[f"pacmap_2d{_pm_suffix}"] = PACMAP_2D
                 cached[f"pacmap_3d{_pm_suffix}"] = PACMAP_3D
                 try:
-                    np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
+                    _safe_savez(".fleek_cache.npz", **cached)
                     print(f"  PaCMAP cached")
                 except Exception:
                     pass
@@ -4756,7 +4809,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                             cached = dict(np.load(cache_read, allow_pickle=False))
                             cached[f"pacmap_2d{_pm_sfx}"] = PACMAP_2D
                             cached[f"pacmap_3d{_pm_sfx}"] = PACMAP_3D
-                            np.savez(_cache_write_path(".fleek_cache.npz"), **cached)
+                            _safe_savez(".fleek_cache.npz", **cached)
                             print(f"  PaCMAP cached ({_pm_sfx.strip('_')})")
                         except Exception:
                             pass
@@ -4813,11 +4866,10 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
         self.wfile.write(data)
 
     def _serve_heartbeat(self, req):
-        """Client heartbeat — resets the auto-unload timer."""
+        """Client heartbeat — resets the auto-quit timer (unload + process exit)."""
         global AUTO_UNLOAD, AUTO_UNLOAD_TIMEOUT, _LAST_HEARTBEAT, _HEARTBEAT_TIMER
         _LAST_HEARTBEAT = time.time()
-        print(f"  ♥ heartbeat (auto_unload={req.get('auto_unload') if req else '?'}, timeout={req.get('timeout') if req else '?'})")
-        # Cancel any pending unload timer
+        # Cancel any pending timer
         if _HEARTBEAT_TIMER:
             _HEARTBEAT_TIMER.cancel()
             _HEARTBEAT_TIMER = None
@@ -4827,19 +4879,29 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 AUTO_UNLOAD = bool(req["auto_unload"])
             if "timeout" in req:
                 AUTO_UNLOAD_TIMEOUT = max(0.5, float(req["timeout"]))
-        # Schedule next unload check
-        if AUTO_UNLOAD and ADATA is not None:
-            def _check_unload():
+        # Schedule next quit check — runs even when no dataset is loaded, since
+        # the server should shut down after a disconnect regardless. The timer
+        # frees the dataset (if any) and then exits the process so the user
+        # doesn't need to know a background server exists.
+        if AUTO_UNLOAD:
+            def _check_quit():
                 global _HEARTBEAT_TIMER
                 _HEARTBEAT_TIMER = None
                 elapsed = time.time() - _LAST_HEARTBEAT
-                if elapsed >= AUTO_UNLOAD_TIMEOUT and AUTO_UNLOAD and ADATA is not None:
-                    print(f"  Auto-unloading dataset (no heartbeat for {elapsed:.1f}s)")
-                    _reset_all()
-                    PROGRESS["status"] = "idle"
-                    PROGRESS["message"] = "Dataset auto-unloaded"
-                    import gc; gc.collect()
-            _HEARTBEAT_TIMER = threading.Timer(AUTO_UNLOAD_TIMEOUT + 0.5, _check_unload)
+                if elapsed >= AUTO_UNLOAD_TIMEOUT and AUTO_UNLOAD:
+                    if ADATA is not None:
+                        print(f"  Auto-quit: unloading dataset (no heartbeat for {elapsed:.1f}s)")
+                        try:
+                            _reset_all()
+                        except Exception as _e:
+                            print(f"  Auto-quit: _reset_all failed ({_e})")
+                        import gc; gc.collect()
+                    print(f"  Auto-quit: stopping FLEEK server (no heartbeat for {elapsed:.1f}s)")
+                    # os._exit avoids running atexit handlers / blocking on
+                    # lingering threads. Safe here — we've already cleaned up.
+                    import os as _os
+                    _os._exit(0)
+            _HEARTBEAT_TIMER = threading.Timer(AUTO_UNLOAD_TIMEOUT + 0.5, _check_quit)
             _HEARTBEAT_TIMER.daemon = True
             _HEARTBEAT_TIMER.start()
         data = json.dumps({"ok": True, "auto_unload": AUTO_UNLOAD, "timeout": AUTO_UNLOAD_TIMEOUT}).encode("utf-8")
