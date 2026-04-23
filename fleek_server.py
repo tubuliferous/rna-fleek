@@ -37,6 +37,9 @@ import numpy as np
 # PyInstaller bundles data files into sys._MEIPASS; normal runs use script dir
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
+# Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
+FLEEK_VERSION = "0.4.3"
+
 # Globals set at startup
 ADATA = None
 UMAP_2D = None
@@ -587,6 +590,23 @@ def _classify_all_matrices():
             })
 
 
+def _is_mmap_backed(arr):
+    """True if `arr` or any of its base chain is an np.memmap. Used to
+    detect whether a sparse matrix's data array was loaded via mmap vs
+    read into RAM — our fast path builds arrays with np.frombuffer over a
+    memmap, so the array itself isn't a memmap but its .base is."""
+    if arr is None:
+        return False
+    cur = arr
+    seen = 0
+    while cur is not None and seen < 8:
+        if isinstance(cur, np.memmap):
+            return True
+        cur = getattr(cur, "base", None)
+        seen += 1
+    return False
+
+
 def _load_csc_mmap(npz_path):
     """Open an uncompressed scipy-sparse .npz (CSC/CSR) and memory-map each
     of its three array members in place — no buffered read through Python's
@@ -632,6 +652,8 @@ def _load_csc_mmap(npz_path):
                 fname_len = struct.unpack("<H", lh[26:28])[0]
                 extra_len = struct.unpack("<H", lh[28:30])[0]
                 data_offsets[fname] = info.header_offset + 30 + fname_len + extra_len
+        import mmap as _mmap
+        _page = _mmap.ALLOCATIONGRANULARITY
         def _mmap_npy(name):
             if name not in entries:
                 return None
@@ -647,18 +669,26 @@ def _load_csc_mmap(npz_path):
                 array_offset = fp.tell()
             if fortran:
                 return None
-            # np.memmap with offset requires the offset to be aligned to the
-            # OS page size. The .npy header is padded to a 64-byte boundary
-            # from the start of the member, but the member itself starts at
-            # info._data_offset which may not be page-aligned. Fall back to
-            # np.load (buffered read) for that specific array if the stars
-            # don't align — extremely rare in practice since STORED zips
-            # typically start each entry at well-aligned positions.
+            # np.memmap(offset=N) requires N to be a multiple of the OS
+            # allocation granularity (4K on Linux/mac, 64K on Windows). .npy
+            # array payloads inside a STORED .npz are only 64-byte aligned
+            # relative to their zip member, so in practice the absolute
+            # offset is rarely page-aligned. Work around this by mmapping
+            # a page-aligned raw-byte span that covers (padding + payload),
+            # then slicing out the payload as a typed numpy view — still
+            # zero-copy, backed by the same mmap pages.
+            nbytes = int(np.dtype(dtype).itemsize) * int(np.prod(shape))
+            if nbytes == 0:
+                return np.empty(shape, dtype=dtype)
+            aligned = (array_offset // _page) * _page
+            pad = array_offset - aligned
             try:
-                return np.memmap(str(npz_path), dtype=dtype, mode="r",
-                                 offset=array_offset, shape=shape)
+                raw = np.memmap(str(npz_path), dtype=np.uint8, mode="r",
+                                offset=aligned, shape=(pad + nbytes,))
             except Exception:
                 return None
+            return np.frombuffer(raw, dtype=dtype, count=int(np.prod(shape)),
+                                 offset=pad).reshape(shape)
         data = _mmap_npy("data.npy")
         indices = _mmap_npy("indices.npy")
         indptr = _mmap_npy("indptr.npy")
@@ -2711,7 +2741,40 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
             #   - Adapts to any normalization (raw counts, log1p, SCTransform)
             #   - Two np.polyfit calls on ~15k genes: <2ms total
             #
+            # Try gene-variability disk cache first — the mean/var/detection
+            # stats over a 50k-cell subsample of a sparse column matrix are
+            # by far the expensive step (~30s at 1M cells), while the final
+            # results are tiny (a float32 + int8 per gene). Cache fingerprint
+            # guards against dataset changes: cell/gene counts, first/last
+            # gene name, and the routed source matrix path.
+            _var_from_cache = False
+            _var_route_path = (MATRIX_ROUTING.get("variability", {}).get("path") or "X") if MATRIX_ROUTING else "X"
             if not _has_hvg_col:
+                _vp_r, _ = _cache_read_path(".fleek_gene_var.npz")
+                if _vp_r is not None and _vp_r.exists():
+                    try:
+                        _vc = np.load(str(_vp_r), allow_pickle=True)
+                        _ok = (int(_vc["n_cells"]) == ADATA.n_obs and
+                               int(_vc["n_genes"]) == ADATA.n_vars and
+                               str(_vc["src_path"]) == _var_route_path and
+                               str(_vc["first_gene"]) == str(ADATA.var_names[0]) and
+                               str(_vc["last_gene"]) == str(ADATA.var_names[-1]))
+                        if _ok:
+                            ALL_GENE_VAR = np.asarray(_vc["all_gene_var"], dtype=np.float32)
+                            GENE_CUTOFF_FLAG = np.asarray(_vc["gene_cutoff_flag"], dtype=np.int8)
+                            ALL_GENE_VAR_METRIC = str(_vc["metric"])
+                            _hvg_names = [str(x) for x in _vc["hvg_names"]]
+                            HVG_NAMES = _hvg_names
+                            HVG_VAR = {n: float(v) for n, v in zip(_hvg_names, _vc["hvg_values"])}
+                            _var_from_cache = True
+                            _n_flagged = int((GENE_CUTOFF_FLAG > 0).sum())
+                            print(f"  Gene variability loaded from cache ({len(ALL_GENE_VAR):,} genes, {_n_flagged:,} flagged)")
+                        else:
+                            print("  Gene variability cache fingerprint mismatch, recomputing...")
+                    except Exception as _ve:
+                        print(f"  Gene variability cache load failed ({_ve}), recomputing...")
+
+            if not _has_hvg_col and not _var_from_cache:
                 print("  Computing gene variability (locally standardized trend residual)...")
                 t0 = time.time()
                 import scipy.sparse as _sp
@@ -2816,6 +2879,27 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                 n_scored = int(fit_mask.sum())
                 print(f"  Scored {n_scored:,}/{len(mean):,} genes by locally standardized trend residual, {n_flagged:,} flagged by cutoffs ({time.time()-t0:.1f}s, {n_sub:,}-cell subsample)")
 
+                # Save to disk — cheap (under 1 MB typically), huge payoff
+                # on reload of multi-million-cell datasets.
+                try:
+                    _vp_w = _cache_write_path(".fleek_gene_var.npz")
+                    _hvg_values = np.asarray([HVG_VAR[n] for n in HVG_NAMES], dtype=np.float32)
+                    np.savez(str(_vp_w),
+                             all_gene_var=ALL_GENE_VAR,
+                             gene_cutoff_flag=GENE_CUTOFF_FLAG,
+                             hvg_names=np.asarray(HVG_NAMES, dtype=object),
+                             hvg_values=_hvg_values,
+                             metric=ALL_GENE_VAR_METRIC,
+                             n_cells=ADATA.n_obs,
+                             n_genes=ADATA.n_vars,
+                             src_path=_var_route_path,
+                             first_gene=str(ADATA.var_names[0]),
+                             last_gene=str(ADATA.var_names[-1]))
+                    _vp_kb = os.path.getsize(str(_vp_w)) / 1024
+                    print(f"  Gene variability cached ({_vp_kb:.0f} KB)")
+                except Exception as _se:
+                    print(f"  Gene variability cache save failed ({_se})")
+
             # Try loading CSC from cache
             import scipy.sparse as _sp
             loaded_from_cache = False
@@ -2884,8 +2968,10 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                         if _disp_read is not None:
                             try:
                                 t2 = time.time()
-                                DISPLAY_CSC = _load_csc_mmap(_disp_read) or _sp.load_npz(str(_disp_read))
-                                _disp_note = " (mmap)" if isinstance(getattr(DISPLAY_CSC, "data", None), np.memmap) else ""
+                                DISPLAY_CSC = _load_csc_mmap(_disp_read)
+                                if DISPLAY_CSC is None:
+                                    DISPLAY_CSC = _sp.load_npz(str(_disp_read))
+                                _disp_note = " (mmap)" if _is_mmap_backed(getattr(DISPLAY_CSC, "data", None)) else ""
                                 if DISPLAY_CSC is not None and DISPLAY_CSC.shape == _dmat.shape:
                                     print(f"  Display CSC ({_dpath}) loaded from cache{_disp_note} ({time.time()-t2:.2f}s)")
                                     _loaded_disp = True
@@ -4518,6 +4604,7 @@ class FleekHandler(SimpleHTTPRequestHandler):
             suffix_map = {
                 "fleek": ".fleek_cache.npz",
                 "csc": ".csc_cache.npz",
+                "gene_var": ".fleek_gene_var.npz",
                 "markers": ".annot_markers.json",
                 "claude": ".annot_llm.json",
                 "lineage": ".annot_lineage.json",
@@ -5399,7 +5486,7 @@ def main():
     server = type('ThreadingHTTPServer', (ThreadingMixIn, HTTPServer), {'daemon_threads': True})((args.host, args.port), FleekHandler)
     url = f"http://{args.host}:{args.port}"
     print(f"\n{'='*50}")
-    print(f"  RNA-FLEEK running at: {url}")
+    print(f"  RNA-FLEEK v{FLEEK_VERSION} running at: {url}")
     if ADATA is not None:
         print(f"  {N_CELLS:,} cells · {len(CLUSTER_NAMES)} types · {len(GENE_NAMES_LIST):,} genes")
     else:
