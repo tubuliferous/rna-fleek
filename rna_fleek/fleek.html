@@ -430,7 +430,7 @@
   .sv-export:hover{opacity:var(--op-active);color:var(--success)!important;}
   /* sg-add-btn removed — replaced by + button in header */
   .sg-toolbar{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap;}
-  .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:10px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;}
+  .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:10px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;overflow:hidden;}
   .sg-toolbar button:hover{background:var(--bg-hover);border-color:var(--border2);color:var(--text2);}
   .sg-toolbar button.deg-run{background:rgba(16,185,129,0.15);border-color:var(--success);color:var(--success);font-weight:600;}
   .sg-toolbar button.deg-run:hover{background:rgba(16,185,129,0.28);border-color:var(--success);color:var(--success);filter:brightness(0.92);}
@@ -937,9 +937,9 @@
       <div id="sel-groups"></div>
       <button onclick="addSelGroup()" title="Add selection group (or press Shift+1-9)" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;margin:4px 0;" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">+</button>
       <div class="sg-toolbar">
-        <button onclick="selAllVisible()" title="Select all visible cells into active group (Shift+V)">Sel. Vis.</button>
+        <button onclick="selAllVisible()" title="Select all visible cells into active group (Shift+V)">SelVis</button>
         <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)" title="Clear visible cells from active group (Esc)">Clear</button>
-        <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (Shift+H)">Hide All</button>
+        <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (Shift+H)">HideAll</button>
         <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button>
       </div>
     </div>
@@ -2187,7 +2187,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.4";
+var FLEEK_VERSION="v0.4.5";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2936,7 +2936,7 @@ function clearActiveGroup(allCells){
 function _updateClearBtn(e){
   var btn=document.getElementById("sel-clear-btn");
   if(!btn)return;
-  btn.textContent=e&&e.altKey?"Clear All":"Clear";
+  btn.textContent=e&&e.altKey?"ClearAll":"Clear";
 }
 /* Listen for Alt key changes while hovering the clear button */
 document.addEventListener("keydown",function(e){if(e.key==="Alt"){_updateClearBtn(e);}});
@@ -2977,7 +2977,7 @@ function toggleSelVis(){
   /* Toggle all to opposite */
   for(var i=0;i<selGroups.length;i++){groupVisible[selGroups[i].id]=!anyVis;}
   var btn=document.getElementById("sel-vis-btn");
-  if(btn)btn.textContent=anyVis?"Hide All":"Show All";
+  if(btn)btn.textContent=anyVis?"HideAll":"ShowAll";
   renderSelPanel();
   recolor();
 }
@@ -3242,7 +3242,7 @@ function renderSelPanel(){
   var anyVis=false;
   for(var ii=0;ii<selGroups.length;ii++){if(groupVisible[selGroups[ii].id]!==false){anyVis=true;break;}}
   var btn=document.getElementById("sel-vis-btn");
-  if(btn)btn.textContent=anyVis?"Hide All":"Show All";
+  if(btn)btn.textContent=anyVis?"HideAll":"ShowAll";
   /* Enable DEG button when 2+ groups have cells */
   var degBtn=document.getElementById("deg-open-btn");
   if(degBtn){
