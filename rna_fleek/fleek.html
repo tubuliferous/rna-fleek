@@ -257,8 +257,11 @@
   .grad-btn{background:none;border:none;color:var(--text3);font-size:10px;font-family:inherit;cursor:pointer;padding:0 4px;display:inline-flex;align-items:center;gap:2px;border-radius:3px;transition:color var(--dur-fast),background var(--dur-fast);}
   .grad-btn:hover{color:var(--text2);background:var(--bg-hover);}
   .grad-btn .grad-chev{font-size:8px;opacity:0.7;}
-  /* Dropdown popover — positioned under the legend inside #gene-sec */
-  #expr-grad-dd{display:none;position:absolute;right:0;top:calc(100% + 4px);min-width:260px;max-height:60vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:120;padding:4px 0;}
+  /* Dropdown popover — position:fixed so it escapes sidebar overflow
+     and gets reliably placed via JS relative to the trigger's rect.
+     The JS writes top/left/maxHeight inline; this rule only carries
+     base styling. */
+  #expr-grad-dd{display:none;position:fixed;min-width:280px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:1000;padding:4px 0;}
   #expr-grad-dd.open{display:block;}
   .grad-group{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text4);padding:6px 10px 2px;}
   .grad-row{display:grid;grid-template-columns:48px 1fr;column-gap:8px;row-gap:1px;align-items:center;padding:5px 10px;cursor:pointer;transition:background var(--dur-fast);}
@@ -523,8 +526,45 @@
   #confirm-ok:hover{background:rgba(239,68,68,0.25);}
   #help-body{overflow-y:auto;padding:20px 24px 28px;flex:1;}
   #help-body p{font-size:12px;line-height:1.7;color:var(--text2);margin:0 0 10px;}
-  #help-body .help-tagline{font-size:12px;color:var(--text3);font-style:italic;margin-bottom:16px;}
+  #help-body .help-tagline{font-size:12px;color:var(--text3);font-style:italic;margin-bottom:12px;}
   .help-toc{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:20px;}
+  /* Feedback-invite row — lives directly under the tagline in the help
+     body. Subtle accent-tinted pill so it reads as an invitation
+     without shouting for attention. */
+  .help-feedback-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin-bottom:18px;background:linear-gradient(to right,rgba(99,102,241,0.08),rgba(99,102,241,0.02));border:1px solid var(--border2);border-radius:6px;}
+  .help-feedback-row .help-fb-prompt{font-size:11px;color:var(--text3);line-height:1.4;}
+  .help-fb-btn{padding:5px 12px;font-size:11px;font-family:inherit;font-weight:500;background:rgba(99,102,241,0.12);color:var(--accent2);border:1px solid rgba(99,102,241,0.35);border-radius:4px;cursor:pointer;white-space:nowrap;transition:background var(--dur-fast),border-color var(--dur-fast);}
+  .help-fb-btn:hover{background:rgba(99,102,241,0.22);border-color:var(--accent);}
+  /* Feedback modal — stacks above the help overlay so launching it
+     from the help panel doesn't force the user to re-open help after
+     submitting. Close via the × button, Esc, or clicking the backdrop. */
+  #fb-overlay{display:none;position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;}
+  .light #fb-overlay{background:rgba(0,0,0,0.3);}
+  #fb-overlay.open{display:flex;}
+  #fb-modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:min(560px,92vw);max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,0.5);}
+  .light #fb-modal{box-shadow:0 24px 80px rgba(0,0,0,0.15);}
+  #fb-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  #fb-hdr h3{margin:0;font-size:14px;font-weight:700;color:var(--text);}
+  .fb-close{background:none;border:none;color:var(--accent2);cursor:pointer;font-size:20px;font-family:inherit;padding:0 4px;line-height:1;opacity:var(--op-rest);transition:opacity var(--dur-fast),color var(--dur-fast);}
+  .fb-close:hover{opacity:var(--op-active);color:var(--danger);}
+  #fb-body{padding:18px 20px;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:14px;}
+  .fb-row{display:flex;flex-direction:column;gap:5px;}
+  .fb-row.fb-row-horizontal{flex-direction:row;align-items:center;gap:10px;}
+  .fb-lbl{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;}
+  .fb-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--border);border-radius:20px;cursor:pointer;font-size:12px;color:var(--text2);background:var(--bg3);transition:all var(--dur-fast);user-select:none;}
+  .fb-pill:hover{border-color:var(--border2);color:var(--text);}
+  .fb-pill input{margin:0;cursor:pointer;accent-color:var(--accent);}
+  .fb-pill.fb-pill-active{background:rgba(99,102,241,0.14);border-color:rgba(99,102,241,0.5);color:var(--accent2);}
+  #fb-title,#fb-desc{width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:inherit;font-size:12px;padding:8px 10px;outline:none;transition:border-color var(--dur-fast);}
+  #fb-title:focus,#fb-desc:focus{border-color:var(--accent);}
+  #fb-desc{resize:vertical;min-height:120px;line-height:1.5;font-family:var(--font-mono,"SF Mono",Menlo,Consolas,monospace);font-size:11px;}
+  .fb-meta-note{font-size:10px;color:var(--text4);line-height:1.5;margin:0;padding:8px 10px;background:var(--bg3);border-radius:4px;border-left:2px solid var(--border2);}
+  #fb-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0;}
+  .fb-btn{padding:6px 14px;font-size:11px;font-family:inherit;border-radius:4px;cursor:pointer;transition:all var(--dur-fast);}
+  .fb-btn-secondary{background:none;border:1px solid var(--border);color:var(--text3);}
+  .fb-btn-secondary:hover{border-color:var(--border2);color:var(--text);background:var(--bg-hover);}
+  .fb-btn-primary{background:rgba(99,102,241,0.18);border:1px solid var(--accent);color:var(--accent2);font-weight:600;}
+  .fb-btn-primary:hover{background:rgba(99,102,241,0.3);}
   .help-toc a{font-size:10px;padding:3px 8px;border-radius:4px;background:var(--bg3);color:var(--accent2);text-decoration:none;border:1px solid var(--border);transition:all 0.1s;}
   .help-toc a:hover{background:var(--bg-active);border-color:var(--accent);}
   .help-sec{margin-bottom:4px;}
@@ -1353,6 +1393,10 @@
   </div>
   <div id="help-body">
     <p class="help-tagline">Fast Lightweight Expression Exploration Kit — a browser-based single-cell RNA-seq visualizer with cell type annotation.</p>
+    <div class="help-feedback-row">
+      <span class="help-fb-prompt">Found a bug or have an idea for a new feature? We'd love to hear it.</span>
+      <button class="help-fb-btn" onclick="_feedbackOpen()">Send feedback</button>
+    </div>
     <div class="help-toc">
       <a href="#" onclick="event.preventDefault();helpJump('help-nav')">Navigation</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-panels')">Sidebar &amp; Panels</a>
@@ -1668,7 +1712,7 @@
         <p><strong>Gradient picker:</strong> click the gradient bar (or the "<em>Viridis&nbsp;▾</em>" button next to the "Expression" label) to choose a different colormap. The dropdown lists every available gradient grouped by character, each with a live preview strip and a one-line note:</p>
         <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
           <li><strong>Auto</strong> (default) — resolves to <em>Viridis</em> in dark mode and <em>Blues</em> in light mode. Matches FLEEK's historical look and usually reads well on either background without you having to pick a colormap per theme.</li>
-          <li><strong>Perceptually uniform</strong> — Viridis, Magma, Inferno, Plasma, Cividis, Rocket, Mako, Batlow. These map equal steps in the data to equal perceived lightness differences, so "twice as bright" really means twice as much expression. Cividis and Viridis are fully colorblind-safe; Batlow (Crameri) is well-tested for scientific publication.</li>
+          <li><strong>Perceptually uniform</strong> — Viridis, Inferno, Plasma, Cividis, Rocket, Mako, Batlow. These map equal steps in the data to equal perceived lightness differences, so "twice as bright" really means twice as much expression. Cividis and Viridis are fully colorblind-safe; Batlow (Crameri) is well-tested for scientific publication.</li>
           <li><strong>High contrast / specialty</strong> — Turbo (Google's improved rainbow — wide dynamic range, but the hue jumps between blue/green/yellow/red can mislead about magnitude), Lajolla (Crameri warm sequential).</li>
           <li><strong>Single-hue</strong> — Blues, Reds, YlOrRd (ColorBrewer). Classic heatmap look; clean on a light background; trivially mappable to "low → high" in print. Reds is intuitive for "high expression = red" when reading alongside biologists used to Seurat's default.</li>
         </ul>
@@ -2180,6 +2224,38 @@
     </div>
   </div>
 </div>
+<!-- Feedback modal — launched from Help panel -->
+<div id="fb-overlay" onclick="if(event.target===this)_feedbackClose()">
+  <div id="fb-modal" role="dialog" aria-labelledby="fb-title-hdr">
+    <div id="fb-hdr">
+      <h3 id="fb-title-hdr">Send feedback</h3>
+      <button class="fb-close" onclick="_feedbackClose()" title="Close (Esc)">&times;</button>
+    </div>
+    <div id="fb-body">
+      <div class="fb-row">
+        <span class="fb-lbl">Type</span>
+        <div class="fb-row-horizontal">
+          <label class="fb-pill fb-pill-active" data-type="bug"><input type="radio" name="fb-type" value="bug" checked onchange="_feedbackTypeChanged()"> <span>Bug report</span></label>
+          <label class="fb-pill" data-type="feature"><input type="radio" name="fb-type" value="feature" onchange="_feedbackTypeChanged()"> <span>Feature request</span></label>
+        </div>
+      </div>
+      <div class="fb-row">
+        <label class="fb-lbl" for="fb-title-input">Title</label>
+        <input type="text" id="fb-title-input" placeholder="One-line summary" maxlength="200" autocomplete="off">
+      </div>
+      <div class="fb-row">
+        <label class="fb-lbl" for="fb-desc">Details</label>
+        <textarea id="fb-desc" rows="10" placeholder=""></textarea>
+      </div>
+      <p class="fb-meta-note">Your FLEEK version, browser, theme, current dataset name + dimensions, and active gene are attached automatically. Cell data is not sent.</p>
+    </div>
+    <div id="fb-footer">
+      <button class="fb-btn fb-btn-secondary" onclick="_feedbackClose()">Cancel</button>
+      <button class="fb-btn fb-btn-secondary" onclick="_feedbackSubmit('email')" title="Opens your default mail client with the report pre-filled">Email instead</button>
+      <button class="fb-btn fb-btn-primary" onclick="_feedbackSubmit('github')" title="Opens GitHub's new-issue form with the report pre-filled (you'll sign in as yourself, then click Submit)">Open GitHub Issue</button>
+    </div>
+  </div>
+</div>
 <svg id="rna-svg-tpl" viewBox="0 0 1440 2966" style="display:none;"><path d="m 249.6,2943.7c-10.5-2.6-21.2-13-24.4-23.7-2.1-7.1-4.1-36.4-3.2-49.6 2-31.5 9.7-59.3 25.4-90.8 18-36.2 39.9-66.5 74.9-103.9 31.1-33.2 64.6-63.5 113-102.2 72.2-57.7 115.1-88.6 284.9-205.3 31.1-21.4 49.7-34.5 97.9-68.8 81.8-58.3 143.2-108.6 187.1-153.3 18.5-18.8 25.8-27.2 38.3-43.7 39.4-51.9 55.8-96.2 53.6-144.8-2.9-65-42.7-127.6-126.5-199-11.7-9.9-44.7-35.4-60.7-46.8-10.4-7.4-58.1-39-74.9-49.6-31.1-19.6-39.5-24.7-114.3-69.5-139.2-83.3-169.6-102.3-222.5-139.8-69.3-49-125.9-99.9-163.2-146.8-43.8-55-70.1-109.8-81.3-169.4-22.5-119.6 18.1-256.1 113.1-379.6 76-98.8 174.9-187.1 373.7-333.6 33.2-24.5 64.4-47.4 79.7-58.5 84.2-61.3 155.9-117.4 196.5-153.8 19.8-17.7 54.2-52.8 67-68.2 21.9-26.4 37.9-53.6 44-74.6 4.5-15.7 10-22.5 23-28.4 11.2-5.1 27.4-2.2 36.7 6.7 7.5 7.1 11.8 16.5 11.8 25.5 0 13-7.3 35.8-19.1 59.9-18.2 37.2-47 75-91.4 120.2-59.9 61-99.5 94.8-257 219.5-105.2 83.3-159.1 128.7-220.1 186.8-71.3 67.9-119.7 125.6-155.1 184.8-39.6 66.3-60.4 134-60.4 197 0 48.8 13.5 94.3 39.8 133.8 17.1 25.7 26.7 37.5 50.4 61.6 27.8 28.3 50.6 47.8 92.5 79.1 31.5 23.5 103 70.7 146.6 96.6 150 89.3 198.8 119.6 255 158.3 92.3 63.5 149.7 114.4 191.1 169.3 39.6 52.6 61.7 103.8 70.2 162.4 2.1 14.6 2.3 19.4 1.7 43.2-.7 28.5-2.1 40-7.8 62.3-6.2 24.1-13.5 43.3-25.8 68-25 49.8-71.4 104.3-136.6 160.1-66.6 57-142.9 110.9-289.3 204.5-12 7.7-24.3 15.6-27.3 17.5-3 2-16.5 10.7-30.1 19.4-134 86.1-199.7 131.6-255.9 177.5-65.4 53.3-106.5 97.8-128.9 139.5-6.3 11.7-13.6 30.5-16.7 42.7-2.3 9.4-2.6 12.8-2.6 35.5l0 25.2-3.1 6.2c-3.6 7.3-8.8 12.2-17.1 16.1-6.7 3.1-17.2 4.1-24.4 2.3z m 186.8-75.1c-11.1-3.9-18.6-8.7-25.9-16.6-10.8-11.7-16.2-25.3-16.2-41.2 0-17.2 5.9-31.5 18.2-44 8.2-8.4 18.6-14.3 29-16.6 7.2-1.6 49.2-2.4 194.6-4 29.2-.3 63.6-.8 76.6-1.1 12.9-.3 55.8-.8 95.2-1.1 39.4-.3 84.2-.8 99.5-1.1 15.3-.3 57.7-.8 94.1-1.2 73.5-.7 73.1-.8 87 6.5 9.8 5.1 21.2 17 26 27 5.4 11.5 6.7 18 6 30.5-.7 12.4-3.4 21.2-9.6 30.7-11.6 18-27.5 26.6-51.4 27.8-6.9.4-45.1.9-84.8 1.2-39.7.3-84 .8-98.4 1.1-14.4.3-52.3.8-84.2 1.1-61.4.6-120.3 1.3-178.8 2.2-19.6.3-65.3.8-101.7 1.1l-66.2.6z m 304.5-243.3c-34.9-4.6-58.9-38.3-52.3-73.3 4.3-22.7 24.9-43.5 47.2-47.9 8.1-1.6 33.8-2.2 116.8-2.9 39.4-.3 74.8-.8 78.8-1.1 3.9-.3 46.5-.8 94.6-1.2l87.5-.7 8.8 2.8c16.4 5.3 28.6 15.7 36 30.7 9.2 18.7 9.3 37.3.1 56-8.8 17.9-25.7 29.9-46.8 33.1-3.8.6-45.7 1.3-93.3 1.7-47.5.4-88.6.9-91.3 1.1-2.7.2-39.6.7-82 1.1-42.4.4-81.5.8-87 1-5.4.2-13.1 0-17.2-.6zM483.5 2300.6c-23.9-5.1-41.6-22-47.6-45.5-3.8-14.7-2.3-28.2 4.7-43.1 4.2-8.9 16.1-21 25.5-26 14.5-7.6 4.5-7 169.4-9.5 142.2-2.1 132.9-2.1 141-.2 28.4 6.7 47.7 31.1 47.7 60.3 0 28.1-17.8 51.3-45.4 59.4-5.6 1.6-4.1 1.6-168.4 4-101.8 1.5-122.7 1.6-126.9.7zM349.7 2065.3c-11-1.9-22-7.6-31.2-16.2-17-15.8-23.6-42.4-16-64.5 3.2-9.3 12-22.3 18.9-27.8 6.5-5.2 18.6-11 26.4-12.7 3.2-.7 25.9-1.4 53.6-1.8 26.5-.3 64.9-.8 85.3-1.1 73.3-1.1 125-1.7 217.7-2.7 51.7-.6 105.9-1.3 120.3-1.6 14.4-.3 56.8-.9 94.1-1.2l67.8-.7 8.8 2.8c38 12.2 54.5 56.9 33.7 91.6-5 8.3-16.2 18.6-24.8 22.7-13.1 6.2-15 6.4-88.3 7.1-37 .4-80.3.9-96.3 1.2-15.9.3-55.1.8-87 1.1-31.9.3-73.7.8-93 1.1-32.8.5-55.1.8-172.8 2.2-25.9.3-61.6.8-79.3 1-17.7.3-34.9 0-38.1-.6z m 79.6-233.4c-19.7-5.5-35.8-20.3-42.8-39.4-3.2-8.6-3.5-29.6-.7-38.8 4.4-14 17.4-29.7 30.3-36.5 13-6.8 14.4-7 78.3-7.7 31.9-.4 70.5-.9 85.9-1.2 54.6-1 95.4-1.6 150.4-2.2 30.7-.3 64.2-.8 74.4-1.2 22.6-.7 31.8.7 43.5 6.8 15.9 8.3 29.5 26.4 32.7 43.5 2.6 14.4-1 33.3-8.5 44.8-7.9 12-20.6 22-32.7 25.7-9.3 2.9-16.3 3.2-83 3.9-57.2.6-102.5 1.2-170.1 2.2-110 1.7-151.4 1.7-157.5 0zM592.4 1303c-6.9-1.5-19.3-7.6-26-12.9-7.3-5.8-15.3-17-18.7-26.3-3.7-9.9-4.5-27.1-1.9-37.3 6.6-25.5 29.7-44.3 56.9-46.3 4.8-.4 48.1-.9 96.3-1.3 48.1-.3 91.7-.8 96.8-1.1 5.1-.3 47-.7 93-1.1 46-.3 90.6-.9 99-1.2 10.8-.4 18 0 24.2 1 23.6 4.2 41.9 20.8 49 44.5 2.3 7.7 2.4 24.7.1 33.1-4.4 16.8-17.6 32.3-33.6 39.6-12.2 5.6-14.7 5.7-127.8 7.1-58.1.7-115.9 1.4-128.5 1.7-49.7 1.2-174.1 1.6-178.8.6zM496.6 1097.4c-12.4-3-22.1-8.4-30.6-17.3-11.3-11.7-16.7-23.9-17.7-40.1-1.9-29.8 19-57.6 48.1-63.9 6.3-1.4 39.7-2.1 188.9-3.9 70.7-.9 166.2-2.1 212.2-2.7 186.2-2.4 209.3-2.5 216-1.3 21 3.9 40.8 22.6 47.1 44.3 1.4 5 1.7 9.3 1.4 18.6-.4 10.3-1 13.5-4 21-6.5 16.7-21.2 30.5-38.2 35.8-10.3 3.2-20.4 3.7-102.5 4.5-59.1.6-117.6 1.3-180.5 2.2-21.1.3-63.9.8-95.2 1.1-31.3.3-67.7.8-80.9 1.1-55.1 1.2-159.9 1.5-164.1.5z m 96.1-191.5c-15.6-2.7-30.2-11.8-39.3-24.7-6.5-9.1-9.9-17.9-11.5-29.6-1.1-8.4-1-10.8.6-18.2 5.3-23.9 21.1-41.2 44.4-48.3 7.3-2.3 10.4-2.4 135.6-3.8 52.6-.6 130.2-1.6 172.4-2.2 85.2-1.2 85.8-1.2 100 5.7 9.8 4.7 22.5 17.7 27.3 27.6 15 31.5 2.5 68.6-28 83.4-12.8 6.2-18.9 6.8-64.3 6.9-22.3 0-46.6.3-54.1.6-7.5.3-38.8.8-69.5 1.1-115.3 1.2-159.3 1.7-183.2 2.1-13.5.2-27.1 0-30.3-.5zM395.4 409.9c-22.9-6.3-40.5-25-45.4-48.1-.9-4.2-1.6-9.6-1.6-12 0-7.6 3.1-19.4 7.2-27.9 5.2-10.6 16.5-22 26.7-27 14.2-7 7.7-6.7 161.8-7.5 127.8-.7 141.2-.6 147.4 1 25.5 6.6 42.6 25.8 46.5 52.3 1 7.1.9 10-.6 18.1-4.8 25.2-22.1 43.9-46.2 49.9-10.1 2.5-287 3.7-295.9 1.3zM369.2 186.7c-18.5-5-33.7-17.5-42.4-34.9-3-6-5.7-18.7-5.7-26.6 0-8.6 3.6-22 7.8-29.4 8.6-15 24.7-27 41.2-30.4 11.4-2.4 560.8-2.3 571.1.1 10.1 2.4 19.3 7.7 27.5 15.8 12.5 12.4 18.7 26.7 18.8 43.8.1 17.7-5.6 31.5-18.3 44.4-8.7 8.8-19.5 14.8-31.2 17.3-11 2.4-560 2.3-568.8 0z"/></svg>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -2214,7 +2290,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.7";
+var FLEEK_VERSION="v0.4.8";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2293,9 +2369,7 @@ var clusterCounts=[]; // per-cluster cell counts
 var _gradients={
   viridis:{name:"Viridis",group:"perceptual",note:"matplotlib default, perceptually uniform, colorblind-safe",
     stops:[[0.0,[0.267,0.005,0.329]],[0.1,[0.283,0.141,0.458]],[0.2,[0.254,0.265,0.530]],[0.3,[0.207,0.372,0.553]],[0.4,[0.164,0.471,0.558]],[0.5,[0.128,0.567,0.551]],[0.6,[0.135,0.659,0.518]],[0.7,[0.267,0.749,0.441]],[0.8,[0.478,0.821,0.318]],[0.9,[0.741,0.873,0.150]],[1.0,[0.993,0.906,0.144]]]},
-  magma:{name:"Magma",group:"perceptual",note:"dark-to-light, excellent on dark backgrounds",
-    stops:[[0.0,[0.001,0.000,0.014]],[0.1,[0.064,0.048,0.165]],[0.2,[0.178,0.050,0.354]],[0.3,[0.330,0.068,0.435]],[0.4,[0.471,0.110,0.427]],[0.5,[0.617,0.163,0.399]],[0.6,[0.769,0.215,0.343]],[0.7,[0.914,0.306,0.263]],[0.8,[0.987,0.486,0.295]],[0.9,[0.999,0.691,0.391]],[1.0,[0.987,0.991,0.749]]]},
-  inferno:{name:"Inferno",group:"perceptual",note:"higher-contrast Magma, pops on black",
+  inferno:{name:"Inferno",group:"perceptual",note:"black→red→yellow, pops on dark backgrounds",
     stops:[[0.0,[0.001,0.000,0.014]],[0.1,[0.072,0.044,0.230]],[0.2,[0.204,0.029,0.414]],[0.3,[0.344,0.061,0.428]],[0.4,[0.473,0.110,0.427]],[0.5,[0.609,0.161,0.395]],[0.6,[0.744,0.212,0.328]],[0.7,[0.868,0.287,0.210]],[0.8,[0.949,0.418,0.090]],[0.9,[0.985,0.629,0.020]],[1.0,[0.988,0.998,0.645]]]},
   plasma:{name:"Plasma",group:"perceptual",note:"purple→pink→yellow, warm and vivid",
     stops:[[0.0,[0.050,0.030,0.528]],[0.1,[0.218,0.017,0.615]],[0.2,[0.369,0.004,0.665]],[0.3,[0.506,0.033,0.657]],[0.4,[0.631,0.130,0.586]],[0.5,[0.737,0.236,0.489]],[0.6,[0.830,0.344,0.397]],[0.7,[0.910,0.457,0.304]],[0.8,[0.967,0.583,0.206]],[0.9,[0.992,0.732,0.123]],[1.0,[0.940,0.975,0.131]]]},
@@ -2370,10 +2444,49 @@ function _toggleGradientDropdown(ev){
   if(ev){ev.stopPropagation();}
   var dd=document.getElementById("expr-grad-dd");
   if(!dd)return;
-  var open=dd.classList.toggle("open");
-  if(open)_renderGradientDropdown();
+  var willOpen=!dd.classList.contains("open");
+  if(willOpen){
+    _renderGradientDropdown();      /* populate first so we can measure */
+    dd.classList.add("open");
+    _positionGradientDropdown();
+  }else{
+    dd.classList.remove("open");
+  }
 }
 function _closeGradientDropdown(){var dd=document.getElementById("expr-grad-dd");if(dd)dd.classList.remove("open");}
+/* Place the (position:fixed) dropdown against the Expression legend.
+   Prefer below; flip above if it would overflow the viewport bottom.
+   Horizontally align to the trigger's right edge, but clamp so the
+   whole popover stays visible (important when the sidebar is narrow
+   and the dropdown is wider than the trigger). */
+function _positionGradientDropdown(){
+  var dd=document.getElementById("expr-grad-dd");
+  var trig=document.getElementById("expr-legend");
+  if(!dd||!trig)return;
+  /* Reset before measuring so prior inline styles don't skew the read. */
+  dd.style.maxHeight="";
+  dd.style.top="";dd.style.left="";dd.style.bottom="";
+  var tr=trig.getBoundingClientRect();
+  var vw=window.innerWidth, vh=window.innerHeight, pad=8;
+  var ddW=Math.min(dd.offsetWidth||280, vw-pad*2);
+  var ddH=dd.offsetHeight||0;
+  /* Vertical: try below first */
+  var spaceBelow=vh-tr.bottom-pad;
+  var spaceAbove=tr.top-pad;
+  var placeBelow=(ddH<=spaceBelow)||(spaceBelow>=spaceAbove);
+  if(placeBelow){
+    dd.style.maxHeight=Math.max(120,spaceBelow)+"px";
+    dd.style.top=(tr.bottom+4)+"px";
+  }else{
+    dd.style.maxHeight=Math.max(120,spaceAbove)+"px";
+    dd.style.bottom=(vh-tr.top+4)+"px";
+  }
+  /* Horizontal: align to trigger's right edge, clamp into viewport. */
+  var left=tr.right-ddW;
+  if(left<pad)left=pad;
+  if(left+ddW>vw-pad)left=vw-pad-ddW;
+  dd.style.left=left+"px";
+}
 function _renderGradientDropdown(){
   var dd=document.getElementById("expr-grad-dd");
   if(!dd)return;
@@ -2414,6 +2527,141 @@ document.addEventListener("mousedown",function(e){
   if(trig&&trig.contains(e.target))return;
   _closeGradientDropdown();
 });
+
+/* ── Feedback modal ────────────────────────────────────────────────── */
+
+function _feedbackOpen(){
+  var ov=document.getElementById("fb-overlay");
+  if(!ov)return;
+  ov.classList.add("open");
+  /* Reset to a clean form each open. Keeping stale drafts across opens
+     is more confusing than helpful for a report form. */
+  var ti=document.getElementById("fb-title-input");
+  var de=document.getElementById("fb-desc");
+  if(ti)ti.value="";
+  if(de)de.value="";
+  /* Reset radio to bug */
+  var radios=document.querySelectorAll('input[name="fb-type"]');
+  for(var i=0;i<radios.length;i++)radios[i].checked=(radios[i].value==="bug");
+  _feedbackTypeChanged();
+  setTimeout(function(){if(ti)ti.focus();},30);
+}
+function _feedbackClose(){
+  var ov=document.getElementById("fb-overlay");
+  if(ov)ov.classList.remove("open");
+}
+function _feedbackTypeChanged(){
+  var t=document.querySelector('input[name="fb-type"]:checked');
+  var type=t?t.value:"bug";
+  /* Highlight the active pill */
+  var pills=document.querySelectorAll("#fb-body .fb-pill");
+  for(var i=0;i<pills.length;i++){
+    if(pills[i].getAttribute("data-type")===type)pills[i].classList.add("fb-pill-active");
+    else pills[i].classList.remove("fb-pill-active");
+  }
+  /* Swap the Details placeholder so the user gets a template nudge. */
+  var de=document.getElementById("fb-desc");
+  if(!de)return;
+  if(type==="bug"){
+    de.placeholder="What happened?\n\nSteps to reproduce:\n1.\n2.\n3.\n\nExpected result:\n\nActual result:";
+  }else{
+    de.placeholder="What should FLEEK do?\n\nWhen would you use this / what problem does it solve?\n\nAny examples from other tools you've seen do this well?";
+  }
+}
+
+/* Build a short Markdown environment block so the recipient can see the
+   context without having to ask. Nothing about cells is included — just
+   counts, the dataset's basename, and a few UI-state flags. */
+function _feedbackEnvBlock(){
+  var lines=[];
+  lines.push("**Environment**");
+  lines.push("- FLEEK: "+(typeof FLEEK_VERSION==="string"?FLEEK_VERSION:"unknown"));
+  var theme=document.body.classList.contains("light")?"light":"dark";
+  lines.push("- Theme: "+theme);
+  try{lines.push("- View: "+(viewIs3d?"3D":"2D"));}catch(_){}
+  try{
+    var grad=_selectedGradient+(_selectedGradient==="auto"?" \u2192 "+_gradientResolvedName():"");
+    lines.push("- Colormap: "+grad);
+  }catch(_){}
+  try{lines.push("- Color mode: "+mode);}catch(_){}
+  try{if(selGene)lines.push("- Selected gene: "+selGene);}catch(_){}
+  try{
+    if(D&&D.header){
+      var p=D.header.loaded_path||"(uploaded)";
+      var base=p.split("/").pop()||p;
+      var nC=(D.header.n_cells||0).toLocaleString();
+      var nG=(D.header.n_genes||0).toLocaleString();
+      lines.push("- Dataset: "+base+" ("+nC+" cells \u00d7 "+nG+" genes)");
+    }else{
+      lines.push("- Dataset: (none loaded)");
+    }
+  }catch(_){lines.push("- Dataset: (unknown)");}
+  lines.push("- Browser: "+navigator.userAgent);
+  return lines.join("\n");
+}
+
+function _feedbackBuildBody(type,description){
+  var parts=[];
+  parts.push(description||"_(no details provided)_");
+  parts.push("");
+  parts.push("---");
+  parts.push(_feedbackEnvBlock());
+  return parts.join("\n");
+}
+
+function _feedbackSubmit(target){
+  var type=(document.querySelector('input[name="fb-type"]:checked')||{}).value||"bug";
+  var title=(document.getElementById("fb-title-input").value||"").trim();
+  var desc=(document.getElementById("fb-desc").value||"").trim();
+  if(!title){
+    alert("Please enter a short title before submitting.");
+    return;
+  }
+  var subjectPrefix=type==="bug"?"[Bug] ":"[Feature] ";
+  var fullTitle=subjectPrefix+title;
+  var body=_feedbackBuildBody(type,desc);
+  if(target==="github"){
+    var labels=type==="bug"?"bug":"enhancement";
+    var url="https://github.com/tubuliferous/rna-fleek/issues/new"
+      +"?labels="+encodeURIComponent(labels)
+      +"&title="+encodeURIComponent(fullTitle)
+      +"&body="+encodeURIComponent(body);
+    window.open(url,"_blank","noopener");
+  }else{
+    /* mailto: body length is capped around 2KB on many clients. Keep
+       the environment block but warn if the user's description is huge. */
+    var mail="mailto:tubuliferous@gmail.com"
+      +"?subject="+encodeURIComponent("RNA-FLEEK "+(type==="bug"?"bug report":"feature request")+" \u2014 "+title)
+      +"&body="+encodeURIComponent(body);
+    if(mail.length>6000){
+      /* Fall back to subject-only so the mail client opens cleanly; the
+         user can paste the long details into the mail body themselves. */
+      mail="mailto:tubuliferous@gmail.com"
+        +"?subject="+encodeURIComponent("RNA-FLEEK "+(type==="bug"?"bug report":"feature request")+" \u2014 "+title);
+      alert("Your report is too long for a mailto handoff. Opening email with just the subject; please paste the details into the body manually.");
+    }
+    window.location.href=mail;
+  }
+  _feedbackClose();
+}
+
+/* Esc closes the feedback modal (matches help-overlay + dropdown behavior). */
+document.addEventListener("keydown",function(e){
+  if(e.key!=="Escape")return;
+  var ov=document.getElementById("fb-overlay");
+  if(ov&&ov.classList.contains("open")){_feedbackClose();e.stopPropagation();}
+});
+/* The dropdown is position:fixed off the trigger's viewport rect. If
+   the sidebar scrolls or the window resizes while open, the trigger
+   moves but the dropdown doesn't — close it rather than repositioning
+   on every scroll tick (matches native dropdown behavior). */
+window.addEventListener("resize",function(){_closeGradientDropdown();});
+window.addEventListener("scroll",function(e){
+  /* Don't close when the user is scrolling inside the dropdown itself. */
+  var dd=document.getElementById("expr-grad-dd");
+  if(dd&&dd.contains(e.target))return;
+  _closeGradientDropdown();
+},true);
 var typeSortMode="alpha"; // "alpha" or "count"
 var markerAnnotations=null; // {cluster_id: [{predictions}]} from marker DB
 var llmAnnotations=null;    // {cluster_id: [{predictions}]} from Claude
@@ -2911,16 +3159,13 @@ function cc(id){
   return P[id%P.length];
 }
 function ec(v){
-  if(document.body.classList.contains("light")){
-    /* Blues sequential: white → navy (light mode) */
-    if(v<.01)return[1,1,1];
-    if(v<.25){var t=v/.25;return[.97-t*.19,.98-t*.12,1-.06*t];}
-    if(v<.5){var t=(v-.25)/.25;return[.78-t*.36,.86-t*.18,.94-t*.10];}
-    if(v<.75){var t=(v-.5)/.25;return[.42-t*.29,.68-t*.24,.84-t*.13];}
-    var t=(v-.75)/.25;return[.13-t*.10,.44-t*.25,.71-t*.29];
-  }
-  /* Viridis (dark mode) */
-  if(v<.01)return[.07,.04,.11];if(v<.25){var t=v/.25;return[.07+t*.20,.04+t*.27,.11+t*.33];}if(v<.5){var t=(v-.25)/.25;return[.27-t*.08,.31+t*.27,.44-t*.02];}if(v<.75){var t=(v-.5)/.25;return[.19+t*.42,.58+t*.17,.42-t*.18];}var t=(v-.75)/.25;return[.61+t*.39,.75+t*.18,.24-t*.13];
+  /* Sample the active gradient. All callers (split-view _recolorView,
+     export paths, legend swatch helpers) get the user's current gradient
+     choice for free. The LUT is cached by gradient name, so per-cell use
+     is one dict hit + three array reads. */
+  var lut=_gradientLUT(_gradientResolvedName());
+  var i=v>=1?255:(v<=0?0:(v*255)|0);
+  return [lut[i*3],lut[i*3+1],lut[i*3+2]];
 }
 
 /* ── Selection group management ── */
@@ -3758,7 +4003,14 @@ function buildPts(data){
   haloGeo.setAttribute('aSize',geo.getAttribute('aSize'));
   haloGeo.setAttribute('aAlpha',geo.getAttribute('aAlpha'));
   var _hvs='attribute float aSize;\nattribute float aAlpha;\nvarying vec3 vColor;\nvarying float vHF;\nuniform float uSize;\nuniform float uVpH;\nuniform float uPulse;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat sz=uSize*aSize;\nif(uVpH>0.0)sz*=uVpH/(-mv.z);\nbool expr=aAlpha>=1.0&&aSize>0.15;\nfloat hfSz=max(1.0-smoothstep(5.0,30.0,sz),0.2);\nfloat hBase=mix(2.5,8.0,hfSz);\nfloat pf=smoothstep(0.0,1.5,uPulse-1.0);\nfloat hm=expr?hBase*1.5:0.0;\nfloat tsz=sz*hm;\ngl_PointSize=expr?max(tsz,0.5):0.0;\nvHF=expr?max(1.0-smoothstep(15.0,30.0,sz),0.2)/max(hm,1.0):0.0;\ngl_Position=expr?projectionMatrix*mv:vec4(0.0,0.0,-2.0,1.0);\n}';
-  var _hfs='varying vec3 vColor;\nvarying float vHF;\nuniform float uLight;\nuniform float uPulse;\nuniform vec3 uHaloBase;\nuniform vec3 uHaloPulse;\nvoid main(){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat ha=(1.0-smoothstep(0.15,0.85,d))*0.9*vHF*uPulse;\nif(ha<0.01)discard;\nfloat pw=clamp((uPulse-1.0)/1.5,0.0,0.6);\nif(uLight>0.5){\nvec3 hc=mix(uHaloBase,uHaloPulse,pw);\ngl_FragColor=vec4(hc,ha);\n}else{\nvec3 hc=mix(vColor,uHaloPulse,pw);\ngl_FragColor=vec4(hc*ha,0.0);\n}\n}';
+  /* Halo fragment shader. Light mode: emit vColor directly and let
+     alpha blending handle the fade against the white background — a
+     red cell's halo blends to a clearly red tint, blue to blue, etc.
+     Darkening vColor before the alpha blend produced grayscale-looking
+     halos because (dark*alpha + white*(1-alpha)) compresses the hue
+     ratio between channels. Dark mode still uses additive blending:
+     vColor mixed toward uHaloPulse (white-ish) for a bloom effect. */
+  var _hfs='varying vec3 vColor;\nvarying float vHF;\nuniform float uLight;\nuniform float uPulse;\nuniform vec3 uHaloBase;\nuniform vec3 uHaloPulse;\nvoid main(){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat ha=(1.0-smoothstep(0.15,0.85,d))*0.9*vHF*uPulse;\nif(ha<0.01)discard;\nfloat pw=clamp((uPulse-1.0)/1.5,0.0,0.6);\nif(uLight>0.5){\ngl_FragColor=vec4(vColor,ha);\n}else{\nvec3 hc=mix(vColor,uHaloPulse,pw);\ngl_FragColor=vec4(hc*ha,0.0);\n}\n}';
   var haloMat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uLight:{value:_isLight?1.0:0.0},uPulse:{value:1.0},uHaloBase:{value:new THREE.Vector3(_bsInit.haloBase[0]||0,_bsInit.haloBase[1]||0,_bsInit.haloBase[2]||0)},uHaloPulse:{value:new THREE.Vector3(_bsInit.haloPulseTarget[0],_bsInit.haloPulseTarget[1],_bsInit.haloPulseTarget[2])}},vertexShader:_hvs,fragmentShader:_hfs,transparent:true,vertexColors:true,depthWrite:false,depthTest:true,blending:THREE.CustomBlending,blendSrc:_isLight?THREE.SrcAlphaFactor:THREE.OneFactor,blendDst:_isLight?THREE.OneMinusSrcAlphaFactor:THREE.OneFactor});
   haloPts=new THREE.Points(haloGeo,haloMat);
   haloPts.renderOrder=1;
@@ -8850,17 +9102,19 @@ function _createLiveView(idx,name){
   };
 }
 function _disposeLiveView(v){
-  /* Dispose GPU resources for a live view. All live views — including view 0
-     — hold CLONED pts/ringPts/haloPts (see _createLiveView), not the globals.
-     Previously this function skipped id===0 based on a stale assumption,
-     which leaked cloned ring/halo objects into the scene across every split
-     activate/deactivate cycle. Orphaned vRing objects could later render
-     with stale visibility flags on top of real buffers, masking the real
-     rings. */
+  /* Dispose GPU resources for a live view. View 0 shares references with
+     the global pts/ringPts/haloPts (see _createLiveView(0) — returns
+     {pts:pts,ringPts:ringPts,haloPts:haloPts}). Disposing those would
+     wipe the main scene. Guard by reference: only dispose resources the
+     live view uniquely owns (i.e. the clones held by view 1+). A prior
+     version skipped id===0 blindly, which worked; an intermediate version
+     disposed everything claiming view 0 was cloned, which silently wiped
+     the main scene after a split deactivate and made the entire cloud
+     invisible. */
   if(!v)return;
-  if(v.pts){scene.remove(v.pts);v.pts.geometry.dispose();v.pts.material.dispose();}
-  if(v.ringPts){scene.remove(v.ringPts);v.ringPts.geometry.dispose();v.ringPts.material.dispose();}
-  if(v.haloPts){scene.remove(v.haloPts);v.haloPts.material.dispose();}
+  if(v.pts&&v.pts!==pts){scene.remove(v.pts);v.pts.geometry.dispose();v.pts.material.dispose();}
+  if(v.ringPts&&v.ringPts!==ringPts){scene.remove(v.ringPts);v.ringPts.geometry.dispose();v.ringPts.material.dispose();}
+  if(v.haloPts&&v.haloPts!==haloPts){scene.remove(v.haloPts);v.haloPts.material.dispose();}
 }
 function _showViewPts(vIdx){
   var v=_liveViews[vIdx];if(!v)return;
