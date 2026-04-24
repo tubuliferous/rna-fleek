@@ -251,8 +251,23 @@
   #action-flash .af-label{font-size:13px;font-weight:600;letter-spacing:0.3px;color:var(--text);}
   #action-flash .af-key{display:inline-block;font-size:10px;font-weight:500;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:8px;vertical-align:1px;}
   #loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);padding:20px 32px;border-radius:8px;border:1px solid var(--border);color:var(--accent2);font-weight:600;display:none;pointer-events:none;}
-  #expr-bar{height:6px;border-radius:3px;background:linear-gradient(to right,#120b1d,#27314f,#1e845b,#9ec826,#fde724);}
-  .light #expr-bar{background:linear-gradient(to right,#f7fbff,#c6dbef,#6baed6,#2171b5,#08306b);}
+  #expr-bar{height:8px;border-radius:3px;cursor:pointer;transition:filter var(--dur-fast);}
+  #expr-bar:hover{filter:brightness(1.15);}
+  /* Gradient picker button — sits inline with the "Expression" label */
+  .grad-btn{background:none;border:none;color:var(--text3);font-size:10px;font-family:inherit;cursor:pointer;padding:0 4px;display:inline-flex;align-items:center;gap:2px;border-radius:3px;transition:color var(--dur-fast),background var(--dur-fast);}
+  .grad-btn:hover{color:var(--text2);background:var(--bg-hover);}
+  .grad-btn .grad-chev{font-size:8px;opacity:0.7;}
+  /* Dropdown popover — positioned under the legend inside #gene-sec */
+  #expr-grad-dd{display:none;position:absolute;right:0;top:calc(100% + 4px);min-width:260px;max-height:60vh;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:120;padding:4px 0;}
+  #expr-grad-dd.open{display:block;}
+  .grad-group{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text4);padding:6px 10px 2px;}
+  .grad-row{display:grid;grid-template-columns:48px 1fr;column-gap:8px;row-gap:1px;align-items:center;padding:5px 10px;cursor:pointer;transition:background var(--dur-fast);}
+  .grad-row:hover{background:var(--bg-hover);}
+  .grad-row.active{background:var(--bg3);}
+  .grad-strip{grid-row:1 / span 2;height:18px;border-radius:2px;border:1px solid var(--border);align-self:center;}
+  .grad-name{grid-column:2;font-size:11px;color:var(--text2);font-weight:500;}
+  .grad-row.active .grad-name{color:var(--accent2);}
+  .grad-note{grid-column:2;font-size:9px;color:var(--text4);line-height:1.3;}
   .elbl{display:flex;justify-content:space-between;font-size:10px;color:var(--text4);margin-top:3px;}
   #gene-sec{display:none;}
   #data-sec.drop-active{outline:2px dashed var(--accent);outline-offset:-2px;background:rgba(99,102,241,0.06);}
@@ -984,10 +999,14 @@
         </div>
       </div>
       <!-- Expression legend (inside gene panel) -->
-      <div id="expr-legend" style="display:none;margin-top:8px;">
-        <div class="lbl" id="egnm">Expression</div>
-        <div id="expr-bar"></div>
+      <div id="expr-legend" style="display:none;margin-top:8px;position:relative;">
+        <div class="lbl" id="egnm" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;">
+          <span>Expression</span>
+          <button class="grad-btn" onclick="_toggleGradientDropdown(event)" title="Choose a color gradient for gene expression"><span id="expr-grad-btn-label">Viridis</span><span class="grad-chev">&#9660;</span></button>
+        </div>
+        <div id="expr-bar" onclick="_toggleGradientDropdown(event)" title="Click to pick a different gradient"></div>
         <div class="elbl"><span>Low</span><span>High</span></div>
+        <div id="expr-grad-dd"></div>
       </div>
     </div>
   </div>
@@ -1645,7 +1664,15 @@
       </div>
       <div class="help-sec-body">
         <p>The Gene panel is always visible in the sidebar. Switch to <strong>Gene Expression</strong> coloring with <span class="help-key">G</span> or click the Gene Expression button. Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP. When the panel is collapsed, the currently selected gene name appears in the header.</p>
-        <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a colorscale: <strong>Viridis</strong> (dark mode) or <strong>Blues sequential</strong> (light mode). The expression legend (colormap bar) appears inside the Gene panel when a gene is selected.</p>
+        <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a color gradient. The legend appears inside the Gene panel whenever a gene is selected.</p>
+        <p><strong>Gradient picker:</strong> click the gradient bar (or the "<em>Viridis&nbsp;▾</em>" button next to the "Expression" label) to choose a different colormap. The dropdown lists every available gradient grouped by character, each with a live preview strip and a one-line note:</p>
+        <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
+          <li><strong>Auto</strong> (default) — resolves to <em>Viridis</em> in dark mode and <em>Blues</em> in light mode. Matches FLEEK's historical look and usually reads well on either background without you having to pick a colormap per theme.</li>
+          <li><strong>Perceptually uniform</strong> — Viridis, Magma, Inferno, Plasma, Cividis, Rocket, Mako, Batlow. These map equal steps in the data to equal perceived lightness differences, so "twice as bright" really means twice as much expression. Cividis and Viridis are fully colorblind-safe; Batlow (Crameri) is well-tested for scientific publication.</li>
+          <li><strong>High contrast / specialty</strong> — Turbo (Google's improved rainbow — wide dynamic range, but the hue jumps between blue/green/yellow/red can mislead about magnitude), Lajolla (Crameri warm sequential).</li>
+          <li><strong>Single-hue</strong> — Blues, Reds, YlOrRd (ColorBrewer). Classic heatmap look; clean on a light background; trivially mappable to "low → high" in print. Reds is intuitive for "high expression = red" when reading alongside biologists used to Seurat's default.</li>
+        </ul>
+        <p>The choice is persisted across sessions via <code>sessionStorage</code>. It applies to the main point cloud, the legend bar, and every color-baked export (SVG / PLY / CSV) so screen and file match exactly. Raincloud plots continue to use cell-type colors (not gene expression), so the gradient choice doesn't affect them.</p>
         <p>When Gene Expression coloring is active, additional controls appear in the View panel:</p>
         <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
           <li><strong>Non-expressing cells</strong> — toggle visibility of cells with zero detected expression. When on (default), they appear as subtle ghost dots; when off, they are hidden entirely.</li>
@@ -2187,7 +2214,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.6";
+var FLEEK_VERSION="v0.4.7";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2255,6 +2282,138 @@ var fpsF=0, fpsT=performance.now();
 var searchTimer=null;
 var visibleClusters={}; // cluster index -> true/false
 var clusterCounts=[]; // per-cluster cell counts
+
+/* ── Expression-color gradient catalog ─────────────────────────────
+   Each entry: ordered stops as [pos∈[0,1], [r,g,b]∈[0,1]]. Linear
+   interpolation between stops. Default selection is "auto" which
+   resolves per theme: Viridis in dark, Blues in light — preserves
+   the app's historical behavior while making every other gradient
+   available too. Zero-expressing cells go through _ghostColor (not
+   the gradient), so no zero-stop special case needed here. */
+var _gradients={
+  viridis:{name:"Viridis",group:"perceptual",note:"matplotlib default, perceptually uniform, colorblind-safe",
+    stops:[[0.0,[0.267,0.005,0.329]],[0.1,[0.283,0.141,0.458]],[0.2,[0.254,0.265,0.530]],[0.3,[0.207,0.372,0.553]],[0.4,[0.164,0.471,0.558]],[0.5,[0.128,0.567,0.551]],[0.6,[0.135,0.659,0.518]],[0.7,[0.267,0.749,0.441]],[0.8,[0.478,0.821,0.318]],[0.9,[0.741,0.873,0.150]],[1.0,[0.993,0.906,0.144]]]},
+  magma:{name:"Magma",group:"perceptual",note:"dark-to-light, excellent on dark backgrounds",
+    stops:[[0.0,[0.001,0.000,0.014]],[0.1,[0.064,0.048,0.165]],[0.2,[0.178,0.050,0.354]],[0.3,[0.330,0.068,0.435]],[0.4,[0.471,0.110,0.427]],[0.5,[0.617,0.163,0.399]],[0.6,[0.769,0.215,0.343]],[0.7,[0.914,0.306,0.263]],[0.8,[0.987,0.486,0.295]],[0.9,[0.999,0.691,0.391]],[1.0,[0.987,0.991,0.749]]]},
+  inferno:{name:"Inferno",group:"perceptual",note:"higher-contrast Magma, pops on black",
+    stops:[[0.0,[0.001,0.000,0.014]],[0.1,[0.072,0.044,0.230]],[0.2,[0.204,0.029,0.414]],[0.3,[0.344,0.061,0.428]],[0.4,[0.473,0.110,0.427]],[0.5,[0.609,0.161,0.395]],[0.6,[0.744,0.212,0.328]],[0.7,[0.868,0.287,0.210]],[0.8,[0.949,0.418,0.090]],[0.9,[0.985,0.629,0.020]],[1.0,[0.988,0.998,0.645]]]},
+  plasma:{name:"Plasma",group:"perceptual",note:"purple→pink→yellow, warm and vivid",
+    stops:[[0.0,[0.050,0.030,0.528]],[0.1,[0.218,0.017,0.615]],[0.2,[0.369,0.004,0.665]],[0.3,[0.506,0.033,0.657]],[0.4,[0.631,0.130,0.586]],[0.5,[0.737,0.236,0.489]],[0.6,[0.830,0.344,0.397]],[0.7,[0.910,0.457,0.304]],[0.8,[0.967,0.583,0.206]],[0.9,[0.992,0.732,0.123]],[1.0,[0.940,0.975,0.131]]]},
+  cividis:{name:"Cividis",group:"perceptual",note:"fully colorblind-optimized (deuteranopia/protanopia)",
+    stops:[[0.0,[0.000,0.126,0.303]],[0.1,[0.004,0.192,0.405]],[0.2,[0.111,0.259,0.487]],[0.3,[0.224,0.321,0.506]],[0.4,[0.330,0.385,0.494]],[0.5,[0.441,0.451,0.472]],[0.6,[0.554,0.519,0.445]],[0.7,[0.673,0.591,0.409]],[0.8,[0.794,0.667,0.357]],[0.9,[0.922,0.750,0.283]],[1.0,[1.000,0.874,0.164]]]},
+  rocket:{name:"Rocket",group:"perceptual",note:"seaborn, black→purple→orange→cream",
+    stops:[[0.0,[0.017,0.002,0.030]],[0.1,[0.136,0.044,0.116]],[0.2,[0.250,0.066,0.180]],[0.3,[0.370,0.075,0.219]],[0.4,[0.497,0.084,0.247]],[0.5,[0.628,0.103,0.266]],[0.6,[0.756,0.162,0.242]],[0.7,[0.842,0.275,0.189]],[0.8,[0.899,0.409,0.175]],[0.9,[0.943,0.594,0.311]],[1.0,[0.961,0.798,0.620]]]},
+  mako:{name:"Mako",group:"perceptual",note:"seaborn, black→teal→cream, cool alternative to Rocket",
+    stops:[[0.0,[0.040,0.029,0.141]],[0.1,[0.089,0.078,0.275]],[0.2,[0.112,0.154,0.414]],[0.3,[0.114,0.239,0.476]],[0.4,[0.135,0.342,0.467]],[0.5,[0.181,0.443,0.472]],[0.6,[0.223,0.548,0.500]],[0.7,[0.278,0.659,0.541]],[0.8,[0.414,0.769,0.602]],[0.9,[0.680,0.851,0.718]],[1.0,[0.915,0.922,0.859]]]},
+  batlow:{name:"Batlow",group:"perceptual",note:"Crameri scientific colormap, perceptually uniform",
+    stops:[[0.0,[0.005,0.098,0.349]],[0.1,[0.076,0.189,0.388]],[0.2,[0.151,0.277,0.395]],[0.3,[0.229,0.360,0.381]],[0.4,[0.318,0.438,0.345]],[0.5,[0.424,0.509,0.304]],[0.6,[0.551,0.570,0.280]],[0.7,[0.695,0.614,0.300]],[0.8,[0.843,0.635,0.395]],[0.9,[0.962,0.651,0.549]],[1.0,[0.988,0.706,0.761]]]},
+  turbo:{name:"Turbo",group:"contrast",note:"Google's improved rainbow, high dynamic range",
+    stops:[[0.0,[0.190,0.072,0.232]],[0.1,[0.270,0.346,0.802]],[0.2,[0.261,0.599,0.999]],[0.3,[0.149,0.810,0.960]],[0.4,[0.204,0.952,0.739]],[0.5,[0.525,0.993,0.443]],[0.6,[0.831,0.923,0.228]],[0.7,[0.994,0.736,0.216]],[0.8,[0.988,0.464,0.111]],[0.9,[0.871,0.221,0.050]],[1.0,[0.480,0.016,0.011]]]},
+  lajolla:{name:"Lajolla",group:"contrast",note:"Crameri warm sequential, great for heatmaps",
+    stops:[[0.0,[0.996,1.000,0.800]],[0.1,[0.989,0.908,0.632]],[0.2,[0.978,0.778,0.470]],[0.3,[0.954,0.629,0.347]],[0.4,[0.918,0.475,0.256]],[0.5,[0.860,0.328,0.193]],[0.6,[0.771,0.204,0.155]],[0.7,[0.636,0.122,0.132]],[0.8,[0.475,0.079,0.123]],[0.9,[0.305,0.062,0.110]],[1.0,[0.149,0.059,0.094]]]},
+  blues:{name:"Blues",group:"single-hue",note:"ColorBrewer single-hue, clean on light bg",
+    stops:[[0.000,[0.969,0.984,1.000]],[0.125,[0.871,0.922,0.969]],[0.250,[0.777,0.858,0.937]],[0.375,[0.619,0.793,0.882]],[0.500,[0.419,0.682,0.839]],[0.625,[0.259,0.573,0.776]],[0.750,[0.129,0.443,0.710]],[0.875,[0.032,0.318,0.612]],[1.000,[0.031,0.188,0.420]]]},
+  reds:{name:"Reds",group:"single-hue",note:"ColorBrewer, intuitive for 'high expression'",
+    stops:[[0.000,[1.000,0.961,0.941]],[0.125,[0.996,0.878,0.824]],[0.250,[0.988,0.733,0.631]],[0.375,[0.988,0.573,0.447]],[0.500,[0.984,0.416,0.290]],[0.625,[0.937,0.231,0.173]],[0.750,[0.796,0.094,0.114]],[0.875,[0.647,0.059,0.082]],[1.000,[0.404,0.000,0.051]]]},
+  ylorrd:{name:"YlOrRd",group:"single-hue",note:"ColorBrewer yellow→orange→red, classic heatmap",
+    stops:[[0.000,[1.000,1.000,0.800]],[0.125,[1.000,0.929,0.627]],[0.250,[0.996,0.851,0.463]],[0.375,[0.996,0.698,0.298]],[0.500,[0.992,0.553,0.235]],[0.625,[0.988,0.306,0.164]],[0.750,[0.890,0.102,0.110]],[0.875,[0.741,0.000,0.149]],[1.000,[0.502,0.000,0.149]]]}
+};
+var _gradientGroups={perceptual:"Perceptually uniform",contrast:"High contrast / specialty","single-hue":"Single-hue (best on light)"};
+/* "auto" resolves per theme — preserves historical default. User-picked
+   names apply regardless of theme. */
+var _selectedGradient="auto";
+try{var _sg=sessionStorage.getItem("fleek_gradient");if(_sg&&(_sg==="auto"||_gradients[_sg]))_selectedGradient=_sg;}catch(_gerr){}
+var _gradientLUTCache={};
+function _gradientDefault(){return document.body.classList.contains("light")?"blues":"viridis";}
+function _gradientResolvedName(){return _selectedGradient==="auto"?_gradientDefault():_selectedGradient;}
+function _gradientBuildLUT(name){
+  var g=_gradients[name]||_gradients.viridis;
+  var stops=g.stops, ns=stops.length;
+  var lut=new Float32Array(256*3);
+  for(var i=0;i<256;i++){
+    var t=i/255, a=stops[0], b=stops[ns-1];
+    for(var k=0;k<ns-1;k++){if(t>=stops[k][0]&&t<=stops[k+1][0]){a=stops[k];b=stops[k+1];break;}}
+    var tt=(b[0]===a[0])?0:(t-a[0])/(b[0]-a[0]);
+    lut[i*3]  =a[1][0]+(b[1][0]-a[1][0])*tt;
+    lut[i*3+1]=a[1][1]+(b[1][1]-a[1][1])*tt;
+    lut[i*3+2]=a[1][2]+(b[1][2]-a[1][2])*tt;
+  }
+  return lut;
+}
+function _gradientLUT(name){name=name||_gradientResolvedName();if(!_gradientLUTCache[name])_gradientLUTCache[name]=_gradientBuildLUT(name);return _gradientLUTCache[name];}
+function _gradientSample(v,name){var lut=_gradientLUT(name);var i=v>=1?255:(v<=0?0:(v*255)|0);return [lut[i*3],lut[i*3+1],lut[i*3+2]];}
+function _gradientCSS(name){
+  var stops=[];
+  for(var i=0;i<=10;i++){
+    var c=_gradientSample(i/10,name);
+    stops.push("rgb("+((c[0]*255)|0)+","+((c[1]*255)|0)+","+((c[2]*255)|0)+") "+(i*10)+"%");
+  }
+  return "linear-gradient(to right,"+stops.join(",")+")";
+}
+function _applyGradient(){
+  var bar=document.getElementById("expr-bar");
+  if(bar)bar.style.background=_gradientCSS();
+  var btn=document.getElementById("expr-grad-btn-label");
+  if(btn){var n=_gradientResolvedName();btn.textContent=(_gradients[n]&&_gradients[n].name)||n;}
+  if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
+  if(typeof recolor==="function"&&D&&pts)recolor();
+}
+function _pickGradient(name){
+  if(name!=="auto"&&!_gradients[name])return;
+  _selectedGradient=name;
+  try{sessionStorage.setItem("fleek_gradient",name);}catch(_){}
+  _applyGradient();
+  _renderGradientDropdown();
+  _closeGradientDropdown();
+}
+function _toggleGradientDropdown(ev){
+  if(ev){ev.stopPropagation();}
+  var dd=document.getElementById("expr-grad-dd");
+  if(!dd)return;
+  var open=dd.classList.toggle("open");
+  if(open)_renderGradientDropdown();
+}
+function _closeGradientDropdown(){var dd=document.getElementById("expr-grad-dd");if(dd)dd.classList.remove("open");}
+function _renderGradientDropdown(){
+  var dd=document.getElementById("expr-grad-dd");
+  if(!dd)return;
+  var current=_gradientResolvedName();
+  var h='';
+  /* "Auto" entry first — resolves to Viridis / Blues based on theme */
+  var autoLabel=_gradientDefault()==="viridis"?"Auto (Viridis in dark, Blues in light)":"Auto (Viridis in dark, Blues in light)";
+  var autoActive=_selectedGradient==="auto";
+  h+='<div class="grad-row'+(autoActive?" active":"")+'" onclick="_pickGradient(\'auto\')">'
+    +'<span class="grad-strip" style="background:'+_gradientCSS(_gradientDefault())+';"><\/span>'
+    +'<span class="grad-name">Auto<\/span>'
+    +'<span class="grad-note">Viridis / Blues by theme<\/span>'
+    +'<\/div>';
+  var groups={perceptual:[],contrast:[],"single-hue":[]};
+  for(var k in _gradients){groups[_gradients[k].group].push(k);}
+  var order=["perceptual","contrast","single-hue"];
+  for(var gi=0;gi<order.length;gi++){
+    var grp=order[gi], items=groups[grp];
+    if(!items||items.length===0)continue;
+    h+='<div class="grad-group">'+(_gradientGroups[grp]||grp)+'<\/div>';
+    for(var ii=0;ii<items.length;ii++){
+      var k2=items[ii], g=_gradients[k2], active=(_selectedGradient===k2);
+      h+='<div class="grad-row'+(active?" active":"")+'" onclick="_pickGradient(\''+k2+'\')">'
+        +'<span class="grad-strip" style="background:'+_gradientCSS(k2)+';"><\/span>'
+        +'<span class="grad-name">'+g.name+'<\/span>'
+        +'<span class="grad-note">'+g.note+'<\/span>'
+        +'<\/div>';
+    }
+  }
+  dd.innerHTML=h;
+}
+/* Close dropdown on outside click. */
+document.addEventListener("mousedown",function(e){
+  var dd=document.getElementById("expr-grad-dd");
+  if(!dd||!dd.classList.contains("open"))return;
+  if(dd.contains(e.target))return;
+  var trig=document.getElementById("expr-legend");
+  if(trig&&trig.contains(e.target))return;
+  _closeGradientDropdown();
+});
 var typeSortMode="alpha"; // "alpha" or "count"
 var markerAnnotations=null; // {cluster_id: [{predictions}]} from marker DB
 var llmAnnotations=null;    // {cluster_id: [{predictions}]} from Claude
@@ -3863,31 +4022,14 @@ function recolor(){
   var _ghostColor=_bsu.ghostColor;
   var _ghostSize=_bsu.ghostSize;
   var _ghostAlpha=_bsu.ghostAlpha;
-  var _ec=isLight?function(v){
-    if(v<.01)return[1,1,1];
-    if(v<.25){var t=v/.25;return[.97-t*.19,.98-t*.12,1-.06*t];}
-    if(v<.5){var t=(v-.25)/.25;return[.78-t*.36,.86-t*.18,.94-t*.10];}
-    if(v<.75){var t=(v-.5)/.25;return[.42-t*.29,.68-t*.24,.84-t*.13];}
-    var t=(v-.75)/.25;return[.13-t*.10,.44-t*.25,.71-t*.29];
-  }:function(v){
-    if(v<.01)return[.07,.04,.11];
-    if(v<.25){var t=v/.25;return[.07+t*.20,.04+t*.27,.11+t*.33];}
-    if(v<.5){var t=(v-.25)/.25;return[.27-t*.08,.31+t*.27,.44-t*.02];}
-    if(v<.75){var t=(v-.5)/.25;return[.19+t*.42,.58+t*.17,.42-t*.18];}
-    var t=(v-.75)/.25;return[.61+t*.39,.75+t*.18,.24-t*.13];
-  };
-  /* Expression colour LUT — 256 bins × 3 floats. Replaces the _ec() call
-     (and its per-cell [r,g,b] allocation) in the hot loop with three
-     Float32Array reads. Millions of transient arrays → millions of GC
-     objects avoided on each gene switch; this is the single biggest
-     contributor to the "slow to switch genes" feel on >1M-cell datasets.
-     Rebuilt every recolor because _ec's curve depends on theme. */
+  /* Expression colour LUT — 256 bins × 3 floats. Hot loop reads three
+     Float32Array entries per expressing cell, avoiding millions of
+     per-cell [r,g,b] allocations. The active gradient is resolved via
+     the shared catalog (see _gradients); cache by name means no rebuild
+     unless the user picks a different gradient or the theme flips on
+     "auto" (ghost color + dim scheme also re-derive per-theme above). */
   var LUT_N=256;
-  var _exprLUT=new Float32Array(LUT_N*3);
-  for(var _li=0;_li<LUT_N;_li++){
-    var _cv=_ec(_li/(LUT_N-1));
-    _exprLUT[_li*3]=_cv[0];_exprLUT[_li*3+1]=_cv[1];_exprLUT[_li*3+2]=_cv[2];
-  }
+  var _exprLUT=_gradientLUT(_gradientResolvedName());
   /* Cluster colour LUT — cached on D and invalidated when the dataset's
      cluster palette changes. `cc(id)` does a dict lookup and potentially
      a hex-to-rgb allocation per call; in cluster mode the hot loop hits
@@ -10683,19 +10825,10 @@ function _exportComputeRenderState(snap, includeGhost){
   var ghostColor=bgScheme.ghostColor;
   var ghostSize=bgScheme.ghostSize;
   var ghostAlpha=bgScheme.ghostAlpha;
-  var _ec=isLight?function(v){
-    if(v<.01)return[1,1,1];
-    if(v<.25){var t=v/.25;return[.97-t*.19,.98-t*.12,1-.06*t];}
-    if(v<.5){var t=(v-.25)/.25;return[.78-t*.36,.86-t*.18,.94-t*.10];}
-    if(v<.75){var t=(v-.5)/.25;return[.42-t*.29,.68-t*.24,.84-t*.13];}
-    var t=(v-.75)/.25;return[.13-t*.10,.44-t*.25,.71-t*.29];
-  }:function(v){
-    if(v<.01)return[.07,.04,.11];
-    if(v<.25){var t=v/.25;return[.07+t*.20,.04+t*.27,.11+t*.33];}
-    if(v<.5){var t=(v-.25)/.25;return[.27-t*.08,.31+t*.27,.44-t*.02];}
-    if(v<.75){var t=(v-.5)/.25;return[.19+t*.42,.58+t*.17,.42-t*.18];}
-    var t=(v-.75)/.25;return[.61+t*.39,.75+t*.18,.24-t*.13];
-  };
+  /* Use the active gradient LUT (same catalog as the main viewer) so
+     exported SVG/PLY/CSV colors match what the user sees on screen. */
+  var _exprLUTe=_gradientLUT(_gradientResolvedName());
+  var _ec=function(v){var i=v>=1?255:(v<=0?0:(v*255)|0);return [_exprLUTe[i*3],_exprLUTe[i*3+1],_exprLUTe[i*3+2]];};
   var kept=[];
   var color=new Float32Array(n*3);
   var sizeArr=new Float32Array(n);
@@ -12972,6 +13105,11 @@ function applyTheme(t){
   if(degData)setTimeout(renderVolcano,50);
   /* Re-skin the plot popup if open (raincloud etc. read isLight at draw time) */
   if(typeof _plotRerenderForTheme==="function")setTimeout(_plotRerenderForTheme,50);
+  /* Gradient legend: if user is on "auto", the resolved map flips with
+     theme (Viridis ↔ Blues by default). Rebuild bar + button label +
+     dropdown preview strips and recolor so the cloud matches. */
+  if(typeof _applyGradient==="function")_applyGradient();
+  if(typeof _renderGradientDropdown==="function")_renderGradientDropdown();
   /* Update pivot cross color */
   if(pivotMarker)pivotMarker.material.color.set(t==="light"?0x333333:0xffffff);
   /* Regenerate circle texture + alphaTest for theme */
