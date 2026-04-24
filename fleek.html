@@ -1499,7 +1499,8 @@
           <tr><td>Toggle a value</td><td>Click its pill</td></tr>
           <tr><td>Solo a value</td><td><span class="help-key">⌥ Opt</span>+click (hides all others in that row)</td></tr>
         </table>
-        <p>Empty values (cells with no entry for a column) are hidden by default. Click the <strong>N empty</strong> toggle (per column) or the global <strong>empty</strong> toggle in the footer to reveal them — the label highlights when empty values are visible. Counts next to each column header show non-empty active / total values.</p>
+        <p>Empty values (cells with no entry for a column) are hidden by default. Click the <strong>N empty</strong> toggle (per column) or the global <strong>Show Empty</strong> toggle in the footer to reveal them — the label highlights when empty values are visible. Counts next to each column header show non-empty active / total values.</p>
+        <p><strong>Propagation:</strong> the global <strong>Show Empty</strong> toggle isn't just cosmetic — empty values are hidden everywhere they'd be enumerated in the app. With Show Empty off, the Plots-panel <em>Facet</em> dropdown counts only non-empty values toward its "≥ 2 values" threshold (so a mostly-empty column drops out of the picker), and the DEG pseudo-bulk <em>Replicate column</em> dropdown uses the same non-empty count for its 2–50 eligibility. Flip the toggle on to bring empties back into every list in one go. Empty cell types (clusters with 0 cells) are <em>unconditionally</em> hidden from plots and DEG pickers regardless of this toggle.</p>
         <p>Cells that fall outside the current filter are exiled from the visualization — they are not just faded, they are removed entirely. All downstream tools (selection, DEG analysis, cell type visibility) respect the active slice.</p>
         <p><strong>Download slice:</strong> Click the download button to export all cells matching the current filter as an .h5ad file.</p>
         <p>Session auto-save captures the current slice state, so your filter persists across browser sessions.</p>
@@ -1697,7 +1698,7 @@
           <li><strong>IQR bar + median tick</strong> (center, gray) — inter-quartile range and median computed across <em>all</em> cells in the cluster (including zeros). For zero-inflated genes the box collapses near y=0, which is the truthful signal that most cells don't express the gene.</li>
         </ul>
         <p><strong>What's plotted reflects the active view.</strong> Visible cell types (from the Cell Types panel) determine which clusters appear; the active slice filter further subsets cells. Change the main view to change what's plotted — there's no duplicate filtering UI in the Plots panel.</p>
-        <p><strong>Facet</strong> splits the plot into side-by-side panels by any obs column that still has ≥ 2 active values under the current Slice. Columns pinned to a single value are hidden from the Facet dropdown (they'd yield a pointless one-panel facet). Combine slicing with facets to build nested views — e.g. slice to <code>timepoint = D8</code> and facet by <code>organ</code> for a "cell types within a single timepoint but across organs" figure.</p>
+        <p><strong>Facet</strong> splits the plot into side-by-side panels by any obs column that (a) has between 2 and 20 non-empty values in the dataset, and (b) still has ≥ 2 of those active under the current Slice. Columns pinned to a single value are hidden from the dropdown (they'd yield a pointless one-panel facet). The upper cap of 20 is pragmatic: past that, individual raincloud panels get too narrow to read, and the limit also guards against accidentally faceting by a high-cardinality column (sample ids, barcodes) that would spawn hundreds of empty panels. If you need more panels and are comfortable with the space, that number is a one-character bump in the source. Combine slicing with facets to build nested views — e.g. slice to <code>timepoint = D8</code> and facet by <code>organ</code> for a "cell types within a single timepoint but across organs" figure. When the Slice panel's <strong>Show Empty</strong> toggle is off, facet values with zero cells are dropped as whole panels and don't count toward the cardinality threshold. Empty cell types (clusters with 0 cells) are always dropped — the raincloud never draws an empty cluster column.</p>
         <p><strong>Scale width by % expressing:</strong> when on (default), the density curve's horizontal width is scaled by <code>√(% expressing)</code>, so a cluster where 5% of cells express the gene has a narrower curve than one where 80% do. This mirrors the standard scRNA-seq dot-plot convention (dot radius ∝ √fraction so dot area ∝ fraction) and makes the plot encode <em>both</em> the detection rate (width) and the distribution shape of the expressing cells (shape inside the width) simultaneously. A 2 px floor keeps ~1% clusters still visible. Turn off for shape-only comparison.</p>
         <p><strong>Why sqrt specifically:</strong> Pure linear scaling (width ∝ % expressing) would compress 5–10% clusters into an unreadable hair, losing the distribution shape entirely. Sqrt keeps the horizontal room proportionally larger so low-detection distributions stay legible. The trade-off: slight perceptual overweighting of small-detection clusters vs. the "mass-correct" linear encoding.</p>
         <p><strong>What counts as "expressing":</strong> a cell's normalized expression value ≥ 0.01 on the [0, 1] scale returned by the server. That scale comes from <code>value / p98(positive values)</code> with clipping — so 0.01 is "1% of the 98th-percentile expressing cell." In practice this means <em>any</em> cell with detectable source expression counts as expressing (matching Seurat's <code>DotPlot</code> and ScanPy's <code>sc.pl.dotplot</code> defaults). The threshold was picked to sit safely above normalization noise without requiring an absolute minimum count. Note: a single transcript can be ambient RNA or sequencing noise in scRNA-seq, not "real" biological expression — so interpret low % expr values with that caveat in mind.</p>
@@ -1740,7 +1741,7 @@
           <li>Select cells into <strong>Group A</strong> and <strong>Group B</strong> (e.g., two cell types, two conditions, or any two subsets).</li>
           <li>Open DEG panel and switch to <strong>Pseudo-bulk</strong> mode.</li>
           <li>The Group A / Group B dropdowns remain visible — select which two groups to compare.</li>
-          <li>A single <strong>Replicate column</strong> dropdown appears. Select the <code>obs</code> column that defines biological replicates (e.g., <em>donor</em>, <em>batch</em>, <em>sample_id</em>). Columns with 2–50 unique values are listed.</li>
+          <li>A single <strong>Replicate column</strong> dropdown appears. Select the <code>obs</code> column that defines biological replicates (e.g., <em>donor</em>, <em>batch</em>, <em>sample_id</em>). Columns with 2–50 non-empty unique values are listed — when the Slice panel's <strong>Show Empty</strong> toggle is off, empty values aren't counted toward the threshold, so a mostly-empty column drops out of the dropdown.</li>
           <li>Pick a <strong>Method</strong>: <em>DESeq2</em> (default) or <em>Welch's t-test (CPM)</em>. Leave on DESeq2 unless you specifically want to compare backends or DESeq2 is misbehaving on your dataset.</li>
           <li>Click <strong>Run</strong>. For each group, cells are split by replicate, raw counts are summed per replicate, and the resulting pseudo-bulk count matrix is tested.</li>
         </ol>
@@ -2186,7 +2187,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.3";
+var FLEEK_VERSION="v0.4.4";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -5829,7 +5830,7 @@ function _gvPopulateClusterDropdown(){
     _addNode(lineageTree,0);
   }else{
     var indices=[];
-    for(var i=0;i<names.length;i++)indices.push(i);
+    for(var i=0;i<names.length;i++)if(!_isEmptyCluster(i))indices.push(i);
     if(effectiveMode==="count"){
       indices.sort(function(a,b){
         var ca=clusterCounts&&clusterCounts[a]?clusterCounts[a]:0;
@@ -9553,10 +9554,12 @@ function _plotPopulate(){
     var cur=sel.value;
     sel.innerHTML='<option value="">None (single panel)<\/option>';
     for(var col in catsMap){
-      var nCats=(catsMap[col].categories||[]).length;
+      var nCats=_sliceVisibleValCount(col);
       if(nCats<2||nCats>20)continue;
       var active=_plotActiveSliceOn(col);
-      var nAct=active?active.size:nCats;
+      var nAct=0;
+      if(active){active.forEach(function(idx){if(!_isSliceValEmptyHidden(col,idx))nAct++;});}
+      else nAct=nCats;
       if(nAct<2)continue;
       var lbl=col+" ("+nAct+(nAct<nCats?" of "+nCats:"")+")";
       sel.innerHTML+='<option value="'+col+'">'+lbl+'<\/option>';
@@ -10144,7 +10147,7 @@ function _plotRender(){
      Change them in the Cell Types panel, not here. */
   var selClus=[];
   var n=(D.header&&D.header.cluster_names||[]).length;
-  for(var i=0;i<n;i++)if(visibleClusters[i]!==false)selClus.push(i);
+  for(var i=0;i<n;i++)if(visibleClusters[i]!==false&&!_isEmptyCluster(i))selClus.push(i);
   if(selClus.length===0){_plotStatus("No cell types visible \u2014 show at least one in the Cell Types panel",true);return;}
   _plotRendering=true;
   _plotSetRenderBtn(true);
@@ -10263,6 +10266,8 @@ function _plotComputeRaincloud(ex, clusters, facetCol){
   var yMin=0, yMax=1; /* expression normalized to 0-1 server-side */
   var facets=[];
   for(var fi=0;fi<facetCats.length;fi++){
+    /* Skip facet values that are hidden-empty at the Slice-panel level. */
+    if(facetCol&&_isSliceValEmptyHidden(facetCol,fi))continue;
     var facet={name:facetCats[fi]||"All cells", clusters:[], totalCells:0};
     for(var ci=0;ci<clusters.length;ci++){
       var cid=clusters[ci];
@@ -11158,7 +11163,9 @@ function _pbPopulate(){
   repSel.innerHTML="";
   var eligible=[];
   for(var i=0;i<cols.length;i++){
-    var n=cats[cols[i]].categories.length;
+    /* Count only non-hidden values so a column that's mostly empty
+       doesn't sneak in past the 2–50 threshold. */
+    var n=_sliceVisibleValCount(cols[i]);
     if(n>=2&&n<=50){
       repSel.innerHTML+='<option value="'+cols[i]+'">'+cols[i]+' ('+n+')<\/option>';
       eligible.push(cols[i]);
@@ -11660,6 +11667,29 @@ function toggleAllEmptySlices(){
     else allVals[i].classList.add("hide-empty");
   }
   _updateSliceUI();
+  /* Propagate: re-populate any other panel that enumerates obs values so
+     empty categories disappear/reappear consistently with the Slice panel. */
+  try{if(typeof _plotPopulate==="function")_plotPopulate();}catch(_){}
+  try{if(typeof _pbPopulate==="function")_pbPopulate();}catch(_){}
+}
+/* Zero-count cluster: unconditionally hidden from plots / DEG dropdowns.
+   Matches the lineage tree + cell-type panel's "empty clusters" collapse. */
+function _isEmptyCluster(i){return (typeof clusterCounts!=="undefined"&&((clusterCounts[i]||0)===0));}
+/* Zero-count obs value that's currently hidden because the Slice panel
+   "Show Empty" toggle is off. Use to filter obs-value enumerations. */
+function _isSliceValEmptyHidden(col, idx){
+  if(_sliceShowEmpty)return false;
+  var cat=(D&&D.header&&D.header.obs_categories)||{};
+  var info=cat[col]; if(!info)return false;
+  return ((info.counts&&info.counts[idx])||0)===0;
+}
+/* Count of non-hidden values in an obs column. */
+function _sliceVisibleValCount(col){
+  var cat=(D&&D.header&&D.header.obs_categories)||{};
+  var info=cat[col]; if(!info)return 0;
+  var cats=info.categories||[];
+  var n=0; for(var i=0;i<cats.length;i++)if(!_isSliceValEmptyHidden(col,i))n++;
+  return n;
 }
 
 function exportSlice(){
