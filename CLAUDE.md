@@ -170,6 +170,25 @@ In lineage view, **dot** and **name** have different scopes:
 - Load time: persisted in `sessionStorage` as `fleek_infoText`, survives page refresh
 - Double-click on cell: center + zoom to 35% of cloud radius (fixed distance every time)
 
+### Consistency with the existing design
+**Any new UI element should look like it was always part of the app.** Before introducing a new control, scan the existing HTML/CSS for an equivalent and reuse it — don't invent parallel styling.
+
+- **Toggles / booleans: prefer switches over checkboxes.** When a feature can be implemented with either, use the `.se-wrap` / `.se-switch` / `.se-track` switch primitive already used for Slice "Show Empty" and Settings toggles. Markup template:
+  ```html
+  <label class="se-wrap" title="What the toggle does">
+    <span class="se-label">Label text</span>
+    <span class="se-switch"><input type="checkbox" id="..." onchange="..."><span class="se-track"></span></span>
+  </label>
+  ```
+  Reserve native `<input type="checkbox">` for rare cases where a switch is genuinely wrong (e.g. multi-select lists with many options).
+- **Icons:** reuse existing SVG icons from the file rather than importing new ones when a semantically-equivalent one already exists. Match stroke width, corner style, and sizing (`--ic-xs..xl`).
+- **Fonts / sizing:** use the `--fs-*` font-size tokens and existing label classes (`.lbl`, `.help-sec-title`, etc.). Don't hardcode pixel font sizes.
+- **Button hover colors:** destructive → `--danger`; accept/download → `--success`; neutral → `--text2`; active/selected → `--accent2`. Match the existing `.btn-icon` / `.pill` primitives.
+- **Modal dialogs:** model after `#help-panel` / `#confirm-panel` / `#fb-modal` (rounded corners, `var(--bg2)` surface, header with × close, footer with right-aligned action buttons, Esc-to-close, click-outside-to-close).
+- **Dropdowns:** model after `.gv-dd` (custom dropdown with popover list) — don't introduce native `<select>` popups unless the existing custom ones are genuinely unsuitable.
+
+If a situation genuinely needs a new primitive (because nothing existing fits), add tokens and classes in the `:root` / top CSS block rather than inlining styles, so the new primitive is reusable by the next feature.
+
 ### Gene Variability
 Two-stage locally standardized trend residual:
 1. **Stage 1**: Fit polynomial to log(mean) vs log(Fano) trend

@@ -263,8 +263,6 @@
   .coloc-clear{background:none;border:none;color:var(--text4);font-size:14px;cursor:pointer;padding:0 2px;line-height:1;opacity:0;transition:opacity var(--dur-fast),color var(--dur-fast);}
   .coloc-row:hover .coloc-clear{opacity:0.7;}
   .coloc-clear:hover{color:var(--danger);opacity:1;}
-  .coloc-cbsafe{display:flex;align-items:center;gap:6px;margin:6px 2px 4px;font-size:10px;color:var(--text3);user-select:none;cursor:pointer;}
-  .coloc-cbsafe input{margin:0;accent-color:var(--accent);cursor:pointer;}
   .coloc-legend{height:10px;border-radius:3px;margin-top:4px;border:1px solid var(--border);}
   .coloc-hint{font-size:9px;color:var(--text4);line-height:1.4;margin-top:4px;padding:0 2px;font-style:italic;}
 
@@ -545,12 +543,10 @@
   #help-body p{font-size:12px;line-height:1.7;color:var(--text2);margin:0 0 10px;}
   #help-body .help-tagline{font-size:12px;color:var(--text3);font-style:italic;margin-bottom:12px;}
   .help-toc{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:20px;}
-  /* Feedback-invite row — lives directly under the tagline in the help
-     body. Subtle accent-tinted pill so it reads as an invitation
-     without shouting for attention. */
-  .help-feedback-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;margin-bottom:18px;background:linear-gradient(to right,rgba(99,102,241,0.08),rgba(99,102,241,0.02));border:1px solid var(--border2);border-radius:6px;}
-  .help-feedback-row .help-fb-prompt{font-size:11px;color:var(--text3);line-height:1.4;}
-  .help-fb-btn{padding:5px 12px;font-size:11px;font-family:inherit;font-weight:500;background:rgba(99,102,241,0.12);color:var(--accent2);border:1px solid rgba(99,102,241,0.35);border-radius:4px;cursor:pointer;white-space:nowrap;transition:background var(--dur-fast),border-color var(--dur-fast);}
+  /* Feedback button lives in the help panel's header, to the right of
+     the RNA-FLEEK title and directly left of the × close button. Sized
+     to visually balance the header without competing with the title. */
+  .help-fb-btn{padding:4px 10px;font-size:11px;font-family:inherit;font-weight:500;background:rgba(99,102,241,0.12);color:var(--accent2);border:1px solid rgba(99,102,241,0.35);border-radius:4px;cursor:pointer;white-space:nowrap;transition:background var(--dur-fast),border-color var(--dur-fast);}
   .help-fb-btn:hover{background:rgba(99,102,241,0.22);border-color:var(--accent);}
   /* Feedback modal — stacks above the help overlay so launching it
      from the help panel doesn't force the user to re-open help after
@@ -1042,9 +1038,9 @@
           <span class="coloc-name" id="coloc-name-G">pick a gene…</span>
           <button class="coloc-clear" onclick="event.stopPropagation();_colocClearChannel('G')" title="Clear this channel">&times;</button>
         </div>
-        <label class="coloc-cbsafe" title="Colorblind-safe uses magenta + green, which remain distinguishable for all forms of color-vision deficiency. Uncheck for classic red + green.">
-          <input type="checkbox" id="coloc-cbsafe" checked onchange="_colocToggleCbSafe()">
-          <span>Colorblind-safe (magenta&nbsp;+&nbsp;green)</span>
+        <label class="se-wrap" style="margin:6px 2px 4px;" title="Colorblind-safe uses magenta + green, which remain distinguishable for all forms of color-vision deficiency. Turn off for classic red + green.">
+          <span class="se-label">Colorblind-safe (magenta&nbsp;+&nbsp;green)</span>
+          <span class="se-switch"><input type="checkbox" id="coloc-cbsafe" checked onchange="_colocToggleCbSafe()"><span class="se-track"></span></span>
         </label>
         <div class="coloc-legend" id="coloc-legend"></div>
         <div class="coloc-hint" id="coloc-hint">Click a row above to set it as the active channel, then pick a gene below.</div>
@@ -1430,14 +1426,13 @@
 <div id="help-panel">
   <div id="help-hdr">
     <h1><span>RNA</span><span>-FLEEK</span><span id="help-version" style="font-size:12px;font-weight:500;color:var(--text4);margin-left:10px;letter-spacing:0;font-variant-numeric:tabular-nums;opacity:0.8;"></span></h1>
-    <button id="help-close" onclick="toggleHelp()">&times;</button>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button class="help-fb-btn" onclick="_feedbackOpen()" title="Report a bug or request a feature">Send feedback</button>
+      <button id="help-close" onclick="toggleHelp()">&times;</button>
+    </div>
   </div>
   <div id="help-body">
     <p class="help-tagline">Fast Lightweight Expression Exploration Kit — a browser-based single-cell RNA-seq visualizer with cell type annotation.</p>
-    <div class="help-feedback-row">
-      <span class="help-fb-prompt">Found a bug or have an idea for a new feature?</span>
-      <button class="help-fb-btn" onclick="_feedbackOpen()">Send feedback</button>
-    </div>
     <div class="help-toc">
       <a href="#" onclick="event.preventDefault();helpJump('help-nav')">Navigation</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-panels')">Sidebar &amp; Panels</a>
@@ -2338,7 +2333,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.9";
+var FLEEK_VERSION="v0.4.10";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -3140,8 +3135,19 @@ function applyHistEntry(snap){
   if(s.mode){mode=s.mode;}
   if(s.mode==="gene"&&s.selGene){selGene=s.selGene;}
   var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value=mode;
-  document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
+  var _showSingleLegendH=(mode==="gene"&&_geneMode==="single"&&selGene);
+  document.getElementById("expr-legend").style.display=_showSingleLegendH?"block":"none";
   document.getElementById("expr-controls").style.display=(mode==="gene")?"block":"none";
+  if(_showSingleLegendH){
+    var _egtH=document.getElementById("egnm-text");
+    if(_egtH)_egtH.textContent="Expression: "+selGene;
+  }
+  /* Undo/redo can reach a history state whose gene was evicted from the
+     LRU cache in the meantime. Re-fetch if needed so the view isn't blank
+     after a jump through history. */
+  if(D&&mode==="gene"&&_geneMode==="single"&&selGene&&!geneExprCache[selGene]){
+    loadGene(selGene);
+  }
 
   /* ── Restore split-screen state ── */
   var wantSplit=!!s.splitActive;
@@ -3297,8 +3303,19 @@ function restoreState(preloaded){
   }
   if(s.embMethod&&D&&D.embeddings[s.embMethod])setEmbMethod(s.embMethod);
   if(s.viewIs3d!==undefined)setView(s.viewIs3d?"3d":"2d");
-  if(s.mode==="gene"&&s.selGene){
+  if(s.mode==="gene"&&s.selGene&&_geneMode==="single"){
+    /* Single-gene restore: pickGene sets selGene + fetches + recolors. */
     pickGene(s.selGene);
+  }else if(s.mode==="gene"&&_geneMode==="coloc"){
+    /* Coloc restore: genes live in fleek_coloc (separate key). pickGene
+       would misroute s.selGene into an active channel. Set mode + kick
+       off fetches for whichever channels have persisted names. */
+    mode="gene";
+    setMode("gene");
+    if(D){
+      if(_colocR&&!geneExprCache[_colocR])_colocFetchGene(_colocR);
+      if(_colocG&&!geneExprCache[_colocG])_colocFetchGene(_colocG);
+    }
   }else{
     setMode(s.mode||"cluster");
   }
@@ -5010,7 +5027,22 @@ function animate(){
         var c=cc(cid);
         var dotHtml='<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:rgb('+(c[0]*255|0)+','+(c[1]*255|0)+','+(c[2]*255|0)+');margin-right:4px;vertical-align:middle;"></span>';
         var text=name;
-        if(mode==="gene"&&selGene&&geneExprCache[selGene]){
+        if(mode==="gene"&&_geneMode==="coloc"&&(_colocR||_colocG)){
+          /* Show per-channel expression with little color dots matching
+             the channel palette, so the tooltip reads as "cluster · [R]gene: 42% · [G]gene: 8%". */
+          var _ccc=_colocChannelColors();
+          var _mk=function(rgb){return '<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:rgb('+((rgb[0]*255)|0)+','+((rgb[1]*255)|0)+','+((rgb[2]*255)|0)+');margin:0 2px 0 0;vertical-align:middle;"><\/span>';};
+          var _parts=[name];
+          if(_colocR){
+            var vR=geneExprCache[_colocR]?geneExprCache[_colocR][idx]:null;
+            _parts.push(_mk(_ccc.R)+_colocR+": "+(vR==null?"…":((vR*100).toFixed(1)+"%")));
+          }
+          if(_colocG){
+            var vG=geneExprCache[_colocG]?geneExprCache[_colocG][idx]:null;
+            _parts.push(_mk(_ccc.G)+_colocG+": "+(vG==null?"…":((vG*100).toFixed(1)+"%")));
+          }
+          text=_parts.join(" \u00b7 ");
+        }else if(mode==="gene"&&selGene&&geneExprCache[selGene]){
           var val=geneExprCache[selGene][idx];
           text=name+" \u00b7 "+selGene+": "+(val*100).toFixed(1)+"%";
         }
@@ -12606,8 +12638,28 @@ function _applySessionState(s){
   if(s.zoom2!==undefined)zoom2=s.zoom2;
   if(s.mode){mode=s.mode;}if(s.selGene)selGene=s.selGene;
   var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value=mode;
-  document.getElementById("expr-legend").style.display=(mode==="gene"&&selGene)?"block":"none";
+  /* Single-gene legend only shows in single sub-mode + actual selGene. */
+  var _showSingleLegend=(mode==="gene"&&_geneMode==="single"&&selGene);
+  document.getElementById("expr-legend").style.display=_showSingleLegend?"block":"none";
   document.getElementById("expr-controls").style.display=(mode==="gene")?"block":"none";
+  /* Label the single-gene legend with the gene name without nuking the
+     gradient-picker button. */
+  if(_showSingleLegend){
+    var _egt=document.getElementById("egnm-text");
+    if(_egt)_egt.textContent="Expression: "+selGene;
+  }
+  /* Actually LOAD the restored gene(s) so the view isn't blank. Previously
+     selGene/mode were set but the expression data was never fetched, so
+     the subsequent recolor() call rendered the cloud in ghost color and
+     the UI looked stuck. */
+  if(D&&mode==="gene"){
+    if(_geneMode==="single"&&selGene&&!geneExprCache[selGene]){
+      loadGene(selGene);
+    }else if(_geneMode==="coloc"){
+      if(_colocR&&!geneExprCache[_colocR])_colocFetchGene(_colocR);
+      if(_colocG&&!geneExprCache[_colocG])_colocFetchGene(_colocG);
+    }
+  }
   /* Restore split-view snapshots (all view splits + active split id + split-screen state). */
   if(Array.isArray(s.views)&&s.views.length>0){
     _views=JSON.parse(JSON.stringify(s.views));
