@@ -251,6 +251,23 @@
   #action-flash .af-label{font-size:13px;font-weight:600;letter-spacing:0.3px;color:var(--text);}
   #action-flash .af-key{display:inline-block;font-size:10px;font-weight:500;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:8px;vertical-align:1px;}
   #loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);padding:20px 32px;border-radius:8px;border:1px solid var(--border);color:var(--accent2);font-weight:600;display:none;pointer-events:none;}
+  /* Colocalization channel slots — each row is click-to-activate.
+     Active channel gets an accent highlight so the user can see which
+     slot the next gene pick will land in. */
+  .coloc-row{display:flex;align-items:center;gap:6px;padding:5px 8px;border:1px solid var(--border);border-radius:4px;margin-bottom:4px;cursor:pointer;background:var(--bg3);transition:border-color var(--dur-fast),background var(--dur-fast);}
+  .coloc-row:hover{border-color:var(--border2);}
+  .coloc-row.active{border-color:var(--accent);background:var(--bg-hover);box-shadow:inset 0 0 0 1px rgba(99,102,241,0.25);}
+  .coloc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,0.2);}
+  .coloc-name{flex:1;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .coloc-name.empty{color:var(--text4);font-style:italic;}
+  .coloc-clear{background:none;border:none;color:var(--text4);font-size:14px;cursor:pointer;padding:0 2px;line-height:1;opacity:0;transition:opacity var(--dur-fast),color var(--dur-fast);}
+  .coloc-row:hover .coloc-clear{opacity:0.7;}
+  .coloc-clear:hover{color:var(--danger);opacity:1;}
+  .coloc-cbsafe{display:flex;align-items:center;gap:6px;margin:6px 2px 4px;font-size:10px;color:var(--text3);user-select:none;cursor:pointer;}
+  .coloc-cbsafe input{margin:0;accent-color:var(--accent);cursor:pointer;}
+  .coloc-legend{height:10px;border-radius:3px;margin-top:4px;border:1px solid var(--border);}
+  .coloc-hint{font-size:9px;color:var(--text4);line-height:1.4;margin-top:4px;padding:0 2px;font-style:italic;}
+
   #expr-bar{height:8px;border-radius:3px;cursor:pointer;transition:filter var(--dur-fast);}
   #expr-bar:hover{filter:brightness(1.15);}
   /* Gradient picker button — sits inline with the "Expression" label */
@@ -1008,7 +1025,31 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
-      <div style="display:flex;gap:3px;align-items:center;">
+      <!-- Single / Colocalization mode toggle -->
+      <div id="gene-mode-toggle" style="display:flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;font-size:10px;margin-bottom:6px;">
+        <button id="gm-single" onclick="_setGeneMode('single')" style="flex:1;background:rgba(99,102,241,0.15);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:600;" title="Single gene — color cells by one gene's expression on the active gradient">Single</button>
+        <button id="gm-coloc" onclick="_setGeneMode('coloc')" style="flex:1;background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;" title="Colocalization — pick two genes; cells expressing both light up (coloc color)">Colocalization</button>
+      </div>
+      <!-- Colocalization panel (shown when _geneMode=coloc) -->
+      <div id="coloc-panel" style="display:none;margin-bottom:8px;">
+        <div class="coloc-row" data-channel="R" onclick="_colocSetActiveChannel('R')">
+          <span class="coloc-dot" id="coloc-dot-R"></span>
+          <span class="coloc-name" id="coloc-name-R">pick a gene…</span>
+          <button class="coloc-clear" onclick="event.stopPropagation();_colocClearChannel('R')" title="Clear this channel">&times;</button>
+        </div>
+        <div class="coloc-row" data-channel="G" onclick="_colocSetActiveChannel('G')">
+          <span class="coloc-dot" id="coloc-dot-G"></span>
+          <span class="coloc-name" id="coloc-name-G">pick a gene…</span>
+          <button class="coloc-clear" onclick="event.stopPropagation();_colocClearChannel('G')" title="Clear this channel">&times;</button>
+        </div>
+        <label class="coloc-cbsafe" title="Colorblind-safe uses magenta + green, which remain distinguishable for all forms of color-vision deficiency. Uncheck for classic red + green.">
+          <input type="checkbox" id="coloc-cbsafe" checked onchange="_colocToggleCbSafe()">
+          <span>Colorblind-safe (magenta&nbsp;+&nbsp;green)</span>
+        </label>
+        <div class="coloc-legend" id="coloc-legend"></div>
+        <div class="coloc-hint" id="coloc-hint">Click a row above to set it as the active channel, then pick a gene below.</div>
+      </div>
+      <div id="gene-search-wrap" style="display:flex;gap:3px;align-items:center;">
         <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:1;min-width:0;">
         <span id="go-split" style="display:none;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
           <button id="go-btn-gene" onclick="_goSetMode(false)" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 6px;transition:all 0.1s;" title="Search by gene name">Gene</button>
@@ -1041,7 +1082,7 @@
       <!-- Expression legend (inside gene panel) -->
       <div id="expr-legend" style="display:none;margin-top:8px;position:relative;">
         <div class="lbl" id="egnm" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;">
-          <span>Expression</span>
+          <span id="egnm-text">Expression</span>
           <button class="grad-btn" onclick="_toggleGradientDropdown(event)" title="Choose a color gradient for gene expression"><span id="expr-grad-btn-label">Viridis</span><span class="grad-chev">&#9660;</span></button>
         </div>
         <div id="expr-bar" onclick="_toggleGradientDropdown(event)" title="Click to pick a different gradient"></div>
@@ -1394,7 +1435,7 @@
   <div id="help-body">
     <p class="help-tagline">Fast Lightweight Expression Exploration Kit — a browser-based single-cell RNA-seq visualizer with cell type annotation.</p>
     <div class="help-feedback-row">
-      <span class="help-fb-prompt">Found a bug or have an idea for a new feature? We'd love to hear it.</span>
+      <span class="help-fb-prompt">Found a bug or have an idea for a new feature?</span>
       <button class="help-fb-btn" onclick="_feedbackOpen()">Send feedback</button>
     </div>
     <div class="help-toc">
@@ -1708,6 +1749,13 @@
       </div>
       <div class="help-sec-body">
         <p>The Gene panel is always visible in the sidebar. Switch to <strong>Gene Expression</strong> coloring with <span class="help-key">G</span> or click the Gene Expression button. Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP. When the panel is collapsed, the currently selected gene name appears in the header.</p>
+        <p><strong>Single Expression vs Colocalization.</strong> At the top of the Gene panel is a two-button toggle:</p>
+        <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
+          <li><strong>Single</strong> — the default. One gene, colored on the active gradient, with the full expression legend and gradient picker described below.</li>
+          <li><strong>Colocalization</strong> — pick two genes to overlay as independent color channels. Cells bright in both light up in a composite "coloc" color (e.g. near-white on dark, near-black on light); cells bright in only one show that channel's color. The panel shows two channel slots — click a slot to mark it the active channel, then pick a gene from the list / search below. Picks auto-alternate between the two slots so two consecutive picks fill both. Each slot has an × to clear it and a color dot that reflects the current channel palette.</li>
+        </ul>
+        <p><strong>Colocalization colorblind-safety:</strong> the default palette is <strong>magenta + green</strong>, which is discriminable for all forms of color-vision deficiency (red-green deficiency is by far the most common; magenta and green remain distinct there). Uncheck the <em>Colorblind-safe</em> toggle to switch to <em>red + green</em> if you specifically want to match a figure that uses the classic pair. Each channel's expression is normalized independently (per-gene 98th-percentile of expressing cells), so intensity is comparable across channels regardless of absolute expression levels. Coloc state (mode + both gene names + colorblind toggle) is persisted to sessionStorage so your setup survives page reloads.</p>
+        <p><strong>Interaction with the gradient picker:</strong> single-gene mode uses the selected gradient (Viridis, Plasma, etc.). Colocalization mode ignores the gradient entirely — the two channel colors are fixed by the colorblind-safe toggle. Raincloud plots always use cluster colors, so colocalization mode doesn't affect them.</p>
         <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a color gradient. The legend appears inside the Gene panel whenever a gene is selected.</p>
         <p><strong>Gradient picker:</strong> click the gradient bar (or the "<em>Viridis&nbsp;▾</em>" button next to the "Expression" label) to choose a different colormap. The dropdown lists every available gradient grouped by character, each with a live preview strip and a one-line note:</p>
         <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
@@ -2290,7 +2338,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.8";
+var FLEEK_VERSION="v0.4.9";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2527,6 +2575,201 @@ document.addEventListener("mousedown",function(e){
   if(trig&&trig.contains(e.target))return;
   _closeGradientDropdown();
 });
+
+/* ── Gene-coloring sub-mode: Single vs Colocalization ───────────────
+   When _geneMode="single", the normal single-gene path runs (selGene is
+   fetched and colored on the active gradient). When _geneMode="coloc",
+   the gene panel shows two channel slots (R/M + G). Each channel
+   independently fetches a gene into geneExprCache; recolor composes
+   per-cell RGB from the two cached arrays. The single `pickGene`
+   entry point is shared between modes — when coloc is active it
+   routes the pick into whichever channel is marked active. */
+var _geneMode="single";          /* "single" | "coloc" */
+var _colocR="";                   /* gene name for the red/magenta channel */
+var _colocG="";                   /* gene name for the green channel */
+var _colocActiveChannel="R";      /* which channel receives the next gene pick */
+var _colocCbSafe=true;            /* true = magenta+green (colorblind-safe); false = red+green */
+try{
+  var _saved=sessionStorage.getItem("fleek_coloc");
+  if(_saved){
+    var _cs=JSON.parse(_saved);
+    if(_cs&&typeof _cs==="object"){
+      if(_cs.geneMode==="coloc")_geneMode="coloc";
+      if(typeof _cs.R==="string")_colocR=_cs.R;
+      if(typeof _cs.G==="string")_colocG=_cs.G;
+      if(typeof _cs.cbSafe==="boolean")_colocCbSafe=_cs.cbSafe;
+      if(_cs.active==="R"||_cs.active==="G")_colocActiveChannel=_cs.active;
+    }
+  }
+}catch(_cerr){}
+function _colocSave(){
+  try{sessionStorage.setItem("fleek_coloc",JSON.stringify({geneMode:_geneMode,R:_colocR,G:_colocG,cbSafe:_colocCbSafe,active:_colocActiveChannel}));}catch(_){}
+}
+/* RGB triples for the two channels, theme-aware. Dark mode uses bright
+   additive tones (light pops against dark bg); light mode uses a dark
+   variant that stays legible against white. Both variants keep the
+   magenta / green pairing when cbsafe is on. */
+function _colocChannelColors(){
+  var isLight=document.body.classList.contains("light");
+  if(_colocCbSafe){
+    /* magenta + green */
+    var R=isLight?[0.78,0.00,0.55]:[1.00,0.20,0.85];  /* magenta */
+    var G=isLight?[0.00,0.55,0.18]:[0.25,1.00,0.30];  /* green */
+    return {R:R,G:G};
+  }
+  var R=isLight?[0.82,0.00,0.00]:[1.00,0.20,0.20];    /* red */
+  var G=isLight?[0.00,0.55,0.18]:[0.25,1.00,0.30];    /* green */
+  return {R:R,G:G};
+}
+/* Compose one cell's color. In dark mode this is additive (coloc → white-
+   adjacent). In light mode it's a dark-ink composition (coloc → near-black)
+   so colocalized cells stand OUT on a white background instead of
+   disappearing. */
+function _colocCompose(vR,vG,colors,isLight){
+  if(vR<0)vR=0;if(vR>1)vR=1;
+  if(vG<0)vG=0;if(vG>1)vG=1;
+  if(isLight){
+    /* Start from white; subtract toward each channel's dark ink per value.
+       Each cell absorbs a fraction of each RGB band based on vR, vG and the
+       channel's dark color. This is equivalent to a simple subtractive
+       mix and keeps coloc → dark. */
+    var rInk=[1-colors.R[0],1-colors.R[1],1-colors.R[2]];
+    var gInk=[1-colors.G[0],1-colors.G[1],1-colors.G[2]];
+    var r=1-vR*rInk[0]-vG*gInk[0]; if(r<0)r=0; if(r>1)r=1;
+    var g=1-vR*rInk[1]-vG*gInk[1]; if(g<0)g=0; if(g>1)g=1;
+    var b=1-vR*rInk[2]-vG*gInk[2]; if(b<0)b=0; if(b>1)b=1;
+    return [r,g,b];
+  }
+  /* Dark mode: additive. coloc → bright mix, which reads as near-white. */
+  var r=vR*colors.R[0]+vG*colors.G[0]; if(r>1)r=1;
+  var g=vR*colors.R[1]+vG*colors.G[1]; if(g>1)g=1;
+  var b=vR*colors.R[2]+vG*colors.G[2]; if(b>1)b=1;
+  return [r,g,b];
+}
+function _setGeneMode(m){
+  if(m!=="single"&&m!=="coloc")return;
+  _geneMode=m;
+  /* Toggle button styles */
+  var bS=document.getElementById("gm-single"),bC=document.getElementById("gm-coloc");
+  if(bS){bS.style.background=m==="single"?"rgba(99,102,241,0.15)":"transparent";bS.style.color=m==="single"?"var(--accent2)":"var(--text3)";bS.style.fontWeight=m==="single"?"600":"400";}
+  if(bC){bC.style.background=m==="coloc"?"rgba(99,102,241,0.15)":"transparent";bC.style.color=m==="coloc"?"var(--accent2)":"var(--text3)";bC.style.fontWeight=m==="coloc"?"600":"400";}
+  var cp=document.getElementById("coloc-panel");
+  if(cp)cp.style.display=m==="coloc"?"block":"none";
+  /* Show/hide the single-gene expression legend */
+  var el=document.getElementById("expr-legend");
+  if(el)el.style.display=(m==="single"&&mode==="gene"&&selGene)?"block":"none";
+  /* Ensure we're in "gene" color mode when switching to coloc. */
+  if(m==="coloc"&&mode!=="gene"){
+    mode="gene";
+    var cms=document.getElementById("color-mode-select");if(cms)cms.value="gene";
+    document.getElementById("expr-controls").style.display="block";
+  }
+  _colocRefreshUI();
+  _geneBufCacheInvalidate();
+  /* Entering coloc with persisted gene names? Prefetch whichever channels
+     have names set so the view lights up without an extra click. */
+  if(m==="coloc"&&D){
+    if(_colocR&&!geneExprCache[_colocR])_colocFetchGene(_colocR);
+    if(_colocG&&!geneExprCache[_colocG])_colocFetchGene(_colocG);
+  }
+  if(D&&pts)recolor();
+  _colocSave();
+  /* Only persist to fleek_state once D is loaded — otherwise the
+     DOMContentLoaded call to _setGeneMode(restored_value) would snapshot
+     an empty globals set and overwrite the real saved session. */
+  if(D)saveState();
+}
+function _colocSetActiveChannel(ch){
+  if(ch!=="R"&&ch!=="G")return;
+  _colocActiveChannel=ch;
+  _colocRefreshUI();
+  _colocSave();
+}
+function _colocClearChannel(ch){
+  if(ch==="R")_colocR="";
+  else if(ch==="G")_colocG="";
+  else return;
+  _colocRefreshUI();
+  _geneBufCacheInvalidate();
+  if(D&&pts)recolor();
+  _colocSave();
+  saveState();
+}
+function _colocToggleCbSafe(){
+  var el=document.getElementById("coloc-cbsafe");
+  _colocCbSafe=el?!!el.checked:true;
+  _colocRefreshUI();
+  _geneBufCacheInvalidate();
+  if(D&&pts)recolor();
+  _colocSave();
+  saveState();
+}
+/* Fetch a gene into geneExprCache without clobbering selGene (which is
+   reserved for the single-gene mode). On 404 the channel is cleared so
+   the user isn't stuck with a ghost name that can't be rendered. */
+function _colocFetchGene(g){
+  if(!g)return;
+  if(geneExprCache[g]){if(D&&pts)recolor();return;}
+  if(_genePrefetchInflight&&_genePrefetchInflight[g]){
+    document.getElementById("gene-loading").style.display="inline";
+    _genePrefetchInflight[g].then(function(){
+      document.getElementById("gene-loading").style.display="none";
+      if(D&&pts&&geneExprCache[g])recolor();
+    });
+    return;
+  }
+  document.getElementById("gene-loading").style.display="inline";
+  fetch("/api/gene?name="+encodeURIComponent(g))
+    .then(function(r){if(!r.ok)throw new Error("Gene not found");return r.arrayBuffer();})
+    .then(function(buf){
+      geneExprCache[g]=new Float32Array(buf);
+      if(typeof _geneLruBump==="function")_geneLruBump(g);
+      document.getElementById("gene-loading").style.display="none";
+      if(D&&pts)recolor();
+    })
+    .catch(function(err){
+      document.getElementById("gene-loading").style.display="none";
+      console.warn("Coloc gene fetch failed:",g,err&&err.message);
+      if(_colocR===g)_colocR="";
+      if(_colocG===g)_colocG="";
+      _colocRefreshUI();_colocSave();
+    });
+}
+function _colocRefreshUI(){
+  var colors=_colocChannelColors();
+  var dotR=document.getElementById("coloc-dot-R"),dotG=document.getElementById("coloc-dot-G");
+  var nmR=document.getElementById("coloc-name-R"),nmG=document.getElementById("coloc-name-G");
+  var rowR=document.querySelector('#coloc-panel [data-channel="R"]');
+  var rowG=document.querySelector('#coloc-panel [data-channel="G"]');
+  if(dotR)dotR.style.background="rgb("+((colors.R[0]*255)|0)+","+((colors.R[1]*255)|0)+","+((colors.R[2]*255)|0)+")";
+  if(dotG)dotG.style.background="rgb("+((colors.G[0]*255)|0)+","+((colors.G[1]*255)|0)+","+((colors.G[2]*255)|0)+")";
+  if(nmR){nmR.textContent=_colocR||"pick a gene\u2026";nmR.classList.toggle("empty",!_colocR);}
+  if(nmG){nmG.textContent=_colocG||"pick a gene\u2026";nmG.classList.toggle("empty",!_colocG);}
+  if(rowR)rowR.classList.toggle("active",_colocActiveChannel==="R");
+  if(rowG)rowG.classList.toggle("active",_colocActiveChannel==="G");
+  /* Build the legend gradient: white/black → ChannelR, white/black → ChannelG,
+     coloc-point at far right. Shows the user what each value means. */
+  var lg=document.getElementById("coloc-legend");
+  if(lg){
+    var isLight=document.body.classList.contains("light");
+    /* 5-stop gradient: base → R-only → coloc → G-only → base (split) */
+    var bg=isLight?"rgb(255,255,255)":"rgb(10,10,12)";
+    var rcol="rgb("+((colors.R[0]*255)|0)+","+((colors.R[1]*255)|0)+","+((colors.R[2]*255)|0)+")";
+    var gcol="rgb("+((colors.G[0]*255)|0)+","+((colors.G[1]*255)|0)+","+((colors.G[2]*255)|0)+")";
+    /* coloc color: compose both channels at max */
+    var both=_colocCompose(1,1,colors,isLight);
+    var bcol="rgb("+((both[0]*255)|0)+","+((both[1]*255)|0)+","+((both[2]*255)|0)+")";
+    lg.style.background="linear-gradient(to right,"+bg+",1%,"+rcol+" 25%,"+bcol+" 50%,"+gcol+" 75%,"+bg+" 99%)";
+    lg.title=(_colocR||"(R gene)")+" only \u2192 coloc \u2190 "+(_colocG||"(G gene)")+" only";
+  }
+  /* Hint text reflects status */
+  var ht=document.getElementById("coloc-hint");
+  if(ht){
+    if(!_colocR&&!_colocG)ht.textContent="Pick a gene below. The first pick fills the active (highlighted) channel; click the other row to switch channels.";
+    else if(!_colocR||!_colocG)ht.textContent="One channel set. Click the empty row above, then pick a gene below.";
+    else ht.textContent="Both channels set. Colocalized cells appear in the coloc color; single-channel cells in their own color.";
+  }
+}
 
 /* ── Feedback modal ────────────────────────────────────────────────── */
 
@@ -4251,10 +4494,18 @@ function recolor(){
   var ringCol=ringPts?ringPts.geometry.attributes.color.array:null;
   var showRingLayer=useRing&&hasAnyVisible;
 
-  /* Determine color source: gene expression if available, else cluster */
-  var useGene=mode==="gene"&&selGene&&geneExprCache[selGene];
+  /* Determine color source: gene expression if available, else cluster.
+     When the user is in gene-coloc sub-mode, we bypass the single-gene
+     branches and compose per-cell RGB from two cached arrays (exR, exG).
+     Each channel is independent — if only one is set we still render,
+     letting the missing channel contribute zero. */
+  var useColoc=(mode==="gene"&&_geneMode==="coloc"&&((_colocR&&geneExprCache[_colocR])||(_colocG&&geneExprCache[_colocG])));
+  var useGene=!useColoc&&mode==="gene"&&selGene&&geneExprCache[selGene];
   var ex=useGene?geneExprCache[selGene]:null;
-  var _haloActive=showGlow&&!!useGene;
+  var exR=useColoc&&_colocR?geneExprCache[_colocR]:null;
+  var exG=useColoc&&_colocG?geneExprCache[_colocG]:null;
+  var _colocColors=useColoc?_colocChannelColors():null;
+  var _haloActive=showGlow&&(!!useGene||useColoc);
   if(haloPts)haloPts.visible=_haloActive;
   if(pts.material.uniforms&&pts.material.uniforms.uHaloOn)pts.material.uniforms.uHaloOn.value=_haloActive?1.0:0.0;
   /* Update scheme uniforms */
@@ -4302,7 +4553,7 @@ function recolor(){
   var _szArr=(_szAttr&&_alAttr)?_szAttr.array:null;
   var _alArr=(_szAttr&&_alAttr)?_alAttr.array:null;
   var _updateSz=!!_szArr;
-  var _exSizeOn=useGene&&showExprSize&&ex;
+  var _exSizeOn=(useGene||useColoc)&&showExprSize;
   /* Ring size buffer — previously synced in a second full-array pass after
      the main loop; fold it in here so we only touch each cell once. */
   var _ringSzAttr=ringPts?ringPts.geometry.attributes.aSize:null;
@@ -4318,6 +4569,9 @@ function recolor(){
      on miss, then caches the result at the end. Only active in gene-
      expression mode on the single-view path (split mode already has its
      own per-view path with independent state). */
+  /* Buffer cache is single-gene only. Coloc state has three inputs
+     (two genes + cbsafe) so a stable key would need its own fingerprint;
+     recompute from scratch each recolor instead — cheap enough. */
   var _cacheKey=useGene?selGene:null;
   var _fp=_cacheKey?_recolorFingerprint(isLight,bgDimPct,showNonExpressing,showExprSize,highlightMode):null;
   var _cached=_cacheKey?_geneBufCache.get(_cacheKey):null;
@@ -4387,9 +4641,35 @@ function recolor(){
     pos[i3]=D._cachedPos[i3];pos[i3+1]=D._cachedPos[i3+1];pos[i3+2]=D._cachedPos[i3+2];
     var sg=cellGroupMap?cellGroupMap[i]:-1;
     var inGroup=sg>=0&&sg<selGroups.length&&groupVisible[selGroups[sg].id]!==false;
-    var _exi2=useGene&&ex?ex[i]:0;
+    /* Effective expression for size scaling: single-gene uses its value;
+       coloc uses the stronger of the two channels so a cell bright in
+       either gene gets size-boosted the same. */
+    var _exi2=0;
+    if(useGene&&ex)_exi2=ex[i];
+    else if(useColoc){var _vrR=exR?exR[i]:0,_vrG=exG?exG[i]:0;_exi2=_vrR>_vrG?_vrR:_vrG;}
     var rC,gC,bC;
-    if(useGene){
+    if(useColoc){
+      var vR=exR?exR[i]:0, vG=exG?exG[i]:0;
+      var isDim=(vR<0.01)&&(vG<0.01);
+      if(isDim&&!showNonExpressing){
+        _nHidden++;
+        col[i3]=BG[0];col[i3+1]=BG[1];col[i3+2]=BG[2];
+        pos[i3]=EXILE;pos[i3+1]=EXILE;pos[i3+2]=EXILE;
+        if(ringPos){ringPos[i3]=EXILE;ringPos[i3+1]=EXILE;ringPos[i3+2]=EXILE;}
+        if(_updateSz){
+          var _sz2c=_exSizeOn?_ghostSize:1.0;
+          _szArr[i]=_sz2c;
+          _alArr[i]=_ghostAlpha;
+          if(_rszArr)_rszArr[i]=_sz2c;
+        }
+        continue;
+      }
+      if(isDim){rC=_ghR;gC=_ghG;bC=_ghB;}
+      else{
+        var cc2=_colocCompose(vR,vG,_colocColors,isLight);
+        rC=cc2[0];gC=cc2[1];bC=cc2[2];
+      }
+    }else if(useGene){
       var isZero=_exi2<0.01;
       if(isZero&&!showNonExpressing){
         _nHidden++;
@@ -4441,7 +4721,7 @@ function recolor(){
     if(_updateSz){
       var _sz3=_exSizeOn?(_exi2<0.01?_ghostSize:Math.max(0.38,Math.sqrt(_exi2)*1.8)):1.0;
       _szArr[i]=_sz3;
-      _alArr[i]=(useGene&&ex&&_exi2<0.01)?_ghostAlpha:1.0;
+      _alArr[i]=((useGene||useColoc)&&_exi2<0.01)?_ghostAlpha:1.0;
       if(_rszArr)_rszArr[i]=_sz3;
     }
   }
@@ -6492,29 +6772,51 @@ function setMode(m){
   mode=m;
   var cms=document.getElementById("color-mode-select");
   if(cms)cms.value=m;
-  /* Gene panel stays visible after data loads; only expression legend toggles */
-  document.getElementById("expr-legend").style.display=(m==="gene"&&selGene)?"block":"none";
+  /* Gene panel stays visible after data loads; only expression legend toggles.
+     In gene+coloc sub-mode, suppress the single-gene legend — the coloc
+     panel has its own legend strip. */
+  var showSingleLegend=(m==="gene"&&_geneMode==="single"&&selGene);
+  document.getElementById("expr-legend").style.display=showSingleLegend?"block":"none";
   document.getElementById("expr-controls").style.display=(m==="gene")?"block":"none";
   _updateGeneCollapsedName();
   if(m==="gene")showRecentGenes();
   recolor();saveState();
 }
 function pickGene(g){
-  selGene=g;
-  /* Sync j/k cursor to picked gene */
-  var idx=_findGeneIdx(g);
-  if(idx>=0)_gvCursor=idx;
-  document.getElementById("egnm").textContent="Expression: "+g;
-  /* Clear search box so recent genes list shows */
-  document.getElementById("gsearch").value="";
-  var btns=document.querySelectorAll(".gbtn");for(var i=0;i<btns.length;i++)btns[i].className="gbtn"+(btns[i].getAttribute("data-g")===g?" on":"");
   mode="gene";
   var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value="gene";
   /* Expand gene section if collapsed */
   var gsec=document.getElementById("gene-sec");
   if(gsec&&gsec.classList.contains("collapsed"))gsec.classList.remove("collapsed");
-  document.getElementById("expr-legend").style.display="block";
   document.getElementById("expr-controls").style.display="block";
+  /* Clear the shared search box so recent genes re-show */
+  var srch=document.getElementById("gsearch");if(srch)srch.value="";
+  if(_geneMode==="coloc"){
+    /* Route into whichever channel the user last marked active. Each
+       channel is an independent fetch into geneExprCache; recolor picks
+       up partial state gracefully (missing channel renders as all-zero). */
+    if(_colocActiveChannel==="R")_colocR=g;
+    else _colocG=g;
+    /* Flip the active channel for the NEXT pick so two picks in a row
+       fill both slots without the user having to click between them. */
+    _colocActiveChannel=(_colocActiveChannel==="R")?"G":"R";
+    _colocRefreshUI();
+    /* Hide the single-gene legend; coloc has its own legend. */
+    var el=document.getElementById("expr-legend");if(el)el.style.display="none";
+    _geneBufCacheInvalidate();
+    _colocFetchGene(g);
+    _colocSave();
+    saveState();
+    return;
+  }
+  selGene=g;
+  /* Sync j/k cursor to picked gene */
+  var idx=_findGeneIdx(g);
+  if(idx>=0)_gvCursor=idx;
+  var _egt=document.getElementById("egnm-text");
+  if(_egt)_egt.textContent="Expression: "+g;
+  var btns=document.querySelectorAll(".gbtn");for(var i=0;i<btns.length;i++)btns[i].className="gbtn"+(btns[i].getAttribute("data-g")===g?" on":"");
+  document.getElementById("expr-legend").style.display="block";
   _updateGeneCollapsedName();
   /* If already cached, recolor immediately before loadGene */
   if(geneExprCache[g])recolor();
@@ -9740,7 +10042,8 @@ function _syncColorModeUIToGlobals(){
   var _ec=document.getElementById("expr-controls");
   if(_ec)_ec.style.display=(mode==="gene")?"block":"none";
   if(showGene){
-    var nm=document.getElementById("egnm");
+    /* Update the legend label without nuking the gradient-picker button. */
+    var nm=document.getElementById("egnm-text");
     if(nm)nm.textContent="Expression: "+selGene;
   }
   if(typeof _updateGeneCollapsedName==="function")_updateGeneCollapsedName();
@@ -13364,6 +13667,10 @@ function applyTheme(t){
      dropdown preview strips and recolor so the cloud matches. */
   if(typeof _applyGradient==="function")_applyGradient();
   if(typeof _renderGradientDropdown==="function")_renderGradientDropdown();
+  /* Colocalization channel colors are theme-aware (dark uses bright
+     additive tones; light uses dark ink). Refresh so the dots + legend
+     reflect the current theme. */
+  if(typeof _colocRefreshUI==="function")_colocRefreshUI();
   /* Update pivot cross color */
   if(pivotMarker)pivotMarker.material.color.set(t==="light"?0x333333:0xffffff);
   /* Regenerate circle texture + alphaTest for theme */
@@ -14477,6 +14784,10 @@ document.addEventListener("DOMContentLoaded",function(){
   initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupPanelScrollbars();setupScrollTraps();setupSliderWheelPassthrough();_patchOS();_setupCustomSelects();_panelsInit();animate();_checkKeyStatus();
   /* Apply initial theme */
   applyTheme(document.getElementById("set-theme").value||"dark");
+  /* Restore the Single / Colocalization toggle from sessionStorage so
+     the mode the user left in persists across refreshes. _setGeneMode
+     also paints the channel legend with theme-correct colors. */
+  if(typeof _setGeneMode==="function"){_setGeneMode(_geneMode);}
   showL("Connecting to server...");
   /* Recover load start time from before page reload, or start fresh */
   var _savedT0=null;
@@ -14610,6 +14921,10 @@ document.addEventListener("DOMContentLoaded",function(){
           _histIdx=0;
           updateHistBtn();
         }
+        /* Dataset is now loaded — re-apply the saved gene-mode toggle so the
+           coloc prefetch (which needs D) can fire for any persisted gene
+           names. The earlier DOMContentLoaded call ran before D existed. */
+        if(typeof _setGeneMode==="function"&&_geneMode==="coloc")_setGeneMode("coloc");
         /* Cluster-gene rankings (one-vs-rest DEG across all clusters) used to be
            auto-prefetched 2s after load. That was convenient for the Gene
            panel's variability list — but it locked up /api/deg and the browser
