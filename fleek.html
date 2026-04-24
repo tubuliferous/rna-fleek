@@ -2187,7 +2187,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.5";
+var FLEEK_VERSION="v0.4.6";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2624,6 +2624,7 @@ function restoreState(preloaded){
   if(s.bgDim!==undefined){bgDimPct=s.bgDim;document.getElementById("bg-dim").value=100-bgDimPct;}
   if(s.visibleClusters){
     for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];
+    _guardAllHiddenVisibility();
     renderLeg();
   }
   /* Restore selection groups */
@@ -6232,14 +6233,32 @@ function resetView(e){
   syncCanvasSize();
   saveCameraOnly();
 }
+/* If the restored visibleClusters has every cluster index explicitly set to
+   false, the viewport would be entirely empty and the user gets no visual
+   feedback when they try to click pills back on. Reset to all-visible —
+   matches the "reload fixes it" behavior users reported and removes the
+   degenerate state where toggling appears to do nothing. Safe to call with
+   or without D loaded (no-op before D arrives). */
+function _guardAllHiddenVisibility(){
+  if(!D||!D.header||typeof visibleClusters!=="object")return;
+  var n=D.header.n_clusters;
+  for(var i=0;i<n;i++){if(visibleClusters[i]!==false)return;}
+  for(var i=0;i<n;i++)visibleClusters[i]=true;
+}
+
 function buildLeg(){
   if(!D)return;
   /* Compute per-cluster cell counts */
   clusterCounts=new Array(D.header.n_clusters).fill(0);
   for(var i=0;i<D.header.n_cells;i++)clusterCounts[D.cluster_ids[i]]++;
   _buildSliceTotals();
-  _viewInit();
+  /* Fill default visibility BEFORE the view snapshot so _views[0] matches the
+     global. Previously the snapshot captured the empty visibleClusters={} set
+     by buildPts, and any later code that read _views[0].visibleClusters saw a
+     stale empty state while the global held real values — a latent footgun in
+     the split-view save/restore path. */
   for(var i=0;i<D.header.n_clusters;i++){if(visibleClusters[i]===undefined)visibleClusters[i]=true;}
+  _viewInit();
   var countEl=document.getElementById("type-count");
   if(countEl)countEl.textContent="("+D.header.n_clusters+")";
   renderLeg();
@@ -11856,7 +11875,7 @@ function _applySessionState(s){
   if(s.ptSize!==undefined){basePtSz=Math.max(1,Math.min(100,Math.round(s.ptSize)));document.getElementById("pt-size").value=basePtSz;}
   if(s.ptOpacity!==undefined){var op=Math.max(0.05,Math.min(1,s.ptOpacity));document.getElementById("pt-opacity").value=op;if(pts)pts.material.opacity=op;}
   if(s.bgDim!==undefined){bgDimPct=s.bgDim;document.getElementById("bg-dim").value=100-bgDimPct;}
-  if(s.visibleClusters){visibleClusters={};for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];}
+  if(s.visibleClusters){visibleClusters={};for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];_guardAllHiddenVisibility();}
   if(s.selGroups){
     selGroups=s.selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:new Set(g.cells)};});
     activeGroupId=s.activeGroupId||null;
