@@ -226,9 +226,14 @@
      view. One element per split half; in single-view mode, the left one is
      centered over the whole canvas and the right one is hidden. Purely
      informational — pointer-events:none so it doesn't block clicks. */
-  .gene-indicator{display:none;position:absolute;top:8px;z-index:6;font-size:11px;color:var(--accent2);font-weight:600;padding:3px 10px;border-radius:4px;background:rgba(99,102,241,0.14);border:1px solid rgba(99,102,241,0.35);pointer-events:auto;cursor:pointer;transform:translateX(-50%);font-variant-numeric:tabular-nums;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:0.2px;transition:background var(--dur-fast),border-color var(--dur-fast);}
-  .gene-indicator.on:hover{background:rgba(99,102,241,0.22);border-color:rgba(99,102,241,0.55);}
-  .gene-indicator.on{display:block;}
+  .gene-indicator{display:none;position:absolute;top:8px;z-index:6;font-size:11px;color:var(--accent2);font-weight:600;padding:2px 6px;border-radius:4px;background:rgba(99,102,241,0.14);border:1px solid rgba(99,102,241,0.35);pointer-events:auto;transform:translateX(-50%);font-variant-numeric:tabular-nums;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:0.2px;transition:background var(--dur-fast),border-color var(--dur-fast);}
+  .gene-indicator.on{display:inline-flex;align-items:center;gap:2px;}
+  /* Per-gene clickable pill inside the indicator. Single mode shows one;
+     coloc mode shows two (one per channel) separated by a thin divider. */
+  .gi-pill{cursor:pointer;padding:1px 6px;border-radius:3px;display:inline-flex;align-items:center;gap:4px;transition:background var(--dur-fast);}
+  .gi-pill:hover{background:rgba(99,102,241,0.25);}
+  .gi-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,0.2);}
+  .gi-sep{color:var(--text4);opacity:0.6;padding:0 2px;font-weight:400;}
   /* Plots panel — cluster chips + render button + gene search dropdown */
   #plot-clusters .plot-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;font-size:10px;line-height:1.2;border-radius:12px;border:1px solid var(--border);background:var(--bg3);color:var(--text3);cursor:pointer;user-select:none;transition:border-color 0.1s,color 0.1s,background 0.1s;}
   #plot-clusters .plot-chip:hover{border-color:var(--border2);color:var(--text2);}
@@ -1119,6 +1124,7 @@
         <span style="font-size:10px;color:var(--text4);">Type</span>
         <select id="plot-type" onchange="_plotTypeChanged();if(typeof saveState==='function')saveState();" style="flex:1;">
           <option value="raincloud">Raincloud plot</option>
+          <option value="violin">Violin plot</option>
         </select>
       </div>
       <!-- Raincloud options. Plot reflects the active view's state: visible
@@ -1198,8 +1204,8 @@
   <div id="split-focus-R" class="split-focus-box"></div>
   <div id="split-label-L" class="split-view-label" style="left:8px;"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0]!=null)_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
   <div id="split-label-R" class="split-view-label" style="left:calc(50% + 8px);"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1]!=null)_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
-  <div id="gene-indicator-L" class="gene-indicator" title="Click for gene info" onclick="if(this.textContent)_geneInfoOpen(this.textContent)"></div>
-  <div id="gene-indicator-R" class="gene-indicator" title="Click for gene info" onclick="if(this.textContent)_geneInfoOpen(this.textContent)"></div>
+  <div id="gene-indicator-L" class="gene-indicator"></div>
+  <div id="gene-indicator-R" class="gene-indicator"></div>
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:10px;color:var(--text4);margin-left:4px;">FPS</span></div>
@@ -1804,13 +1810,14 @@
         <span class="help-sec-title">Plots</span>
       </div>
       <div class="help-sec-body">
-        <p>The <strong>Plots panel</strong> lets you render summary visualizations of gene expression. Currently one plot type is available, with more planned.</p>
+        <p>The <strong>Plots panel</strong> lets you render summary visualizations of gene expression. The <strong>Type</strong> dropdown picks the plot:</p>
         <p><strong>Raincloud plot:</strong> per-cluster expression distribution for a single gene. Each cluster column has three layered components:</p>
         <ul>
           <li><strong>Density curve</strong> (half-violin, right side) — the distribution shape of cells that <em>actually express</em> the gene, histogram-smoothed with a 5-tap gaussian filter.</li>
           <li><strong>Raindrops</strong> (dots, left side) — every expressing cell is drawn as a tiny semi-transparent dot. Horizontal placement is beeswarm-style: dots at similar y values are spread evenly across the full width of the dot column, with alternate-row offsets so adjacent y-bands don't line up into vertical stripes. Each dot's y is exact — no vertical shift. Zeros are subsampled and piled at y=0 so the zero mass is visible without dominating the render.</li>
           <li><strong>IQR bar + median tick</strong> (center, gray) — inter-quartile range and median computed across <em>all</em> cells in the cluster (including zeros). For zero-inflated genes the box collapses near y=0, which is the truthful signal that most cells don't express the gene.</li>
         </ul>
+        <p><strong>Violin plot:</strong> the same per-cluster density mirrored to both sides of the centerline (the classic Seaborn / scanpy violin look), with the IQR bar + median tick running through the violin's center. No raindrops — the violin alone conveys both the shape and detection rate (when <em>Scale width by % expressing</em> is on). Use it when you want a denser, more familiar figure that emphasizes distribution shape over per-cell visibility, and reach for the raincloud when you want to see every cell. The underlying computation is identical, so switching plot types is instant — no re-fetch.</p>
         <p><strong>What's plotted reflects the active view.</strong> Visible cell types (from the Cell Types panel) determine which clusters appear; the active slice filter further subsets cells. Change the main view to change what's plotted — there's no duplicate filtering UI in the Plots panel.</p>
         <p><strong>Facet</strong> splits the plot into side-by-side panels by any obs column that (a) has between 2 and 20 non-empty values in the dataset, and (b) still has ≥ 2 of those active under the current Slice. Columns pinned to a single value are hidden from the dropdown (they'd yield a pointless one-panel facet). The upper cap of 20 is pragmatic: past that, individual raincloud panels get too narrow to read, and the limit also guards against accidentally faceting by a high-cardinality column (sample ids, barcodes) that would spawn hundreds of empty panels. If you need more panels and are comfortable with the space, that number is a one-character bump in the source. Combine slicing with facets to build nested views — e.g. slice to <code>timepoint = D8</code> and facet by <code>organ</code> for a "cell types within a single timepoint but across organs" figure. When the Slice panel's <strong>Show Empty</strong> toggle is off, facet values with zero cells are dropped as whole panels and don't count toward the cardinality threshold. Empty cell types (clusters with 0 cells) are always dropped — the raincloud never draws an empty cluster column.</p>
         <p><strong>Scale width by % expressing:</strong> when on (default), the density curve's horizontal width is scaled by <code>√(% expressing)</code>, so a cluster where 5% of cells express the gene has a narrower curve than one where 80% do. This mirrors the standard scRNA-seq dot-plot convention (dot radius ∝ √fraction so dot area ∝ fraction) and makes the plot encode <em>both</em> the detection rate (width) and the distribution shape of the expressing cells (shape inside the width) simultaneously. A 2 px floor keeps ~1% clusters still visible. Turn off for shape-only comparison.</p>
@@ -2235,6 +2242,7 @@
       <label class="ex-fmt"><input type="radio" name="export-fmt" value="csv" onchange="_exportShowOpts()"><span class="ex-fmt-name">CSV</span><span class="ex-fmt-desc">coordinates + metadata (ggplot/matplotlib)</span></label>
     </div>
     <div id="export-opts-svg" class="export-opts-box">
+      <label class="ex-opt ex-opt-toggle" id="export-svg-both-row" style="display:none;" title="Render both split halves side-by-side into one SVG, with a thin divider line between them. Each half uses its own camera, mode, and (single or coloc) gene selection."><span>Side-by-side both splits</span><span class="s-toggle"><input type="checkbox" id="export-svg-both" onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include selection-group highlight rings</span><span class="s-toggle"><input type="checkbox" id="export-svg-rings" checked onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include ghosted (near-zero expression) cells</span><span class="s-toggle"><input type="checkbox" id="export-svg-ghost" onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include background rectangle</span><span class="s-toggle"><input type="checkbox" id="export-svg-bg" checked><span class="s-slider"></span></span></label>
@@ -2333,7 +2341,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.10";
+var FLEEK_VERSION="v0.4.11";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2679,6 +2687,9 @@ function _colocSetActiveChannel(ch){
   _colocActiveChannel=ch;
   _colocRefreshUI();
   _colocSave();
+  /* In split mode this routes through _viewSaveCurrent so the active-channel
+     pick lands in the right view's snapshot. */
+  if(D&&typeof saveState==="function")saveState();
 }
 function _colocClearChannel(ch){
   if(ch==="R")_colocR="";
@@ -9546,9 +9557,18 @@ function _recolorView(vIdx){
   var ringPos=vRing?vRing.geometry.attributes.position.array:null;
   var ringCol=vRing?vRing.geometry.attributes.color.array:null;
   var showRingLayer=useRing&&hasAnyVisible;
-  var useGene=mode==="gene"&&selGene&&geneExprCache[selGene];
+  /* _geneMode (single|coloc) and _colocR/_colocG live in globals — coloc
+     is a global sub-mode rather than per-view state. Both split halves
+     get the same coloc setup; if a future feature lets each half pick
+     its own sub-mode, those globals would move into the per-view
+     snapshot. */
+  var useColoc=(mode==="gene"&&_geneMode==="coloc"&&((_colocR&&geneExprCache[_colocR])||(_colocG&&geneExprCache[_colocG])));
+  var useGene=!useColoc&&mode==="gene"&&selGene&&geneExprCache[selGene];
   var ex=useGene?geneExprCache[selGene]:null;
-  var _haloActive=showGlow&&!!useGene;
+  var exR=useColoc&&_colocR?geneExprCache[_colocR]:null;
+  var exG=useColoc&&_colocG?geneExprCache[_colocG]:null;
+  var _colocColors=useColoc?_colocChannelColors():null;
+  var _haloActive=showGlow&&(!!useGene||useColoc);
   v._haloVisible=_haloActive;
   if(v.haloPts)v.haloPts.visible=_haloActive;
   if(vPts.material.uniforms&&vPts.material.uniforms.uHaloOn)vPts.material.uniforms.uHaloOn.value=_haloActive?1.0:0.0;
@@ -9573,7 +9593,19 @@ function _recolorView(vIdx){
     var sg=vCellGroupMap?vCellGroupMap[i]:-1;
     var inGroup=sg>=0&&sg<vSelGroups.length&&vGroupVisible[vSelGroups[sg].id]!==false;
     var c;
-    if(useGene){
+    if(useColoc){
+      var vR=exR?exR[i]:0, vG=exG?exG[i]:0;
+      var isDim=(vR<0.01)&&(vG<0.01);
+      if(isDim&&!showNonExpressing){
+        _nHidden++;
+        col[i*3]=BG[0];col[i*3+1]=BG[1];col[i*3+2]=BG[2];
+        pos[i*3]=EXILE;pos[i*3+1]=EXILE;pos[i*3+2]=EXILE;
+        if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
+        continue;
+      }
+      if(isDim){c=_getBgScheme().ghostColor;}
+      else{c=_colocCompose(vR,vG,_colocColors,isLight);}
+    }else if(useGene){
       var isZero=ex[i]<0.01;
       if(isZero&&!showNonExpressing){
         _nHidden++;
@@ -9609,10 +9641,16 @@ function _recolorView(vIdx){
   var _alAttr=vPts.geometry.attributes.aAlpha;
   if(_szAttr&&_alAttr){
     var _szArr=_szAttr.array,_alArr=_alAttr.array;
+    var _bss=_getBgScheme();
+    var _exSizeOnV=(useGene||useColoc)&&showExprSize;
     for(var _si=0;_si<n;_si++){
-      var _bss=_getBgScheme();
-      _szArr[_si]=(useGene&&showExprSize&&ex)?(ex[_si]<0.01?_bss.ghostSize:Math.max(0.38,Math.sqrt(ex[_si])*1.8)):1.0;
-      _alArr[_si]=(useGene&&ex&&ex[_si]<0.01)?_bss.ghostAlpha:1.0;
+      /* Effective per-cell expression: single-gene uses its array;
+         coloc uses the stronger of the two channels (matches recolor()). */
+      var _exiV=0;
+      if(useGene&&ex)_exiV=ex[_si];
+      else if(useColoc){var _vrR=exR?exR[_si]:0,_vrG=exG?exG[_si]:0;_exiV=_vrR>_vrG?_vrR:_vrG;}
+      _szArr[_si]=_exSizeOnV?(_exiV<0.01?_bss.ghostSize:Math.max(0.38,Math.sqrt(_exiV)*1.8)):1.0;
+      _alArr[_si]=((useGene||useColoc)&&_exiV<0.01)?_bss.ghostAlpha:1.0;
     }
     _szAttr.needsUpdate=true;
     _alAttr.needsUpdate=true;
@@ -9747,27 +9785,76 @@ function _updateGeneIndicators(){
   var iL=document.getElementById("gene-indicator-L");
   var iR=document.getElementById("gene-indicator-R");
   if(!iL||!iR)return;
-  function _setPill(el,gene){
-    if(gene){el.textContent=gene;el.title="Click for info on "+gene;el.classList.add("on");}
-    else{el.textContent="";el.title="";el.classList.remove("on");}
+  /* Build the pill HTML for one indicator. snap=null → use globals
+     (single-view mode); snap=view → read its per-view coloc/single state.
+     Single mode emits one .gi-pill; coloc emits one or two (one per
+     non-empty channel) separated by a thin divider. Each pill is its
+     own clickable target via the delegated handler attached below. */
+  function _renderInto(el,snap){
+    var sm=snap?snap.mode:mode;
+    if(sm!=="gene"){el.innerHTML="";el.classList.remove("on");return;}
+    var sgm=snap?(snap.geneMode||"single"):_geneMode;
+    var sgg=snap?(snap.selGene||""):selGene;
+    var sR=snap?(snap.colocR||""):_colocR;
+    var sG=snap?(snap.colocG||""):_colocG;
+    var html="";
+    if(sgm==="coloc"){
+      if(!sR&&!sG){el.innerHTML="";el.classList.remove("on");return;}
+      var colors=_colocChannelColors();
+      function _gPill(g,colArr){
+        var rgb="rgb("+((colArr[0]*255)|0)+","+((colArr[1]*255)|0)+","+((colArr[2]*255)|0)+")";
+        var safe=_esc(g);
+        return '<span class="gi-pill" data-gene="'+safe+'" title="Click for info on '+safe+'"><span class="gi-dot" style="background:'+rgb+';"><\/span>'+safe+'<\/span>';
+      }
+      if(sR)html+=_gPill(sR,colors.R);
+      if(sR&&sG)html+='<span class="gi-sep">·<\/span>';
+      if(sG)html+=_gPill(sG,colors.G);
+    }else{
+      if(!sgg){el.innerHTML="";el.classList.remove("on");return;}
+      var safeG=_esc(sgg);
+      html='<span class="gi-pill" data-gene="'+safeG+'" title="Click for info on '+safeG+'">'+safeG+'<\/span>';
+    }
+    el.innerHTML=html;
+    el.classList.add("on");
   }
   if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
-    /* Per-split pills, positioned over the center of each half */
     iL.style.left="25%";iL.style.transform="translateX(-50%)";
     iR.style.left="75%";iR.style.transform="translateX(-50%)";
     var snapL=_splitViewById(_splitViewIds[0]);
     var snapR=_splitViewById(_splitViewIds[1]);
-    _setPill(iL,(snapL&&snapL.mode==="gene"&&snapL.selGene)?snapL.selGene:"");
-    _setPill(iR,(snapR&&snapR.mode==="gene"&&snapR.selGene)?snapR.selGene:"");
+    _renderInto(iL,snapL);
+    _renderInto(iR,snapR);
   }else{
-    /* Single view — anchor the pill to the top-left so it doesn't compete
-       with the centered hint bar and other top-center HUDs. Override the
-       default centering transform. Right pill is hidden. */
     iL.style.left="8px";iL.style.transform="none";
-    _setPill(iL,(mode==="gene"&&selGene)?selGene:"");
-    _setPill(iR,"");
+    _renderInto(iL,null);
+    /* Single-view mode: only the left indicator is shown. Clear the
+       right one explicitly — _renderInto with null would mirror the
+       globals onto iR and stack two identical pills on top of each
+       other at different anchor positions. */
+    iR.innerHTML="";iR.classList.remove("on");
   }
 }
+/* Delegated click handler for the gene indicators. Attached once at
+   parse time so the per-pill onclick attribute can stay out of the
+   inner HTML (avoids quoting headaches with gene names containing
+   apostrophes). */
+(function(){
+  function _giClick(e){
+    var p=e.target.closest&&e.target.closest(".gi-pill");
+    if(!p)return;
+    var g=p.getAttribute("data-gene");
+    if(g&&typeof _geneInfoOpen==="function")_geneInfoOpen(g);
+    e.stopPropagation();
+  }
+  function _attach(){
+    var iL=document.getElementById("gene-indicator-L");
+    var iR=document.getElementById("gene-indicator-R");
+    if(iL)iL.addEventListener("click",_giClick);
+    if(iR)iR.addEventListener("click",_giClick);
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",_attach);
+  else _attach();
+})();
 
 function _splitUpdateLabels(){
   var lblL=document.getElementById("split-label-L");
@@ -9908,6 +9995,11 @@ function _viewAdd(isDefault){
   _views.push({id:id,name:name,sliceFilter:sf,visibleClusters:vc,
     deletedCells:dc,
     mode:mode,selGene:selGene||"",
+    /* Per-view coloc sub-state — new splits inherit the current globals so
+       a freshly-spawned split starts where the user left off, then can
+       diverge from there. */
+    geneMode:_geneMode,colocR:_colocR||"",colocG:_colocG||"",
+    colocActiveChannel:_colocActiveChannel,
     tethered:true,
     camera:_snapCameraFromGlobals()});
   _activeViewId=id;
@@ -9968,6 +10060,14 @@ function _viewSaveCurrent(){
      one cluster-colored, one gene-colored, etc. */
   v.mode=mode;
   v.selGene=selGene||"";
+  /* Per-view coloc sub-state so each split can show a different two-gene
+     colocalization (e.g. left split: ACTB+CD4; right split: MYC+GATA3).
+     _colocCbSafe is intentionally NOT per-view — it's a global display
+     preference, like the gradient picker. */
+  v.geneMode=_geneMode;
+  v.colocR=_colocR||"";
+  v.colocG=_colocG||"";
+  v.colocActiveChannel=_colocActiveChannel;
   /* Camera: pull from active live view in split mode, else from globals */
   if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
     var _ah=_splitViewIds.indexOf(_activeViewId);
@@ -10046,12 +10146,19 @@ function _restoreViewState(v,opts){
   _preShowAllVis=null;_preDeletedCells=null;
   if(typeof v.mode==="string")mode=v.mode;
   if(typeof v.selGene==="string")selGene=v.selGene;
+  /* Coloc sub-state lives per-view too. Default each field if the
+     snapshot doesn't have them (older sessions, freshly-added view). */
+  _geneMode=(v.geneMode==="coloc")?"coloc":"single";
+  _colocR=(typeof v.colocR==="string")?v.colocR:"";
+  _colocG=(typeof v.colocG==="string")?v.colocG:"";
+  _colocActiveChannel=(v.colocActiveChannel==="G")?"G":"R";
   if(!(opts&&opts.shareCam))_applyCameraToGlobals(v.camera);
 }
 function _restoreSplitViewState(v){
-  /* Load slice + visibility + color mode + selected gene into globals so each view
-     can render with its OWN coloring during the split recolor loop. Selections stay
-     global (shared across splits by design). */
+  /* Load slice + visibility + color mode + selected gene + coloc sub-state
+     into globals so each view can render with its OWN coloring during the
+     split recolor loop. Selections stay global (shared across splits by
+     design). */
   if(!v)return;
   _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
@@ -10060,6 +10167,10 @@ function _restoreSplitViewState(v){
   _preShowAllVis=null;_preDeletedCells=null;
   if(typeof v.mode==="string")mode=v.mode;
   if(typeof v.selGene==="string")selGene=v.selGene;
+  _geneMode=(v.geneMode==="coloc")?"coloc":"single";
+  _colocR=(typeof v.colocR==="string")?v.colocR:"";
+  _colocG=(typeof v.colocG==="string")?v.colocG:"";
+  _colocActiveChannel=(v.colocActiveChannel==="G")?"G":"R";
 }
 /* Re-sync the sidebar color-mode / gene-expression UI widgets to the current
    globals. Called after restoring a view in split mode so the panels reflect the
@@ -10068,26 +10179,41 @@ function _restoreSplitViewState(v){
 function _syncColorModeUIToGlobals(){
   var cms=document.getElementById("color-mode-select");
   if(cms)cms.value=mode;
-  var showGene=(mode==="gene")&&!!selGene;
+  var inSingle=(_geneMode==="single");
+  var showSingleLegend=(mode==="gene"&&inSingle&&!!selGene);
   var _el=document.getElementById("expr-legend");
-  if(_el)_el.style.display=showGene?"block":"none";
+  if(_el)_el.style.display=showSingleLegend?"block":"none";
   var _ec=document.getElementById("expr-controls");
   if(_ec)_ec.style.display=(mode==="gene")?"block":"none";
-  if(showGene){
+  if(showSingleLegend){
     /* Update the legend label without nuking the gradient-picker button. */
     var nm=document.getElementById("egnm-text");
     if(nm)nm.textContent="Expression: "+selGene;
   }
+  /* Sync the Single / Coloc toggle buttons + coloc panel visibility to the
+     active view's _geneMode (the per-view restore just updated it). */
+  var bS=document.getElementById("gm-single"),bC=document.getElementById("gm-coloc");
+  if(bS){bS.style.background=inSingle?"rgba(99,102,241,0.15)":"transparent";bS.style.color=inSingle?"var(--accent2)":"var(--text3)";bS.style.fontWeight=inSingle?"600":"400";}
+  if(bC){bC.style.background=inSingle?"transparent":"rgba(99,102,241,0.15)";bC.style.color=inSingle?"var(--text3)":"var(--accent2)";bC.style.fontWeight=inSingle?"400":"600";}
+  var cp=document.getElementById("coloc-panel");
+  if(cp)cp.style.display=inSingle?"none":"block";
+  if(typeof _colocRefreshUI==="function")_colocRefreshUI();
   if(typeof _updateGeneCollapsedName==="function")_updateGeneCollapsedName();
   /* Re-highlight the active gene among the chip buttons. */
   var btns=document.querySelectorAll(".gbtn");
   for(var i=0;i<btns.length;i++){
     var g=btns[i].getAttribute("data-g");
-    btns[i].className="gbtn"+(mode==="gene"&&selGene===g?" on":"");
+    btns[i].className="gbtn"+(mode==="gene"&&inSingle&&selGene===g?" on":"");
   }
   /* If active view wants a gene that isn't cached, fetch it (triggers recolor). */
-  if(mode==="gene"&&selGene&&!geneExprCache[selGene]&&typeof loadGene==="function"){
+  if(mode==="gene"&&inSingle&&selGene&&!geneExprCache[selGene]&&typeof loadGene==="function"){
     loadGene(selGene);
+  }
+  /* Coloc: prefetch missing channel genes so the active view paints
+     immediately after a switch. */
+  if(mode==="gene"&&!inSingle&&D){
+    if(_colocR&&!geneExprCache[_colocR]&&typeof _colocFetchGene==="function")_colocFetchGene(_colocR);
+    if(_colocG&&!geneExprCache[_colocG]&&typeof _colocFetchGene==="function")_colocFetchGene(_colocG);
   }
 }
 function _viewSwitch(id){
@@ -10369,7 +10495,11 @@ function _plotUpdateFilterSummary(){
 
 function _plotTypeChanged(){
   var t=document.getElementById("plot-type").value;
-  document.getElementById("plot-opts-raincloud").style.display=(t==="raincloud")?"block":"none";
+  /* Raincloud and violin share the same option set (gene, facet, width-by-%
+     toggle) since their underlying distribution computation is identical
+     and the user-facing controls are too. */
+  var sameOpts=(t==="raincloud"||t==="violin");
+  document.getElementById("plot-opts-raincloud").style.display=sameOpts?"block":"none";
 }
 
 /* Gene search — reuses /api/search. Shows a small dropdown under the input. */
@@ -10792,9 +10922,12 @@ function _esc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&a
 function _plotRerenderForTheme(){
   var ov=document.getElementById("plot-overlay");
   if(!ov||ov.style.display!=="flex")return;
-  if(!_plotLast||_plotLast.type!=="raincloud")return;
+  if(!_plotLast)return;
   try{
-    var svg=_plotDrawRaincloud(_plotLast.gene, _plotLast.facetCol, _plotLast.data);
+    var svg;
+    if(_plotLast.type==="violin")svg=_plotDrawViolin(_plotLast.gene,_plotLast.facetCol,_plotLast.data);
+    else if(_plotLast.type==="raincloud")svg=_plotDrawRaincloud(_plotLast.gene,_plotLast.facetCol,_plotLast.data);
+    else return;
     document.getElementById("plot-canvas").innerHTML=svg;
   }catch(e){console.error(e);}
 }
@@ -10884,7 +11017,7 @@ function _plotRender(){
   if(_plotRendering){_plotStopRender();return;}
   if(!D){_plotStatus("Load a dataset first",true);return;}
   var type=document.getElementById("plot-type").value;
-  if(type!=="raincloud"){_plotStatus("Unknown plot type",true);return;}
+  if(type!=="raincloud"&&type!=="violin"){_plotStatus("Unknown plot type",true);return;}
   var gene=(_plotSelectedGene||document.getElementById("plot-gene-input").value||"").trim();
   if(!gene){_plotStatus("Pick a gene",true);return;}
   /* Hitting Render with a typed-but-not-picked gene should also sync the
@@ -10913,11 +11046,17 @@ function _plotRender(){
     setTimeout(function(){
       if(!_plotRendering)return;
       try{
+        /* Compute is shared \u2014 both raincloud and violin sample the same
+           per-cluster expression distribution. Only the SVG drawing differs:
+           raincloud half-violin + raindrops, violin = mirrored density. */
         var data=_plotComputeRaincloud(ex, selClus, facetCol);
         if(!_plotRendering)return;
-        var svg=_plotDrawRaincloud(gene, facetCol, data);
-        _plotLast={type:"raincloud", gene:gene, facetCol:facetCol, data:data};
-        document.getElementById("plot-title").textContent="Raincloud plot \u00b7 "+gene;
+        var svg=(type==="violin")
+          ?_plotDrawViolin(gene, facetCol, data)
+          :_plotDrawRaincloud(gene, facetCol, data);
+        _plotLast={type:type, gene:gene, facetCol:facetCol, data:data};
+        var typeLabel=(type==="violin")?"Violin plot":"Raincloud plot";
+        document.getElementById("plot-title").textContent=typeLabel+" \u00b7 "+gene;
         var sub=facetCol?("faceted by "+facetCol+" \u00b7 "+data.facets.length+" panel"+(data.facets.length!==1?"s":"")):("single panel");
         sub+=" \u00b7 "+selClus.length+" cell type"+(selClus.length!==1?"s":"");
         /* Slice summary: per-column "col=v1,v2" if small, "col=k/N" if broad.
@@ -11293,6 +11432,135 @@ function _plotDrawRaincloud(gene, facetCol, data){
   return '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;">'+panels.join("")+'<\/div>';
 }
 
+/* Draw the violin SVG. Same per-cluster density (smoothed histogram of
+   expressing cells, edge-flush rendering) as the raincloud — but mirrored
+   to both sides of the centerline and without raindrops. The IQR bar +
+   median tick run vertically through the violin's center, matching the
+   classic Seaborn / scanpy violinplot look. Width-by-%-expressing applies
+   to the half-width on each side, so a low-detection cluster narrows
+   symmetrically. */
+function _plotDrawViolin(gene, facetCol, data){
+  var cluNames=(D.header&&D.header.cluster_names)||[];
+  var isLight=document.body.classList.contains("light");
+  var axisColor=isLight?"#4a4e5c":"#929ab4";
+  var gridColor=isLight?"#dde1f3":"#2c3045";
+  var bgColor=isLight?"#ffffff":"#0c0c14";
+  var labelColor=isLight?"#3a3e4c":"#b8bed0";
+  /* Slightly heavier opacity than raincloud's half-violin since the violin
+     IS the whole plot — no raindrops layered behind it. */
+  var densityAlpha=isLight?0.45:0.32;
+  var densityStrokeAlpha=isLight?0.85:0.7;
+  var iqrAlpha=isLight?0.7:0.55;
+
+  /* Violin can comfortably be slimmer than raincloud (no dot column) but
+     still wants enough room for the per-cluster label. Keep the same
+     W_PER_CLU as raincloud for visual consistency between plot types. */
+  var W_PER_CLU=52;
+  var TOP=38, LEFT=56, RIGHT=18;
+  var plotH=200;
+
+  var _maxLabelLen=0;
+  for(var _fi=0;_fi<data.facets.length;_fi++){
+    var _fcl=data.facets[_fi].clusters;
+    for(var _li=0;_li<_fcl.length;_li++){
+      var _c=_fcl[_li];
+      var _nm=String(cluNames[_c.cid]||("Cluster "+_c.cid));
+      var _pct=(_c.pctExpr!=null)?Math.round(_c.pctExpr*100):0;
+      var _full=_nm+" ("+(_c.n||0).toLocaleString()+" · "+_pct+"% expr)";
+      if(_full.length>_maxLabelLen)_maxLabelLen=_full.length;
+    }
+  }
+  var BOT=Math.max(60, Math.ceil(6.5*_maxLabelLen+24));
+  var H=TOP+plotH+BOT;
+  var n=data.clusters.length;
+  var W=LEFT+RIGHT+Math.max(1,n)*W_PER_CLU;
+  var plotW=W-LEFT-RIGHT;
+
+  var _wpEl=document.getElementById("plot-width-pct");
+  var widthByPct=_wpEl?_wpEl.checked:true;
+
+  var yScale=function(v){return TOP+plotH*(1-(v-data.yMin)/(data.yMax-data.yMin));};
+  var xCenter=function(ci){return LEFT+(ci+0.5)*W_PER_CLU;};
+
+  function _ccHex(cid){
+    var c=cc(cid);
+    function h(v){var x=Math.round(v*255);if(x<0)x=0;if(x>255)x=255;return (x<16?'0':'')+x.toString(16);}
+    return '#'+h(c[0])+h(c[1])+h(c[2]);
+  }
+
+  function drawOne(facet){
+    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="background:'+bgColor+';border:1px solid '+gridColor+';border-radius:4px;">';
+    svg+='<text x="'+(W/2)+'" y="16" text-anchor="middle" font-size="11" font-weight="600" fill="'+labelColor+'">'+facet.name.replace(/</g,"&lt;")+'<\/text>';
+    svg+='<text x="'+(W/2)+'" y="'+(TOP-9)+'" text-anchor="middle" font-size="9" fill="'+axisColor+'">'+facet.totalCells.toLocaleString()+' cells<\/text>';
+    /* Y axis + ticks (shared with raincloud styling) */
+    svg+='<line x1="'+LEFT+'" y1="'+TOP+'" x2="'+LEFT+'" y2="'+(TOP+plotH)+'" stroke="'+axisColor+'" stroke-width="1" opacity="0.5"/>';
+    for(var t=0;t<=5;t++){
+      var tv=data.yMin+(data.yMax-data.yMin)*(t/5);
+      var ty=yScale(tv);
+      svg+='<line x1="'+(LEFT-3)+'" y1="'+ty+'" x2="'+LEFT+'" y2="'+ty+'" stroke="'+axisColor+'" stroke-width="1" opacity="0.5"/>';
+      svg+='<text x="'+(LEFT-6)+'" y="'+(ty+3)+'" text-anchor="end" font-size="9" fill="'+axisColor+'">'+tv.toFixed(2)+'<\/text>';
+      svg+='<line x1="'+LEFT+'" y1="'+ty+'" x2="'+(W-RIGHT)+'" y2="'+ty+'" stroke="'+gridColor+'" stroke-width="1" stroke-dasharray="2,3" opacity="0.4"/>';
+    }
+    svg+='<text x="12" y="'+(TOP+plotH/2)+'" text-anchor="middle" font-size="9" fill="'+axisColor+'" transform="rotate(-90 12,'+(TOP+plotH/2)+')">expression<\/text>';
+    var plotMono=!_plotColor;
+    var monoHex=labelColor;
+    for(var ci=0;ci<facet.clusters.length;ci++){
+      var c=facet.clusters[ci];
+      var cx=xCenter(ci);
+      var colHex=_ccHex(c.cid);
+      var paintHex=plotMono?monoHex:colHex;
+      var halfW=W_PER_CLU*0.40;
+      if(widthByPct)halfW=Math.max(2,halfW*Math.sqrt(c.pctExpr||0));
+      if(c.n>0){
+        /* Build the symmetric violin path. Same edge-flush technique as the
+           raincloud (extend density to plot top/bottom with the edge bin's
+           width) so a peak at 0 or 1 reaches the boundary cleanly instead
+           of leaving a half-bin gap.
+
+           Path: bottom-center → bottom-right edge → up the right side via
+           interior bin vertices → top-right edge → top-left edge → down
+           the left side (reversed bins) → bottom-left edge → close. */
+        var hi=c.hist;
+        var binH=plotH/data.bins;
+        var pts=[];
+        for(var b=0;b<data.bins;b++){
+          var y=TOP+plotH-(b+0.5)*binH;
+          pts.push([y, hi[b]*halfW]);
+        }
+        var wBot=hi[0]*halfW;
+        var wTop=hi[data.bins-1]*halfW;
+        var path="M "+cx.toFixed(1)+" "+(TOP+plotH).toFixed(1);
+        path+=" L "+(cx+wBot).toFixed(1)+" "+(TOP+plotH).toFixed(1);
+        for(var p=0;p<pts.length;p++)path+=" L "+(cx+pts[p][1]).toFixed(1)+" "+pts[p][0].toFixed(1);
+        path+=" L "+(cx+wTop).toFixed(1)+" "+TOP.toFixed(1);
+        path+=" L "+(cx-wTop).toFixed(1)+" "+TOP.toFixed(1);
+        for(var p2=pts.length-1;p2>=0;p2--)path+=" L "+(cx-pts[p2][1]).toFixed(1)+" "+pts[p2][0].toFixed(1);
+        path+=" L "+(cx-wBot).toFixed(1)+" "+(TOP+plotH).toFixed(1);
+        path+=" Z";
+        svg+='<path d="'+path+'" fill="'+paintHex+'" fill-opacity="'+densityAlpha+'" stroke="'+paintHex+'" stroke-width="1" stroke-opacity="'+densityStrokeAlpha+'"/>';
+        /* IQR bar + median tick — centered through the violin. Slightly
+           narrower than raincloud's IQR since the violin already conveys
+           shape; the bar's job is just to mark q1/q3/median crisply. */
+        var y1=yScale(c.q1), y3=yScale(c.q3), ym=yScale(c.med);
+        svg+='<line x1="'+cx+'" y1="'+y1+'" x2="'+cx+'" y2="'+y3+'" stroke="'+labelColor+'" stroke-width="3" stroke-linecap="round" opacity="'+iqrAlpha+'"/>';
+        svg+='<line x1="'+(cx-3.5)+'" y1="'+ym+'" x2="'+(cx+3.5)+'" y2="'+ym+'" stroke="'+(isLight?'#ffffff':'#0c0c14')+'" stroke-width="2" stroke-linecap="round"/>';
+      }
+      var fullName=String(cluNames[c.cid]||("Cluster "+c.cid));
+      var pct=(c.pctExpr!=null)?Math.round(c.pctExpr*100):0;
+      var lblEsc=fullName.replace(/</g,"&lt;");
+      svg+='<g transform="translate('+cx+','+(TOP+plotH+8)+')">';
+      svg+='<circle cx="0" cy="0" r="3" fill="'+colHex+'"/>';
+      svg+='<text x="6" y="0" font-size="10" fill="'+labelColor+'" transform="rotate(90)">'+lblEsc+' <tspan fill="'+axisColor+'">('+c.n.toLocaleString()+' · '+pct+'% expr)<\/tspan><title>'+lblEsc+'<\/title><\/text>';
+      svg+='<\/g>';
+    }
+    svg+='<\/svg>';
+    return svg;
+  }
+
+  var panels=data.facets.map(drawOne);
+  return '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;">'+panels.join("")+'<\/div>';
+}
+
 function _exportGetCamera(snap){
   if(!snap)return _snapCameraFromGlobals();
   if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
@@ -11329,6 +11597,14 @@ function _exportOpen(viewId){
      by default. They can still override it explicitly in the modal. */
   var ghostCb=document.getElementById("export-svg-ghost");
   if(ghostCb)ghostCb.checked=!!showNonExpressing;
+  /* Side-by-side option only makes sense when split-screen is currently
+     active. Hide otherwise; reset its checked state on each open so a
+     prior side-by-side export doesn't auto-trigger one for a single split. */
+  var bothRow=document.getElementById("export-svg-both-row");
+  var bothCb=document.getElementById("export-svg-both");
+  var bothActive=!!(_splitActive&&_splitViewIds&&_splitViewIds.length===2);
+  if(bothRow)bothRow.style.display=bothActive?"flex":"none";
+  if(bothCb&&!bothActive)bothCb.checked=false;
   _exportShowOpts();
   _exportUpdateEstimate();
   document.getElementById("export-overlay").style.display="flex";
@@ -11406,8 +11682,21 @@ function _exportComputeRenderState(snap, includeGhost){
   var visClus=snap.visibleClusters||{};
   var delSet=snap.deletedCells?new Set(snap.deletedCells):null;
   var snapMode=snap.mode||mode;
+  var snapGM=snap.geneMode||"single";
   var snapGene=snap.selGene||"";
-  var ex=(snapMode==="gene"&&snapGene&&geneExprCache[snapGene])?geneExprCache[snapGene]:null;
+  var snapR=snap.colocR||"";
+  var snapG=snap.colocG||"";
+  /* Coloc takes precedence over single-gene if at least one channel is set
+     and cached — same rule the main recolor uses, so the export matches
+     what's on screen. */
+  var useColoc=(snapMode==="gene"&&snapGM==="coloc"&&((snapR&&geneExprCache[snapR])||(snapG&&geneExprCache[snapG])));
+  var ex=null,exR=null,exG=null;
+  if(useColoc){
+    exR=snapR?geneExprCache[snapR]:null;
+    exG=snapG?geneExprCache[snapG]:null;
+  }else if(snapMode==="gene"&&snapGene&&geneExprCache[snapGene]){
+    ex=geneExprCache[snapGene];
+  }
   var useGene=!!ex;
   var isLight=document.body.classList.contains("light");
   var bgScheme=_getBgScheme();
@@ -11418,6 +11707,7 @@ function _exportComputeRenderState(snap, includeGhost){
      exported SVG/PLY/CSV colors match what the user sees on screen. */
   var _exprLUTe=_gradientLUT(_gradientResolvedName());
   var _ec=function(v){var i=v>=1?255:(v<=0?0:(v*255)|0);return [_exprLUTe[i*3],_exprLUTe[i*3+1],_exprLUTe[i*3+2]];};
+  var colocColors=useColoc?_colocChannelColors():null;
   var kept=[];
   var color=new Float32Array(n*3);
   var sizeArr=new Float32Array(n);
@@ -11430,7 +11720,20 @@ function _exportComputeRenderState(snap, includeGhost){
     if(sliceM&&!sliceM[i])continue;
     if(delSet&&delSet.has(i))continue;
     var c;var sz=1.0;var al=1.0;
-    if(useGene){
+    if(useColoc){
+      var vR=exR?exR[i]:0, vG=exG?exG[i]:0;
+      var isDim=(vR<0.01)&&(vG<0.01);
+      if(isDim&&!includeGhost)continue;
+      if(isDim){
+        c=ghostColor;al=ghostAlpha;
+        sz=showExprSize?ghostSize:1.0;
+      }else{
+        c=_colocCompose(vR,vG,colocColors,isLight);
+        var maxV=vR>vG?vR:vG;
+        sz=showExprSize?Math.max(0.38,Math.sqrt(maxV)*1.8):1.0;
+        al=1.0;
+      }
+    }else if(useGene){
       var v=ex[i],isZero=v<0.01;
       if(isZero&&!includeGhost)continue;
       c=isZero?ghostColor:_ec(v);
@@ -11443,8 +11746,12 @@ function _exportComputeRenderState(snap, includeGhost){
     sizeArr[i]=sz;alpha[i]=al;
     kept.push(i);
   }
+  /* hasExpr drives whether the SVG title / filename includes gene names.
+     coloc {R,G} is reported separately so callers can build a "R + G"
+     label instead of a single gene. */
   return {kept:kept,color:color,size:sizeArr,alpha:alpha,group:group,
-          mode:snapMode,gene:snapGene,hasExpr:useGene,exprValues:ex};
+          mode:snapMode,gene:snapGene,hasExpr:(useGene||useColoc),
+          exprValues:ex,coloc:useColoc?{R:snapR,G:snapG}:null};
 }
 
 function _exportFilename(snap,ext){
@@ -11454,8 +11761,24 @@ function _exportFilename(snap,ext){
     base=fn.replace(/\.h5ad$/i,"");
   }
   var nm=(snap.name||"split").replace(/[^A-Za-z0-9_-]+/g,"-");
+  /* Embed gene context in the filename so multiple exports of the same
+     split don't collide silently: "...split.ACTB+CD4..." for coloc,
+     "...split.ACTB..." for single, plain for cluster. */
+  var geneTag="";
+  if(snap){
+    var gm=snap.geneMode||"single";
+    if(snap.mode==="gene"){
+      if(gm==="coloc"&&(snap.colocR||snap.colocG)){
+        var rN=(snap.colocR||"_").replace(/[^A-Za-z0-9_-]+/g,"-");
+        var gN=(snap.colocG||"_").replace(/[^A-Za-z0-9_-]+/g,"-");
+        geneTag="."+rN+"+"+gN;
+      }else if(snap.selGene){
+        geneTag="."+snap.selGene.replace(/[^A-Za-z0-9_-]+/g,"-");
+      }
+    }
+  }
   var when=new Date().toISOString().replace(/[:T]/g,"-").slice(0,19);
-  return base+"."+nm+"."+when+"."+ext;
+  return base+"."+nm+geneTag+"."+when+"."+ext;
 }
 
 function _exportDownload(blob, filename){
@@ -11491,26 +11814,12 @@ function _exportRun(){
   },20);
 }
 
-function _exportSVG(){
-  var snap=_splitViewById(_exportViewId);
-  if(!snap||!D)return;
-  var includeGhost=document.getElementById("export-svg-ghost").checked;
-  var includeRings=document.getElementById("export-svg-rings").checked;
-  var includeBg=document.getElementById("export-svg-bg").checked;
-  /* SVG dimensions must match the actual rendered viewport for the snapshot.
-     In split mode each half uses HALF the canvas width — using the full
-     width produces an aspect-ratio mismatch that visibly shifts the cloud
-     off-center vs. what the user saw on screen. */
-  var fullW=_cvRect.width||canvasW||1200;
-  var fullH=_cvRect.height||canvasH||800;
-  var inSplitHalf=_splitActive&&_splitViewIds&&_splitViewIds.indexOf(snap.id)>=0;
-  var w=Math.max(400,Math.round(inSplitHalf?fullW/2:fullW));
-  var h=Math.max(600,Math.round(fullH));
+/* Project one snapshot's kept points into screen-space entries using its
+   own camera. Returns {entries[], rs}. Shared by single-half and side-by-
+   side SVG export so both modes draw points identically. */
+function _exportProjectSnap(snap, w, h, includeGhost){
   var cam=_exportGetCamera(snap);
   var rs=_exportComputeRenderState(snap,includeGhost);
-  var bg=getBG();
-  function _hex(c){var v=Math.round(c*255);if(v<0)v=0;if(v>255)v=255;return (v<16?'0':'')+v.toString(16);}
-  var bgHex='#'+_hex(bg[0])+_hex(bg[1])+_hex(bg[2]);
   var dpr=window.devicePixelRatio||1;
   var dprCap=Math.min(dpr,2);
   var worldSz=basePtSz/100*_maxPtWorldSize();
@@ -11549,7 +11858,13 @@ function _exportSVG(){
     var z2=cam.zoom2!==undefined?cam.zoom2:zoom2;
     var pn2=cam.pan2||pan2;
     var px2World=h*z2/(2*frustum2);
-    var basePtPx=worldSz*px2World*0.5/dpr;
+    /* On-screen 2D: gl_PointSize (FB px diameter) = uSize * aSize, where
+       uSize = worldSz * px2World * 0.5. Visible CSS-pixel radius =
+       gl_PointSize / 2 / pr (pr = renderer pixelRatio = min(dpr, 2)).
+       Combining: visible radius = worldSz * px2World * aSize / (4 * pr).
+       Earlier this was using `/dpr` and dropped a factor of 2, making
+       export points appear ~2× larger than on screen. */
+    var basePtPx=worldSz*px2World/(4*dprCap);
     for(var k=0;k<rs.kept.length;k++){
       var i=rs.kept[k];
       var px=D._cachedPos[i*3],py=D._cachedPos[i*3+1];
@@ -11563,17 +11878,18 @@ function _exportSVG(){
       entries.push({i:i,x:sx,y:sy,r:rPx});
     }
   }
-  /* Build SVG. Use buffered string concatenation; small numeric formatting to
-     keep file size reasonable. */
+  return {entries:entries, rs:rs};
+}
+
+/* Render one half's <g> group string (points + optional rings), offset by
+   xOffset so it can sit in either pane of a side-by-side layout. */
+function _exportRenderHalfGroup(proj, xOffset, includeRings, hexFn, idSuffix){
+  var entries=proj.entries, rs=proj.rs;
   var parts=[];
-  parts.push('<?xml version="1.0" encoding="UTF-8"?>\n');
-  parts.push('<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">\n');
-  parts.push('<title>'+(snap.name||"FLEEK export")+(rs.hasExpr?' \u00b7 '+rs.gene:'')+'<\/title>\n');
-  if(includeBg)parts.push('<rect width="'+w+'" height="'+h+'" fill="'+bgHex+'"/>\n');
-  parts.push('<g id="points">\n');
+  parts.push('<g id="points'+idSuffix+'" transform="translate('+xOffset.toFixed(1)+',0)">\n');
   for(var e=0;e<entries.length;e++){
     var en=entries[e],i=en.i;
-    var rC='#'+_hex(rs.color[i*3])+_hex(rs.color[i*3+1])+_hex(rs.color[i*3+2]);
+    var rC='#'+hexFn(rs.color[i*3])+hexFn(rs.color[i*3+1])+hexFn(rs.color[i*3+2]);
     var op=rs.alpha[i];
     parts.push('<circle cx="'+en.x.toFixed(1)+'" cy="'+en.y.toFixed(1)+'" r="'+en.r.toFixed(2)+'" fill="'+rC+'"');
     if(op<0.999)parts.push(' fill-opacity="'+op.toFixed(2)+'"');
@@ -11581,20 +11897,110 @@ function _exportSVG(){
   }
   parts.push('</g>\n');
   if(includeRings){
-    parts.push('<g id="rings" fill="none" stroke-width="1.4">\n');
+    parts.push('<g id="rings'+idSuffix+'" fill="none" stroke-width="1.4" transform="translate('+xOffset.toFixed(1)+',0)">\n');
     for(var e=0;e<entries.length;e++){
       var en=entries[e],i=en.i;
       var sg=rs.group[i];
       if(sg<0||!selGroups[sg]||groupVisible[selGroups[sg].id]===false)continue;
       var sc=selGroups[sg].color;
-      var rC='#'+_hex(sc[0])+_hex(sc[1])+_hex(sc[2]);
+      var rC='#'+hexFn(sc[0])+hexFn(sc[1])+hexFn(sc[2]);
       var rOut=en.r*1.4+1.0;
       parts.push('<circle cx="'+en.x.toFixed(1)+'" cy="'+en.y.toFixed(1)+'" r="'+rOut.toFixed(2)+'" stroke="'+rC+'"/>\n');
     }
     parts.push('</g>\n');
   }
+  return parts.join("");
+}
+
+/* Build the " \u00b7 gene context" suffix used in SVG titles. Pulls coloc
+   info from the snapshot directly so the same logic works whether or not
+   we've already computed a render state. */
+function _geneTitleSnippet(snap){
+  if(!snap)return '';
+  var sm=snap.mode||'cluster';
+  if(sm!=="gene")return '';
+  var gm=snap.geneMode||"single";
+  if(gm==="coloc"){
+    var R=snap.colocR||"";
+    var G=snap.colocG||"";
+    if(!R&&!G)return '';
+    return ' \u00b7 '+(R||'?')+' + '+(G||'?');
+  }
+  var g=snap.selGene||"";
+  return g?(' \u00b7 '+g):'';
+}
+
+function _exportSVG(){
+  var snap=_splitViewById(_exportViewId);
+  if(!snap||!D)return;
+  var includeGhost=document.getElementById("export-svg-ghost").checked;
+  var includeRings=document.getElementById("export-svg-rings").checked;
+  var includeBg=document.getElementById("export-svg-bg").checked;
+  var bothCb=document.getElementById("export-svg-both");
+  var sideBySide=!!(bothCb&&bothCb.checked&&_splitActive&&_splitViewIds&&_splitViewIds.length===2);
+  /* Each half uses HALF the canvas width to match what's on screen. */
+  var fullW=_cvRect.width||canvasW||1200;
+  var fullH=_cvRect.height||canvasH||800;
+  var inSplitHalf=_splitActive&&_splitViewIds&&_splitViewIds.indexOf(snap.id)>=0;
+  var halfW=Math.max(400,Math.round((sideBySide||inSplitHalf)?fullW/2:fullW));
+  var h=Math.max(600,Math.round(fullH));
+  var W=sideBySide?halfW*2:halfW;
+  var bg=getBG();
+  function _hex(c){var v=Math.round(c*255);if(v<0)v=0;if(v>255)v=255;return (v<16?'0':'')+v.toString(16);}
+  var bgHex='#'+_hex(bg[0])+_hex(bg[1])+_hex(bg[2]);
+  var parts=[];
+  parts.push('<?xml version="1.0" encoding="UTF-8"?>\n');
+  parts.push('<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+h+'" viewBox="0 0 '+W+' '+h+'">\n');
+  if(sideBySide){
+    var snapL=_splitViewById(_splitViewIds[0]);
+    var snapR=_splitViewById(_splitViewIds[1]);
+    var titleStr=(snapL?snapL.name:"left")+_geneTitleSnippet(snapL)+'  |  '+(snapR?snapR.name:"right")+_geneTitleSnippet(snapR);
+    parts.push('<title>'+titleStr+'<\/title>\n');
+    /* clipPaths bound each half to its own pane. The on-screen renderer
+       lets points spill 5% past the visible NDC range; without clipping,
+       those overshoots cross the divider into the other half after the
+       per-half translate. With clipping, even a point straddling the
+       seam gets neatly cut at the divider line. */
+    parts.push('<defs>\n');
+    parts.push('<clipPath id="ex-clip-L"><rect x="0" y="0" width="'+halfW+'" height="'+h+'"/><\/clipPath>\n');
+    parts.push('<clipPath id="ex-clip-R"><rect x="'+halfW+'" y="0" width="'+halfW+'" height="'+h+'"/><\/clipPath>\n');
+    parts.push('<\/defs>\n');
+    if(includeBg)parts.push('<rect width="'+W+'" height="'+h+'" fill="'+bgHex+'"/>\n');
+    var projL=_exportProjectSnap(snapL,halfW,h,includeGhost);
+    var projR=_exportProjectSnap(snapR,halfW,h,includeGhost);
+    parts.push('<g clip-path="url(#ex-clip-L)">\n');
+    parts.push(_exportRenderHalfGroup(projL,0,includeRings,_hex,'-L'));
+    parts.push('<\/g>\n');
+    parts.push('<g clip-path="url(#ex-clip-R)">\n');
+    parts.push(_exportRenderHalfGroup(projR,halfW,includeRings,_hex,'-R'));
+    parts.push('<\/g>\n');
+    /* Thin divider line at the seam \u2014 same idea as the on-screen split-view
+       divider, no surrounding focus box. Theme-aware muted tone. */
+    var isLight=document.body.classList.contains("light");
+    var divCol=isLight?"#c4ccdd":"#3a4258";
+    parts.push('<line x1="'+halfW+'" y1="0" x2="'+halfW+'" y2="'+h+'" stroke="'+divCol+'" stroke-width="1" opacity="0.7"/>\n');
+  }else{
+    parts.push('<title>'+(snap.name||"FLEEK export")+_geneTitleSnippet(snap)+'<\/title>\n');
+    if(includeBg)parts.push('<rect width="'+halfW+'" height="'+h+'" fill="'+bgHex+'"/>\n');
+    var proj=_exportProjectSnap(snap,halfW,h,includeGhost);
+    parts.push(_exportRenderHalfGroup(proj,0,includeRings,_hex,''));
+  }
   parts.push('<\/svg>\n');
-  _exportDownload(new Blob(parts,{type:"image/svg+xml"}), _exportFilename(snap,"svg"));
+  /* Filename: side-by-side joins both half names with "+". */
+  var fname;
+  if(sideBySide){
+    var snapL2=_splitViewById(_splitViewIds[0]);
+    var snapR2=_splitViewById(_splitViewIds[1]);
+    var fakeSnap={
+      name:((snapL2&&snapL2.name)||"L")+"+"+((snapR2&&snapR2.name)||"R"),
+      mode:snap.mode,geneMode:snap.geneMode,selGene:snap.selGene,
+      colocR:snap.colocR,colocG:snap.colocG
+    };
+    fname=_exportFilename(fakeSnap,"svg");
+  }else{
+    fname=_exportFilename(snap,"svg");
+  }
+  _exportDownload(new Blob(parts,{type:"image/svg+xml"}), fname);
   _exportClose();
 }
 
