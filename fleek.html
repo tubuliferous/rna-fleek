@@ -269,6 +269,40 @@
   .coloc-row:hover .coloc-clear{opacity:0.7;}
   .coloc-clear:hover{color:var(--danger);opacity:1;}
   .coloc-legend{height:10px;border-radius:3px;margin-top:4px;border:1px solid var(--border);}
+
+  /* Pathway results table — name takes the full available width so long
+     pathway labels stay readable; only the overlap-count and chevron
+     occupy fixed columns on the right. The log2FE bar moved into the
+     expanded detail (where space isn't constrained). */
+  .path-row{display:grid;grid-template-columns:1fr 60px 14px;column-gap:6px;align-items:center;padding:4px 6px;border-radius:3px;cursor:pointer;transition:background var(--dur-fast);font-size:11px;user-select:none;-webkit-user-select:none;}
+  .path-row:hover{background:var(--bg-hover);}
+  .path-row.expanded{background:var(--bg3);}
+  .path-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .path-row.expanded .path-name{color:var(--accent2);}
+  .path-overlap{font-size:9px;color:var(--text3);text-align:right;font-variant-numeric:tabular-nums;cursor:help;}
+  .path-chev{font-size:8px;color:var(--text4);transition:transform var(--dur-fast);text-align:center;}
+  .path-row.expanded .path-chev{transform:rotate(90deg);}
+  .path-detail{padding:6px 10px 8px;background:var(--bg3);border-radius:3px;margin:2px 0 4px;font-size:10px;color:var(--text2);line-height:1.4;}
+  .path-detail .path-fullname{font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.3;}
+  .path-detail .path-desc{margin-bottom:6px;color:var(--text3);font-style:italic;}
+  /* Enrichment bar lives inside the expanded detail now — wider than the
+     row column allowed, paired with a numeric label so the bar's length
+     is interpretable on its own. */
+  .path-enrich-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:help;}
+  .path-enrich-label{font-size:10px;color:var(--text2);white-space:nowrap;}
+  .path-enrich-label strong{color:var(--text);}
+  .path-bar-wrap{display:block;flex:1;height:5px;background:var(--bg2);border:1px solid var(--border);border-radius:3px;overflow:hidden;}
+  .path-bar{display:block;height:100%;background:var(--accent);border-radius:2px;}
+  .path-detail .path-meta{font-size:9px;color:var(--text4);margin-bottom:6px;display:flex;gap:10px;flex-wrap:wrap;}
+  .path-detail .path-meta span{cursor:help;}
+  .path-detail .path-genes{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+  .path-gene-chip{display:inline-flex;align-items:center;padding:1px 6px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text2);font-size:9px;cursor:pointer;font-family:var(--font-mono,'SF Mono',Menlo,monospace);transition:all var(--dur-fast);}
+  .path-gene-chip:hover{border-color:var(--accent);color:var(--accent2);background:rgba(99,102,241,0.1);}
+  .path-detail .path-actions{display:flex;gap:6px;margin-top:6px;align-items:center;}
+  .path-action-btn{font-size:9px;padding:2px 8px;border:1px solid var(--border);border-radius:3px;background:var(--bg2);color:var(--text2);cursor:pointer;font-family:inherit;transition:all var(--dur-fast);}
+  .path-action-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+  .path-action-btn.path-action-link{padding:2px 8px;}
+  .path-empty{padding:8px;font-size:10px;color:var(--text4);text-align:center;font-style:italic;}
   .coloc-hint{font-size:9px;color:var(--text4);line-height:1.4;margin-top:4px;padding:0 2px;font-style:italic;}
 
   #expr-bar{height:8px;border-radius:3px;cursor:pointer;transition:filter var(--dur-fast);}
@@ -1153,6 +1187,85 @@
       </div>
     </div>
   </div>
+  <!-- Pathways: ORA / GSEA panel -->
+  <div class="sec" id="pathway-sec" data-col="pathway" style="display:none;">
+    <div class="col-hdr" onclick="toggleSec('pathway')">
+      <span class="lbl" style="margin-bottom:0;">Pathways</span>
+      <span id="pathway-status-badge" style="font-size:10px;color:var(--text4);margin-left:auto;margin-right:8px;"></span>
+      <span class="col-chev">&#9660;</span>
+    </div>
+    <div class="col-body">
+      <!-- Method toggle (only ORA active for v1; GSEA placeholder) -->
+      <div id="pathway-method-toggle" style="display:flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;font-size:10px;margin-bottom:6px;">
+        <button id="pm-ora" onclick="_pathwaySetMethod('ora')" style="flex:1;background:rgba(99,102,241,0.15);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:600;" title="Over-representation analysis (hypergeometric test)">ORA</button>
+        <button id="pm-gsea" disabled style="flex:1;background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text4);cursor:not-allowed;font-size:10px;font-family:inherit;padding:3px 8px;opacity:0.6;" title="GSEA preranked — coming soon">GSEA <span style="font-size:8px;opacity:0.7;">(soon)</span></button>
+      </div>
+
+      <!-- Source selector -->
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;">
+        <span style="font-size:10px;color:var(--text4);min-width:50px;">Source</span>
+        <select id="path-source" style="flex:1;" onchange="_pathwaySourceChanged();_pathwayInputChanged();" title="Where the input gene list comes from">
+          <option value="deg">Current DEG result</option>
+          <option value="cluster">Cluster vs rest</option>
+          <option value="custom">Paste gene list</option>
+        </select>
+      </div>
+
+      <!-- Cluster picker (visible when source=cluster) -->
+      <div id="path-cluster-row" style="display:none;align-items:center;gap:4px;margin-bottom:4px;">
+        <span style="font-size:10px;color:var(--text4);min-width:50px;">Cluster</span>
+        <select id="path-cluster" style="flex:1;" onchange="_pathwayInputChanged()" title="One-vs-rest DEG ranking for this cluster"></select>
+      </div>
+
+      <!-- Top N (visible when source=deg or cluster) -->
+      <div id="path-topn-row" style="display:flex;align-items:center;gap:4px;margin-bottom:4px;" title="Test the top N genes by significance from the chosen source">
+        <span style="font-size:10px;color:var(--text4);min-width:50px;">Top N</span>
+        <input type="number" id="path-topn" value="100" min="10" max="2000" step="10" oninput="_pathwayInputChanged()" style="flex:1;width:0;font-size:11px;padding:2px 6px;">
+      </div>
+
+      <!-- Direction toggle (DEG only — coloc and cluster sources are inherently directional) -->
+      <div id="path-dir-row" style="display:flex;align-items:center;gap:4px;margin-bottom:4px;" title="Use up-regulated, down-regulated, or all top genes">
+        <span style="font-size:10px;color:var(--text4);min-width:50px;">Direction</span>
+        <select id="path-dir" style="flex:1;" onchange="_pathwayInputChanged()">
+          <option value="either" selected>Either (|log2FC|)</option>
+          <option value="up">Up only</option>
+          <option value="down">Down only</option>
+        </select>
+      </div>
+
+      <!-- Custom genes textarea (visible when source=custom) -->
+      <div id="path-custom-row" style="display:none;margin-bottom:4px;">
+        <textarea id="path-custom" rows="4" placeholder="One gene per line — paste a list" oninput="_pathwayInputChanged()" style="width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border);border-radius:3px;color:var(--text);font-family:var(--font-mono,'SF Mono',Menlo,monospace);font-size:10px;padding:4px 6px;outline:none;resize:vertical;"></textarea>
+      </div>
+
+      <!-- Database picker -->
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:6px;">
+        <span style="font-size:10px;color:var(--text4);min-width:50px;">DB</span>
+        <select id="path-db" style="flex:1;" onchange="_pathwayInputChanged()" title="Pathway / gene-set database to test against"></select>
+      </div>
+
+      <!-- Resolved-input summary -->
+      <div id="path-input-summary" style="font-size:10px;color:var(--text4);margin-bottom:4px;line-height:1.3;"></div>
+
+      <!-- Run -->
+      <button id="path-run-btn" onclick="_pathwayRun()" style="width:100%;padding:5px 10px;background:rgba(16,185,129,0.15);border:1px solid var(--success);border-radius:4px;color:var(--success);font-weight:600;font-size:11px;font-family:inherit;cursor:pointer;transition:filter 0.1s;">Run analysis</button>
+      <div id="path-status" style="font-size:10px;color:var(--text4);margin-top:4px;min-height:11px;"></div>
+
+      <!-- Results -->
+      <div id="path-results-wrap" style="display:none;margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <input type="text" id="path-filter" placeholder="Filter pathways…" oninput="_pathwayRenderResults()" style="flex:1;font-size:11px;padding:3px 6px;">
+          <select id="path-sort" onchange="_pathwayRenderResults()" style="font-size:10px;" title="Sort results">
+            <option value="padj">padj</option>
+            <option value="log2fe">log2FE</option>
+            <option value="overlap">Overlap</option>
+            <option value="name">Name</option>
+          </select>
+        </div>
+        <div id="path-results"></div>
+      </div>
+    </div>
+  </div>
   <!-- Cell Types: collapsible panel -->
   <div class="sec" id="ct-sec" data-col="ct">
     <div class="col-hdr" onclick="toggleSec('ct')">
@@ -1385,8 +1498,8 @@
   <div id="pb-controls" style="display:none;padding:4px 12px;border-bottom:1px solid var(--border);font-size:10px;color:var(--text3);">
     <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
       <span id="pb-mode-toggle" style="display:inline-flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
-        <button id="deg-mode-sc" onclick="_degSetMode('sc')" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:600;transition:all 0.1s;">Single-cell</button>
-        <button id="deg-mode-pb" onclick="_degSetMode('pb')" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:400;transition:all 0.1s;" title="Pseudo-bulk DEG: aggregates cells by sample, tests with DESeq2 or t-test">Pseudo-bulk</button>
+        <button id="deg-mode-sc" onclick="_degSetMode('sc')" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:600;transition:all 0.1s;" title="Single-cell DEG: treats every cell as an independent observation. Wilcoxon rank-sum (default) or Welch's t-test. Fast, gives Cohen's d effect sizes. P-values are anti-conservative (cells from the same donor/sample aren't truly independent) — fine for ranking marker genes; use Pseudo-bulk for publication-grade statistics.">Single-cell</button>
+        <button id="deg-mode-pb" onclick="_degSetMode('pb')" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:400;transition:all 0.1s;" title="Pseudo-bulk DEG: aggregates raw counts per biological replicate (donor / sample / batch), then tests with DESeq2 (default) or Welch's t-test on CPM. Addresses the pseudoreplication problem in single-cell DEG. Requires a raw counts matrix and ≥ 2 replicates per group.">Pseudo-bulk</button>
       </span>
       <span id="pb-counts-info" style="color:var(--text4);font-size:10px;"></span>
     </div>
@@ -1452,6 +1565,7 @@
       <a href="#" onclick="event.preventDefault();helpJump('help-lineage')">Lineage</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-gene')">Gene Expression</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-plots')">Plots</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-pathway')">Pathways</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-deg')">DEG Analysis</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-data')">Data</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-matrix')">Data matrices &amp; routing</a>
@@ -1832,6 +1946,35 @@
     </div>
 
     <!-- DEG Analysis -->
+    <div class="help-sec" id="help-pathway">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Pathways</span>
+      </div>
+      <div class="help-sec-body">
+        <p>The <strong>Pathways panel</strong> tests whether your gene list overlaps with curated gene sets (KEGG-style canonical pathways, GO terms, MSigDB Hallmark, etc.) more than expected by chance. The first version implements <strong>ORA</strong> (over-representation analysis) — a hypergeometric test, BH-corrected. <strong>GSEA</strong> (preranked) will be added in a future release with the same UI; both methods will share this panel.</p>
+        <p><strong>What ORA actually does:</strong> for each pathway in the chosen database, it asks "given the dataset's full gene list as background, how surprising would it be to draw your input list and have <em>k</em> of the input genes happen to land in this pathway?" The answer is a one-sided hypergeometric p-value. Across all tested pathways, p-values are corrected with the Benjamini-Hochberg step-up procedure to control false discovery. Significant hits at <code>padj &lt; 0.05</code> mean "this pathway is enriched in your list more than chance — the overlap is bigger than you'd get from random sampling."</p>
+        <p><strong>Source</strong> picks where the input gene list comes from:</p>
+        <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
+          <li><strong>Current DEG result</strong> — uses the most recent DEG run (Selection Groups → DEG button). Top N genes by |log₂FC|, with a <em>Direction</em> filter (up / down / either) so you can ask separately about up- and down-regulated programs.</li>
+          <li><strong>Cluster vs rest</strong> — uses the cached one-vs-rest cluster-genes table for the chosen cluster (the same table powering the per-cluster gene-variability list). Top N genes by Cohen's d (effect size), so very-small-fold-but-very-clean markers don't get lost. Pick a cluster in the Gene panel's variability list once to populate the cache for that cluster.</li>
+          <li><strong>Paste gene list</strong> — drop in any list, one gene per line (space, comma, semicolon, or tab also work as separators). Useful when you have an external hit list from another paper / tool.</li>
+        </ul>
+        <p><strong>Top N</strong> defaults to 100 — a conventional ORA size. Smaller (50) for cleaner enrichments, larger (250–500) when you want to catch subtler pathway signal at the cost of more multiple-testing burden. There's no perfect choice; a careful workflow is to run at 100 and 250 and see which pathways are robust to the cutoff. The fundamental cutoff-sensitivity of ORA is exactly why GSEA exists, and why we'll add it later.</p>
+        <p><strong>Database</strong> picks the gene-set library:</p>
+        <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
+          <li><strong>MSigDB Hallmark</strong> (50 sets) — broad, well-curated, the best single-database choice for a first pass. CC-BY-4.0.</li>
+          <li><strong>Reactome</strong> (~2500 sets) — canonical biological pathways. CC-BY-4.0.</li>
+          <li><strong>GO Biological Process / Molecular Function / Cellular Component</strong> — exhaustive but redundant. Useful for deep dives. Loaded from FLEEK's existing GO database (no extra files).</li>
+        </ul>
+        <p>Drop additional <code>.gmt</code> files into <code>data/gmt/&lt;organism&gt;/</code> to expose them; the server scans that directory on dataset load and the panel picks them up automatically.</p>
+        <p><strong>Background</strong>: by default the dataset's full gene list is the universe. This is reasonable but slightly biased — if your dataset only profiles a curated panel, the background is small and tests are conservative. Custom backgrounds are not exposed in this version; if you need them, you can edit the request body.</p>
+        <p><strong>Reading the results table:</strong> rows are sorted by adjusted p-value (most significant first). Each row shows the pathway name, a bar for <em>log₂ fold-enrichment</em> (how many times more overlap than expected — bar normalized to the strongest hit in the result), the overlap count (<em>k / K</em> = overlap / pathway size after intersection with background), and adjusted p in the tooltip. Click a row to expand the <strong>overlap genes</strong> as chips. Click any chip to load that gene's expression on the main viewer.</p>
+        <p><strong>Selecting cells from a pathway:</strong> the "<strong>+ Select cells expressing these</strong>" button (in the expanded row) adds every cell expressing any overlap gene above the standard threshold (≥ 0.01 on the normalized scale) into the active selection group. The button is a smart toggle — once every expressing cell is already in the group, its label flips to "<strong>− Deselect these cells</strong>" and a click strips that population back out (cells you added by other means stay). <strong>Option/Alt+click</strong> the button to put <em>only</em> these cells into the active group (clears the group first). The same actions are also available directly from the pathway name in the row header: <strong>Shift+click the pathway name</strong> = toggle, <strong>Shift+Option+click the pathway name</strong> = select only — useful for sweeping through a long list of significant pathways without expanding each one.</p>
+        <p><strong>Caveats:</strong> redundant gene sets (KEGG/Reactome share many pathways with GO BP) will produce correlated significant hits — don't double-count. Tiny overlaps (1–2 genes) are rarely meaningful even when the test reports "significant" — eyeball the overlap count column. Background choice subtly biases results; in particular, scRNA datasets often filter out lowly-expressed genes upstream, which means truly tissue-specific pathways may have artificially low <em>K</em> and miss enrichment.</p>
+      </div>
+    </div>
+
     <div class="help-sec" id="help-deg">
       <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
         <span class="help-sec-chev">&#9660;</span>
@@ -2341,7 +2484,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.11";
+var FLEEK_VERSION="v0.4.12";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -3870,6 +4013,18 @@ function startRenameGroup(id,ev){
 }
 
 function renderSelPanel(){
+  /* Pathway action-button labels (Select / Deselect) depend on whether
+     every expressing cell of a pathway is in the active group. Every
+     selection-mutating path (cell toggle, lasso select/deselect, type
+     toggle, clear, group switch, etc.) calls renderSelPanel, so this
+     is the single chokepoint where we can keep the pathway panel in
+     sync — including changes that bypass rebuildCellGroupMap and update
+     cellGroupMap inline. Cheap when there are no results or the panel
+     is closed. */
+  if(typeof _pathwayLastResults!=="undefined"&&_pathwayLastResults&&_pathwayLastResults.results){
+    var psec=document.getElementById("pathway-sec");
+    if(psec&&psec.style.display!=="none"&&typeof _pathwayRenderResults==="function")_pathwayRenderResults();
+  }
   var el=document.getElementById("sel-groups");
   if(!el)return;
   el.innerHTML=selGroups.map(function(g,i){
@@ -6864,6 +7019,10 @@ function pickGene(g){
   /* If already cached, recolor immediately before loadGene */
   if(geneExprCache[g])recolor();
   loadGene(g);
+  /* Refresh the volcano so the persistent yellow highlight tracks the
+     newly-picked gene. renderVolcano early-returns when degData is
+     empty, so this is a no-op when no DEG result is shown. */
+  if(typeof renderVolcano==="function"&&degData)renderVolcano();
   saveState();
 }
 function _updateGeneCollapsedName(){
@@ -11108,6 +11267,607 @@ function _plotRender(){
     });
 }
 
+/* ── Pathways panel: ORA over pre-computed gene-set databases. ──────
+   Source options: current DEG result, cluster vs rest (one of the
+   already-cached cluster-genes tables), or a pasted gene list. The
+   server runs a hypergeometric test (BH-corrected) against the chosen
+   database (GO BP/MF/CC plus any GMT file dropped in
+   data/gmt/{organism}/). Results render as a virtualized inline list:
+   each row is a pathway, click to expand its overlap genes as chips,
+   click a chip to load that gene on the viewer. */
+var _pathwayDatabases=[];     /* [{id,label,source,n_pathways}] from server */
+var _pathwayLastResults=null; /* last response payload (cached for sort/filter) */
+var _pathwayInflight=null;    /* AbortController for current request */
+var _pathwayExpanded={};      /* {pathway_id: true} — which rows are expanded */
+/* Client-side cache of completed runs, keyed by (genes-list-hash, db).
+   Lets the user switch databases (or sources) and instantly see prior
+   results if that combo has been run, blank otherwise — same UX as the
+   DEG mode toggle. Cleared on dataset unload (via _pathwayInit being
+   re-called) and on each new Run reply that comes in. */
+var _pathwayResultsCache={};
+function _pathwayCacheKey(genes, db){
+  if(!genes||!db)return null;
+  return db+"|"+genes.slice().sort().join(",");
+}
+
+function _pathwayInit(){
+  /* Fetch available databases for the loaded dataset's organism. Called
+     once after dataset load. Idempotent — repopulates the dropdown if
+     called again. Also resets the client-side results cache, since a
+     new dataset means new background → old keys are stale. */
+  _pathwayResultsCache={};
+  _pathwayLastResults=null;
+  _pathwaySelected={};
+  fetch("/api/pathway-databases")
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(!d||!d.ok)return;
+      _pathwayDatabases=d.databases||[];
+      var sel=document.getElementById("path-db");
+      if(!sel)return;
+      var prev=sel.value;
+      sel.innerHTML="";
+      if(_pathwayDatabases.length===0){
+        var opt=document.createElement("option");
+        opt.value="";opt.textContent="(no databases available)";opt.disabled=true;
+        sel.appendChild(opt);
+        return;
+      }
+      for(var i=0;i<_pathwayDatabases.length;i++){
+        var db=_pathwayDatabases[i];
+        var o=document.createElement("option");
+        o.value=db.id;
+        /* Two-tier display: the dropdown popup shows the full text
+           (label + set count) so the user can compare collection sizes
+           when picking; the closed select shows just the bare label so
+           it doesn't clip in the narrow sidebar. Modern browsers honor
+           the option's `label` attribute for the closed display while
+           still showing textContent in the open list. On older browsers
+           that ignore `label`, both states fall back to textContent —
+           same as before this change, no regression. */
+        o.textContent=db.label+" ("+db.n_pathways.toLocaleString()+" sets)";
+        o.label=db.label;
+        o.title=db.source;
+        sel.appendChild(o);
+      }
+      /* Restore previous pick if still available; otherwise pick the
+         first non-GO entry (e.g. Hallmark) if present, else first. */
+      if(prev&&sel.querySelector('option[value="'+prev+'"]'))sel.value=prev;
+      else{
+        var hallmark=sel.querySelector('option[value="hallmark"]');
+        if(hallmark)sel.value="hallmark";
+        else{
+          var firstNonGo=null;
+          for(var j=0;j<sel.options.length;j++){
+            if(!sel.options[j].value.startsWith("go_")){firstNonGo=sel.options[j].value;break;}
+          }
+          sel.value=firstNonGo||sel.options[0].value;
+        }
+      }
+      /* Show the panel now that databases are loaded. */
+      var sec=document.getElementById("pathway-sec");
+      if(sec)sec.style.display="";
+      _pathwayPopulateClusters();
+      _pathwaySourceChanged();
+    })
+    .catch(function(err){console.warn("pathway-databases failed:",err);});
+}
+
+function _pathwayPopulateClusters(){
+  var sel=document.getElementById("path-cluster");
+  if(!sel||!D||!D.header||!D.header.cluster_names)return;
+  var prev=sel.value;
+  sel.innerHTML="";
+  /* Skip empty clusters (already a global helper from v0.4.4) */
+  for(var i=0;i<D.header.cluster_names.length;i++){
+    if(typeof _isEmptyCluster==="function"&&_isEmptyCluster(i))continue;
+    var o=document.createElement("option");
+    o.value=String(i);
+    o.textContent=D.header.cluster_names[i];
+    sel.appendChild(o);
+  }
+  if(prev&&sel.querySelector('option[value="'+prev+'"]'))sel.value=prev;
+}
+
+function _pathwaySetMethod(m){
+  /* GSEA is a placeholder for now — the toggle exists so the future
+     wiring is obvious but ORA is the only active method. */
+  if(m!=="ora")return;
+}
+
+function _pathwaySourceChanged(){
+  var src=document.getElementById("path-source").value;
+  document.getElementById("path-cluster-row").style.display=(src==="cluster")?"flex":"none";
+  document.getElementById("path-topn-row").style.display=(src==="custom")?"none":"flex";
+  document.getElementById("path-dir-row").style.display=(src==="deg")?"flex":"none";
+  document.getElementById("path-custom-row").style.display=(src==="custom")?"block":"none";
+  _pathwayUpdateInputSummary();
+}
+
+/* Resolve the input gene list from the chosen source. Returns
+   {genes: [...], note: "..."} or {genes: [], error: "..."}. The
+   resolution is purely client-side; only the final list is POSTed. */
+function _pathwayCollectGenes(){
+  var src=document.getElementById("path-source").value;
+  var topN=parseInt(document.getElementById("path-topn").value)||100;
+  if(topN<1)topN=1;
+  if(topN>5000)topN=5000;
+  if(src==="deg"){
+    if(!degData||!degData.genes||degData.genes.length===0){
+      return {genes:[], error:"Run a DEG comparison first (DEG button in Selection Groups)."};
+    }
+    var dir=document.getElementById("path-dir").value;
+    /* DEG genes can be a [{gene,log2fc,padj,...}] objects array (current
+       structure) — sort by direction, slice topN. */
+    var arr=degData.genes.slice();
+    arr.sort(function(a,b){
+      var av,bv;
+      if(dir==="up"){av=a.log2fc;bv=b.log2fc;return bv-av;}
+      if(dir==="down"){av=a.log2fc;bv=b.log2fc;return av-bv;}
+      av=Math.abs(a.log2fc);bv=Math.abs(b.log2fc);return bv-av;
+    });
+    /* Optional sanity filter: drop NaN log2fc and obvious non-significant
+       genes (padj>0.1) for "up"/"down" directions. */
+    var filtered=arr.filter(function(g){
+      if(g.log2fc==null||isNaN(g.log2fc))return false;
+      if(dir==="up"&&g.log2fc<=0)return false;
+      if(dir==="down"&&g.log2fc>=0)return false;
+      return true;
+    });
+    var slice=filtered.slice(0,topN);
+    return {genes:slice.map(function(g){return g.gene;}),
+            note:"Top "+slice.length+" "+dir+" genes from DEG ("+(degData.grpAName||"A")+" vs "+(degData.grpBName||"B")+")"};
+  }
+  if(src==="cluster"){
+    var cidEl=document.getElementById("path-cluster");
+    var cid=parseInt(cidEl.value);
+    if(isNaN(cid))return {genes:[], error:"Pick a cluster first."};
+    /* Cluster-genes data is parallel arrays (.genes, .log2fc, .cohens_d, .padj).
+       The cluster-genes endpoint already cached results from /api/cluster-genes. */
+    var cgData=(typeof _clusterGeneCache!=="undefined"&&_clusterGeneCache)?_clusterGeneCache[cid]:null;
+    if(!cgData||!cgData.genes){
+      return {genes:[], error:"Cluster-vs-rest DEG isn't cached for this cluster yet — pick it once in the Gene panel's variability list to populate."};
+    }
+    /* Rank by Cohen's d (effect size) descending, take top N. */
+    var idx=[];for(var i=0;i<cgData.genes.length;i++)idx.push(i);
+    idx.sort(function(a,b){return (cgData.cohens_d[b]||0)-(cgData.cohens_d[a]||0);});
+    var picks=idx.slice(0,topN).map(function(i){return cgData.genes[i];});
+    var nm=(D&&D.header&&D.header.cluster_names)?D.header.cluster_names[cid]:("Cluster "+cid);
+    return {genes:picks,note:"Top "+picks.length+" genes by Cohen's d for "+nm};
+  }
+  if(src==="custom"){
+    var raw=(document.getElementById("path-custom").value||"").trim();
+    if(!raw)return {genes:[], error:"Paste a gene list — one gene per line."};
+    var lines=raw.split(/[\s,;\t]+/).map(function(s){return s.trim();}).filter(function(s){return s.length>0;});
+    /* Dedup while preserving order */
+    var seen={},out=[];
+    for(var li=0;li<lines.length;li++){if(!seen[lines[li]]){seen[lines[li]]=true;out.push(lines[li]);}}
+    return {genes:out,note:out.length+" gene"+(out.length===1?"":"s")+" pasted"};
+  }
+  return {genes:[], error:"Unknown source."};
+}
+
+function _pathwayUpdateInputSummary(){
+  var info=_pathwayCollectGenes();
+  var el=document.getElementById("path-input-summary");
+  if(!el)return;
+  if(info.error){el.style.color="var(--text4)";el.textContent=info.error;}
+  else{el.style.color="var(--text3)";el.textContent=(info.note||"")+" — will test against the chosen database.";}
+}
+
+/* Hide / wipe the results pane. Used when switching to an input+db
+   combo we haven't run yet, so a stale results table from a different
+   database doesn't mislead the user into thinking it was just produced
+   for the new selection. */
+function _clearPathwayResults(){
+  _pathwayLastResults=null;
+  _pathwayExpanded={};
+  _pathwaySelected={};
+  var wrap=document.getElementById("path-results-wrap");
+  if(wrap)wrap.style.display="none";
+  var host=document.getElementById("path-results");
+  if(host)host.innerHTML="";
+  var badge=document.getElementById("pathway-status-badge");
+  if(badge)badge.textContent="";
+  var status=document.getElementById("path-status");
+  if(status){status.textContent="";status.style.color="var(--text4)";}
+}
+
+/* Called whenever the user changes anything that affects what would be
+   tested (source, cluster, top N, direction, custom genes, database).
+   Two responsibilities: refresh the resolved-input summary, AND swap
+   the visible results table to whichever cached run matches the new
+   input+db combo (or blank it if none). */
+function _pathwayInputChanged(){
+  _pathwayUpdateInputSummary();
+  /* Skip cache lookup if there are no databases yet (initial load) or
+     if no usable input — both states correspond to "results pane is
+     already blank and should stay blank". */
+  var info=_pathwayCollectGenes();
+  if(info.error||info.genes.length===0){_clearPathwayResults();return;}
+  var dbEl=document.getElementById("path-db");
+  if(!dbEl||!dbEl.value){_clearPathwayResults();return;}
+  var key=_pathwayCacheKey(info.genes,dbEl.value);
+  var hit=key?_pathwayResultsCache[key]:null;
+  if(hit){
+    _pathwayLastResults=hit;
+    _pathwayExpanded={};
+    _pathwaySelected={};
+    var wrap=document.getElementById("path-results-wrap");
+    if(wrap)wrap.style.display="block";
+    var badge=document.getElementById("pathway-status-badge");
+    if(badge)badge.textContent=hit.n_results+" hits";
+    var status=document.getElementById("path-status");
+    if(status){
+      status.style.color="var(--text3)";
+      status.textContent="Showing previous result · "+hit.n_results+" hits";
+    }
+    _pathwayRenderResults();
+  }else{
+    _clearPathwayResults();
+  }
+}
+
+function _pathwayRun(){
+  var status=document.getElementById("path-status");
+  var btn=document.getElementById("path-run-btn");
+  if(_pathwayInflight){_pathwayInflight.abort();_pathwayInflight=null;btn.textContent="Run analysis";status.textContent="";return;}
+  var info=_pathwayCollectGenes();
+  if(info.error){status.style.color="var(--danger)";status.textContent=info.error;return;}
+  if(info.genes.length===0){status.style.color="var(--danger)";status.textContent="No input genes resolved.";return;}
+  var dbId=document.getElementById("path-db").value;
+  if(!dbId){status.style.color="var(--danger)";status.textContent="Pick a pathway database.";return;}
+  status.style.color="var(--text3)";status.textContent="Running ORA on "+info.genes.length+" genes…";
+  btn.textContent="Stop";
+  _pathwayInflight=new AbortController();
+  /* Capture the exact input + db at request-send time so the response
+     handler caches against THESE values, not whatever the dropdowns
+     might be set to by the time the response lands (the user can
+     switch sources/databases mid-flight). */
+  var _runGenes=info.genes;
+  var _runDb=dbId;
+  fetch("/api/pathway-ora",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({genes:_runGenes,database:_runDb,min_set_size:5,max_set_size:500}),
+    signal:_pathwayInflight.signal
+  })
+  .then(function(r){return r.json();})
+  .then(function(d){
+    _pathwayInflight=null;
+    btn.textContent="Run analysis";
+    if(!d.ok){status.style.color="var(--danger)";status.textContent=d.error||"ORA failed";return;}
+    _pathwayLastResults=d;
+    /* Cache by (genes, db) so switching databases or sources back to
+       this exact input combo restores the result instantly without
+       hitting the server again. */
+    var _ck=_pathwayCacheKey(_runGenes,_runDb);
+    if(_ck)_pathwayResultsCache[_ck]=d;
+    /* New result set means old pathway-selection snapshots are no
+       longer meaningful — drop them so each pathway starts in "Select"
+       state regardless of prior selections in earlier runs. */
+    _pathwaySelected={};
+    var warn=(d.warnings&&d.warnings.length)?(" · "+d.warnings.join("; ")):"";
+    status.style.color="var(--text3)";
+    status.textContent="Tested "+d.n_pathways_tested+" pathways · "+d.n_results+" with overlap · "+(d.elapsed_s||0).toFixed(2)+"s"+(d.cached?" (cached)":"")+warn;
+    var badge=document.getElementById("pathway-status-badge");
+    if(badge)badge.textContent=d.n_results+" hits";
+    document.getElementById("path-results-wrap").style.display="block";
+    _pathwayExpanded={};
+    _pathwayRenderResults();
+    if(typeof saveState==="function")saveState();
+  })
+  .catch(function(err){
+    _pathwayInflight=null;
+    btn.textContent="Run analysis";
+    if(err&&err.name==="AbortError"){status.textContent="Cancelled";return;}
+    status.style.color="var(--danger)";status.textContent="Failed: "+(err&&err.message||err);
+  });
+}
+
+function _pathwayRenderResults(){
+  var host=document.getElementById("path-results");
+  if(!host)return;
+  if(!_pathwayLastResults||!_pathwayLastResults.results||_pathwayLastResults.results.length===0){
+    host.innerHTML='<div class="path-empty">No pathways with overlap.<\/div>';
+    return;
+  }
+  var q=(document.getElementById("path-filter").value||"").toLowerCase().trim();
+  var sortMode=document.getElementById("path-sort").value;
+  var rows=_pathwayLastResults.results.slice();
+  if(q){
+    rows=rows.filter(function(r){
+      return (r.name||"").toLowerCase().indexOf(q)>=0||(r.id||"").toLowerCase().indexOf(q)>=0;
+    });
+  }
+  rows.sort(function(a,b){
+    if(sortMode==="log2fe")return (b.log2fe||0)-(a.log2fe||0);
+    if(sortMode==="overlap")return (b.n_overlap||0)-(a.n_overlap||0);
+    if(sortMode==="name")return String(a.name||"").localeCompare(String(b.name||""));
+    /* default: padj asc with p_value tiebreak (already server-sorted but
+       reapply for consistency after filtering). */
+    if(a.p_adj!==b.p_adj)return a.p_adj-b.p_adj;
+    return a.p_value-b.p_value;
+  });
+  /* Find max log2fe for bar normalization (only positives — over-rep). */
+  var maxFe=0;
+  for(var i=0;i<rows.length;i++)if(rows[i].log2fe>maxFe)maxFe=rows[i].log2fe;
+  if(maxFe<=0)maxFe=1;
+  var html="";
+  for(var ri=0;ri<rows.length;ri++){
+    var r=rows[ri];
+    var pct=Math.max(2,Math.round((r.log2fe||0)/maxFe*100));
+    var padjStr=(r.p_adj==null)?"—":(r.p_adj<0.001?r.p_adj.toExponential(1):r.p_adj.toFixed(3));
+    var nameEsc=String(r.name||r.id).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+    var expanded=!!_pathwayExpanded[r.id];
+    html+='<div class="path-row'+(expanded?" expanded":"")+'" data-pid="'+_esc(r.id)+'" onclick="_pathwayRowClick(event,\''+r.id.replace(/'/g,"\\'")+'\')" title="'+nameEsc+' — padj '+padjStr+', overlap '+r.n_overlap+'/'+r.n_pathway+'. Click to expand. Shift+click: select cells expressing these (toggle). Shift+Option: select ONLY these cells.">'
+      +'<span class="path-name">'+nameEsc+'<\/span>'
+      +'<span class="path-overlap" title="Genes from your input that are also in this pathway / total pathway size (after intersection with your dataset background)">'+r.n_overlap+"/"+r.n_pathway+'<\/span>'
+      +'<span class="path-chev">▸<\/span>'
+      +'<\/div>';
+    if(expanded){
+      html+='<div class="path-detail">';
+      /* Full pathway name as a heading — useful when the row label was
+         ellipsized due to narrow sidebar width. */
+      html+='<div class="path-fullname">'+nameEsc+'<\/div>';
+      if(r.description)html+='<div class="path-desc">'+_esc(r.description)+'<\/div>';
+      /* Enrichment bar moved here from the row. Paired with the numeric
+         value so the bar length is interpretable even without comparing
+         to other rows. The whole strip carries a "what this means"
+         tooltip for biologists who don't think in log2FE every day. */
+      var feTip="log₂ fold-enrichment: how many times more overlap with this pathway than expected by chance, given your input list size and the dataset background. The bar is normalized to the strongest hit in the result list.";
+      html+='<div class="path-enrich-row" title="'+feTip+'">'
+        +'<span class="path-enrich-label">log₂ fold-enrichment <strong>'+(r.log2fe||0).toFixed(2)+'<\/strong><\/span>'
+        +'<span class="path-bar-wrap"><span class="path-bar" style="width:'+pct+'%;"><\/span><\/span>'
+        +'<\/div>';
+      /* Per-metric tooltips so a user not deep in stats still gets a
+         plain-English read. Same wording as the Help-panel section but
+         compressed. */
+      var padjTip="Adjusted p-value (Benjamini–Hochberg). Probability of seeing this overlap by chance, after correcting for multiple testing across all pathways tested in this run. Lower = more significant.";
+      var pTip="Raw hypergeometric p-value (one-sided, over-representation). Probability of seeing this overlap or larger under the null hypothesis that input genes are a random sample of the dataset background.";
+      var overlapTip="Genes from your input list that are also in this pathway, out of the pathway's full size (after intersecting both with the dataset background).";
+      var sizeTip="Pathway size after intersecting with the dataset background — i.e., genes in the pathway that are actually testable here. Smaller pathway sizes amplify the significance of any given overlap.";
+      var inputSizeTip="Your input list size after the same background intersection.";
+      html+='<div class="path-meta">'
+        +'<span title="'+padjTip+'">padj: <strong>'+padjStr+'<\/strong><\/span>'
+        +'<span title="'+pTip+'">p: <strong>'+r.p_value.toExponential(2)+'<\/strong><\/span>'
+        +'<span title="'+overlapTip+'">overlap: <strong>'+r.n_overlap+'<\/strong> / '+r.n_pathway+' (this pathway)<\/span>'
+        +'<\/div>';
+      if(r.url){
+        html+='<div class="path-meta"><a href="'+_esc(r.url)+'" target="_blank" rel="noopener" class="path-action-btn path-action-link">Open in source database →<\/a><\/div>';
+      }
+      html+='<div class="path-genes">';
+      var genes=r.overlap_genes||[];
+      for(var gi=0;gi<genes.length;gi++){
+        var ge=_esc(genes[gi]);
+        html+='<span class="path-gene-chip" data-gene="'+ge+'" onclick="event.stopPropagation();_pathwayPickGene(\''+genes[gi].replace(/'/g,"\\'")+'\')" title="Load '+ge+' on the main viewer">'+ge+'<\/span>';
+      }
+      html+='<\/div>';
+      var _pState=_pathwayButtonState(r.id);
+      var _pLabel=(_pState==="deselect")?"− Deselect these cells":"+ Select cells expressing these";
+      var _pTipBase=(_pState==="deselect")
+        ?"Every cell expressing an overlap gene is already in the active selection group. Click to remove those expressing cells from the group — cells you added by other means stay."
+        :"Click to add every cell expressing any overlap gene above the standard threshold (value ≥ 0.01 on the normalized [0,1] scale) to the active selection group.";
+      var _pTip=_pTipBase+" Option/Alt+click: select ONLY these cells (clears the active group first). Tip: Shift+click on the pathway name above does the same toggle.";
+      html+='<div class="path-actions">'
+        +'<button class="path-action-btn" onclick="_pathwayBtnClick(event,\''+r.id.replace(/'/g,"\\'")+'\')" title="'+_pTip+'">'+_pLabel+'<\/button>'
+        +'<\/div>';
+      html+='<\/div>';
+    }
+  }
+  host.innerHTML=html||'<div class="path-empty">No matches for filter.<\/div>';
+}
+
+function _pathwayToggleRow(pid){
+  if(_pathwayExpanded[pid])delete _pathwayExpanded[pid];
+  else{
+    _pathwayExpanded[pid]=true;
+    /* Kick off a background fetch of the overlap genes so the action
+       button can show accurate "Select" vs "Deselect" text based on
+       real cell-state instead of just the last-click snapshot. */
+    _pathwayPrefetchOverlap(pid);
+  }
+  _pathwayRenderResults();
+}
+
+function _pathwayPrefetchOverlap(pid){
+  if(!_pathwayLastResults||!_pathwayLastResults.results)return;
+  var hit=null;
+  for(var i=0;i<_pathwayLastResults.results.length;i++){
+    if(_pathwayLastResults.results[i].id===pid){hit=_pathwayLastResults.results[i];break;}
+  }
+  if(!hit||!hit.overlap_genes||!hit.overlap_genes.length)return;
+  var pending=[];
+  for(var g=0;g<hit.overlap_genes.length;g++){
+    var name=hit.overlap_genes[g];
+    if(!geneExprCache[name]&&!_genePrefetchInflight[name])pending.push(name);
+  }
+  if(pending.length===0)return;
+  Promise.all(pending.map(function(name){return prefetchGene(name);})).then(function(){
+    /* Re-render so the button label flips to "Deselect" when warranted
+       now that actual expressing-cells can be computed. */
+    if(_pathwayExpanded[pid])_pathwayRenderResults();
+  });
+}
+
+function _pathwayPickGene(g){
+  if(typeof pickGene==="function")pickGene(g);
+}
+
+/* Per-pathway snapshot of the cells most-recently added by clicking
+   "Select cells expressing these". Used to:
+     • drive the button label (Select vs Deselect),
+     • know exactly what to remove on Deselect (so we don't accidentally
+       clobber cells the user added via lasso etc).
+   Cleared when a new ORA run completes; per-pathway entries are dropped
+   on Deselect or when overwritten by a fresh Select. */
+var _pathwaySelected={};
+
+/* Decide what the per-pathway action button should do right now:
+     "deselect" — every cell expressing an overlap gene is already in
+                  the active group. Clicking removes those cells.
+     "select"   — at least one expressing cell is missing from the
+                  active group (or there are no expressing cells at
+                  all). Clicking adds the full pathway-cell set.
+   Preferred path: compute the actual expressing-cell set from cached
+   overlap genes — that way the label tracks real selection state even
+   when those cells were added via lasso, another pathway, etc.
+   Fallback: when overlap genes haven't been fetched yet, fall back to
+   the last-click snapshot so something useful still shows pre-fetch.
+   Both paths are sub-millisecond for typical pathway sizes. */
+function _pathwayButtonState(pid){
+  var ag=(typeof getActiveGroup==="function")?getActiveGroup():null;
+  if(!ag)return "select";
+  var hit=null;
+  if(_pathwayLastResults&&_pathwayLastResults.results){
+    for(var i=0;i<_pathwayLastResults.results.length;i++){
+      if(_pathwayLastResults.results[i].id===pid){hit=_pathwayLastResults.results[i];break;}
+    }
+  }
+  if(hit&&hit.overlap_genes&&hit.overlap_genes.length){
+    var allCached=true;
+    for(var g=0;g<hit.overlap_genes.length;g++){
+      if(!geneExprCache[hit.overlap_genes[g]]){allCached=false;break;}
+    }
+    if(allCached){
+      var cells=_pathwayComputeOverlapCells(hit.overlap_genes);
+      if(cells.size===0)return "select";
+      var iter=cells.values(),c;
+      while(!(c=iter.next()).done){if(!ag.cells.has(c.value))return "select";}
+      return "deselect";
+    }
+  }
+  var prior=_pathwaySelected[pid];
+  if(!prior||prior.size===0)return "select";
+  var iter2=prior.values(),c2;
+  while(!(c2=iter2.next()).done){if(!ag.cells.has(c2.value))return "select";}
+  return "deselect";
+}
+
+/* Compute the set of cell indices expressing any of the given genes
+   above the standard "expressing" threshold (0.01 on the normalized
+   [0,1] scale). Synchronous; assumes the genes are already cached
+   (caller fetches missing ones first). */
+function _pathwayComputeOverlapCells(geneList){
+  var EPS=0.01;
+  var n=D.header.n_cells;
+  var result=new Set();
+  for(var g=0;g<geneList.length;g++){
+    var arr=geneExprCache[geneList[g]];
+    if(!arr)continue;
+    for(var i=0;i<n;i++){if(arr[i]>=EPS)result.add(i);}
+  }
+  return result;
+}
+
+/* Apply a select-cells operation for a pathway. mode is one of:
+     "add"     — union pathway-cells into the active group
+     "remove"  — remove every currently-expressing pathway-cell from
+                  the active group (cells the user added by other means
+                  are unaffected because the set we operate on is the
+                  expressing-cell set, intersected with the group)
+     "replace" — clear the active group, then put ONLY these cells in
+     "toggle"  — decide between "add" and "remove" at apply time based
+                  on whether every expressing cell is already in the
+                  active group. Used by the row's button and the
+                  shift-click on the pathway name.
+   Async: missing overlap genes are fetched in parallel, then the
+   operation runs and the panel re-renders so the button label updates. */
+function _pathwayApply(pid, mode){
+  if(!_pathwayLastResults||!_pathwayLastResults.results)return;
+  var hit=null;
+  for(var i=0;i<_pathwayLastResults.results.length;i++){
+    if(_pathwayLastResults.results[i].id===pid){hit=_pathwayLastResults.results[i];break;}
+  }
+  if(!hit||!hit.overlap_genes)return;
+  if(typeof selGroups==="undefined"||selGroups.length===0){
+    if(typeof addSelGroup==="function")addSelGroup();
+  }
+  var ag=(typeof getActiveGroup==="function")?getActiveGroup():null;
+  if(!ag){alert("No active selection group.");return;}
+  var pending=[];
+  for(var g=0;g<hit.overlap_genes.length;g++){
+    var name=hit.overlap_genes[g];
+    if(!geneExprCache[name]&&!_genePrefetchInflight[name])pending.push(name);
+  }
+  function _doApply(){
+    var cells=_pathwayComputeOverlapCells(hit.overlap_genes);
+    var effectiveMode=mode;
+    if(mode==="toggle"){
+      var allIn=cells.size>0;
+      var iter=cells.values(),c;
+      while(!(c=iter.next()).done){if(!ag.cells.has(c.value)){allIn=false;break;}}
+      effectiveMode=allIn?"remove":"add";
+    }
+    var changed=0;
+    if(effectiveMode==="replace"){
+      ag.cells.clear();
+      cells.forEach(function(i){ag.cells.add(i);});
+      changed=cells.size;
+      _pathwaySelected[pid]=new Set(cells);
+    }else if(effectiveMode==="remove"){
+      cells.forEach(function(i){if(ag.cells.has(i)){ag.cells.delete(i);changed++;}});
+      delete _pathwaySelected[pid];
+    }else{
+      cells.forEach(function(i){if(!ag.cells.has(i)){ag.cells.add(i);changed++;}});
+      _pathwaySelected[pid]=new Set(cells);
+    }
+    if(typeof rebuildCellGroupMap==="function")rebuildCellGroupMap();
+    if(typeof renderSelPanel==="function")renderSelPanel();
+    if(typeof recolor==="function")recolor();
+    if(typeof saveState==="function")saveState();
+    var status=document.getElementById("path-status");
+    if(status){
+      var verb=(effectiveMode==="remove")?"Removed":(effectiveMode==="replace"?"Selected only":"Added");
+      status.style.color="var(--text3)";
+      status.textContent=verb+" "+changed.toLocaleString()+" cells "+(effectiveMode==="remove"?"from":"in")+" “"+ag.name+"”.";
+    }
+    _pathwayRenderResults();
+  }
+  if(pending.length===0){_doApply();return;}
+  var status=document.getElementById("path-status");
+  if(status)status.textContent="Fetching "+pending.length+" missing genes…";
+  Promise.all(pending.map(function(name){
+    return fetch("/api/gene?name="+encodeURIComponent(name))
+      .then(function(r){if(!r.ok)throw new Error(name+" not found");return r.arrayBuffer();})
+      .then(function(buf){geneExprCache[name]=new Float32Array(buf);if(typeof _geneLruBump==="function")_geneLruBump(name);})
+      .catch(function(){});
+  })).then(_doApply);
+}
+
+/* Click dispatcher for the Select/Deselect button.
+     Plain or Shift+click — smart toggle (deselect if every expressing
+       cell is already in the active group; otherwise add the rest).
+     Option/Alt (⌥) — also Cmd (⌘) for users who reflex to Cmd on macOS
+       — switches to "replace" mode (active group becomes ONLY these
+       cells). Shift state is ignored when Option is held since both
+       modifiers give the same explicit-replace semantics on the row. */
+function _pathwayBtnClick(ev, pid){
+  ev.stopPropagation();
+  var alt=ev.altKey||ev.metaKey;
+  _pathwayApply(pid, alt?"replace":"toggle");
+}
+
+/* Click dispatcher for the row itself (= the pathway-name area).
+     Plain click — toggle row expansion (existing behavior).
+     Shift+click — smart toggle, mirrors the button's plain click.
+     Shift+Option/Alt+click — replace, mirrors the button's Option click.
+   Plain Option click without Shift falls through to row expansion so
+   the modifier-only path doesn't accidentally clobber a selection. */
+function _pathwayRowClick(ev, pid){
+  if(ev.shiftKey){
+    ev.stopPropagation();
+    var alt=ev.altKey||ev.metaKey;
+    _pathwayApply(pid, alt?"replace":"toggle");
+    return;
+  }
+  _pathwayToggleRow(pid);
+}
+
+/* Backward-compat shim kept in case any external code still calls the
+   old name. Forwards to the new dispatcher in "add" mode. */
+function _pathwaySelectAllOverlap(pid){_pathwayApply(pid,"add");}
+
 /* Compute per-facet, per-cluster raincloud summary: raw values (for quantiles),
    a subsample for raindrops, and a histogram-smoothed density curve (binned
    gaussian KDE — fast and visually identical to full KDE for large n).
@@ -12278,6 +13038,30 @@ function _pbUpdateCountsInfo(){
 function _degSetMode(m){
   /* Block PB mode if the detected matrix looks smoothed. */
   if(m==="pb"&&D&&D.header&&D.header.counts_info&&D.header.counts_info.looks_smoothed){m="sc";}
+  /* On mode switch, swap the visible volcano + table to whichever mode
+     the user just picked. If a prior run for the new mode is cached for
+     the CURRENT groups + selection, restore it transparently — so the
+     toggle reads as "show me the other view of these groups". If
+     nothing matching is cached, blank the canvas so the user doesn't
+     mistake a single-cell plot for a pseudo-bulk one. The full History
+     dropdown still holds every prior run, including stale ones. */
+  if(_degMode!==m){
+    var currIsPb=!!(degData&&degData._pb);
+    var newIsPb=(m==="pb");
+    if(!degData||currIsPb!==newIsPb){
+      var prior=_degFindCachedForMode(m);
+      if(prior){
+        if(prior.kind==="pb"&&prior.data&&Array.isArray(prior.data.genes)){
+          if(typeof _showPseudoBulkResult==="function")_showPseudoBulkResult(prior.data);
+        }else{
+          if(typeof _showDEGResult==="function")_showDEGResult(prior.data,prior.grpA,prior.grpB);
+        }
+      }else if(degData&&typeof _clearDEGDisplay==="function"){
+        _clearDEGDisplay();
+        if(typeof renderVolcano==="function")renderVolcano();
+      }
+    }
+  }
   _degMode=m;
   var scBtn=document.getElementById("deg-mode-sc");
   var pbBtn=document.getElementById("deg-mode-pb");
@@ -12541,6 +13325,33 @@ function _degCacheKey(){
   var idB=document.getElementById("deg-grpB").value;
   var test=document.getElementById("deg-test").value;
   return test+"|"+idA+"|"+idB+"|"+_selHash();
+}
+
+/* Find the most recent cached entry matching (mode, current groups,
+   current selHash). Used by the mode toggle so switching back to a
+   previously-run test type restores its plot instead of staying blank.
+   Iterates degCache in insertion order; later matches override earlier
+   ones, so we end up with the most-recently-cached match — same
+   semantics as picking the last-run entry from the History dropdown. */
+function _degFindCachedForMode(mode){
+  var aEl=document.getElementById("deg-grpA");
+  var bEl=document.getElementById("deg-grpB");
+  if(!aEl||!bEl)return null;
+  var idA=aEl.value, idB=bEl.value;
+  if(!idA||!idB)return null;
+  var sel=_selHash();
+  var suffix="|"+idA+"|"+idB+"|"+sel;
+  var picked=null;
+  for(var key in degCache){
+    if(key.length<suffix.length||key.indexOf(suffix,key.length-suffix.length)<0)continue;
+    var entry=degCache[key];
+    if(!entry||!entry.data)continue;
+    var isPb=(entry.kind==="pb")||key.indexOf("pb-")===0;
+    if(mode==="pb"&&!isPb)continue;
+    if(mode==="sc"&&isPb)continue;
+    picked=entry;
+  }
+  return picked;
 }
 
 /* ── Slice functions ── */
@@ -13575,10 +14386,14 @@ function renderDEGTable(){
   var colA=degGrpA?_rgb(degGrpA.color):"#f87171";
   var colB=degGrpB?_rgb(degGrpB.color):"#60a5fa";
   var tbody=document.getElementById("deg-tbody");
+  /* Same fallback as renderVolcano: hover wins, else the persistent
+     app-wide selGene drives the highlight. Keeps the table row in sync
+     with the volcano's yellow dot. */
+  var _hlNameT=degHlGene||(typeof selGene==="string"&&selGene)||null;
   tbody.innerHTML=genes.map(function(g){
     var sig=Math.abs(g.log2fc)>=FC_THRESH&&g.padj<PADJ_THRESH;
     var fcCol=g.log2fc>0?colA:colB;
-    var hl=degHlGene===g.gene?" hl":"";
+    var hl=_hlNameT===g.gene?" hl":"";
     return '<tr class="'+hl+'" data-gene="'+g.gene+'" onclick="degClickGene(\''+g.gene+'\')" onmouseenter="degHoverGene(\''+g.gene+'\')" onmouseleave="degHoverGene(null)">'
       +'<td style="color:'+(sig?"var(--text)":"var(--text3)")+'">'+g.gene+'</td>'
       +'<td style="color:'+fcCol+'">'+g.log2fc.toFixed(2)+'</td>'
@@ -13785,18 +14600,34 @@ function renderVolcano(){
   var pathNS=new Path2D(); /* non-significant */
   var pathSigA=new Path2D(); /* significant, group A direction */
   var pathSigB=new Path2D(); /* significant, group B direction */
-  var hlGene=null; /* deferred highlight */
+  /* Two independent highlights — both yellow + outline, drawn after the
+     batched paths so they sit on top regardless of color/significance:
+       • selGene (persistent) — set when a gene is clicked anywhere in
+         the app; stays put until a different gene is clicked.
+       • degHlGene (hover) — set transiently while the user is over a
+         volcano dot or table row; cleared on mouse-leave.
+     When both refer to the same gene, only one dot is drawn (they
+     overlap). */
+  var _selName=(typeof selGene==="string"&&selGene)||null;
+  var _hovName=degHlGene||null;
+  var hlSel=null, hlHov=null; /* deferred highlight positions */
   _volcanoPts=[];
   for(var i=0;i<genes.length;i++){
     var g=genes[i];
-    var isHl=degHlGene===g.gene;
+    var isSel=_selName===g.gene;
+    var isHov=_hovName===g.gene&&_hovName!==_selName;
+    var isHl=isSel||isHov;
     if(!isHl&&yMode==="padj"&&g.padj>=1)continue;
     var yv=getY(g);
     if(!isHl&&yv<yCutoff)continue;
     var x=toX(g.log2fc), y=toY(yv);
     if(!isHl&&(x<pad.left-4||x>pad.left+pw+4||y<pad.top-4||y>pad.top+ph+4))continue;
     _volcanoPts.push({x:x,y:y,g:g}); /* include highlighted gene so hover hit-test can find it */
-    if(isHl){hlGene={x:x,y:y};continue;} /* drawn on top separately, skip batch paths */
+    if(isHl){
+      if(isSel)hlSel={x:x,y:y};
+      if(isHov)hlHov={x:x,y:y};
+      continue; /* drawn on top separately, skip batch paths */
+    }
     var sig=Math.abs(g.log2fc)>=FC_THRESH&&g.padj<PADJ_THRESH;
     if(sig){
       var p=g.log2fc>0?pathSigA:pathSigB;
@@ -13810,10 +14641,24 @@ function renderVolcano(){
   ctx.fill(pathNS);
   ctx.fillStyle=_rgba(colA,0.7);ctx.fill(pathSigA);
   ctx.fillStyle=_rgba(colB,0.7);ctx.fill(pathSigB);
-  /* Highlighted gene on top */
-  if(hlGene){
-    ctx.fillStyle="#fbbf24";
-    ctx.beginPath();ctx.arc(hlGene.x,hlGene.y,4,0,Math.PI*2);ctx.fill();
+  /* Highlighted genes on top. Yellow fill + theme-contrast outline so
+     each marker reads clearly against any underlying dot color
+     (including a selection group that happens to be yellow). Both the
+     persistent (selGene) and the hover (degHlGene) markers use the
+     same style — same yellow, same outline — so they read as a pair:
+     one stays put, one tracks the cursor. The outline is thin enough
+     not to obscure neighbors but visible at typical zoom levels. */
+  if(hlSel||hlHov){
+    var _hlOutline=document.body.classList.contains("light")?"#1a1d24":"#ffffff";
+    function _drawMark(p){
+      ctx.fillStyle="#fbbf24";
+      ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=_hlOutline;
+      ctx.lineWidth=1;
+      ctx.stroke();
+    }
+    if(hlSel)_drawMark(hlSel);
+    if(hlHov)_drawMark(hlHov);
   }
 
   /* Axes labels */
@@ -13955,8 +14800,14 @@ function setupVolcanoHover(){
       degHlGene=null;
       renderVolcano();
       tip.style.display="none";
+      /* Hover ended — table row highlight should fall back to the
+         persistent selGene's row (matches the renderDEGTable logic). */
       var prevHl=document.querySelector("#deg-tbody tr.hl");
       if(prevHl)prevHl.className="";
+      if(typeof selGene==="string"&&selGene){
+        var selRow=document.querySelector('#deg-tbody tr[data-gene="'+selGene+'"]');
+        if(selRow)selRow.className="hl";
+      }
     }
 
     /* Cursor feedback for axis regions */
@@ -13980,6 +14831,10 @@ function setupVolcanoHover(){
       tip.style.display="none";
       var prevHl=document.querySelector("#deg-tbody tr.hl");
       if(prevHl)prevHl.className="";
+      if(typeof selGene==="string"&&selGene){
+        var selRow=document.querySelector('#deg-tbody tr[data-gene="'+selGene+'"]');
+        if(selRow)selRow.className="hl";
+      }
     }
   });
 
@@ -15291,7 +16146,7 @@ document.addEventListener("DOMContentLoaded",function(){
         /* Grab saved state BEFORE buildPts/buildLeg overwrite it */
         var saved=loadState();
         _restoring=true; /* suppress saves during setup */
-        buildPts(data);buildLeg();renderSelPanel();buildSlicePanel();if(typeof _plotPopulate==="function")_plotPopulate();
+        buildPts(data);buildLeg();renderSelPanel();buildSlicePanel();if(typeof _plotPopulate==="function")_plotPopulate();if(typeof _pathwayInit==="function")_pathwayInit();
         /* Load cached annotations if included in init payload */
         if(data.header.cached_markers){
           markerAnnotations={};

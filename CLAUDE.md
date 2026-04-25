@@ -52,6 +52,8 @@ RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool
 | `/api/abort` | POST | Cancel in-progress operation |
 | `/api/unload` | POST | Free dataset from memory |
 | `/api/pseudobulk-deg` | POST | Pseudo-bulk DEG (selection groups + replicate column) |
+| `/api/pathway-databases` | GET | List available pathway databases (Hallmark, Reactome, GO BP/MF/CC, user GMTs) |
+| `/api/pathway-ora` | POST | ORA hypergeometric test (input genes + database id → BH-corrected results) |
 | `/api/heartbeat` | POST | Client heartbeat for auto-unload |
 
 ## Critical Conventions
@@ -289,7 +291,7 @@ Uses selection groups as conditions (not obs columns). User selects a single "Re
 - Used for GO database loading and displayed in Data panel info line
 
 ## Pending Features / Known Issues
-- Gene set analysis (GSEA/pathway scoring)
+- GSEA preranked (ORA is shipped — Pathways panel; GSEA reuses the same panel, server endpoint stub still TODO)
 - PLY export for Blender
 - Tissue hint input for Claude annotation
 - README needs updating with all new features

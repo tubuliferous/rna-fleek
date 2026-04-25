@@ -38,7 +38,7 @@ import numpy as np
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
 # Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
-FLEEK_VERSION = "0.4.11"
+FLEEK_VERSION = "0.4.12"
 
 # Globals set at startup
 ADATA = None
@@ -90,6 +90,14 @@ MARKER_DB = None    # {cell_type: [genes]} — loaded from file or built-in
 GO_DB = None        # Gene Ontology lookup: {terms, gene_to_terms, synonyms, ...}
 GO_DATASET_GENES = None  # Set of gene names in current dataset (for intersection)
 GO_SYNONYM_MAP = None    # synonym -> canonical gene symbol (for dataset matching)
+# Pathway / gene-set databases for over-representation analysis. Built on
+# dataset load from the existing GO_DB plus any GMT files in
+# data/gmt/{organism}/. Each entry: {label, source, n_pathways, terms:
+# {id: {name, description, url, genes:[...]}}}. Memory: typical ~50 MB
+# for GO + Reactome, mostly the gene-name strings.
+PATHWAY_DBS = {}            # {db_id: {label, source, terms: {...}}}
+PATHWAY_ORGANISM = None     # organism name PATHWAY_DBS was built for
+_PATHWAY_ORA_CACHE = {}     # {(genes_hash, db_id, n_bg): result_dict} — cleared on dataset change
 COUNTS_MATRIX = None  # raw counts matrix reference (for pseudo-bulk DEG)
 COUNTS_LABEL = None   # where counts were found (e.g. "X", "layers['counts']")
 COUNTS_INFO = None    # {"label","median_total","max","fano_median","looks_smoothed","pb_ok","reason"}
@@ -437,6 +445,109 @@ def load_go_db():
                 GO_SYNONYM_MAP[syn] = _gene_upper[syn.upper()]
         n_resolved = sum(1 for v in GO_SYNONYM_MAP.values() if v in GO_DATASET_GENES)
         print(f"  GO matching: {n_resolved} GO genes resolved to dataset genes")
+
+    # Build pathway databases (GO subdivided by namespace + any GMT files
+    # found under data/gmt/{organism}/). Wrapping happens after GO load so
+    # GO sub-databases reuse the already-parsed term table.
+    _build_pathway_dbs(organism)
+
+
+def _build_pathway_dbs(organism):
+    """Populate the pathway-database registry.
+
+    Three data sources are merged into one registry, keyed by short id:
+      • GO BP / MF / CC — derived from GO_DB by splitting on namespace.
+      • GMT files in data/gmt/{organism}/*.gmt — one database per file,
+        id = file stem (e.g. data/gmt/human/hallmark.gmt -> "hallmark").
+
+    Each registry entry: {label, source, n_pathways, terms: {id: {name,
+    description, url, genes: [...]}}}. Stored as plain dicts so JSON
+    serialization for /api/pathway-databases is trivial.
+    """
+    global PATHWAY_DBS, PATHWAY_ORGANISM, _PATHWAY_ORA_CACHE
+    PATHWAY_DBS = {}
+    _PATHWAY_ORA_CACHE = {}
+    PATHWAY_ORGANISM = organism
+    # ---- GO sub-databases ----
+    if GO_DB and GO_DB.get("terms"):
+        ns_buckets = {"BP": {}, "MF": {}, "CC": {}}
+        ns_label = {"BP": "Biological Process", "MF": "Molecular Function", "CC": "Cellular Component"}
+        for tid, term in GO_DB["terms"].items():
+            ns = term.get("ns")
+            if ns not in ns_buckets:
+                continue
+            ns_buckets[ns][tid] = {
+                "name": term.get("name", tid),
+                "description": "",
+                "url": "https://www.ebi.ac.uk/QuickGO/term/" + tid,
+                "genes": term.get("genes", []),
+            }
+        for ns_code, terms in ns_buckets.items():
+            if not terms:
+                continue
+            db_id = "go_" + ns_code.lower()
+            PATHWAY_DBS[db_id] = {
+                "label": "GO " + ns_label[ns_code],
+                "source": "QuickGO",
+                "n_pathways": len(terms),
+                "terms": terms,
+            }
+    # ---- GMT files in data/gmt/{organism}/ ----
+    script_dir = Path(__file__).parent
+    gmt_roots = [
+        script_dir / "data" / "gmt" / organism,
+        _BUNDLE_DIR / "rna_fleek" / "data" / "gmt" / organism,
+        _BUNDLE_DIR / "data" / "gmt" / organism,
+        Path("data") / "gmt" / organism,
+    ]
+    for gmt_root in gmt_roots:
+        if not Path(gmt_root).is_dir():
+            continue
+        for gmt_path in sorted(Path(gmt_root).glob("*.gmt")):
+            try:
+                terms = {}
+                with open(gmt_path) as f:
+                    for line in f:
+                        parts = line.rstrip("\n").rstrip("\r").split("\t")
+                        if len(parts) < 3:
+                            continue
+                        pid = parts[0].strip()
+                        if not pid:
+                            continue
+                        descr_raw = parts[1].strip()
+                        url = ""
+                        description = descr_raw
+                        # Heuristic: if column 2 looks like a URL, treat it as such; else as description.
+                        if descr_raw.startswith("http://") or descr_raw.startswith("https://"):
+                            url = descr_raw
+                            description = ""
+                        genes = [g.strip() for g in parts[2:] if g.strip()]
+                        if not genes:
+                            continue
+                        terms[pid] = {
+                            "name": pid.replace("_", " ").title() if "_" in pid else pid,
+                            "description": description,
+                            "url": url,
+                            "genes": genes,
+                        }
+                if not terms:
+                    continue
+                db_id = gmt_path.stem.lower()
+                # Pretty label: Hallmark, Reactome, etc. (file stem with first letter cap)
+                label = gmt_path.stem.replace("_", " ").title()
+                PATHWAY_DBS[db_id] = {
+                    "label": label,
+                    "source": "GMT (" + gmt_path.name + ")",
+                    "n_pathways": len(terms),
+                    "terms": terms,
+                }
+                print(f"  Loaded pathway database: {db_id} ({len(terms)} sets) from {gmt_path}")
+            except Exception as e:
+                print(f"  Warning: failed to load GMT {gmt_path}: {e}")
+    if PATHWAY_DBS:
+        print(f"  Pathway databases ready: {len(PATHWAY_DBS)} total ({', '.join(sorted(PATHWAY_DBS.keys()))})")
+    else:
+        print(f"  No pathway databases available for {organism}")
 
 
 MATRIX_REGISTRY = []
@@ -1985,6 +2096,10 @@ def _reset_all():
     CSC_BUILDING = False; CSC_CACHED = False; CSC_TIME = 0
     LOADED_PATH = ""; LOAD_SETTINGS.clear()
     COUNTS_MATRIX = None; COUNTS_LABEL = None; COUNTS_INFO = None
+    # Pathway databases are organism-bound; clear them so a different
+    # dataset doesn't see stale entries while reload is in flight.
+    global PATHWAY_DBS, PATHWAY_ORGANISM, _PATHWAY_ORA_CACHE
+    PATHWAY_DBS = {}; PATHWAY_ORGANISM = None; _PATHWAY_ORA_CACHE = {}
     global MATRIX_REGISTRY, MATRIX_ROUTING, _CELL_LIB_SIZES
     MATRIX_REGISTRY = []; MATRIX_ROUTING = {}; _CELL_LIB_SIZES = None
     ABORT_REQUESTED = False
@@ -3661,6 +3776,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_gene_var()
         elif path == "/api/cluster-genes":
             self._serve_cluster_genes(params)
+        elif path == "/api/pathway-databases":
+            self._serve_pathway_databases()
         elif path == "/api/gene-info":
             self._serve_gene_info(params.get("symbol", [""])[0])
         else:
@@ -3715,6 +3832,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_session_load(req)
         elif path == "/api/session-delete":
             self._serve_session_delete(req)
+        elif path == "/api/pathway-ora":
+            self._serve_pathway_ora(req)
         else:
             self.send_error(404)
 
@@ -4904,6 +5023,202 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(result)))
         self.end_headers()
         self.wfile.write(result)
+
+    def _serve_pathway_databases(self):
+        """List the pathway databases currently loaded for the dataset's
+        organism. Cheap response — just metadata, no gene lists."""
+        try:
+            entries = []
+            for db_id in sorted(PATHWAY_DBS.keys()):
+                d = PATHWAY_DBS[db_id]
+                entries.append({
+                    "id": db_id,
+                    "label": d.get("label", db_id),
+                    "source": d.get("source", ""),
+                    "n_pathways": d.get("n_pathways", 0),
+                })
+            payload = {
+                "ok": True,
+                "organism": PATHWAY_ORGANISM,
+                "databases": entries,
+            }
+            data = json.dumps(payload).encode("utf-8")
+        except Exception as e:
+            data = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_pathway_ora(self, req):
+        """Over-representation analysis (hypergeometric).
+
+        For each pathway in the chosen database we test the null
+        hypothesis that the user's input gene list is a random sample
+        from the background. The test is one-sided (we care about
+        OVER-representation, not under-). p-values are BH-corrected
+        across all pathways tested in this run.
+
+        Inputs:
+          genes:        ["ACTB", "MYH7", ...]    REQUIRED
+          database:     "hallmark" | "go_bp" | …  REQUIRED
+          background:   ["ACTB", ...] | null      OPTIONAL — null = use
+                                                   the dataset's full gene list
+          min_set_size: int (default 5)           skip tiny sets
+          max_set_size: int (default 500)         skip huge sets
+        """
+        import hashlib
+        import time as _t
+        t0 = _t.time()
+        try:
+            genes_in = req.get("genes") or []
+            db_id = (req.get("database") or "").strip()
+            background_in = req.get("background")
+            min_set = int(req.get("min_set_size", 5))
+            max_set = int(req.get("max_set_size", 500))
+            if not genes_in or not isinstance(genes_in, list):
+                raise ValueError("'genes' must be a non-empty list")
+            if db_id not in PATHWAY_DBS:
+                avail = sorted(PATHWAY_DBS.keys())
+                raise ValueError(f"Unknown database '{db_id}'. Available: {avail}")
+            db = PATHWAY_DBS[db_id]
+            terms = db.get("terms", {})
+            # Background: explicit list if provided, else the dataset's
+            # full gene list. Used to scope the hypergeometric universe.
+            if background_in and isinstance(background_in, list) and len(background_in) > 0:
+                bg_set = set(g for g in background_in if isinstance(g, str))
+            elif GENE_NAMES_LIST:
+                bg_set = set(GENE_NAMES_LIST)
+            else:
+                raise ValueError("No background available; load a dataset or pass 'background'.")
+            if not bg_set:
+                raise ValueError("Background is empty after deduplication.")
+            # Case-insensitive matching: build an upper->canonical map
+            # over the background. Pathway gene names from many sources
+            # (MSigDB, Reactome) are uppercase regardless of organism;
+            # mouse datasets typically use Title-case symbols. Without
+            # this mapping, mouse + human-style GMT files would get zero
+            # hits. The same trick is used by the existing GO loader.
+            bg_upper = {}
+            for g in bg_set:
+                bg_upper[g.upper()] = g
+            def _canon(g):
+                return bg_upper.get(g.upper())
+            input_set = set()
+            for g in genes_in:
+                if not isinstance(g, str):
+                    continue
+                c = _canon(g)
+                if c is not None:
+                    input_set.add(c)
+            n = len(input_set)
+            N = len(bg_set)
+            warnings = []
+            if n < 3:
+                warnings.append(f"Input list resolves to only {n} genes after background intersection — results unreliable.")
+            # Cache key: sorted input genes + db + background size.
+            # Genes hash is stable across reorderings; background size is
+            # a cheap proxy for "same dataset + same explicit background".
+            key_genes = ",".join(sorted(input_set))
+            key_bg = "" if background_in else "DATASET:" + str(N)
+            cache_key = hashlib.sha1((db_id + "|" + key_genes + "|" + key_bg).encode("utf-8")).hexdigest()
+            if cache_key in _PATHWAY_ORA_CACHE:
+                cached = _PATHWAY_ORA_CACHE[cache_key]
+                cached["cached"] = True
+                cached["elapsed_s"] = round(_t.time() - t0, 4)
+                data = json.dumps(cached).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+            # Run the test. SciPy's hypergeom is exact and fast — even at
+            # 30k GO BP terms, this runs in ~30 ms.
+            from scipy.stats import hypergeom
+            results = []
+            n_tested = 0
+            for pid, term in terms.items():
+                gene_names = term.get("genes") or []
+                # Intersect pathway with background. Map case-insensitively.
+                pathway_in_bg = set()
+                for g in gene_names:
+                    c = _canon(g)
+                    if c is not None:
+                        pathway_in_bg.add(c)
+                K = len(pathway_in_bg)
+                if K < min_set or K > max_set:
+                    continue
+                overlap = sorted(input_set & pathway_in_bg)
+                k = len(overlap)
+                if k == 0:
+                    continue
+                # Expected overlap under null = n*K/N. log2 fold-enrichment.
+                expected = (n * K) / N if N > 0 else 0.0
+                if expected > 0 and k > 0:
+                    log2fe = float(np.log2(k / expected))
+                else:
+                    log2fe = 0.0
+                # P(X >= k | hypergeom)  ==  hypergeom.sf(k - 1, N, K, n)
+                p = float(hypergeom.sf(k - 1, N, K, n))
+                results.append({
+                    "id": pid,
+                    "name": term.get("name", pid),
+                    "description": term.get("description", ""),
+                    "url": term.get("url", ""),
+                    "n_pathway": K,
+                    "n_overlap": k,
+                    "log2fe": log2fe,
+                    "p_value": p,
+                    "p_adj": p,  # placeholder, BH applied next
+                    "overlap_genes": overlap,
+                })
+                n_tested += 1
+            # BH correction across all tested pathways. p_sorted_idx[i] = original index of i-th smallest p.
+            if results:
+                m = len(results)
+                idx_sorted = sorted(range(m), key=lambda i: results[i]["p_value"])
+                # Compute BH-adjusted p-values (Benjamini-Hochberg step-up)
+                prev = 1.0
+                for rank in range(m - 1, -1, -1):
+                    i = idx_sorted[rank]
+                    p = results[i]["p_value"]
+                    adj = min(1.0, p * m / (rank + 1))
+                    if adj < prev:
+                        prev = adj
+                    results[i]["p_adj"] = float(prev)
+                # Sort by p_adj asc (stable, with p_value as tiebreak)
+                results.sort(key=lambda r: (r["p_adj"], r["p_value"]))
+            payload = {
+                "ok": True,
+                "database": db_id,
+                "database_label": db.get("label", db_id),
+                "n_input": n,
+                "n_input_raw": len(genes_in),
+                "n_background": N,
+                "n_pathways_tested": n_tested,
+                "n_results": len(results),
+                "results": results,
+                "warnings": warnings,
+                "elapsed_s": round(_t.time() - t0, 4),
+                "cached": False,
+            }
+            # Bound the cache so a runaway "paste a fresh list and run"
+            # workflow doesn't grow it without limit. ~16 entries is fine.
+            if len(_PATHWAY_ORA_CACHE) >= 16:
+                # Drop oldest (insertion order). Python dict iteration is
+                # insertion-ordered since 3.7.
+                _PATHWAY_ORA_CACHE.pop(next(iter(_PATHWAY_ORA_CACHE)))
+            _PATHWAY_ORA_CACHE[cache_key] = dict(payload)
+            data = json.dumps(payload).encode("utf-8")
+        except Exception as e:
+            data = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def _serve_session_delete(self, req):
         """Delete a named session from both cache locations."""
