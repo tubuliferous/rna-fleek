@@ -111,6 +111,20 @@
   #sidebar-upper{overflow-y:auto;overflow-x:hidden;flex:1;min-height:100px;scrollbar-width:none;}
   #sidebar-upper::-webkit-scrollbar{display:none;}
   #sidebar-upper.sb-scrolling .sb-trap{pointer-events:none;}
+  /* Hijack the section's existing border-bottom as the drag affordance:
+     the section is the visible chrome; an absolutely-positioned bar
+     overlays the border and intercepts mouse events. The section's
+     border stays the visible 1px line in resting state; hover/drag
+     paints a 2px accent2 line over it for feedback. The bar extends
+     a few pixels above and below the border so the hit zone is
+     comfortable without needing pinpoint accuracy. */
+  .sec.has-resizer{position:relative;}
+  .sec-resize-bar{position:absolute;left:0;right:0;bottom:-3px;height:7px;cursor:ns-resize;z-index:5;user-select:none;-webkit-user-select:none;}
+  /* Visible line overlays the section's existing 1px border-bottom
+     exactly (at section.outerBottom - 1 to outerBottom). Hover/drag
+     promotes it to a 2px accent2 line centered on the same position. */
+  .sec-resize-bar::after{content:'';position:absolute;left:0;right:0;bottom:2px;height:1px;background:transparent;transition:background var(--dur-fast),height var(--dur-fast),bottom var(--dur-fast);pointer-events:none;}
+  .sec-resize-bar:hover::after,.sec-resize-bar.dragging::after{background:var(--accent2);height:2px;bottom:1px;}
   /* Second sidebar column — appears when a panel is dragged into it */
   #sidebar-right{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;transition:margin-left 0.25s ease,opacity 0.25s ease;}
   #sidebar-right.active{display:flex;}
@@ -274,7 +288,19 @@
      pathway labels stay readable; only the overlap-count and chevron
      occupy fixed columns on the right. The log2FE bar moved into the
      expanded detail (where space isn't constrained). */
-  .path-row{display:grid;grid-template-columns:1fr 60px 14px;column-gap:6px;align-items:center;padding:4px 6px;border-radius:3px;cursor:pointer;transition:background var(--dur-fast);font-size:11px;user-select:none;-webkit-user-select:none;}
+  /* Negative right margin pulls result rows into the section's 14px
+     right padding so count + chevron sit close to the panel edge
+     (without changing .sec, which is shared with every other panel).
+     4px buffer kept for breathing room. The pulled-right edge applies
+     to every child — rows AND expanded detail boxes — so they share
+     the same right alignment.
+     Bounded vertical height + drag-resize: ORA can return hundreds of
+     pathway rows, which would otherwise dominate the sidebar; the user
+     can grow the box by dragging the bottom-right corner. resize works
+     because overflow is set; min-height keeps the panel usable when
+     there are only a few rows. */
+  #path-results{margin-right:-10px;max-height:320px;min-height:120px;overflow-y:auto;overflow-x:hidden;}
+  .path-row{display:grid;grid-template-columns:1fr 44px 12px;column-gap:1px;align-items:center;padding:4px 2px 4px 6px;border-radius:3px;cursor:pointer;transition:background var(--dur-fast);font-size:11px;user-select:none;-webkit-user-select:none;}
   .path-row:hover{background:var(--bg-hover);}
   .path-row.expanded{background:var(--bg3);}
   .path-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -302,8 +328,11 @@
   .path-action-btn{font-size:9px;padding:2px 8px;border:1px solid var(--border);border-radius:3px;background:var(--bg2);color:var(--text2);cursor:pointer;font-family:inherit;transition:all var(--dur-fast);}
   .path-action-btn:hover{border-color:var(--accent2);color:var(--accent2);}
   .path-action-btn.path-action-link{padding:2px 8px;}
+  /* Highlight the currently-active "Color by score" button so the user
+     knows which pathway is driving the main viewer (since the button
+     is also the off-switch in that state). */
+  .path-action-btn.path-action-active{background:rgba(99,102,241,0.15);border-color:var(--accent2);color:var(--accent2);font-weight:600;}
   .path-empty{padding:8px;font-size:10px;color:var(--text4);text-align:center;font-style:italic;}
-  .coloc-hint{font-size:9px;color:var(--text4);line-height:1.4;margin-top:4px;padding:0 2px;font-style:italic;}
 
   #expr-bar{height:8px;border-radius:3px;cursor:pointer;transition:filter var(--dur-fast);}
   #expr-bar:hover{filter:brightness(1.15);}
@@ -315,8 +344,8 @@
      and gets reliably placed via JS relative to the trigger's rect.
      The JS writes top/left/maxHeight inline; this rule only carries
      base styling. */
-  #expr-grad-dd{display:none;position:fixed;min-width:280px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:1000;padding:4px 0;}
-  #expr-grad-dd.open{display:block;}
+  #expr-grad-dd,#coloc-scheme-dd{display:none;position:fixed;min-width:280px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:1000;padding:4px 0;}
+  #expr-grad-dd.open,#coloc-scheme-dd.open{display:block;}
   .grad-group{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text4);padding:6px 10px 2px;}
   .grad-row{display:grid;grid-template-columns:48px 1fr;column-gap:8px;row-gap:1px;align-items:center;padding:5px 10px;cursor:pointer;transition:background var(--dur-fast);}
   .grad-row:hover{background:var(--bg-hover);}
@@ -995,9 +1024,14 @@
       <div class="lbl" style="margin-top:6px;">Unselected Brightness</div>
       <input type="range" id="bg-dim" min="0" max="100" step="5" value="100" oninput="setBgDim(100-this.value,true)" onchange="setBgDim(100-this.value);this.blur()" title="How bright non-selected cells appear. Slide left to fade, right for full brightness.">
       <div class="lbl" style="margin-top:6px;">Color</div>
-      <select id="color-mode-select" onchange="setMode(this.value)" title="Color mode (C = cluster, G = gene expression)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
+      <select id="color-mode-select" onchange="setMode(this.value)" title="Color mode (Cell Type / Cluster, Gene Expression)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
         <option value="cluster">Cell Type / Cluster</option>
         <option value="gene">Gene Expression</option>
+        <!-- HIDDEN (re-enable later): pathway score coloring. The setMode
+             handler still accepts "pathway" if called via JS; the
+             plumbing is in place. Re-add this option to expose it.
+        <option value="pathway">Pathway Score</option>
+        -->
       </select>
       <div id="expr-controls" style="display:none;">
         <label style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:6px;cursor:pointer;" title="Show cells with zero detected expression as a ghost color. Toggle off to hide them.">
@@ -1065,24 +1099,47 @@
         <button id="gm-single" onclick="_setGeneMode('single')" style="flex:1;background:rgba(99,102,241,0.15);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:600;" title="Single gene — color cells by one gene's expression on the active gradient">Single</button>
         <button id="gm-coloc" onclick="_setGeneMode('coloc')" style="flex:1;background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;" title="Colocalization — pick two genes; cells expressing both light up (coloc color)">Colocalization</button>
       </div>
-      <!-- Colocalization panel (shown when _geneMode=coloc) -->
+      <!-- Expression legend / gradient picker (shown in single mode when a gene is selected).
+           Moved up here from the bottom of the gene panel so the gradient
+           chooser sits right under the single/coloc toggle, mirroring the
+           coloc-panel placement for the other mode. -->
+      <div id="expr-legend" style="display:none;margin-top:0;margin-bottom:6px;position:relative;">
+        <div class="lbl" id="egnm" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;">
+          <span id="egnm-text">Expression</span>
+          <button class="grad-btn" onclick="_toggleGradientDropdown(event)" title="Choose a color gradient for gene expression"><span id="expr-grad-btn-label">Viridis</span><span class="grad-chev">&#9660;</span></button>
+        </div>
+        <div id="expr-bar" onclick="_toggleGradientDropdown(event)" title="Click to pick a different gradient"></div>
+        <div class="elbl"><span>Low</span><span>High</span></div>
+        <div id="expr-grad-dd"></div>
+      </div>
+      <!-- Coloc legend / color-scheme picker (shown when _geneMode=coloc).
+           Sits right under the toggle, mirroring expr-legend. The dropdown
+           has two options: Magenta+Green (colorblind-safe, default) and
+           Red+Green (classic). The old switch + hint text have been
+           removed; the dropdown replaces both. -->
+      <div id="coloc-legend-wrap" style="display:none;margin-top:0;margin-bottom:6px;position:relative;">
+        <div class="lbl" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;">
+          <span>Colocalization</span>
+          <button class="grad-btn" onclick="_toggleColocSchemeDropdown(event)" title="Pick a coloc color scheme"><span id="coloc-scheme-btn-label">Magenta + Green</span><span class="grad-chev">&#9660;</span></button>
+        </div>
+        <div class="coloc-legend" id="coloc-legend" onclick="_toggleColocSchemeDropdown(event)" title="Click to pick a different coloc color scheme"></div>
+        <div id="coloc-scheme-dd"></div>
+      </div>
+      <!-- Colocalization panel (channel rows; shown when _geneMode=coloc).
+           Clicking a row sets it as the active channel AND moves focus to
+           the gene-search input below — so the user can immediately type a
+           gene name without an extra click on the search box. -->
       <div id="coloc-panel" style="display:none;margin-bottom:8px;">
-        <div class="coloc-row" data-channel="R" onclick="_colocSetActiveChannel('R')">
+        <div class="coloc-row" data-channel="R" onclick="_colocSetActiveChannel('R');_colocFocusSearch();">
           <span class="coloc-dot" id="coloc-dot-R"></span>
           <span class="coloc-name" id="coloc-name-R">pick a gene…</span>
           <button class="coloc-clear" onclick="event.stopPropagation();_colocClearChannel('R')" title="Clear this channel">&times;</button>
         </div>
-        <div class="coloc-row" data-channel="G" onclick="_colocSetActiveChannel('G')">
+        <div class="coloc-row" data-channel="G" onclick="_colocSetActiveChannel('G');_colocFocusSearch();">
           <span class="coloc-dot" id="coloc-dot-G"></span>
           <span class="coloc-name" id="coloc-name-G">pick a gene…</span>
           <button class="coloc-clear" onclick="event.stopPropagation();_colocClearChannel('G')" title="Clear this channel">&times;</button>
         </div>
-        <label class="se-wrap" style="margin:6px 2px 4px;" title="Colorblind-safe uses magenta + green, which remain distinguishable for all forms of color-vision deficiency. Turn off for classic red + green.">
-          <span class="se-label">Colorblind-safe (magenta&nbsp;+&nbsp;green)</span>
-          <span class="se-switch"><input type="checkbox" id="coloc-cbsafe" checked onchange="_colocToggleCbSafe()"><span class="se-track"></span></span>
-        </label>
-        <div class="coloc-legend" id="coloc-legend"></div>
-        <div class="coloc-hint" id="coloc-hint">Click a row above to set it as the active channel, then pick a gene below.</div>
       </div>
       <div id="gene-search-wrap" style="display:flex;gap:3px;align-items:center;">
         <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:1;min-width:0;">
@@ -1110,19 +1167,9 @@
           <button id="gv-sort-btn" onclick="_gvToggleSort()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:0 2px;flex-shrink:0;" title="Toggle dropdown sort: alphabetical / cell count / lineage (lineage only available after Lineage is computed)">A→Z</button>
           <span id="gv-dot" style="width:8px;height:8px;border-radius:50%;flex-shrink:0;cursor:pointer;box-sizing:border-box;" title="Click: toggle · Alt: solo · Shift: select" onclick="_gvDotClick(event)"></span>
         </div>
-        <div id="hvg-scroll" class="sb-trap" style="max-height:200px;overflow-y:auto;overflow-x:hidden;" onscroll="_gvVirtualRender()">
+        <div id="hvg-scroll" class="sb-trap" style="max-height:200px;min-height:120px;overflow-y:auto;overflow-x:hidden;" onscroll="_gvVirtualRender()">
           <div id="hvg-list"></div>
         </div>
-      </div>
-      <!-- Expression legend (inside gene panel) -->
-      <div id="expr-legend" style="display:none;margin-top:8px;position:relative;">
-        <div class="lbl" id="egnm" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:3px;">
-          <span id="egnm-text">Expression</span>
-          <button class="grad-btn" onclick="_toggleGradientDropdown(event)" title="Choose a color gradient for gene expression"><span id="expr-grad-btn-label">Viridis</span><span class="grad-chev">&#9660;</span></button>
-        </div>
-        <div id="expr-bar" onclick="_toggleGradientDropdown(event)" title="Click to pick a different gradient"></div>
-        <div class="elbl"><span>Low</span><span>High</span></div>
-        <div id="expr-grad-dd"></div>
       </div>
     </div>
   </div>
@@ -1292,8 +1339,8 @@
         </span>
       </div>
       <input type="text" id="type-search" placeholder="Search types &amp; annotations..." oninput="filterTypes()">
-      <div id="lineage-tree" class="sb-trap" style="display:none;margin-top:4px;max-height:280px;overflow-y:auto;overflow-x:hidden;"></div>
-      <div id="leg-scroll" class="sb-trap" style="max-height:280px;overflow-y:auto;overflow-x:hidden;margin-top:4px;" onscroll="_legVirtualRender()">
+      <div id="lineage-tree" class="sb-trap" style="display:none;margin-top:4px;max-height:280px;min-height:140px;overflow-y:auto;overflow-x:hidden;"></div>
+      <div id="leg-scroll" class="sb-trap" style="max-height:280px;min-height:140px;overflow-y:auto;overflow-x:hidden;margin-top:4px;" onscroll="_legVirtualRender()">
         <div id="leg"></div>
       </div>
     </div>
@@ -1331,6 +1378,7 @@
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-visible">—</span></div>
       <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-total">—</span></div>
+      <div class="hud-row" id="hud-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-color">—</span></div>
       <div class="hud-row" id="hud-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-group">—</span></div>
     </div>
     <span id="hud-toggle" onclick="document.getElementById('hud').classList.toggle('open')">&#9662; Info</span>
@@ -1340,6 +1388,7 @@
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-R-visible">—</span></div>
       <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-R-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-R-total">—</span></div>
+      <div class="hud-row" id="hud-R-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-R-color">—</span></div>
       <div class="hud-row" id="hud-R-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-R-group">—</span></div>
     </div>
     <span id="hud-R-toggle" onclick="document.getElementById('hud-R').classList.toggle('open')">&#9662; Info</span>
@@ -1749,7 +1798,7 @@
           <tr><td>Gene indicator pill</td><td>A small pill at the top of each view shows the gene currently coloring it — top-left in single-view mode, top-center of each half in split-screen. Hides automatically when the view is in cluster-color mode.</td></tr>
           <tr><td>Download icon</td><td>Every view row (and every split label at the top of the canvas) has a download icon. Click it to open the Export modal for that split's currently-shown points — see the Export section below.</td></tr>
           <tr><td>Expression glow</td><td>Glow is per-split — it only appears on halves currently in gene-expression mode. Toggling the Glow switch refreshes all halves.</td></tr>
-          <tr><td>HUD</td><td>Each half has its own cell-count HUD in the bottom corner showing visible/hidden/total for that half's split.</td></tr>
+          <tr><td>HUD</td><td>Each half has its own info overlay in the bottom corner: visible / hidden / total cells, the active <strong>Color</strong> mode (cluster, gene · NAME, or gene coloc · A + B), and the active selection group when one is selected. The Color row is filled per-half from each split's own snapshot, so it always describes the dots in the half it's under (not the active half's globals).</td></tr>
           <tr><td>Undo</td><td>Entering and exiting split-screen is captured in undo history. All changes within split-screen are undoable.</td></tr>
         </table>
       </div>
@@ -1863,7 +1912,7 @@
         <span class="help-sec-title">Gene Expression</span>
       </div>
       <div class="help-sec-body">
-        <p>The Gene panel is always visible in the sidebar. Switch to <strong>Gene Expression</strong> coloring with <span class="help-key">G</span> or click the Gene Expression button. Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP. When the panel is collapsed, the currently selected gene name appears in the header.</p>
+        <p>The Gene panel is always visible in the sidebar. Switch to <strong>Gene Expression</strong> coloring with <span class="help-key">G</span> (single gene) or <span class="help-key">L</span> (coLocalization — two-gene merge). Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP. When the panel is collapsed, the currently selected gene name appears in the header.</p>
         <p><strong>Single Expression vs Colocalization.</strong> At the top of the Gene panel is a two-button toggle:</p>
         <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
           <li><strong>Single</strong> — the default. One gene, colored on the active gradient, with the full expression legend and gradient picker described below.</li>
@@ -2209,7 +2258,9 @@
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">R</span></td><td>Reset camera + show all cells + show all groups</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Display</th></tr>
           <tr><td><span class="help-key">C</span></td><td>Color by cell type / cluster</td></tr>
-          <tr><td><span class="help-key">G</span></td><td>Color by gene expression</td></tr>
+          <tr><td><span class="help-key">G</span></td><td>Color by gene expression (single gene)</td></tr>
+          <tr><td><span class="help-key">L</span></td><td>Color by coLocalization (two-gene merge)</td></tr>
+          <tr><td><span class="help-key">I</span></td><td>Toggle Info overlay (cell counts / color mode / active group)</td></tr>
           <tr><td><span class="help-key">D</span></td><td>Toggle 2D/3D view</td></tr>
           <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
           <tr><td><span class="help-key">T</span></td><td>Toggle dark/light theme</td></tr>
@@ -2484,7 +2535,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.12";
+var FLEEK_VERSION="v0.4.13";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2712,14 +2763,19 @@ function _renderGradientDropdown(){
   }
   dd.innerHTML=h;
 }
-/* Close dropdown on outside click. */
+/* Close dropdown on outside click. Same handler covers both the
+   single-gene gradient dropdown and the coloc scheme dropdown. */
 document.addEventListener("mousedown",function(e){
   var dd=document.getElementById("expr-grad-dd");
-  if(!dd||!dd.classList.contains("open"))return;
-  if(dd.contains(e.target))return;
-  var trig=document.getElementById("expr-legend");
-  if(trig&&trig.contains(e.target))return;
-  _closeGradientDropdown();
+  if(dd&&dd.classList.contains("open")){
+    var trig=document.getElementById("expr-legend");
+    if(!dd.contains(e.target)&&!(trig&&trig.contains(e.target)))_closeGradientDropdown();
+  }
+  var cdd=document.getElementById("coloc-scheme-dd");
+  if(cdd&&cdd.classList.contains("open")){
+    var ctrig=document.getElementById("coloc-legend-wrap");
+    if(!cdd.contains(e.target)&&!(ctrig&&ctrig.contains(e.target)))_closeColocSchemeDropdown();
+  }
 });
 
 /* ── Gene-coloring sub-mode: Single vs Colocalization ───────────────
@@ -2804,6 +2860,9 @@ function _setGeneMode(m){
   /* Show/hide the single-gene expression legend */
   var el=document.getElementById("expr-legend");
   if(el)el.style.display=(m==="single"&&mode==="gene"&&selGene)?"block":"none";
+  /* Show/hide the coloc scheme picker (and its gradient strip). */
+  var clw=document.getElementById("coloc-legend-wrap");
+  if(clw)clw.style.display=(m==="coloc"&&mode==="gene")?"block":"none";
   /* Ensure we're in "gene" color mode when switching to coloc. */
   if(m==="coloc"&&mode!=="gene"){
     mode="gene";
@@ -2844,11 +2903,94 @@ function _colocClearChannel(ch){
   _colocSave();
   saveState();
 }
-function _colocToggleCbSafe(){
-  var el=document.getElementById("coloc-cbsafe");
-  _colocCbSafe=el?!!el.checked:true;
+/* Move keyboard focus to the gene-search input so the user can start
+   typing a gene name immediately after clicking a coloc row. Called
+   from the coloc-row onclick along with _colocSetActiveChannel. */
+function _colocFocusSearch(){
+  var el=document.getElementById("gsearch");
+  if(el){el.focus();el.select();}
+}
+
+/* Coloc color-scheme dropdown — replaces the old colorblind-safe switch.
+   Two options: Magenta + Green (CB-safe, default) and Red + Green
+   (classic). Modeled on _toggleGradientDropdown / _renderGradientDropdown
+   pattern used for the single-gene gradient picker. */
+function _toggleColocSchemeDropdown(ev){
+  if(ev){ev.stopPropagation();}
+  var dd=document.getElementById("coloc-scheme-dd");
+  if(!dd)return;
+  var willOpen=!dd.classList.contains("open");
+  if(willOpen){
+    _renderColocSchemeDropdown();
+    dd.classList.add("open");
+    _positionColocSchemeDropdown();
+  }else{
+    dd.classList.remove("open");
+  }
+}
+function _closeColocSchemeDropdown(){var dd=document.getElementById("coloc-scheme-dd");if(dd)dd.classList.remove("open");}
+function _positionColocSchemeDropdown(){
+  var dd=document.getElementById("coloc-scheme-dd");
+  var trig=document.getElementById("coloc-legend-wrap");
+  if(!dd||!trig)return;
+  dd.style.maxHeight="";dd.style.top="";dd.style.left="";dd.style.bottom="";
+  var tr=trig.getBoundingClientRect();
+  var vw=window.innerWidth, vh=window.innerHeight, pad=8;
+  var ddW=Math.min(dd.offsetWidth||280, vw-pad*2);
+  var ddH=dd.offsetHeight||0;
+  var spaceBelow=vh-tr.bottom-pad;
+  var spaceAbove=tr.top-pad;
+  var placeBelow=(ddH<=spaceBelow)||(spaceBelow>=spaceAbove);
+  if(placeBelow){
+    dd.style.maxHeight=Math.max(120,spaceBelow)+"px";
+    dd.style.top=(tr.bottom+4)+"px";
+  }else{
+    dd.style.maxHeight=Math.max(120,spaceAbove)+"px";
+    dd.style.bottom=(vh-tr.top+4)+"px";
+  }
+  var left=tr.right-ddW;
+  if(left<pad)left=pad;
+  if(left+ddW>vw-pad)left=vw-pad-ddW;
+  dd.style.left=left+"px";
+}
+function _renderColocSchemeDropdown(){
+  var dd=document.getElementById("coloc-scheme-dd");
+  if(!dd)return;
+  /* Build small gradient strips for each scheme — sample the actual
+     coloc compose at three points so the strip shows R-only · coloc ·
+     G-only without looking flat. */
+  var isLight=document.body.classList.contains("light");
+  function _stripFor(cbSafe){
+    var save=_colocCbSafe;
+    _colocCbSafe=cbSafe;
+    var c=_colocChannelColors();
+    _colocCbSafe=save;
+    var rcol="rgb("+((c.R[0]*255)|0)+","+((c.R[1]*255)|0)+","+((c.R[2]*255)|0)+")";
+    var gcol="rgb("+((c.G[0]*255)|0)+","+((c.G[1]*255)|0)+","+((c.G[2]*255)|0)+")";
+    var both=_colocCompose(1,1,c,isLight);
+    var bcol="rgb("+((both[0]*255)|0)+","+((both[1]*255)|0)+","+((both[2]*255)|0)+")";
+    return "linear-gradient(to right,"+rcol+","+bcol+","+gcol+")";
+  }
+  var rows=[
+    {key:true,name:"Magenta + Green",note:"Colorblind-safe — distinguishable for all forms of color-vision deficiency"},
+    {key:false,name:"Red + Green",note:"Classic — high contrast, but not colorblind-safe"}
+  ];
+  var h='';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i], active=(_colocCbSafe===r.key);
+    h+='<div class="grad-row'+(active?" active":"")+'" onclick="_pickColocScheme('+r.key+')">'
+      +'<span class="grad-strip" style="background:'+_stripFor(r.key)+';"><\/span>'
+      +'<span class="grad-name">'+r.name+'<\/span>'
+      +'<span class="grad-note">'+r.note+'<\/span>'
+      +'<\/div>';
+  }
+  dd.innerHTML=h;
+}
+function _pickColocScheme(cbSafe){
+  _colocCbSafe=!!cbSafe;
+  _closeColocSchemeDropdown();
   _colocRefreshUI();
-  _geneBufCacheInvalidate();
+  if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
   if(D&&pts)recolor();
   _colocSave();
   saveState();
@@ -2911,13 +3053,9 @@ function _colocRefreshUI(){
     lg.style.background="linear-gradient(to right,"+bg+",1%,"+rcol+" 25%,"+bcol+" 50%,"+gcol+" 75%,"+bg+" 99%)";
     lg.title=(_colocR||"(R gene)")+" only \u2192 coloc \u2190 "+(_colocG||"(G gene)")+" only";
   }
-  /* Hint text reflects status */
-  var ht=document.getElementById("coloc-hint");
-  if(ht){
-    if(!_colocR&&!_colocG)ht.textContent="Pick a gene below. The first pick fills the active (highlighted) channel; click the other row to switch channels.";
-    else if(!_colocR||!_colocG)ht.textContent="One channel set. Click the empty row above, then pick a gene below.";
-    else ht.textContent="Both channels set. Colocalized cells appear in the coloc color; single-channel cells in their own color.";
-  }
+  /* Update the coloc-scheme-picker button label to match the active scheme. */
+  var schemeBtn=document.getElementById("coloc-scheme-btn-label");
+  if(schemeBtn)schemeBtn.textContent=_colocCbSafe?"Magenta + Green":"Red + Green";
 }
 
 /* ── Feedback modal ────────────────────────────────────────────────── */
@@ -3353,6 +3491,10 @@ function saveState(){
   try{
     var s={
       viewIs3d:viewIs3d, embMethod:embMethod, mode:mode, selGene:selGene,
+      /* Pathway-score coloring is per-view (round-tripped via _views[])
+         but the active-half value is also persisted at the top level so
+         single-view sessions work without depending on _views. */
+      pathwayColorId:_pathwayColorId||"", pathwayColorName:_pathwayColorName||"",
       visibleClusters:visibleClusters, autoRotate:autoRotate,
       ptSize:basePtSz,ptOpacity:pts?pts.material.opacity:0.7,bgDim:bgDimPct,
       sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
@@ -3385,6 +3527,10 @@ function saveCameraOnly(){
   try{
     var s={
       viewIs3d:viewIs3d, embMethod:embMethod, mode:mode, selGene:selGene,
+      /* Pathway-score coloring is per-view (round-tripped via _views[])
+         but the active-half value is also persisted at the top level so
+         single-view sessions work without depending on _views. */
+      pathwayColorId:_pathwayColorId||"", pathwayColorName:_pathwayColorName||"",
       visibleClusters:visibleClusters, autoRotate:autoRotate,
       ptSize:basePtSz,ptOpacity:pts?pts.material.opacity:0.7,bgDim:bgDimPct,
       sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
@@ -3469,6 +3615,29 @@ function restoreState(preloaded){
     if(D){
       if(_colocR&&!geneExprCache[_colocR])_colocFetchGene(_colocR);
       if(_colocG&&!geneExprCache[_colocG])_colocFetchGene(_colocG);
+    }
+  }else if(s.mode==="pathway"&&s.pathwayColorId){
+    /* Pathway-score restore: re-enter pathway mode and trigger a
+       deferred re-compute. The pathway results table is loaded lazily
+       (the user has to re-run the analysis), so the score cache is
+       repopulated when _pathwayColorBy fires for that pid — either via
+       the user clicking the button again or this deferred attempt. If
+       the analysis hasn't been re-run, ghost-color is shown until the
+       overlap genes can be resolved. */
+    _pathwayColorId=s.pathwayColorId;
+    _pathwayColorName=s.pathwayColorName||s.pathwayColorId;
+    mode="pathway";
+    setMode("pathway");
+    /* If results happen to already be loaded (e.g. via auto-session),
+       the score gets computed on the next render. Otherwise the user
+       is on cluster-color visually until they re-pick the pathway. */
+    if(_pathwayLastResults&&_pathwayLastResults.results){
+      for(var _pri=0;_pri<_pathwayLastResults.results.length;_pri++){
+        if(_pathwayLastResults.results[_pri].id===_pathwayColorId){
+          _pathwayColorBy(_pathwayColorId);
+          break;
+        }
+      }
     }
   }else{
     setMode(s.mode||"cluster");
@@ -3635,13 +3804,13 @@ function setActiveGroup(id){
   if(activeGroupId===id)return; /* already active — preserve DOM for dblclick */
   activeGroupId=id;
   renderSelPanel();
-  _updateHudGroup();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
 }
 
 function renameGroup(id,newName){
   var g=selGroups.find(function(g){return g.id===id;});
   if(g)g.name=newName;
-  _updateHudGroup();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
   saveState();
 }
 
@@ -4349,6 +4518,7 @@ function buildPts(data){
   selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
   degData=null;degCache={};
   geneExprCache={}; /* free old gene expression arrays */
+  _pathwayScoreCache={};_pathwayColorId="";_pathwayColorName="";
   if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
   /* Clear recent genes only when switching to a different dataset */
   var _newPath=data.header.loaded_path||"";
@@ -4554,6 +4724,64 @@ function _updateHudGroup(){
     else{_gr.style.display="none";}
   }
 }
+
+/* Build a short, human-readable label for the current color mode. Reads
+   from a per-view snapshot in split mode (so each half can describe
+   itself), or from globals when no snap is supplied. Used by the HUD
+   color chip — the goal is "after a glance the user knows what palette
+   the dots are encoded in." */
+function _colorModeLabel(snap){
+  var m=snap?snap.mode:mode;
+  if(m==="gene"){
+    var gm=snap?(snap.geneMode||"single"):_geneMode;
+    if(gm==="coloc"){
+      var R=snap?(snap.colocR||""):_colocR;
+      var G=snap?(snap.colocG||""):_colocG;
+      var parts=[];
+      if(R)parts.push(R);
+      if(G)parts.push(G);
+      return parts.length?"gene · "+parts.join(" + ")+" (coloc)":"gene (coloc, none picked)";
+    }
+    var sg=snap?(snap.selGene||""):selGene;
+    return sg?"gene · "+sg:"gene (none picked)";
+  }
+  if(m==="pathway"){
+    var pid=snap?(snap.pathwayColorId||""):_pathwayColorId;
+    var pname=snap?(snap.pathwayColorName||""):_pathwayColorName;
+    if(!pid)return "pathway (none picked)";
+    var label=pname||pid;
+    if(label.length>40)label=label.slice(0,38)+"…";
+    return "pathway · "+label+" (overlap mean)";
+  }
+  return "cluster";
+}
+
+/* Refresh the HUD's color-mode chip on every recolor / view-switch.
+   In split mode each half describes itself from its own snapshot
+   (NOT from globals — globals are scratch state during the cross-half
+   render loop, so reading them would always show the active half's
+   mode in both chips). */
+function _updateHudColor(){
+  if(_splitActive&&_splitViewIds&&_splitViewIds.length===2){
+    var snapL=_splitViewById(_splitViewIds[0]);
+    var snapR=_splitViewById(_splitViewIds[1]);
+    var elL=document.getElementById("hud-color");
+    var elR=document.getElementById("hud-R-color");
+    if(elL)elL.textContent=_colorModeLabel(snapL);
+    if(elR)elR.textContent=_colorModeLabel(snapR);
+    var rowL=document.getElementById("hud-color-row");
+    var rowR=document.getElementById("hud-R-color-row");
+    if(rowL)rowL.style.display="flex";
+    if(rowR)rowR.style.display="flex";
+  }else{
+    var el=document.getElementById("hud-color");
+    if(el)el.textContent=_colorModeLabel(null);
+    var row=document.getElementById("hud-color-row");
+    if(row)row.style.display="flex";
+    var rowR2=document.getElementById("hud-R-color-row");
+    if(rowR2)rowR2.style.display="none";
+  }
+}
 /* ── Gene-expression buffer cache ──
    When the user flips between a handful of genes to compare them, we end up
    re-running the full recolor loop on every switch. With >1M cells that's
@@ -4619,7 +4847,7 @@ function recolor(){
     /* Restore globals to the active split's state */
     var _activeSnap=_views.find(function(v){return v.id===_activeViewId;});
     if(_activeSnap)_restoreSplitViewState(_activeSnap);
-    _updateHudGroup();
+    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
     _scheduleVisStats();
     if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
     if(typeof _plotPopulate==="function")_plotPopulate();
@@ -4651,16 +4879,19 @@ function recolor(){
   /* Auto-dim state machine:
      Transition no-visible-selection → has-visible-selection: auto-bump dim
      Transition has-visible-selection → none visible: auto-reset dim
-     "All hidden" is treated the same as "no selections" for dimming. */
+     "All hidden" is treated the same as "no selections" for dimming.
+     Pathway-score mode visually behaves like gene mode (per-cell scalar
+     [0,1] over a gradient), so it shares the same dim setting. */
+  var _isScalarMode=(mode==="gene"||mode==="pathway");
   if(hasAnyVisible&&!_hadSelection){
     /* Just gained visible selections — set both modes */
     _bgDimGene=isLight?45:33;
     _bgDimCluster=isLight?90:75;
-    bgDimPct=mode==="gene"?_bgDimGene:_bgDimCluster;
+    bgDimPct=_isScalarMode?_bgDimGene:_bgDimCluster;
     document.getElementById("bg-dim").value=100-bgDimPct;
   }else if(hasAnyVisible){
     /* Selections exist — apply the saved dim for the current mode */
-    var _modeDim=mode==="gene"?_bgDimGene:_bgDimCluster;
+    var _modeDim=_isScalarMode?_bgDimGene:_bgDimCluster;
     if(_modeDim>0&&bgDimPct!==_modeDim){bgDimPct=_modeDim;document.getElementById("bg-dim").value=100-bgDimPct;}
   }
   if(!hasAnyVisible&&_hadSelection){
@@ -4677,14 +4908,21 @@ function recolor(){
   var ringCol=ringPts?ringPts.geometry.attributes.color.array:null;
   var showRingLayer=useRing&&hasAnyVisible;
 
-  /* Determine color source: gene expression if available, else cluster.
-     When the user is in gene-coloc sub-mode, we bypass the single-gene
-     branches and compose per-cell RGB from two cached arrays (exR, exG).
-     Each channel is independent — if only one is set we still render,
-     letting the missing channel contribute zero. */
+  /* Determine color source: gene expression if available, pathway
+     score if a pathway is active, else cluster. When the user is in
+     gene-coloc sub-mode, bypass the single-gene branches and compose
+     per-cell RGB from two cached arrays (exR, exG). Each channel is
+     independent — if only one is set we still render, letting the
+     missing channel contribute zero.
+     Pathway mode reuses the entire scalar-coloring pipeline (LUT,
+     ghost handling, halo, expression→size) by pointing `ex` at the
+     score array. The renderer doesn't care whether the [0,1] scalar
+     came from a gene column or a pathway-score column. */
   var useColoc=(mode==="gene"&&_geneMode==="coloc"&&((_colocR&&geneExprCache[_colocR])||(_colocG&&geneExprCache[_colocG])));
-  var useGene=!useColoc&&mode==="gene"&&selGene&&geneExprCache[selGene];
-  var ex=useGene?geneExprCache[selGene]:null;
+  var useGeneSrc=!useColoc&&mode==="gene"&&selGene&&geneExprCache[selGene];
+  var usePathway=!useColoc&&mode==="pathway"&&_pathwayColorId&&_pathwayScoreCache[_pathwayColorId];
+  var useGene=useGeneSrc||usePathway; /* "use scalar coloring" — name kept for blame-friendliness */
+  var ex=useGeneSrc?geneExprCache[selGene]:(usePathway?_pathwayScoreCache[_pathwayColorId]:null);
   var exR=useColoc&&_colocR?geneExprCache[_colocR]:null;
   var exG=useColoc&&_colocG?geneExprCache[_colocG]:null;
   var _colocColors=useColoc?_colocChannelColors():null;
@@ -4754,8 +4992,11 @@ function recolor(){
      own per-view path with independent state). */
   /* Buffer cache is single-gene only. Coloc state has three inputs
      (two genes + cbsafe) so a stable key would need its own fingerprint;
-     recompute from scratch each recolor instead — cheap enough. */
-  var _cacheKey=useGene?selGene:null;
+     recompute from scratch each recolor instead — cheap enough. Pathway
+     mode is also skipped (recolor only fires when a user explicitly
+     picks a pathway, so the win is small and the key would need to
+     also encode the underlying score-array contents). */
+  var _cacheKey=useGeneSrc?selGene:null;
   var _fp=_cacheKey?_recolorFingerprint(isLight,bgDimPct,showNonExpressing,showExprSize,highlightMode):null;
   var _cached=_cacheKey?_geneBufCache.get(_cacheKey):null;
   if(_cached&&_cached.fp===_fp&&_cached.col.length===col.length){
@@ -4779,7 +5020,7 @@ function recolor(){
     if(_hudVc)_hudVc.textContent=(n-_nHidden).toLocaleString();
     if(_hudHc)_hudHc.textContent=_nHidden>0?_nHidden.toLocaleString():"0";
     if(_hudTc)_hudTc.textContent=n.toLocaleString();
-    _updateHudGroup();
+    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
     _scheduleVisStats();
     if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
     if(typeof _plotPopulate==="function")_plotPopulate();
@@ -4874,7 +5115,7 @@ function recolor(){
         var lb3=lb*3;
         rC=_exprLUT[lb3];gC=_exprLUT[lb3+1];bC=_exprLUT[lb3+2];
       }
-    }else if(mode==="gene"&&!useGene){
+    }else if((mode==="gene"||mode==="pathway")&&!useGene){
       rC=_ghR;gC=_ghG;bC=_ghB;
     }else{
       var ci3=cid*3;
@@ -4919,7 +5160,7 @@ function recolor(){
   if(_hudV){_hudV.textContent=(n-_nHidden).toLocaleString();}
   if(_hudH){_hudH.textContent=_nHidden>0?_nHidden.toLocaleString():"0";}
   if(_hudT){_hudT.textContent=n.toLocaleString();}
-  _updateHudGroup();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
   _scheduleVisStats();
   if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
   if(typeof _plotPopulate==="function")_plotPopulate();
@@ -5105,7 +5346,8 @@ function animate(){
     var maxWorldSz=_maxPtWorldSize(); /* radius × 0.018 × density_mult */
     var worldSz=basePtSz/100*maxWorldSz;
     var _vpH=viewIs3d?(canvasH*Math.min(window.devicePixelRatio,2)*0.5):0;
-    var _pulse=(pulseGlow&&mode==="gene"&&selGene&&geneExprCache[selGene])?1.0+1.5*(0.5+0.5*Math.sin(performance.now()*0.002)):1.0;
+    var _pulseScalar=(mode==="gene"&&selGene&&geneExprCache[selGene])||(mode==="pathway"&&_pathwayColorId&&_pathwayScoreCache[_pathwayColorId]);
+    var _pulse=(pulseGlow&&_pulseScalar)?1.0+1.5*(0.5+0.5*Math.sin(performance.now()*0.002)):1.0;
     function _applyPtSize(tPts,tRing,tHalo,z2){
       if(viewIs3d){
         tPts.material.size=worldSz;
@@ -5728,7 +5970,7 @@ function setupCtrl(){
       var idx=parseInt(e.code.charAt(5))-1;
       while(idx>=selGroups.length)addSelGroup();
       setActiveGroup(selGroups[idx].id);
-      _updateHudGroup();
+      _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
       _flashAction("Group "+(idx+1),"Shift+"+(idx+1));
       return;
     }
@@ -5754,8 +5996,26 @@ function setupCtrl(){
     if(inInput)return; /* remaining shortcuts only outside inputs */
     /* c = cluster color mode */
     if(e.key==="c"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("cluster");_flashAction("Cell Type Colors","C");}
-    /* g = gene expression color mode */
-    if(e.key==="g"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setMode("gene");_flashAction("Gene Expression","G");}
+    /* g = single-gene color mode. Explicitly set the sub-mode to
+       "single" so coming from coloc lands the user in single, not
+       stays in coloc. _setGeneMode also takes care of flipping `mode`
+       to "gene" if we're not already there. */
+    if(e.key==="g"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){_setGeneMode("single");setMode("gene");_flashAction("Gene Expression","G");}
+    /* l = coLocalization sub-mode (within gene). _setGeneMode("coloc")
+       handles both flipping to gene mode if needed AND switching the
+       sub-mode. */
+    if(e.key==="l"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){_setGeneMode("coloc");_flashAction("Colocalization","L");}
+    /* i = toggle the Info HUD overlay(s) in the canvas. Both halves get
+       toggled together in split mode so the user doesn't end up with
+       one open and one closed by accident. */
+    if(e.key==="i"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+      var _hL=document.getElementById("hud");
+      var _hR=document.getElementById("hud-R");
+      var _newOpen=_hL?!_hL.classList.contains("open"):true;
+      if(_hL)_hL.classList.toggle("open",_newOpen);
+      if(_hR)_hR.classList.toggle("open",_newOpen);
+      _flashAction(_newOpen?"Info Open":"Info Closed","I");
+    }
     /* Shift+H = toggle all selection group highlights */
     if(e.key==="H"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVis();_flashAction("Toggle All Groups","Shift+H");}
     /* h = show all / hide all / restore hidden */
@@ -6972,12 +7232,23 @@ function setMode(m){
   if(cms)cms.value=m;
   /* Gene panel stays visible after data loads; only expression legend toggles.
      In gene+coloc sub-mode, suppress the single-gene legend — the coloc
-     panel has its own legend strip. */
+     panel has its own legend strip. Pathway-score mode reuses the same
+     scalar [0,1] gradient + ghost handling so the expression controls
+     (non-expressing toggle, expression→size) stay visible there too,
+     but the single-gene legend is hidden (the HUD chip + Pathways panel
+     button label do the labeling). */
   var showSingleLegend=(m==="gene"&&_geneMode==="single"&&selGene);
   document.getElementById("expr-legend").style.display=showSingleLegend?"block":"none";
-  document.getElementById("expr-controls").style.display=(m==="gene")?"block":"none";
+  document.getElementById("expr-controls").style.display=(m==="gene"||m==="pathway")?"block":"none";
   _updateGeneCollapsedName();
   if(m==="gene")showRecentGenes();
+  /* Reflect the mode change in the Pathways panel (button labels) and
+     the HUD color chip. Both are no-ops if not visible. */
+  if(typeof _pathwayRenderResults==="function"&&_pathwayLastResults&&_pathwayLastResults.results){
+    var _psec=document.getElementById("pathway-sec");
+    if(_psec&&_psec.style.display!=="none")_pathwayRenderResults();
+  }
+  if(typeof _updateHudColor==="function")_updateHudColor();
   recolor();saveState();
 }
 function pickGene(g){
@@ -8926,7 +9197,7 @@ function unloadDataset(){
   fetch("/api/unload",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})
   .then(function(){
     /* Clear client state */
-    D=null;mode="cluster";selGene="";geneExprCache={};
+    D=null;mode="cluster";selGene="";geneExprCache={};_pathwayScoreCache={};_pathwayColorId="";_pathwayColorName="";
     if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
     recentGenes=[];hvgGenes=[];hvgVar={};_allGeneVar=null;_allGeneVarMap={};
     _clusterGeneCache={};_clusterGenesFetching=false;_clusterGeneSorted=null;_clusterGeneData=null;_gvMode="cluster";
@@ -9638,15 +9909,18 @@ function _showViewPts(vIdx){
      because globals always reflect the ACTIVE view. Falls back to globals if the
      snapshot can't be found. */
   if(v.haloPts){
-    var _sm=mode, _sg=selGene;
+    var _sm=mode, _sg=selGene, _sp=_pathwayColorId;
     if(_splitViewIds&&_splitViewIds.length>vIdx){
       var _snap=_splitViewById(_splitViewIds[vIdx]);
       if(_snap){
         if(typeof _snap.mode==="string")_sm=_snap.mode;
         if(typeof _snap.selGene==="string")_sg=_snap.selGene;
+        if(typeof _snap.pathwayColorId==="string")_sp=_snap.pathwayColorId;
       }
     }
-    v.haloPts.visible=!!(showGlow&&_sm==="gene"&&_sg&&geneExprCache[_sg]);
+    var _haloGene=(_sm==="gene"&&_sg&&geneExprCache[_sg]);
+    var _haloPath=(_sm==="pathway"&&_sp&&_pathwayScoreCache[_sp]);
+    v.haloPts.visible=!!(showGlow&&(_haloGene||_haloPath));
   }
 }
 function _hideViewPts(vIdx){
@@ -9716,14 +9990,17 @@ function _recolorView(vIdx){
   var ringPos=vRing?vRing.geometry.attributes.position.array:null;
   var ringCol=vRing?vRing.geometry.attributes.color.array:null;
   var showRingLayer=useRing&&hasAnyVisible;
-  /* _geneMode (single|coloc) and _colocR/_colocG live in globals — coloc
-     is a global sub-mode rather than per-view state. Both split halves
-     get the same coloc setup; if a future feature lets each half pick
-     its own sub-mode, those globals would move into the per-view
-     snapshot. */
+  /* Coloc is a global sub-mode (both halves share it); _geneMode +
+     _colocR/_colocG live in globals. Pathway score, like single-gene
+     selGene, IS per-view — so the per-view snapshot has already pushed
+     _pathwayColorId into the global at this point. The renderer treats
+     gene-single and pathway as the same scalar pipeline (point `ex`
+     at whichever array applies). */
   var useColoc=(mode==="gene"&&_geneMode==="coloc"&&((_colocR&&geneExprCache[_colocR])||(_colocG&&geneExprCache[_colocG])));
-  var useGene=!useColoc&&mode==="gene"&&selGene&&geneExprCache[selGene];
-  var ex=useGene?geneExprCache[selGene]:null;
+  var useGeneSrc=!useColoc&&mode==="gene"&&selGene&&geneExprCache[selGene];
+  var usePathway=!useColoc&&mode==="pathway"&&_pathwayColorId&&_pathwayScoreCache[_pathwayColorId];
+  var useGene=useGeneSrc||usePathway;
+  var ex=useGeneSrc?geneExprCache[selGene]:(usePathway?_pathwayScoreCache[_pathwayColorId]:null);
   var exR=useColoc&&_colocR?geneExprCache[_colocR]:null;
   var exG=useColoc&&_colocG?geneExprCache[_colocG]:null;
   var _colocColors=useColoc?_colocChannelColors():null;
@@ -9775,7 +10052,7 @@ function _recolorView(vIdx){
       }
       var _bs=_getBgScheme();
       c=isZero?_bs.ghostColor:ec(ex[i]);
-    }else if(mode==="gene"&&!useGene){
+    }else if((mode==="gene"||mode==="pathway")&&!useGene){
       c=_getBgScheme().ghostColor;
     }else{c=cc(cid);}
     if(inGroup&&!useRing){
@@ -10159,6 +10436,11 @@ function _viewAdd(isDefault){
        diverge from there. */
     geneMode:_geneMode,colocR:_colocR||"",colocG:_colocG||"",
     colocActiveChannel:_colocActiveChannel,
+    /* Per-view pathway-score coloring (mode="pathway"). pathwayColorId
+       picks which score array drives this half's color; pathwayColorName
+       is a display-only mirror so the HUD chip can label even before the
+       full pathway results have re-loaded after a session restore. */
+    pathwayColorId:_pathwayColorId||"",pathwayColorName:_pathwayColorName||"",
     tethered:true,
     camera:_snapCameraFromGlobals()});
   _activeViewId=id;
@@ -10227,6 +10509,8 @@ function _viewSaveCurrent(){
   v.colocR=_colocR||"";
   v.colocG=_colocG||"";
   v.colocActiveChannel=_colocActiveChannel;
+  v.pathwayColorId=_pathwayColorId||"";
+  v.pathwayColorName=_pathwayColorName||"";
   /* Camera: pull from active live view in split mode, else from globals */
   if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
     var _ah=_splitViewIds.indexOf(_activeViewId);
@@ -10311,6 +10595,11 @@ function _restoreViewState(v,opts){
   _colocR=(typeof v.colocR==="string")?v.colocR:"";
   _colocG=(typeof v.colocG==="string")?v.colocG:"";
   _colocActiveChannel=(v.colocActiveChannel==="G")?"G":"R";
+  /* Pathway-score coloring is also per-view — restore the id and the
+     display-name mirror so the HUD chip can label even if results
+     haven't been re-fetched yet on session restore. */
+  _pathwayColorId=(typeof v.pathwayColorId==="string")?v.pathwayColorId:"";
+  _pathwayColorName=(typeof v.pathwayColorName==="string")?v.pathwayColorName:"";
   if(!(opts&&opts.shareCam))_applyCameraToGlobals(v.camera);
 }
 function _restoreSplitViewState(v){
@@ -10330,6 +10619,8 @@ function _restoreSplitViewState(v){
   _colocR=(typeof v.colocR==="string")?v.colocR:"";
   _colocG=(typeof v.colocG==="string")?v.colocG:"";
   _colocActiveChannel=(v.colocActiveChannel==="G")?"G":"R";
+  _pathwayColorId=(typeof v.pathwayColorId==="string")?v.pathwayColorId:"";
+  _pathwayColorName=(typeof v.pathwayColorName==="string")?v.pathwayColorName:"";
 }
 /* Re-sync the sidebar color-mode / gene-expression UI widgets to the current
    globals. Called after restoring a view in split mode so the panels reflect the
@@ -10343,7 +10634,19 @@ function _syncColorModeUIToGlobals(){
   var _el=document.getElementById("expr-legend");
   if(_el)_el.style.display=showSingleLegend?"block":"none";
   var _ec=document.getElementById("expr-controls");
-  if(_ec)_ec.style.display=(mode==="gene")?"block":"none";
+  /* Pathway score is also a [0,1] scalar with the same gradient + ghost
+     toggles as gene mode, so the expression controls stay visible there
+     too. The single-gene legend stays hidden in pathway mode (the HUD
+     chip + Pathways panel button label do the labeling). */
+  if(_ec)_ec.style.display=(mode==="gene"||mode==="pathway")?"block":"none";
+  /* Refresh the Pathways panel so the per-row "Color by score" button
+     reflects which pathway is currently active in the now-active view. */
+  if(typeof _pathwayRenderResults==="function"&&_pathwayLastResults&&_pathwayLastResults.results){
+    var _psec=document.getElementById("pathway-sec");
+    if(_psec&&_psec.style.display!=="none")_pathwayRenderResults();
+  }
+  /* Update the HUD color-mode chip on every active-half switch. */
+  if(typeof _updateHudColor==="function")_updateHudColor();
   if(showSingleLegend){
     /* Update the legend label without nuking the gradient-picker button. */
     var nm=document.getElementById("egnm-text");
@@ -10356,6 +10659,9 @@ function _syncColorModeUIToGlobals(){
   if(bC){bC.style.background=inSingle?"transparent":"rgba(99,102,241,0.15)";bC.style.color=inSingle?"var(--text3)":"var(--accent2)";bC.style.fontWeight=inSingle?"400":"600";}
   var cp=document.getElementById("coloc-panel");
   if(cp)cp.style.display=inSingle?"none":"block";
+  /* Show the coloc scheme picker only when in gene/coloc mode. */
+  var clw=document.getElementById("coloc-legend-wrap");
+  if(clw)clw.style.display=(!inSingle&&mode==="gene")?"block":"none";
   if(typeof _colocRefreshUI==="function")_colocRefreshUI();
   if(typeof _updateGeneCollapsedName==="function")_updateGeneCollapsedName();
   /* Re-highlight the active gene among the chip buttons. */
@@ -10399,7 +10705,7 @@ function _viewSwitch(id){
     if(lineageView)_renderLineageTree();
     _splitUpdateLabels();
     _viewUpdateUI();
-    _updateHudGroup();
+    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
     return;
   }
   /* Determine tether state of source + target BEFORE mutating _activeViewId —
@@ -10420,7 +10726,7 @@ function _viewSwitch(id){
   renderLeg();renderSelPanel();recolor();
   if(lineageView)_renderLineageTree();
   _viewUpdateUI();
-  _updateHudGroup();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
   syncCanvasSize();
 }
 function _viewDeleteById(id){
@@ -10440,7 +10746,7 @@ function _viewDeleteById(id){
   renderLeg();renderSelPanel();recolor();
   if(lineageView)_renderLineageTree();
   _viewUpdateUI();
-  _updateHudGroup();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
   syncCanvasSize();
 }
 function _viewRename(){
@@ -11279,6 +11585,14 @@ var _pathwayDatabases=[];     /* [{id,label,source,n_pathways}] from server */
 var _pathwayLastResults=null; /* last response payload (cached for sort/filter) */
 var _pathwayInflight=null;    /* AbortController for current request */
 var _pathwayExpanded={};      /* {pathway_id: true} — which rows are expanded */
+/* Per-cell pathway score = mean of overlap genes' normalized expression.
+   Drives mode="pathway" coloring on the main viewer. Score arrays are
+   recomputed on demand from the gene cache (cheap) and dropped on
+   dataset unload. _pathwayColorId is the global "currently colored
+   pathway" selector — per-view value lives in each view's snapshot. */
+var _pathwayColorId="";       /* currently-colored pathway id (active view) */
+var _pathwayColorName="";     /* display name (kept in sync to avoid lookups) */
+var _pathwayScoreCache={};    /* {pathway_id: Float32Array(n_cells)} */
 /* Client-side cache of completed runs, keyed by (genes-list-hash, db).
    Lets the user switch databases (or sources) and instantly see prior
    results if that combo has been run, blank otherwise — same UX as the
@@ -11649,6 +11963,15 @@ function _pathwayRenderResults(){
         ?"Every cell expressing an overlap gene is already in the active selection group. Click to remove those expressing cells from the group — cells you added by other means stay."
         :"Click to add every cell expressing any overlap gene above the standard threshold (value ≥ 0.01 on the normalized [0,1] scale) to the active selection group.";
       var _pTip=_pTipBase+" Option/Alt+click: select ONLY these cells (clears the active group first). Tip: Shift+click on the pathway name above does the same toggle.";
+      /* HIDDEN (re-enable later): "Color by score" button — paints every
+         cell with a score equal to the per-cell mean of this pathway's
+         overlap-gene normalized expression. The supporting code
+         (_pathwayColorBy / _pathwayClearColor / _pathwayColorState /
+         _pathwayScoreCache + the renderer wiring + per-view snapshot
+         fields + HUD chip + SVG export) is all intact — just don't
+         render the button. To bring it back, restore the second
+         <button> in path-actions and the <option value="pathway"> in
+         color-mode-select. */
       html+='<div class="path-actions">'
         +'<button class="path-action-btn" onclick="_pathwayBtnClick(event,\''+r.id.replace(/'/g,"\\'")+'\')" title="'+_pTip+'">'+_pLabel+'<\/button>'
         +'<\/div>';
@@ -11867,6 +12190,108 @@ function _pathwayRowClick(ev, pid){
 /* Backward-compat shim kept in case any external code still calls the
    old name. Forwards to the new dispatcher in "add" mode. */
 function _pathwaySelectAllOverlap(pid){_pathwayApply(pid,"add");}
+
+/* ── Pathway score coloring ──
+   Computes a per-cell scalar in [0,1] = mean of the pathway's overlap-
+   gene normalized expressions. Assumes every overlap gene is already in
+   geneExprCache (caller ensures via _pathwayColorBy's prefetch). The
+   resulting Float32Array is stored under _pathwayScoreCache[pid] so
+   recolor / _recolorView / SVG export read the same array. Cheap:
+   n_cells × n_overlap_genes adds + one divide per cell (hundreds of
+   thousands of ops, sub-millisecond on typical datasets). */
+function _pathwayComputeScore(pid, overlapGenes){
+  if(!D)return null;
+  var n=D.header.n_cells;
+  var out=new Float32Array(n);
+  var k=0;
+  for(var g=0;g<overlapGenes.length;g++){
+    var arr=geneExprCache[overlapGenes[g]];
+    if(!arr)continue;
+    for(var i=0;i<n;i++)out[i]+=arr[i];
+    k++;
+  }
+  if(k>0){var inv=1/k;for(var i=0;i<n;i++)out[i]*=inv;}
+  _pathwayScoreCache[pid]=out;
+  return out;
+}
+
+/* "Color by pathway score" trigger. Mirrors the lazy-fetch pattern
+   used by _pathwayApply: fetches any missing overlap genes, computes
+   the score array, sets mode="pathway" + _pathwayColorId, recolors,
+   and re-renders the panel so the row's button reflects the new
+   active-coloring state. In split mode the action affects the active
+   half (its snapshot picks up the new mode + pathway id via the next
+   _viewSaveCurrent / recolor pass). */
+function _pathwayColorBy(pid){
+  if(!_pathwayLastResults||!_pathwayLastResults.results)return;
+  var hit=null;
+  for(var i=0;i<_pathwayLastResults.results.length;i++){
+    if(_pathwayLastResults.results[i].id===pid){hit=_pathwayLastResults.results[i];break;}
+  }
+  if(!hit||!hit.overlap_genes||!hit.overlap_genes.length)return;
+  var pending=[];
+  for(var g=0;g<hit.overlap_genes.length;g++){
+    var name=hit.overlap_genes[g];
+    if(!geneExprCache[name]&&!_genePrefetchInflight[name])pending.push(name);
+  }
+  function _do(){
+    _pathwayComputeScore(pid, hit.overlap_genes);
+    mode="pathway";
+    _pathwayColorId=pid;
+    _pathwayColorName=hit.name||pid;
+    var cms=document.getElementById("color-mode-select");
+    if(cms)cms.value="pathway";
+    /* The expression legend (gene single-mode) is hidden via setMode
+       paths; for pathway we lean on the HUD chip + path-actions
+       indicator rather than swapping that legend. The expression
+       controls (non-expressing toggle, expression→size) DO apply
+       since pathway is a [0,1] scalar — keep them visible. */
+    var ec=document.getElementById("expr-controls");
+    if(ec)ec.style.display="block";
+    var el=document.getElementById("expr-legend");
+    if(el)el.style.display="none";
+    if(typeof recolor==="function")recolor();
+    if(typeof saveState==="function")saveState();
+    if(typeof _pathwayRenderResults==="function")_pathwayRenderResults();
+    if(typeof _updateHudColor==="function")_updateHudColor();
+    var status=document.getElementById("path-status");
+    if(status){status.style.color="var(--text3)";status.textContent="Coloring by “"+(hit.name||pid)+"” (overlap-gene mean).";}
+  }
+  if(pending.length===0){_do();return;}
+  var status=document.getElementById("path-status");
+  if(status)status.textContent="Fetching "+pending.length+" missing genes…";
+  Promise.all(pending.map(function(name){
+    return fetch("/api/gene?name="+encodeURIComponent(name))
+      .then(function(r){if(!r.ok)throw new Error(name+" not found");return r.arrayBuffer();})
+      .then(function(buf){geneExprCache[name]=new Float32Array(buf);if(typeof _geneLruBump==="function")_geneLruBump(name);})
+      .catch(function(){});
+  })).then(_do);
+}
+
+/* Stop pathway coloring without picking a different color mode. Falls
+   back to cluster (the safe default) — if the user wants to go back
+   to the gene they were on, they re-pick it. */
+function _pathwayClearColor(){
+  if(mode!=="pathway")return;
+  _pathwayColorId="";
+  _pathwayColorName="";
+  if(typeof setMode==="function")setMode("cluster");
+  if(typeof _pathwayRenderResults==="function")_pathwayRenderResults();
+  if(typeof _updateHudColor==="function")_updateHudColor();
+}
+
+/* Returns the active-coloring state of a pathway row, used by
+   the path-actions row to render the right button label/icon:
+     "active" — this pathway is the current color source for the
+                active view (or one of the splits — we check globals
+                here so the button on the OTHER pathway shows
+                "Color by score" while the active one shows "Stop
+                coloring"). For split mode this resolves against
+                the active view's snapshot, mirroring the user's
+                mental model of "what does the active pane show". */
+function _pathwayColorState(pid){
+  return (mode==="pathway"&&_pathwayColorId===pid)?"active":"inactive";
+}
 
 /* Compute per-facet, per-cluster raincloud summary: raw values (for quantiles),
    a subsample for raindrops, and a histogram-smoothed density curve (binned
@@ -12446,9 +12871,13 @@ function _exportComputeRenderState(snap, includeGhost){
   var snapGene=snap.selGene||"";
   var snapR=snap.colocR||"";
   var snapG=snap.colocG||"";
+  var snapPid=snap.pathwayColorId||"";
+  var snapPname=snap.pathwayColorName||"";
   /* Coloc takes precedence over single-gene if at least one channel is set
      and cached — same rule the main recolor uses, so the export matches
-     what's on screen. */
+     what's on screen. Pathway score is treated identically to single-gene
+     in the renderer (a [0,1] scalar over the gradient + ghost handling),
+     just sourced from _pathwayScoreCache instead of geneExprCache. */
   var useColoc=(snapMode==="gene"&&snapGM==="coloc"&&((snapR&&geneExprCache[snapR])||(snapG&&geneExprCache[snapG])));
   var ex=null,exR=null,exG=null;
   if(useColoc){
@@ -12456,6 +12885,8 @@ function _exportComputeRenderState(snap, includeGhost){
     exG=snapG?geneExprCache[snapG]:null;
   }else if(snapMode==="gene"&&snapGene&&geneExprCache[snapGene]){
     ex=geneExprCache[snapGene];
+  }else if(snapMode==="pathway"&&snapPid&&_pathwayScoreCache[snapPid]){
+    ex=_pathwayScoreCache[snapPid];
   }
   var useGene=!!ex;
   var isLight=document.body.classList.contains("light");
@@ -12508,10 +12939,12 @@ function _exportComputeRenderState(snap, includeGhost){
   }
   /* hasExpr drives whether the SVG title / filename includes gene names.
      coloc {R,G} is reported separately so callers can build a "R + G"
-     label instead of a single gene. */
+     label instead of a single gene. pathway carries the pid + display
+     name so the SVG title can read "pathway: IL2 STAT5 (overlap mean)". */
   return {kept:kept,color:color,size:sizeArr,alpha:alpha,group:group,
           mode:snapMode,gene:snapGene,hasExpr:(useGene||useColoc),
-          exprValues:ex,coloc:useColoc?{R:snapR,G:snapG}:null};
+          exprValues:ex,coloc:useColoc?{R:snapR,G:snapG}:null,
+          pathway:(snapMode==="pathway"&&snapPid)?{id:snapPid,name:snapPname||snapPid}:null};
 }
 
 function _exportFilename(snap,ext){
@@ -12523,7 +12956,8 @@ function _exportFilename(snap,ext){
   var nm=(snap.name||"split").replace(/[^A-Za-z0-9_-]+/g,"-");
   /* Embed gene context in the filename so multiple exports of the same
      split don't collide silently: "...split.ACTB+CD4..." for coloc,
-     "...split.ACTB..." for single, plain for cluster. */
+     "...split.ACTB..." for single, "...split.path-IL2-STAT5..." for
+     pathway-score, plain for cluster. */
   var geneTag="";
   if(snap){
     var gm=snap.geneMode||"single";
@@ -12535,6 +12969,12 @@ function _exportFilename(snap,ext){
       }else if(snap.selGene){
         geneTag="."+snap.selGene.replace(/[^A-Za-z0-9_-]+/g,"-");
       }
+    }else if(snap.mode==="pathway"&&snap.pathwayColorId){
+      var pthN=(snap.pathwayColorName||snap.pathwayColorId).replace(/[^A-Za-z0-9_-]+/g,"-");
+      /* Truncate so we don't blow out the path-length budget on Reactome
+         pathway names that can run 60+ chars. */
+      if(pthN.length>40)pthN=pthN.slice(0,40);
+      geneTag=".path-"+pthN;
     }
   }
   var when=new Date().toISOString().replace(/[:T]/g,"-").slice(0,19);
@@ -12678,16 +13118,24 @@ function _exportRenderHalfGroup(proj, xOffset, includeRings, hexFn, idSuffix){
 function _geneTitleSnippet(snap){
   if(!snap)return '';
   var sm=snap.mode||'cluster';
-  if(sm!=="gene")return '';
-  var gm=snap.geneMode||"single";
-  if(gm==="coloc"){
-    var R=snap.colocR||"";
-    var G=snap.colocG||"";
-    if(!R&&!G)return '';
-    return ' \u00b7 '+(R||'?')+' + '+(G||'?');
+  if(sm==="gene"){
+    var gm=snap.geneMode||"single";
+    if(gm==="coloc"){
+      var R=snap.colocR||"";
+      var G=snap.colocG||"";
+      if(!R&&!G)return '';
+      return ' \u00b7 '+(R||'?')+' + '+(G||'?');
+    }
+    var g=snap.selGene||"";
+    return g?(' \u00b7 '+g):'';
   }
-  var g=snap.selGene||"";
-  return g?(' \u00b7 '+g):'';
+  if(sm==="pathway"){
+    var pid=snap.pathwayColorId||"";
+    var pname=snap.pathwayColorName||pid;
+    if(!pid)return '';
+    return ' \u00b7 pathway: '+pname+' (overlap mean)';
+  }
+  return '';
 }
 
 function _exportSVG(){
@@ -15408,6 +15856,182 @@ function _attachOverscrollForward(el){
   },{passive:false});
 }
 
+/* Hijack the section's existing border-bottom as the drag affordance.
+   Inserts an absolutely-positioned bar inside `sectionId` that overlays
+   the section's bottom border; mousedown + drag adjusts the height of
+   the element returned by `resolveTarget` (the inner scrollable list).
+
+   Two subtleties the implementation handles:
+
+   (1) `targets` lists candidate ids whose CSS min-height we proactively
+   defeat so JS clamping is the only floor — without this the inline
+   `min-height` on the lists would clamp the panel while the cursor
+   keeps moving, producing cursor / line drift.
+
+   (2) When the user grows the panel past the sidebar viewport, the
+   section's bottom border gets clipped by the sidebar's overflow:auto
+   and the user sees their cursor in empty space below the visible
+   area. We auto-scroll the sidebar during the drag when the cursor
+   approaches the bottom edge, and ADD the scroll delta into the
+   height calculation so the border stays glued to the cursor. Only
+   triggers when growing (cursor moving down) — shrinking doesn't
+   need scrolling because the border moves up with the cursor and
+   stays inside the existing viewport. */
+function _addSectionResizer(opts){
+  var sec=document.getElementById(opts.sectionId);
+  if(!sec)return;
+  /* Idempotent: don't double-install if init runs more than once. */
+  if(sec.querySelector(":scope > .sec-resize-bar"))return;
+  sec.classList.add("has-resizer");
+  var bar=document.createElement("div");
+  bar.className="sec-resize-bar";
+  bar.title="Drag to resize";
+  sec.appendChild(bar);
+  var min=opts.min||80;
+  var max=opts.max||1200;
+  function _defeatMin(t){if(t)t.style.minHeight="0px";}
+  /* Eagerly defeat min-height on every candidate so the first drag
+     doesn't briefly hit the CSS floor before our JS bound kicks in. */
+  if(opts.targets){
+    opts.targets.forEach(function(id){_defeatMin(document.getElementById(id));});
+  }
+  /* Find the scrollable ancestor — sections live in #sidebar-upper
+     unless the user dragged the panel into the right column, where it
+     ends up in #sidebar-right-upper. Resolved once per drag at
+     mousedown so it picks up the current location. */
+  function _scrollContainer(el){
+    var p=el.parentNode;
+    while(p&&p!==document.body){
+      if(p.id==="sidebar-upper"||p.id==="sidebar-right-upper")return p;
+      p=p.parentNode;
+    }
+    return null;
+  }
+  var startY=0,startH=0,startScroll=0,target=null,scrollEl=null,prevOverflowY="";
+  /* Eat wheel events on the sidebar while a resize drag is active.
+     This is the key piece: the codebase wires up custom overscroll
+     forwarding (`_attachOverscrollForward`) on every inner scroll
+     list, which PROGRAMMATICALLY does `outerSidebar.scrollTop +=
+     e.deltaY` when the inner list is at a boundary. overflow:hidden
+     does NOT block programmatic scrolling, so without this listener
+     the sidebar would still scroll mid-drag if the user (or
+     touchpad inertia) sent any wheel events. capture:true + stop
+     propagation kills the event before it reaches any inner
+     handler. */
+  function onWheel(e){
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  /* Belt-and-suspenders: if anything ELSE manages to scroll the
+     sidebar (e.g. focus-into-view, a programmatic scrollTo we
+     don't know about), the scroll event fires; snap back. */
+  function onScroll(){
+    if(scrollEl&&scrollEl.scrollTop!==startScroll){
+      scrollEl.scrollTop=startScroll;
+    }
+  }
+  function onMove(ev){
+    /* Pure math: with startY = section.bottom at mousedown and
+       newH = startH + (cursor.y - startY), the section's bottom border
+       lands at exactly cursor.y on every mousemove. */
+    var dy_cursor=ev.clientY-startY;
+    var newH=Math.max(min,Math.min(max,startH+dy_cursor));
+    target.style.height=newH+"px";
+    target.style.maxHeight=newH+"px";
+    if(opts.onResize)opts.onResize();
+  }
+  function onUp(){
+    document.removeEventListener("mousemove",onMove);
+    document.removeEventListener("mouseup",onUp);
+    document.body.style.cursor="";
+    bar.classList.remove("dragging");
+    if(scrollEl){
+      /* Restore sidebar's scroll behavior. scrollTop is preserved across
+         the overflow toggle, so user lands at the same position. */
+      scrollEl.style.overflowY=prevOverflowY||"";
+      scrollEl.removeEventListener("wheel",onWheel,{capture:true});
+      scrollEl.removeEventListener("scroll",onScroll);
+    }
+  }
+  bar.addEventListener("mousedown",function(e){
+    e.preventDefault();
+    target=opts.resolveTarget();
+    if(!target)return;
+    _defeatMin(target);
+    scrollEl=_scrollContainer(target);
+    /* Anchor math to the LINE's screen position (= section's outer
+       bottom edge), NOT to the click position. */
+    startY=sec.getBoundingClientRect().bottom;
+    startH=target.getBoundingClientRect().height;
+    startScroll=scrollEl?scrollEl.scrollTop:0;
+    if(scrollEl){
+      /* Block sidebar scrolling three ways during the drag:
+         1. overflow:hidden — disables native scrollbar / wheel scroll
+         2. wheel listener (capture+stopPropagation) — blocks the
+            custom overscroll-forward handlers on inner lists from
+            programmatically scrolling the sidebar
+         3. scroll listener — snaps scrollTop back if anything else
+            slipped through */
+      prevOverflowY=scrollEl.style.overflowY;
+      scrollEl.style.overflowY="hidden";
+      scrollEl.addEventListener("wheel",onWheel,{passive:false,capture:true});
+      scrollEl.addEventListener("scroll",onScroll);
+    }
+    document.body.style.cursor="ns-resize";
+    bar.classList.add("dragging");
+    document.addEventListener("mousemove",onMove);
+    document.addEventListener("mouseup",onUp);
+  });
+}
+
+function _setupResizableLists(){
+  /* Use a tall ceiling tied to the viewport so users don't run into a
+     hardcoded max while dragging — when the resize hits max, the cursor
+     keeps moving but the border stops, producing the persistent cursor-
+     border displacement that read as "broken tracking." Cap at 90% of
+     the viewport instead, which is more than any reasonable list needs
+     and unlikely to be hit in practice. */
+  var BIG=Math.max(800,Math.round(window.innerHeight*0.9));
+  /* Gene panel: bottom border resizes the gene-variability list. The
+     expression legend below the list stays the same size; only
+     hvg-scroll's height changes. The whole section grows by the
+     resize delta, so the border stays under the cursor. */
+  _addSectionResizer({
+    sectionId:"gene-sec", targets:["hvg-scroll"],
+    resolveTarget:function(){return document.getElementById("hvg-scroll");},
+    min:120, max:BIG,
+    onResize:function(){
+      _gvLastStart=-1;_gvLastEnd=-1;
+      if(typeof _gvVirtualRender==="function")_gvVirtualRender();
+    }
+  });
+  /* Cell-types panel: leg-scroll (flat) and lineage-tree (lineage view)
+     are toggled visible/hidden together — the bar resizes whichever
+     one is currently visible. Each remembers its own height when
+     toggled away. */
+  _addSectionResizer({
+    sectionId:"ct-sec", targets:["leg-scroll","lineage-tree"],
+    resolveTarget:function(){
+      var lin=document.getElementById("lineage-tree");
+      var leg=document.getElementById("leg-scroll");
+      if(lin&&lin.style.display!=="none")return lin;
+      return leg;
+    },
+    min:140, max:BIG,
+    onResize:function(){
+      _legLastS=-1;_legLastE=-1;
+      if(typeof _legVirtualRender==="function")_legVirtualRender();
+    }
+  });
+  /* Pathway panel: bottom border resizes the result list. Non-virtual
+     so no re-render hook needed. */
+  _addSectionResizer({
+    sectionId:"pathway-sec", targets:["path-results"],
+    resolveTarget:function(){return document.getElementById("path-results");},
+    min:120, max:BIG
+  });
+}
+
 function setupCustomScrollbars(){
   /* Custom overlay scrollbars for macOS (which hides native scrollbars).
      Shows a draggable thumb on hover after a short delay. */
@@ -16094,7 +16718,7 @@ document.addEventListener("DOMContentLoaded",function(){
   /* Stamp the version into both the sidebar title pill and the help-overlay header. */
   var _sbv=document.getElementById("fleek-version");if(_sbv)_sbv.textContent=FLEEK_VERSION;
   var _hv=document.getElementById("help-version");if(_hv)_hv.textContent=FLEEK_VERSION;
-  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupPanelScrollbars();setupScrollTraps();setupSliderWheelPassthrough();_patchOS();_setupCustomSelects();_panelsInit();animate();_checkKeyStatus();
+  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupPanelScrollbars();setupScrollTraps();setupSliderWheelPassthrough();_patchOS();_setupCustomSelects();_panelsInit();_setupResizableLists();animate();_checkKeyStatus();
   /* Apply initial theme */
   applyTheme(document.getElementById("set-theme").value||"dark");
   /* Restore the Single / Colocalization toggle from sessionStorage so

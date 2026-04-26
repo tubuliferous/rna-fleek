@@ -269,6 +269,26 @@ Uses selection groups as conditions (not obs columns). User selects a single "Re
 - Selections are fully global — shared across all split views
 - Split Views panel in sidebar (between Selection Groups and Slice)
 
+#### Color modes (current set)
+- `mode="cluster"` — per-cluster palette (default). No per-cell scalar.
+- `mode="gene"` with `_geneMode="single"` — per-cell expression of `selGene` (Float32Array in `geneExprCache[selGene]`, normalized to [0,1]).
+- `mode="gene"` with `_geneMode="coloc"` — two-channel composition of `_colocR` + `_colocG` (red/green) via `_colocCompose`.
+- `mode="pathway"` — per-cell pathway score = mean of overlap-gene normalized expressions for `_pathwayColorId`. Score arrays live in `_pathwayScoreCache[pid]` (Float32Array, length n_cells, [0,1]). Computed on demand by `_pathwayComputeScore` from already-cached genes; recomputed lazily on session restore. Per-view snapshot fields: `pathwayColorId`, `pathwayColorName`. Renderer treats it identically to single-gene (same gradient + ghost + size→expression pipeline) — `useGene` in `recolor()` / `_recolorView` is overloaded to mean "use scalar coloring (gene OR pathway)" so the inner loop didn't grow new branches.
+- HUD info overlay shows current color mode in a `Color` row per half (`_updateHudColor` reads each split's snapshot, NOT globals — globals are scratch state during the cross-half render loop).
+
+#### Adding a new way to color the main viewer
+**Any new "color mode" for the main viewer (gene, coloc, pathway score, signature score, density, …) MUST be wired into split-screen from day one. Half-finished modes that work in single-view but break in split-screen are a recurring failure mode here.** Concretely, when adding a new mode:
+
+1. **Pick the mode key.** New top-level modes extend `mode` (currently `"cluster"` / `"gene"`); sub-modes nest like `_geneMode` (`"single"` / `"coloc"`). Pick the level that matches how the user thinks about it — pathway scoring is a top-level alternative to gene/cluster, so it should probably get its own `mode` value rather than hide inside `_geneMode`.
+2. **Add EVERY mode-defining field to the per-view snapshot.** That means `_views[i]` (around the `_views.push({…})` site) plus `_viewSwitch` (which writes globals back from a snapshot on activation). For pathway coloring this would be e.g. `pathwayId`, `pathwayScoreMethod`, `pathwayScoreCache`. If a field is consulted by the renderer and is NOT in the snapshot, the other split half will silently render with the wrong state.
+3. **Teach `_recolorView(vIdx)` the new mode.** The `recolor()` driver already swaps globals around the per-view loop; `_recolorView` just needs the same `if(mode === "...")` branch as the on-screen `recolor()` path. If the renderer needs per-cell data (gene expression, score array), make sure the data is fetched / cached for the half being rendered BEFORE `_recolorView` runs. The coloc save+restore pattern in `recolor()` is the model — both channels are pre-fetched, then each view renders from cache.
+4. **Sync UI on active-half switch.** `_viewSwitch` calls `_syncColorModeUIToGlobals` (or equivalent) so panels, indicators, and badges reflect the active half. Any new UI affordance for the new mode (a gene-panel-style picker, a mode toggle, a chip in the info overlay) needs a sync line here.
+5. **Update the info-overlay color-mode chip.** It must read from the active half's snapshot in split mode, NOT from globals — globals are scratch during the cross-half render loop.
+6. **SVG export.** `_exportComputeRenderState` reads per-view snapshots; the side-by-side path runs each half through it independently. New mode → branch in `_exportComputeRenderState`, branch in the per-view SVG renderer, and tag the filename / title with whatever the user is looking at.
+7. **Session restore.** `restoreState` (sessionStorage) and `_applySessionState` (server-side auto-session) must serialize and restore the new fields, otherwise a reload silently drops color state. Each `_views[i]` round-trips through these, so whatever field you added in step 2 is the field to add here too.
+
+A reasonable sanity test before marking the mode "done": split the screen, set the mode differently in each half, switch active halves a few times, hit Recolor, reload the page, then SVG-export the side-by-side. If any step shows the wrong colors or loses state, you're missing one of the seven points above.
+
 ### Auto-quit (heartbeat)
 - Renamed from "auto-unload" but variables/settings keep the `auto_unload`
   name for session-storage compatibility. Default: OFF (opt-in), 20-second
