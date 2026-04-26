@@ -996,7 +996,7 @@
           <button id="vb3m" onclick="setView('3d')" title="3D view (D)" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:1px 6px;transition:all 0.1s;">3D</button>
         </span>
         <span id="emb-mini-label" style="font-size:10px;color:var(--text4);display:none;"></span>
-        <button id="view-reset-mini" onclick="resetView(event)" title="Reset camera to default (R) · Alt+click: reset + show all cells"><svg viewBox="0 0 16 16" style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg></button>
+        <button id="view-reset-mini" onclick="resetView(event)" title="Reset camera to default (R) · Alt+R or Alt+click: reset + show all cells"><svg viewBox="0 0 16 16" style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/></svg></button>
       </div>
       <span class="col-chev">&#9660;</span>
     </div>
@@ -1008,12 +1008,12 @@
         </span>
         <div style="display:inline-flex;gap:2px;margin-left:auto;margin-right:4px;">
           <button class="btn" id="b-auto" onclick="toggleAuto()" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Toggle auto-rotation"><svg viewBox="0 0 1203 706" width="12" height="7" style="width:12px;height:7px;flex-shrink:0;fill:currentColor;"><path d="m 439.45,701.38 c -2.9,-1.7 -6.86,-5.75 -8.82,-9.02 -3.35,-5.59 -3.6,-8.39 -4.36,-48.71 l -0.8,-42.78 -32.88,-6.07 C 339.15,584.93 296.71,573.75 251.45,557.62 93.08,501.16 1.42,410.27 1.1,309.38 1.01,281.1 4.16,264.66 14.44,239.78 83.46,72.61 412.24,-31.01 745.4,9.4 c 180.62,21.9 330.05,84.62 403.99,169.56 33.54,38.52 50.28,76.86 52.53,120.24 5.92,114.45 -103.52,215.84 -294.45,272.79 -61.04,18.21 -144.19,32.96 -215.11,38.17 l -16.99,1.25 -1.04,-18.76 c -0.58,-10.32 -1.05,-49.88 -1.05,-87.91 l -0.01,-69.15 3.61,-0.04 c 8.5,-0.09 66.39,-7.71 87.01,-11.46 91.9,-16.7 170.49,-47.6 221,-86.89 20.93,-16.29 42.06,-41.09 49.42,-58.03 4.93,-11.35 5.39,-13.85 5.42,-29.59 0.03,-15.57 -0.46,-18.39 -5.15,-29.73 C 1008,155.56 901.7,98.55 761.16,73.21 665.73,56 539.63,55.99 441.5,73.18 384.1,83.24 326.75,100.64 283.58,121.11 210.36,155.82 165.21,201.55 162.16,244.09 c -2.64,36.75 25,74.88 79.66,109.92 39.43,25.27 102.27,49.75 160.39,62.47 10.14,2.22 19.71,4.48 21.25,5.03 2.61,0.92 2.81,-1.94 2.81,-41.61 0,-37.8 0.33,-43.35 2.97,-49.25 5.63,-12.61 17.51,-18.11 30.31,-14.03 4.79,1.53 166.87,169.6 171.57,177.91 4.33,7.66 4.88,20.47 1.25,28.83 -2.28,5.25 -156.88,167 -168.84,176.66 -6.67,5.38 -16.29,5.93 -24.07,1.37 z"/><\/svg><span>Rotate</span></button>
-          <button class="btn" onclick="resetView(event)" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Reset camera to default (R) · Alt+click: reset + show all cells"><svg viewBox="0 0 16 16" style="width:12px;height:12px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/><\/svg><span>Reset</span></button>
+          <button class="btn" onclick="resetView(event)" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Reset camera to default (R) · Alt+R or Alt+click: reset + show all cells"><svg viewBox="0 0 16 16" style="width:12px;height:12px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/><\/svg><span>Reset</span></button>
         </div>
       </div>
       <div id="emb-row" style="display:none;margin-bottom:8px;">
         <div class="lbl">Embedding</div>
-        <select id="emb-select" onchange="setEmbMethod(this.value)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
+        <select id="emb-select" onchange="setEmbMethod(this.value)" title="Embedding (UMAP / PCA / PaCMAP if available). Press E to cycle." style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
           <option value="umap">UMAP</option>
         </select>
       </div>
@@ -1024,7 +1024,7 @@
       <div class="lbl" style="margin-top:6px;">Unselected Brightness</div>
       <input type="range" id="bg-dim" min="0" max="100" step="5" value="100" oninput="setBgDim(100-this.value,true)" onchange="setBgDim(100-this.value);this.blur()" title="How bright non-selected cells appear. Slide left to fade, right for full brightness.">
       <div class="lbl" style="margin-top:6px;">Color</div>
-      <select id="color-mode-select" onchange="setMode(this.value)" title="Color mode (Cell Type / Cluster, Gene Expression)" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
+      <select id="color-mode-select" onchange="setMode(this.value)" title="Color mode — C = cluster, G = gene single, L = colocalization" style="width:100%;margin-top:2px;-webkit-appearance:none;appearance:none;background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;">
         <option value="cluster">Cell Type / Cluster</option>
         <option value="gene">Gene Expression</option>
         <!-- HIDDEN (re-enable later): pathway score coloring. The setMode
@@ -1064,7 +1064,7 @@
       <div id="split-list"></div>
       <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
         <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split (or press 1-9)" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">+</button>
-        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border2)'">⧉</button>
+        <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison (S — requires ≥2 splits)" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border2)'">⧉</button>
       </div>
     </div>
   </div>
@@ -1096,8 +1096,8 @@
     <div class="col-body">
       <!-- Single / Colocalization mode toggle -->
       <div id="gene-mode-toggle" style="display:flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;font-size:10px;margin-bottom:6px;">
-        <button id="gm-single" onclick="_setGeneMode('single')" style="flex:1;background:rgba(99,102,241,0.15);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:600;" title="Single gene — color cells by one gene's expression on the active gradient">Single</button>
-        <button id="gm-coloc" onclick="_setGeneMode('coloc')" style="flex:1;background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;" title="Colocalization — pick two genes; cells expressing both light up (coloc color)">Colocalization</button>
+        <button id="gm-single" onclick="_setGeneMode('single')" style="flex:1;background:rgba(99,102,241,0.15);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;font-weight:600;" title="Single gene — color cells by one gene's expression on the active gradient (G)">Single</button>
+        <button id="gm-coloc" onclick="_setGeneMode('coloc')" style="flex:1;background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;" title="Colocalization — pick two genes; cells expressing both light up (coloc color) (L)">Colocalization</button>
       </div>
       <!-- Expression legend / gradient picker (shown in single mode when a gene is selected).
            Moved up here from the bottom of the gene panel so the gradient
@@ -1142,7 +1142,7 @@
         </div>
       </div>
       <div id="gene-search-wrap" style="display:flex;gap:3px;align-items:center;">
-        <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" style="flex:1;min-width:0;">
+        <input type="text" id="gsearch" placeholder="Search all genes..." oninput="searchGenes()" title="Type a gene name. With the search box closed, use J / K to navigate the variability list." style="flex:1;min-width:0;">
         <span id="go-split" style="display:none;border:1px solid var(--border2);border-radius:3px;overflow:hidden;flex-shrink:0;">
           <button id="go-btn-gene" onclick="_goSetMode(false)" style="background:rgba(99,102,241,0.12);border:none;color:var(--accent2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 6px;transition:all 0.1s;" title="Search by gene name">Gene</button>
           <button id="go-btn-go" onclick="_goSetMode(true)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 6px;transition:all 0.1s;" title="Filter genes by Gene Ontology term">GO</button>
@@ -1323,7 +1323,7 @@
       <div style="display:flex;align-items:center;gap:4px;margin-left:auto;margin-right:8px;" onclick="event.stopPropagation()">
         <button id="type-sort-btn" onclick="toggleTypeSort()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:0 2px;" title="Toggle sort: alphabetical / cell count">A→Z</button>
         <span style="color:var(--border2);">|</span>
-        <button onclick="showAllClusters()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:0 2px;" title="Show all cell types">all</button>
+        <button onclick="showAllClusters()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:0 2px;" title="Show all cell types (H toggles show-all / restore-hidden)">all</button>
         <span style="color:var(--border2);">|</span>
         <button onclick="showNoneClusters()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:10px;font-family:inherit;padding:0 2px;" title="Hide all cell types">none</button>
       </div>
@@ -1381,7 +1381,7 @@
       <div class="hud-row" id="hud-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-color">—</span></div>
       <div class="hud-row" id="hud-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-group">—</span></div>
     </div>
-    <span id="hud-toggle" onclick="document.getElementById('hud').classList.toggle('open')">&#9662; Info</span>
+    <span id="hud-toggle" onclick="document.getElementById('hud').classList.toggle('open')" title="Toggle Info overlay (I)">&#9662; Info</span>
   </div>
   <div id="hud-R" class="open" style="display:none;position:absolute;bottom:12px;left:calc(50% + 12px);z-index:10;font-size:10px;color:var(--text3);max-width:220px;">
     <div id="hud-R-body">
@@ -1391,7 +1391,7 @@
       <div class="hud-row" id="hud-R-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-R-color">—</span></div>
       <div class="hud-row" id="hud-R-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-R-group">—</span></div>
     </div>
-    <span id="hud-R-toggle" onclick="document.getElementById('hud-R').classList.toggle('open')">&#9662; Info</span>
+    <span id="hud-R-toggle" onclick="document.getElementById('hud-R').classList.toggle('open')" title="Toggle Info overlay (I)">&#9662; Info</span>
   </div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="action-flash"></div>
@@ -1408,7 +1408,7 @@
     <div class="s-title">Settings</div>
     <div class="s-row">
       <span>Theme</span>
-      <select id="set-theme" onchange="saveSettings()" style="min-width:70px;">
+      <select id="set-theme" onchange="saveSettings()" title="Color theme (T to toggle dark/light)" style="min-width:70px;">
         <option value="dark">Dark</option>
         <option value="light">Light</option>
       </select>
@@ -2535,7 +2535,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.13";
+var FLEEK_VERSION="v0.4.14";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -3731,7 +3731,22 @@ function toggleSec(key){
   el.classList.toggle("collapsed");
   _colState[key]=el.classList.contains("collapsed")?1:0;
   try{sessionStorage.setItem("fleek_col",JSON.stringify(_colState));}catch(e){}
-  if(key==="gene")_updateGeneCollapsedName();
+  if(key==="gene"){
+    _updateGeneCollapsedName();
+    /* Self-heal the gene-variability list on expand. The virtual
+       scroller can occasionally end up with an empty viewport (e.g.
+       when a render fired while the panel was collapsed and
+       _clusterGeneSorted hadn't loaded yet, or when the cached render
+       range matches but the viewport got cleared by a fresh
+       innerHTML). Invalidating the range cache + re-running
+       renderHVGChips is idempotent and cheap when the list is
+       already correctly rendered, but recovers from the blank state
+       when it isn't. */
+    if(!el.classList.contains("collapsed")){
+      if(typeof _gvLastStart!=="undefined"){_gvLastStart=-1;_gvLastEnd=-1;}
+      if(typeof renderHVGChips==="function")renderHVGChips();
+    }
+  }
   if(key==="data"&&!el.classList.contains("collapsed"))_relayoutBadges();
   if(typeof _scheduleSizeCellTypesList==="function")_scheduleSizeCellTypesList();
 }
