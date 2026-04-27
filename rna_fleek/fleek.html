@@ -125,6 +125,13 @@
      promotes it to a 2px accent2 line centered on the same position. */
   .sec-resize-bar::after{content:'';position:absolute;left:0;right:0;bottom:2px;height:1px;background:transparent;transition:background var(--dur-fast),height var(--dur-fast),bottom var(--dur-fast);pointer-events:none;}
   .sec-resize-bar:hover::after,.sec-resize-bar.dragging::after{background:var(--accent2);height:2px;bottom:1px;}
+  /* In-flow resize bar that sits as a sibling immediately after a
+     resizable element (e.g. the file-browser column area). Same look
+     and feel as .sec-resize-bar but no absolute positioning since it
+     occupies its own row in normal flow. */
+  .elem-resize-bar{position:relative;height:7px;cursor:ns-resize;user-select:none;-webkit-user-select:none;flex-shrink:0;}
+  .elem-resize-bar::after{content:'';position:absolute;left:0;right:0;top:3px;height:1px;background:transparent;transition:background var(--dur-fast),height var(--dur-fast),top var(--dur-fast);pointer-events:none;}
+  .elem-resize-bar:hover::after,.elem-resize-bar.dragging::after{background:var(--accent2);height:2px;top:2.5px;}
   /* Second sidebar column — appears when a panel is dragged into it */
   #sidebar-right{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;transition:margin-left 0.25s ease,opacity 0.25s ease;}
   #sidebar-right.active{display:flex;}
@@ -195,18 +202,77 @@
   #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
   #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:11px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;z-index:15;}
-  #hud{position:absolute;bottom:12px;left:12px;z-index:10;font-size:10px;color:var(--text3);max-width:220px;}
+  /* HUDs (Info overlays). The default HUD (#hud, quad 0) sits bottom-left
+     in single-view; in 2-up split it stays bottom-left. In 3/4-up the
+     quadrant index drives placement via cw class — see the .split-N rules
+     further down. */
+  .hud-quad{position:absolute;bottom:12px;left:12px;z-index:10;font-size:10px;color:var(--text3);max-width:220px;}
+  .hud-quad .hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
+  .hud-quad.open .hud-body{display:block;}
+  .hud-quad .hud-row{display:flex;justify-content:space-between;gap:8px;}
+  .hud-quad .hud-label{color:var(--text4);}
+  .hud-quad .hud-val{color:var(--text2);font-variant-numeric:tabular-nums;text-align:right;}
+  /* Default state: only quad 0's HUD is visible. Quads 1-3 light up
+     via the split-N override rules below. */
+  .hud-quad[data-quad="1"],.hud-quad[data-quad="2"],.hud-quad[data-quad="3"]{display:none;}
+  #cw.split-2 .hud-quad[data-quad="1"]{display:block;}
+  #cw.split-3 .hud-quad[data-quad="1"],#cw.split-3 .hud-quad[data-quad="2"]{display:block;}
+  #cw.split-4 .hud-quad[data-quad="1"],#cw.split-4 .hud-quad[data-quad="2"],#cw.split-4 .hud-quad[data-quad="3"]{display:block;}
   #cw.comparing #c{width:50%!important;margin-left:50%;}
   #cw.comparing #hud{left:calc(50% + 12px);}
   #cw.comparing #hint{left:75%;}
+  /* Two dividers: vertical (always shown in split modes that have 2+ columns
+     of content) and horizontal (shown only in 3/4-up). The class on #cw
+     drives which is visible: split-2 shows vertical, split-3 / split-4
+     show both. */
   #split-divider{display:none;position:absolute;top:0;left:50%;width:1px;height:100%;background:var(--border);opacity:0.6;pointer-events:none;z-index:4;transform:translateX(-0.5px);}
-  #cw.split-active #split-divider{display:block;}
-  .split-focus-box{display:none;position:absolute;top:0;height:100%;border:2px solid var(--accent);pointer-events:none;z-index:5;box-sizing:border-box;opacity:0.6;}
-  #split-focus-L{left:0;width:50%;}
-  #split-focus-R{left:50%;width:50%;}
-  #cw.split-active .split-focus-box.active{display:block;}
-  .split-view-label{display:none;position:absolute;top:8px;z-index:7;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:auto;user-select:none;white-space:nowrap;}
-  #cw.split-active .split-view-label{display:flex;align-items:center;gap:4px;}
+  #split-divider-h{display:none;position:absolute;left:0;top:50%;height:1px;width:100%;background:var(--border);opacity:0.6;pointer-events:none;z-index:4;transform:translateY(-0.5px);}
+  #cw.split-2 #split-divider,#cw.split-3 #split-divider,#cw.split-4 #split-divider{display:block;}
+  #cw.split-3 #split-divider-h,#cw.split-4 #split-divider-h{display:block;}
+  /* Per-quadrant focus boxes. Each gets positioned by quadrant rect rules
+     below. The .active class is added to the box for the currently-active
+     quadrant. */
+  .split-focus-box{display:none;position:absolute;border:2px solid var(--accent);pointer-events:none;z-index:5;box-sizing:border-box;opacity:0.6;}
+  #cw.split-2 .split-focus-box.active,#cw.split-3 .split-focus-box.active,#cw.split-4 .split-focus-box.active{display:block;}
+  /* Per-quadrant labels at the top edge of each quadrant. */
+  .split-view-label{display:none;position:absolute;z-index:7;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:auto;user-select:none;white-space:nowrap;}
+  #cw.split-2 .split-view-label,#cw.split-3 .split-view-label,#cw.split-4 .split-view-label{display:flex;align-items:center;gap:4px;}
+  /* Quadrant rect rules (count-aware). split-1 = single view, no overrides.
+     split-2 = side-by-side, two columns. split-3 / split-4 = 2x2 grid.
+     A quadrant beyond the active count keeps display:none — the JS also
+     hard-hides those via inline style as a safety net. */
+  /* split-2: two side-by-side columns, full height */
+  #cw.split-2 [data-quad="0"]{}
+  #cw.split-2 [data-quad="1"]{}
+  #cw.split-2 [data-quad="2"],#cw.split-2 [data-quad="3"]{display:none!important;}
+  #cw.split-2 .split-focus-box[data-quad="0"]{left:0;top:0;width:50%;height:100%;}
+  #cw.split-2 .split-focus-box[data-quad="1"]{left:50%;top:0;width:50%;height:100%;}
+  #cw.split-2 .split-view-label[data-quad="0"]{left:8px;top:8px;}
+  #cw.split-2 .split-view-label[data-quad="1"]{left:calc(50% + 8px);top:8px;}
+  #cw.split-2 .hud-quad[data-quad="0"]{bottom:12px;left:12px;}
+  #cw.split-2 .hud-quad[data-quad="1"]{bottom:12px;left:calc(50% + 12px);top:auto;}
+  /* split-3: 2x2 grid with bottom-right empty (quad 3 hidden) */
+  #cw.split-3 [data-quad="3"]{display:none!important;}
+  /* split-3 + split-4 share the 2x2 quadrant placement for quads 0-2 (and
+     quad 3 in split-4). */
+  #cw.split-3 .split-focus-box[data-quad="0"],#cw.split-4 .split-focus-box[data-quad="0"]{left:0;top:0;width:50%;height:50%;}
+  #cw.split-3 .split-focus-box[data-quad="1"],#cw.split-4 .split-focus-box[data-quad="1"]{left:50%;top:0;width:50%;height:50%;}
+  #cw.split-3 .split-focus-box[data-quad="2"],#cw.split-4 .split-focus-box[data-quad="2"]{left:0;top:50%;width:50%;height:50%;}
+  #cw.split-4 .split-focus-box[data-quad="3"]{left:50%;top:50%;width:50%;height:50%;}
+  #cw.split-3 .split-view-label[data-quad="0"],#cw.split-4 .split-view-label[data-quad="0"]{left:8px;top:8px;}
+  #cw.split-3 .split-view-label[data-quad="1"],#cw.split-4 .split-view-label[data-quad="1"]{left:calc(50% + 8px);top:8px;}
+  #cw.split-3 .split-view-label[data-quad="2"],#cw.split-4 .split-view-label[data-quad="2"]{left:8px;top:calc(50% + 8px);}
+  #cw.split-4 .split-view-label[data-quad="3"]{left:calc(50% + 8px);top:calc(50% + 8px);}
+  /* HUDs anchor to each quadrant's bottom-left corner. Quad 0/1 in 3/4-up
+     anchor to the MIDLINE bottom rather than the canvas bottom so they
+     stay inside their quadrant. */
+  #cw.split-3 .hud-quad[data-quad="0"],#cw.split-4 .hud-quad[data-quad="0"]{bottom:calc(50% + 12px);left:12px;top:auto;}
+  #cw.split-3 .hud-quad[data-quad="1"],#cw.split-4 .hud-quad[data-quad="1"]{bottom:calc(50% + 12px);left:calc(50% + 12px);top:auto;}
+  #cw.split-3 .hud-quad[data-quad="2"],#cw.split-4 .hud-quad[data-quad="2"]{bottom:12px;left:12px;top:auto;}
+  #cw.split-4 .hud-quad[data-quad="3"]{bottom:12px;left:calc(50% + 12px);top:auto;}
+  /* In split-1 (single-view) all the per-quad split UI is hidden. */
+  #cw.split-1 .split-view-label,#cw.split-1 .split-focus-box{display:none!important;}
+  #cw.split-1 .hud-quad[data-quad="1"],#cw.split-1 .hud-quad[data-quad="2"],#cw.split-1 .hud-quad[data-quad="3"]{display:none!important;}
   .split-view-select{background:transparent;border:none;color:inherit;font:inherit;font-size:11px;padding:0;cursor:pointer;outline:none;}
   /* Tether chain icon — shown in both the single-view label (#view-label) and
      each half's label in split mode (.split-view-label). Baseline opacity and
@@ -257,13 +323,15 @@
   #plot-gene-results .pg-hit{padding:3px 8px;font-size:10px;color:var(--text2);cursor:pointer;}
   #plot-gene-results .pg-hit:hover{background:var(--bg-hover);color:var(--text);}
   #plot-gene-results .pg-hit.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
-  #hud-toggle,#hud-R-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;color:var(--accent2);display:inline-flex;align-items:center;gap:4px;user-select:none;opacity:var(--op-rest);transition:opacity var(--dur-fast),border-color var(--dur-fast);}
-  #hud-toggle:hover,#hud-R-toggle:hover{opacity:var(--op-active);border-color:var(--border2);}
-  #hud-body,#hud-R-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
-  #hud.open #hud-body,#hud-R.open #hud-R-body{display:block;}
-  #hud .hud-row,#hud-R .hud-row{display:flex;justify-content:space-between;gap:8px;}
-  #hud .hud-label,#hud-R .hud-label{color:var(--text4);}
-  #hud .hud-val,#hud-R .hud-val{color:var(--text2);font-variant-numeric:tabular-nums;text-align:right;}
+  /* Info-toggle button — quad 0 has a fixed id (#hud-toggle); the other
+     three quadrants share the .hud-quad-toggle class. Each toggles its
+     OWN HUD's open state; the I keyboard shortcut still toggles all. */
+  #hud-toggle,.hud-quad-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;color:var(--accent2);display:inline-flex;align-items:center;gap:4px;user-select:none;opacity:var(--op-rest);transition:opacity var(--dur-fast),border-color var(--dur-fast);}
+  #hud-toggle:hover,.hud-quad-toggle:hover{opacity:var(--op-active);border-color:var(--border2);}
+  /* Backwards-compat: #hud-body matches the same display rules now governed
+     by .hud-quad. */
+  #hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
+  #hud.open #hud-body{display:block;}
   #action-flash{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;pointer-events:none;opacity:0;transition:opacity 0.2s,transform 0.2s;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
   .light #action-flash{box-shadow:0 4px 16px rgba(0,0,0,0.08);}
   #action-flash.show{display:block;opacity:1;transform:translate(-50%,-50%) scale(1);}
@@ -1065,6 +1133,15 @@
       <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
         <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split (or press 1-9)" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">+</button>
         <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison (S — requires ≥2 splits)" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border2)'">⧉</button>
+        <!-- Split-count selector: 1 / 2 / 3 / 4. Visible whenever there
+             are ≥2 saved view splits. Each pip is a button that calls
+             _splitSetCount(N). Active pip is highlighted via .on. -->
+        <span id="split-count-row" style="display:none;align-items:center;gap:1px;border:1px solid var(--border2);border-radius:3px;overflow:hidden;font-size:10px;margin-left:auto;" title="Number of split views shown side-by-side (1 = single view; 3-4 use a 2x2 grid)">
+          <button class="split-count-pip" data-count="1" onclick="_splitSetCount(1)" style="background:transparent;border:none;color:var(--text3);cursor:pointer;padding:1px 6px;font-family:inherit;font-size:10px;">1</button>
+          <button class="split-count-pip" data-count="2" onclick="_splitSetCount(2)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;padding:1px 6px;font-family:inherit;font-size:10px;">2</button>
+          <button class="split-count-pip" data-count="3" onclick="_splitSetCount(3)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;padding:1px 6px;font-family:inherit;font-size:10px;">3</button>
+          <button class="split-count-pip" data-count="4" onclick="_splitSetCount(4)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;padding:1px 6px;font-family:inherit;font-size:10px;">4</button>
+        </span>
       </div>
     </div>
   </div>
@@ -1354,18 +1431,30 @@
 <div id="cw">
   <img id="compare-img" style="display:none;position:absolute;top:0;left:0;width:50%;height:100%;object-fit:cover;z-index:2;border-right:2px solid var(--accent);">
   <div id="compare-label" style="display:none;position:absolute;top:8px;left:8px;z-index:3;font-size:11px;color:var(--accent2);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:none;"></div>
-  <div id="view-label" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:5;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);align-items:center;gap:6px;">
+  <div id="view-label" style="display:none;position:absolute;top:8px;left:8px;z-index:5;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);align-items:center;gap:6px;">
     <span id="view-label-name" style="cursor:pointer;" onclick="_viewRename()" title="Click to rename this view split"></span>
     <span class="dl-btn" onclick="if(_activeViewId!=null)_exportOpen(_activeViewId)" title="Download points shown in this view (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
     <span id="view-label-tether" class="tether-btn" onclick="_toggleTetherById(_activeViewId)" title="Toggle camera tether"></span>
   </div>
   <div id="split-divider"></div>
-  <div id="split-focus-L" class="split-focus-box"></div>
-  <div id="split-focus-R" class="split-focus-box"></div>
-  <div id="split-label-L" class="split-view-label" style="left:8px;"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0]!=null)_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
-  <div id="split-label-R" class="split-view-label" style="left:calc(50% + 8px);"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1]!=null)_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
-  <div id="gene-indicator-L" class="gene-indicator"></div>
-  <div id="gene-indicator-R" class="gene-indicator"></div>
+  <div id="split-divider-h"></div>
+  <!-- One focus box, label, and gene indicator per possible quadrant (0-3).
+       JS positions them based on the current split count + this quadrant's
+       index. _splitActive turns them on; quadrants beyond the count stay
+       hidden via the dN-q* CSS modifiers driven by the active class on
+       #cw. Index 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right. -->
+  <div id="split-focus-0" class="split-focus-box" data-quad="0"></div>
+  <div id="split-focus-1" class="split-focus-box" data-quad="1"></div>
+  <div id="split-focus-2" class="split-focus-box" data-quad="2"></div>
+  <div id="split-focus-3" class="split-focus-box" data-quad="3"></div>
+  <div id="split-label-0" class="split-view-label" data-quad="0"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0]!=null)_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
+  <div id="split-label-1" class="split-view-label" data-quad="1"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1]!=null)_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
+  <div id="split-label-2" class="split-view-label" data-quad="2"><select class="split-view-select" onchange="_splitReassign(2,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[2]!=null)_exportOpen(_splitViewIds[2])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(2)" title="Toggle camera tether"></span></div>
+  <div id="split-label-3" class="split-view-label" data-quad="3"><select class="split-view-select" onchange="_splitReassign(3,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[3]!=null)_exportOpen(_splitViewIds[3])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(3)" title="Toggle camera tether"></span></div>
+  <div id="gene-indicator-0" class="gene-indicator" data-quad="0"></div>
+  <div id="gene-indicator-1" class="gene-indicator" data-quad="1"></div>
+  <div id="gene-indicator-2" class="gene-indicator" data-quad="2"></div>
+  <div id="gene-indicator-3" class="gene-indicator" data-quad="3"></div>
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:10px;color:var(--text4);margin-left:4px;">FPS</span></div>
@@ -1373,7 +1462,12 @@
     <button id="hist-back" onclick="histUndo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px 0 0 4px;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
     <button id="hist-fwd" onclick="histRedo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:0 4px 4px 0;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
-  <div id="hud" class="open">
+  <!-- Four HUD overlays, one per possible quadrant. Index 0 is the
+       single-view HUD (also bottom-left in split modes); indices 1-3
+       fill the other three quadrants of a 2x2 split. Quadrants beyond
+       the active count are hidden via CSS driven by #cw's split-count
+       class. JS positions them per-quadrant via _hudReposition. -->
+  <div id="hud" class="open hud-quad" data-quad="0">
     <div id="hud-body">
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-visible">—</span></div>
       <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-hidden">—</span></div>
@@ -1381,17 +1475,37 @@
       <div class="hud-row" id="hud-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-color">—</span></div>
       <div class="hud-row" id="hud-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-group">—</span></div>
     </div>
-    <span id="hud-toggle" onclick="document.getElementById('hud').classList.toggle('open')" title="Toggle Info overlay (I)">&#9662; Info</span>
+    <span id="hud-toggle" onclick="_hudToggleOne(0)" title="Toggle this Info overlay (I = toggle all)">&#9662; Info</span>
   </div>
-  <div id="hud-R" class="open" style="display:none;position:absolute;bottom:12px;left:calc(50% + 12px);z-index:10;font-size:10px;color:var(--text3);max-width:220px;">
-    <div id="hud-R-body">
-      <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-R-visible">—</span></div>
-      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-R-hidden">—</span></div>
-      <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-R-total">—</span></div>
-      <div class="hud-row" id="hud-R-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-R-color">—</span></div>
-      <div class="hud-row" id="hud-R-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-R-group">—</span></div>
+  <div id="hud-1" class="open hud-quad" data-quad="1">
+    <div class="hud-body">
+      <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-1-visible">—</span></div>
+      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-1-hidden">—</span></div>
+      <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-1-total">—</span></div>
+      <div class="hud-row" id="hud-1-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-1-color">—</span></div>
+      <div class="hud-row" id="hud-1-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-1-group">—</span></div>
     </div>
-    <span id="hud-R-toggle" onclick="document.getElementById('hud-R').classList.toggle('open')" title="Toggle Info overlay (I)">&#9662; Info</span>
+    <span class="hud-quad-toggle" onclick="_hudToggleOne(1)" title="Toggle Info overlay for this split (I = toggle all)">&#9662; Info</span>
+  </div>
+  <div id="hud-2" class="open hud-quad" data-quad="2">
+    <div class="hud-body">
+      <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-2-visible">—</span></div>
+      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-2-hidden">—</span></div>
+      <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-2-total">—</span></div>
+      <div class="hud-row" id="hud-2-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-2-color">—</span></div>
+      <div class="hud-row" id="hud-2-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-2-group">—</span></div>
+    </div>
+    <span class="hud-quad-toggle" onclick="_hudToggleOne(2)" title="Toggle Info overlay for this split (I = toggle all)">&#9662; Info</span>
+  </div>
+  <div id="hud-3" class="open hud-quad" data-quad="3">
+    <div class="hud-body">
+      <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-3-visible">—</span></div>
+      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-3-hidden">—</span></div>
+      <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-3-total">—</span></div>
+      <div class="hud-row" id="hud-3-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-3-color">—</span></div>
+      <div class="hud-row" id="hud-3-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-3-group">—</span></div>
+    </div>
+    <span class="hud-quad-toggle" onclick="_hudToggleOne(3)" title="Toggle Info overlay for this split (I = toggle all)">&#9662; Info</span>
   </div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="action-flash"></div>
@@ -1952,6 +2066,7 @@
         <p><strong>Red-flagged genes:</strong> Genes shown in <span style="color:#dd4455;">red</span> in the ranked list are ones that <em>would have been excluded</em> by traditional cutoff-based methods (scanpy's <code>highly_variable_genes</code>). The specific reason is shown in the hover tooltip — either low mean expression (&lt; 0.0125), high mean expression (above the adaptive ceiling), or low detection rate (&lt; 0.5% of cells expressing). These genes are <strong>not excluded</strong> from FLEEK's ranking — the locally standardized z-score handles them naturally. The red flag is a transparency feature: it lets you evaluate whether high-ranking red-flagged genes represent genuine biological signal that traditional methods would have missed, or artifacts that the model hasn't fully corrected for. If many red genes appear near the top, treat the rankings with extra scrutiny.</p>
         <p><strong>Gene index</strong> — on load, a CSC (compressed sparse column) index is built in the background for fast per-gene lookups. A spinner in the Data panel shows progress. Before the index completes, gene lookups use a slower row-scan fallback but still work. The index is cached to disk (<code>.csc_cache.npz</code>) — subsequent loads skip the build entirely.</p>
         <p><strong>View controls:</strong> Point Size, Opacity, and Unselected Brightness sliders in the View panel let you fine-tune the visualization. Point Size is normalized 1–100 (default 7%). Opacity controls global transparency of cells. Unselected Brightness fades non-selected cells toward the background — this value is <strong>maintained separately</strong> per color mode: Gene Expression mode defaults to ~2/3 brightness so expressing cells remain visible through unselected ones, while Cell Type/Cluster mode defaults to ~1/3 brightness for stronger contrast. Both values are set automatically when the first selection is made, and switching color modes swaps to the appropriate brightness. Manual slider adjustment is saved per mode.</p>
+        <p><strong>Keyboard nudges for size and opacity:</strong> press <span class="help-key">+</span> / <span class="help-key">−</span> to step Point Size up or down by 5 (range 1–100), and <span class="help-key">⌥ Opt</span>+<span class="help-key">+</span> / <span class="help-key">⌥ Opt</span>+<span class="help-key">−</span> to step Opacity by 0.05 (range 0.05–1). Holding the key continues to advance at a controlled cadence — slower than the OS native key-repeat rate so the slider lands where you want.</p>
         <p><strong>Partial visibility indicators:</strong> Cell type dots, lineage tree dots, and slice pills all show proportional fill when some of their cells are hidden by other filters. A dot that's half-filled means roughly half of that cluster's cells are visible. Hover over any dot or pill for exact counts. A hidden-cell counter appears in the bottom-left HUD.</p>
         <p><strong>Selection highlight rings:</strong> scale proportionally with cell size — they get thinner when zoomed out and thicker when zoomed in, always sitting on the cell's visual circumference.</p>
         <p><strong>Expression rendering:</strong> In Gene Expression mode, expressing cells can optionally have their gradient edge removed for a flat disc appearance when halos are active, reducing visual noise. Non-expressing cells retain the soft gradient. This switches automatically when Expression Glow is toggled.</p>
@@ -2436,7 +2551,7 @@
       <label class="ex-fmt"><input type="radio" name="export-fmt" value="csv" onchange="_exportShowOpts()"><span class="ex-fmt-name">CSV</span><span class="ex-fmt-desc">coordinates + metadata (ggplot/matplotlib)</span></label>
     </div>
     <div id="export-opts-svg" class="export-opts-box">
-      <label class="ex-opt ex-opt-toggle" id="export-svg-both-row" style="display:none;" title="Render both split halves side-by-side into one SVG, with a thin divider line between them. Each half uses its own camera, mode, and (single or coloc) gene selection."><span>Side-by-side both splits</span><span class="s-toggle"><input type="checkbox" id="export-svg-both" onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
+      <label class="ex-opt ex-opt-toggle" id="export-svg-both-row" style="display:none;" title="Render every active split into one SVG. 2-up: side-by-side. 3 / 4-up: 2x2 grid (3-up leaves the bottom-right empty). Each half uses its own camera, mode, and (single or coloc) gene selection, and is labelled with its split name + gene name in the corner."><span id="export-svg-both-label">Side-by-side both splits</span><span class="s-toggle"><input type="checkbox" id="export-svg-both" onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include selection-group highlight rings</span><span class="s-toggle"><input type="checkbox" id="export-svg-rings" checked onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include ghosted (near-zero expression) cells</span><span class="s-toggle"><input type="checkbox" id="export-svg-ghost" onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include background rectangle</span><span class="s-toggle"><input type="checkbox" id="export-svg-bg" checked><span class="s-slider"></span></span></label>
@@ -2535,7 +2650,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.14";
+var FLEEK_VERSION="v0.4.15";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -3204,25 +3319,71 @@ var raycaster=null, mouseNDC=new THREE.Vector2();
 function canvasNDC(clientX, clientY){
   var nx=((clientX - _cvRect.left) / _cvRect.width) * 2 - 1;
   var ny=-((clientY - _cvRect.top) / _cvRect.height) * 2 + 1;
-  /* In split mode, remap x to viewport-local NDC */
-  if(_splitActive&&_liveViews.length===2){
-    var frac=(clientX-_cvRect.left)/_cvRect.width;
-    if(frac<0.5){nx=frac*4-1;} /* left half: 0..0.5 → -1..+1 */
-    else{nx=(frac-0.5)*4-1;} /* right half: 0.5..1 → -1..+1 */
+  /* In split mode, remap x/y to viewport-local NDC for the hovered
+     quadrant (so a raycast against the active split's camera sees the
+     cursor at the right location within its own viewport). */
+  if(_splitActive&&_liveViews.length>=2){
+    var localX=clientX-_cvRect.left, localY=clientY-_cvRect.top;
+    var hov=_splitQuadrantAt(localX,localY,_liveViews.length,_cvRect.width,_cvRect.height);
+    if(hov<0)hov=_hoveredViewIdx; /* fall back to last-known if cursor's outside */
+    var qr=_splitQuadrantRect(hov,_liveViews.length,_cvRect.width,_cvRect.height);
+    nx=((localX-qr.x)/qr.w)*2-1;
+    ny=-((localY-qr.y)/qr.h)*2+1;
   }
   return {x:nx, y:ny};
 }
 function canvasLocal(clientX, clientY){
   return {x: clientX - _cvRect.left, y: clientY - _cvRect.top};
 }
+/* ── Multi-quadrant split layout helpers ──
+   The split system supports 1-4 simultaneous views. Layout:
+     count=1: full canvas
+     count=2: side-by-side, two columns full height
+     count=3: 2x2 grid with bottom-right (idx 3) empty
+     count=4: 2x2 grid
+
+   _splitQuadrantRect returns a screen-space rect (y=0 at top) for the
+   given quadrant. For renderer.setViewport (webgl coords, y=0 at bottom)
+   convert with: webglY = canvasH - rect.y - rect.h.
+
+   _splitQuadrantAt returns the quadrant index a screen-space (x,y) lands
+   in, or -1 if outside; used by lasso, click-to-focus, hover. */
+function _splitQuadrantRect(idx,count,W,H){
+  if(count<=1)return {x:0,y:0,w:W,h:H};
+  if(count===2){
+    var hw=Math.floor(W/2);
+    return idx===0?{x:0,y:0,w:hw,h:H}:{x:hw,y:0,w:W-hw,h:H};
+  }
+  /* count 3 or 4: 2x2 grid (idx 3 simply unused when count===3) */
+  var hw2=Math.floor(W/2),hh=Math.floor(H/2);
+  var col=idx%2,row=(idx/2)|0;
+  return {
+    x: col===0?0:hw2,
+    y: row===0?0:hh,
+    w: col===0?hw2:(W-hw2),
+    h: row===0?hh:(H-hh)
+  };
+}
+function _splitQuadrantAt(x,y,count,W,H){
+  if(count<=1)return 0;
+  for(var i=0;i<count;i++){
+    var r=_splitQuadrantRect(i,count,W,H);
+    if(x>=r.x&&x<r.x+r.w&&y>=r.y&&y<r.y+r.h)return i;
+  }
+  return -1;
+}
+/* Convenience: current effective split count = active live views or 1. */
+function _splitCount(){return (_splitActive&&_liveViews&&_liveViews.length)?_liveViews.length:1;}
 function _splitCam(){
-  /* Return the correct camera for raycasting in split mode */
+  /* Return the correct camera for raycasting in split mode. The hovered
+     quadrant's camera is updated with the actual quadrant aspect (varies
+     between count=2 [W/2 x H] and count=3/4 [W/2 x H/2]). */
   if(!_splitActive||_liveViews.length<2)return viewIs3d?cam3d:cam2d;
   var v=_liveViews[_hoveredViewIdx];
   if(!v)return viewIs3d?cam3d:cam2d;
-  /* Update the hovered view's camera with correct aspect for its viewport */
   if(viewIs3d){
-    v.cam3d.aspect=(canvasW*0.5)/canvasH;v.cam3d.updateProjectionMatrix();
+    var rect=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,canvasW,canvasH);
+    v.cam3d.aspect=rect.w/rect.h;v.cam3d.updateProjectionMatrix();
     _update3dCamView(v);
     return v.cam3d;
   }else{
@@ -3231,7 +3392,6 @@ function _splitCam(){
   }
 }
 function _splitPts(){
-  /* Return the correct pts object for raycasting in split mode */
   if(!_splitActive||_liveViews.length<2)return pts;
   var v=_liveViews[_hoveredViewIdx];
   return v?v.pts:pts;
@@ -3451,14 +3611,16 @@ function applyHistEntry(snap){
   }
   if(s.activeViewId!==undefined)_activeViewId=s.activeViewId;
   if(s.splitViewIds)_splitViewIds=s.splitViewIds.slice();
-  /* Handle split mode transitions */
+  /* Handle split mode transitions. Restored splitViewIds tells us how
+     many quadrants the user had open; pass that through to activate. */
+  var wantCount=(s.splitViewIds&&s.splitViewIds.length)?s.splitViewIds.length:2;
   if(wantSplit&&!_splitActive&&_views.length>=2){
-    /* Tear down is safe even if not active — activate creates GPU + renders */
-    _splitViewActivate();
+    _splitViewActivate(wantCount);
   }else if(!wantSplit&&_splitActive){
     _splitViewDeactivate();
+  }else if(wantSplit&&_splitActive&&_liveViews.length!==wantCount){
+    _splitSetCount(wantCount);
   }else{
-    /* Same mode — just recolor */
     recolor();
   }
   /* UI updates */
@@ -3503,6 +3665,13 @@ function saveState(){
       selGroups:_serializeSel(), activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
       groupVisible:JSON.parse(JSON.stringify(groupVisible)),
       deletedCells:_deletedCells?Array.from(_deletedCells):null,
+      /* Split-screen state must round-trip through sessionStorage so a
+         browser refresh re-enters split mode (and triggers
+         _ensureSplitGenesLoaded). Previously omitted, which left the
+         user in single-view after refresh and required a manual
+         re-activate to populate the other quadrants. */
+      splitActive:_splitActive,
+      splitViewIds:_splitViewIds&&_splitViewIds.length?_splitViewIds.slice():null,
       views:_views.length>1?JSON.parse(JSON.stringify(_views)):null,
       activeViewId:_activeViewId,viewIdCounter:_viewIdCounter,
       /* Plots panel — persist across reloads so a user testing plot styles
@@ -3539,6 +3708,8 @@ function saveCameraOnly(){
       selGroups:_serializeSel(), activeGroupId:activeGroupId, selGroupIdCounter:selGroupIdCounter,
       groupVisible:JSON.parse(JSON.stringify(groupVisible)),
       deletedCells:_deletedCells?Array.from(_deletedCells):null,
+      splitActive:_splitActive,
+      splitViewIds:_splitViewIds&&_splitViewIds.length?_splitViewIds.slice():null,
       views:_views.length>1?JSON.parse(JSON.stringify(_views)):null,
       activeViewId:_activeViewId,viewIdCounter:_viewIdCounter,
       /* Plots panel — persist across reloads so a user testing plot styles
@@ -3600,6 +3771,18 @@ function restoreState(preloaded){
     else{_viewIdCounter=0;for(var _vi=0;_vi<_views.length;_vi++){if(_views[_vi].id>=_viewIdCounter)_viewIdCounter=_views[_vi].id+1;}}
     if(s.activeViewId!==undefined)_activeViewId=s.activeViewId;
     _viewUpdateUI();
+  }
+  /* Restore split-screen state. Has to come BEFORE the gene/coloc/pathway
+     mode restoration block below, so that when _splitViewActivate fires
+     it sees the right _splitViewIds and can iterate per-quadrant snapshots
+     in _ensureSplitGenesLoaded. _splitViewActivate handles the actual
+     per-quadrant gene fetching internally. */
+  if(Array.isArray(s.splitViewIds))_splitViewIds=s.splitViewIds.slice();
+  if(s.splitActive&&!_splitActive&&_views.length>=2){
+    var _wantCnt=(Array.isArray(s.splitViewIds)&&s.splitViewIds.length)?s.splitViewIds.length:2;
+    try{_splitViewActivate(_wantCnt);}catch(e){console.error("restoreState: splitViewActivate failed",e);}
+  }else if(!s.splitActive&&_splitActive){
+    try{_splitViewDeactivate();}catch(e){console.error("restoreState: splitViewDeactivate failed",e);}
   }
   if(s.embMethod&&D&&D.embeddings[s.embMethod])setEmbMethod(s.embMethod);
   if(s.viewIs3d!==undefined)setView(s.viewIs3d?"3d":"2d");
@@ -3783,6 +3966,57 @@ function rebuildCellGroupMap(){
   }
 }
 
+/* Force a full rewrite of the global ringPts buffer from the current
+   selection state. Idempotent and safe to call any time after data is
+   loaded — used after multi-split → single-split transitions where the
+   global ring buffer was last written by a quadrant's snapshot (with
+   that quadrant's filters), so post-recolor invariants can briefly
+   disagree with the active view's selection state. Avoids relying on
+   the gene-buffer cache or any specific recolor code path being
+   correct for this corner case. */
+function _forceRingRebuild(){
+  if(!ringPts||!D||!D._cachedPos)return;
+  if(!cellGroupMap)return;
+  var rPos=ringPts.geometry.attributes.position.array;
+  var rCol=ringPts.geometry.attributes.color.array;
+  var rSzAttr=ringPts.geometry.attributes.aSize;
+  var rSz=rSzAttr?rSzAttr.array:null;
+  var ptsSzAttr=pts?pts.geometry.attributes.aSize:null;
+  var ptsSz=ptsSzAttr?ptsSzAttr.array:null;
+  var n=D.header.n_cells;
+  var hasVis=false;
+  var useR=highlightMode==="ring";
+  for(var ri=0;ri<n;ri++){
+    var sg=cellGroupMap[ri];
+    var inGroup=useR&&sg>=0&&sg<selGroups.length&&groupVisible[selGroups[sg].id]!==false;
+    var hidden=visibleClusters[D.cluster_ids[ri]]===false||(sliceMask&&!sliceMask[ri])||(_deletedCells&&_deletedCells.has(ri));
+    var rp=ri*3;
+    if(inGroup&&!hidden){
+      rPos[rp]=D._cachedPos[rp];rPos[rp+1]=D._cachedPos[rp+1];rPos[rp+2]=D._cachedPos[rp+2];
+      var c=selGroups[sg].color;
+      rCol[rp]=c[0];rCol[rp+1]=c[1];rCol[rp+2]=c[2];
+      hasVis=true;
+    }else{
+      rPos[rp]=EXILE;rPos[rp+1]=EXILE;rPos[rp+2]=EXILE;
+    }
+    if(rSz&&ptsSz)rSz[ri]=ptsSz[ri];
+  }
+  ringPts.geometry.attributes.position.needsUpdate=true;
+  ringPts.geometry.attributes.color.needsUpdate=true;
+  if(rSzAttr)rSzAttr.needsUpdate=true;
+  /* CRITICAL: recompute the ring geometry's bounding sphere.
+     Three.js caches it on first render and uses it for frustum culling
+     of the entire Points object — never the per-vertex positions. The
+     multi-split _recolorView path already calls this; the single-view
+     recolor() path historically did NOT, so after a multi-split render
+     left ringPts with all-EXILE positions (sphere centred near
+     world-coord 99999, far past cam.far=10000), the entire ring layer
+     was culled — every position update afterwards was invisible no
+     matter what we wrote into the buffer. */
+  ringPts.geometry.computeBoundingSphere();
+  ringPts.visible=hasVis;
+}
+
 function addSelGroup(){
   var id=++selGroupIdCounter;
   /* Find a name that doesn't collide with existing groups */
@@ -3850,7 +4084,13 @@ function selToggleCell(cellIdx){
     for(var i=0;i<selGroups.length;i++){selGroups[i].cells.delete(cellIdx);}
     ag.cells.add(cellIdx);cellGroupMap[cellIdx]=agi;
   }
-  renderSelPanel();recolor();saveState();
+  renderSelPanel();recolor();
+  /* Hard guarantee — see _forceRingRebuild(). The recolor cache path
+     was leaving the ring layer stuck on old positions after a
+     multi-split → single-split transition; a tiny extra ring-only pass
+     here guarantees the new selection's ring renders. */
+  if(!_splitActive)_forceRingRebuild();
+  saveState();
 }
 
 /* A cell is "visible" (and thus eligible for new bulk selections) only if its
@@ -3892,6 +4132,7 @@ function selToggleCellType(clusterIdx){
   }
   renderSelPanel();
   recolor();
+  if(!_splitActive)_forceRingRebuild();
   saveState();
 }
 
@@ -3908,6 +4149,7 @@ function selAllVisible(){
   }
   renderSelPanel();
   recolor();
+  if(!_splitActive)_forceRingRebuild();
   saveState();
 }
 
@@ -3932,6 +4174,7 @@ function clearActiveGroup(allCells){
   }
   renderSelPanel();
   recolor();
+  if(!_splitActive)_forceRingRebuild();
   saveState();
 }
 
@@ -4066,16 +4309,19 @@ function lassoSelect(){
   var v=new THREE.Vector3();
   var count=0;
 
-  var _lw=_cvRect.width,_lxOff=0;
-  if(_splitActive&&_liveViews.length===2){
-    _lw=_cvRect.width/2;
-    if(_hoveredViewIdx===1)_lxOff=_lw;
+  /* In split mode, project cells into the hovered quadrant's rect (NOT
+     the full canvas). NDC → screen conversion uses the rect's width/height,
+     offset by its top-left corner. */
+  var _lw=_cvRect.width,_lh=_cvRect.height,_lxOff=0,_lyOff=0;
+  if(_splitActive&&_liveViews.length>=2){
+    var _qr=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,_cvRect.width,_cvRect.height);
+    _lw=_qr.w;_lh=_qr.h;_lxOff=_qr.x;_lyOff=_qr.y;
   }
 
   /* In split mode, use the hovered view's SNAPSHOT for slice filtering
      so only cells visible in THAT split get selected */
   var _selSM=sliceMask,_selVC=visibleClusters;
-  if(_splitActive&&_splitViewIds.length===2){
+  if(_splitActive&&_splitViewIds.length>=2&&_hoveredViewIdx<_splitViewIds.length){
     /* Use the hovered half's assigned split snapshot for filtering */
     var _hovId=_splitViewIds[_hoveredViewIdx];
     if(_hovId!==_activeViewId){
@@ -4095,7 +4341,7 @@ function lassoSelect(){
     v.project(cam);
     if(v.z>1.0||v.z<-1.0)continue;
     var sx=((v.x+1)/2)*_lw+_lxOff;
-    var sy=((-v.y+1)/2)*_cvRect.height;
+    var sy=((-v.y+1)/2)*_lh+_lyOff;
     if(pointInPoly(sx,sy,lassoPoints)){
       for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(i);}
       ag.cells.add(i);
@@ -4104,7 +4350,9 @@ function lassoSelect(){
     }
   }
 
-  renderSelPanel();recolor();saveState();
+  renderSelPanel();recolor();
+  if(!_splitActive)_forceRingRebuild();
+  saveState();
 }
 
 function lassoDeselect(){
@@ -4121,10 +4369,10 @@ function lassoDeselect(){
   var n=D.header.n_cells;
   var v=new THREE.Vector3();
 
-  var _lw=_cvRect.width,_lxOff=0;
-  if(_splitActive&&_liveViews.length===2){
-    _lw=_cvRect.width/2;
-    if(_hoveredViewIdx===1)_lxOff=_lw;
+  var _lw=_cvRect.width,_lh=_cvRect.height,_lxOff=0,_lyOff=0;
+  if(_splitActive&&_liveViews.length>=2){
+    var _qr=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,_cvRect.width,_cvRect.height);
+    _lw=_qr.w;_lh=_qr.h;_lxOff=_qr.x;_lyOff=_qr.y;
   }
 
   for(var i=0;i<n;i++){
@@ -4133,14 +4381,16 @@ function lassoDeselect(){
     v.project(cam);
     if(v.z>1.0||v.z<-1.0)continue;
     var sx=((v.x+1)/2)*_lw+_lxOff;
-    var sy=((-v.y+1)/2)*_cvRect.height;
+    var sy=((-v.y+1)/2)*_lh+_lyOff;
     if(pointInPoly(sx,sy,lassoPoints)){
       ag.cells.delete(i);
       if(cellGroupMap)cellGroupMap[i]=-1;
     }
   }
 
-  renderSelPanel();recolor();saveState();
+  renderSelPanel();recolor();
+  if(!_splitActive)_forceRingRebuild();
+  saveState();
 }
 
 function selGroupColor(idx){return SEL_COLORS[idx%SEL_COLORS.length];}
@@ -4309,6 +4559,34 @@ var bgDimPct=0; /* 0-100: how much non-selected cells are dimmed */
 var _bgDimCluster=0; /* saved dim for cluster mode */
 var _bgDimGene=0; /* saved dim for gene mode */
 var _hadSelection=false; /* tracks whether selections existed last recolor */
+
+/* Hoisted auto-dim state machine. Both single-view recolor() and the
+   split-mode recolor branch call this so the brightness slider auto-bumps
+   on the first selection and auto-resets when all selections become
+   invisible — regardless of split count. Without this, the slider was
+   silent in 2/3/4-up because the split branch returned before the
+   single-view auto-bump block ran. */
+function _autoBumpDim(hasAnyVisible){
+  var isLight=document.body.classList.contains("light");
+  var _isScalarMode=(mode==="gene"||mode==="pathway");
+  if(hasAnyVisible&&!_hadSelection){
+    _bgDimGene=isLight?45:33;
+    _bgDimCluster=isLight?90:75;
+    bgDimPct=_isScalarMode?_bgDimGene:_bgDimCluster;
+    var _bd=document.getElementById("bg-dim");if(_bd)_bd.value=100-bgDimPct;
+  }else if(hasAnyVisible){
+    var _modeDim=_isScalarMode?_bgDimGene:_bgDimCluster;
+    if(_modeDim>0&&bgDimPct!==_modeDim){
+      bgDimPct=_modeDim;
+      var _bd2=document.getElementById("bg-dim");if(_bd2)_bd2.value=100-bgDimPct;
+    }
+  }
+  if(!hasAnyVisible&&_hadSelection){
+    bgDimPct=0;
+    var _bd3=document.getElementById("bg-dim");if(_bd3)_bd3.value=100;
+  }
+  _hadSelection=hasAnyVisible;
+}
 
 function makeCircleTexture(light){
   var sz=128;
@@ -4729,14 +5007,41 @@ function _updateHudGroup(){
     _html='<span style="color:'+_grgb+';">\u25CF<\/span> '+_ag.name+' <span style="color:var(--text4);">'+_ag.cells.size.toLocaleString()+'<\/span>';
     _show=true;
   }
-  /* Update both HUDs */
-  var ids=[["hud-group-row","hud-group"],["hud-R-group-row","hud-R-group"]];
-  for(var _hi=0;_hi<ids.length;_hi++){
-    var _gr=document.getElementById(ids[_hi][0]);
-    var _gv=document.getElementById(ids[_hi][1]);
+  /* Update all four HUDs. Active group is global so every active half
+     shows the same row. Quadrants beyond the live-view count are hidden
+     via CSS anyway, but we still write so a later count bump shows
+     correct content. */
+  for(var _hi=0;_hi<4;_hi++){
+    var _gr=document.getElementById(_hudFieldId(_hi,"group-row"));
+    var _gv=document.getElementById(_hudFieldId(_hi,"group"));
     if(!_gr||!_gv)continue;
     if(_show){_gv.innerHTML=_html;_gr.style.display="flex";}
     else{_gr.style.display="none";}
+  }
+}
+/* Build the HUD field id for a given quadrant. Quad 0's elements use
+   the original "hud-..." ids (pre-existing); quads 1-3 use "hud-N-...". */
+function _hudFieldId(quad,name){
+  if(quad===0)return "hud-"+name;
+  return "hud-"+quad+"-"+name;
+}
+/* Toggle a single HUD's open state by quadrant index. Each quadrant's
+   per-HUD toggle button uses this; the keyboard shortcut still toggles
+   all four in unison via _hudToggleAll. */
+function _hudToggleOne(quad){
+  var el=document.getElementById(quad===0?"hud":"hud-"+quad);
+  if(el)el.classList.toggle("open");
+}
+/* Toggle all four HUDs' open state in unison (I keyboard shortcut). The
+   target state is read from quad 0 — if any HUDs are mismatched after
+   per-quadrant toggling, this snaps them all to quad 0's inverse. */
+function _hudToggleAll(){
+  var anchor=document.getElementById("hud");
+  if(!anchor)return;
+  var nowOpen=!anchor.classList.contains("open");
+  for(var q=0;q<4;q++){
+    var el=document.getElementById(q===0?"hud":"hud-"+q);
+    if(el)el.classList.toggle("open",nowOpen);
   }
 }
 
@@ -4777,24 +5082,24 @@ function _colorModeLabel(snap){
    render loop, so reading them would always show the active half's
    mode in both chips). */
 function _updateHudColor(){
-  if(_splitActive&&_splitViewIds&&_splitViewIds.length===2){
-    var snapL=_splitViewById(_splitViewIds[0]);
-    var snapR=_splitViewById(_splitViewIds[1]);
-    var elL=document.getElementById("hud-color");
-    var elR=document.getElementById("hud-R-color");
-    if(elL)elL.textContent=_colorModeLabel(snapL);
-    if(elR)elR.textContent=_colorModeLabel(snapR);
-    var rowL=document.getElementById("hud-color-row");
-    var rowR=document.getElementById("hud-R-color-row");
-    if(rowL)rowL.style.display="flex";
-    if(rowR)rowR.style.display="flex";
+  /* Per-quadrant Color row: in split mode each HUD reads from its own
+     view's snapshot (NOT globals — globals are scratch state during the
+     cross-half render loop, so reading them would always show the
+     active half's mode in every chip). In single-view, only quad 0 is
+     visible and it reads globals. */
+  if(_splitActive&&_splitViewIds&&_splitViewIds.length>=2){
+    for(var q=0;q<_splitViewIds.length;q++){
+      var snap=_splitViewById(_splitViewIds[q]);
+      var el=document.getElementById(_hudFieldId(q,"color"));
+      var row=document.getElementById(_hudFieldId(q,"color-row"));
+      if(el)el.textContent=_colorModeLabel(snap);
+      if(row)row.style.display="flex";
+    }
   }else{
-    var el=document.getElementById("hud-color");
-    if(el)el.textContent=_colorModeLabel(null);
-    var row=document.getElementById("hud-color-row");
-    if(row)row.style.display="flex";
-    var rowR2=document.getElementById("hud-R-color-row");
-    if(rowR2)rowR2.style.display="none";
+    var el0=document.getElementById("hud-color");
+    if(el0)el0.textContent=_colorModeLabel(null);
+    var row0=document.getElementById("hud-color-row");
+    if(row0)row0.style.display="flex";
   }
 }
 /* ── Gene-expression buffer cache ──
@@ -4845,17 +5150,34 @@ function recolor(){
   if(!D||!pts)return;
   /* ── Split mode: save active snapshot, then load each view's snapshot
        into globals before calling _recolorView (which reads globals) ── */
-  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+  if(_splitActive&&_liveViews.length>=2&&_splitViewIds.length>=2){
     _hoverIdx=-1;_hoverPrevColor=null;
-    /* Defensive: the split recolor path cycles globals through each view's
-       snapshot. If cellGroupMap got out of sync with selGroups (e.g. after a
-       group delete, or a bulk selection change while switching splits), the
-       per-view ring-visibility check silently fails and highlights disappear
-       without dropping the dim. Rebuild from the authoritative selGroups so
-       hasAnyVisible always matches reality. */
     if(cellGroupMap&&typeof rebuildCellGroupMap==="function")rebuildCellGroupMap();
     _viewSaveCurrent(); /* save active's latest state */
-    for(var _svi=0;_svi<2;_svi++){
+    var _N=_liveViews.length;
+    /* First pass: compute "any view has a visible selection" so the
+       brightness auto-bump can fire (or auto-reset) consistently across
+       every quadrant. _recolorView reads bgDimPct from globals, so the
+       slider takes effect once this state machine has run. */
+    var _splitAnyVisible=false;
+    if(cellGroupMap){
+      for(var _svq=0;_svq<_N&&!_splitAnyVisible;_svq++){
+        var _svSnap0=_splitViewById(_splitViewIds[_svq]);
+        if(!_svSnap0)continue;
+        _restoreSplitViewState(_svSnap0);
+        for(var _gi0=0;_gi0<selGroups.length&&!_splitAnyVisible;_gi0++){
+          if(selGroups[_gi0].cells.size>0&&groupVisible[selGroups[_gi0].id]!==false){
+            selGroups[_gi0].cells.forEach(function(ci){
+              if(!_splitAnyVisible&&visibleClusters[D.cluster_ids[ci]]!==false&&!(sliceMask&&!sliceMask[ci])&&!(_deletedCells&&_deletedCells.has(ci))){
+                _splitAnyVisible=true;
+              }
+            });
+          }
+        }
+      }
+    }
+    _autoBumpDim(_splitAnyVisible);
+    for(var _svi=0;_svi<_N;_svi++){
       var _svSnap=_splitViewById(_splitViewIds[_svi]);
       if(_svSnap){_restoreSplitViewState(_svSnap);_recolorView(_svi);}
     }
@@ -4891,30 +5213,9 @@ function recolor(){
     }
   }
   var isLight=document.body.classList.contains("light");
-  /* Auto-dim state machine:
-     Transition no-visible-selection → has-visible-selection: auto-bump dim
-     Transition has-visible-selection → none visible: auto-reset dim
-     "All hidden" is treated the same as "no selections" for dimming.
-     Pathway-score mode visually behaves like gene mode (per-cell scalar
-     [0,1] over a gradient), so it shares the same dim setting. */
-  var _isScalarMode=(mode==="gene"||mode==="pathway");
-  if(hasAnyVisible&&!_hadSelection){
-    /* Just gained visible selections — set both modes */
-    _bgDimGene=isLight?45:33;
-    _bgDimCluster=isLight?90:75;
-    bgDimPct=_isScalarMode?_bgDimGene:_bgDimCluster;
-    document.getElementById("bg-dim").value=100-bgDimPct;
-  }else if(hasAnyVisible){
-    /* Selections exist — apply the saved dim for the current mode */
-    var _modeDim=_isScalarMode?_bgDimGene:_bgDimCluster;
-    if(_modeDim>0&&bgDimPct!==_modeDim){bgDimPct=_modeDim;document.getElementById("bg-dim").value=100-bgDimPct;}
-  }
-  if(!hasAnyVisible&&_hadSelection){
-    /* Just lost all visible selections — reset to full brightness */
-    bgDimPct=0;
-    document.getElementById("bg-dim").value=100;
-  }
-  _hadSelection=hasAnyVisible;
+  /* Auto-dim state machine — see _autoBumpDim(). Mutates bgDimPct and the
+     slider DOM in response to selection-visibility transitions. */
+  _autoBumpDim(hasAnyVisible);
   var dimFactor=1-bgDimPct/100;
   var dimBias=bgDimPct/100;
 
@@ -4934,7 +5235,12 @@ function recolor(){
      score array. The renderer doesn't care whether the [0,1] scalar
      came from a gene column or a pathway-score column. */
   var useColoc=(mode==="gene"&&_geneMode==="coloc"&&((_colocR&&geneExprCache[_colocR])||(_colocG&&geneExprCache[_colocG])));
-  var useGeneSrc=!useColoc&&mode==="gene"&&selGene&&geneExprCache[selGene];
+  /* Single-gene coloring requires _geneMode === "single" specifically.
+     Without this, switching a split to coloc with no channels picked
+     would fall through to the leftover selGene from before, leaving the
+     single-gene coloration stuck on screen. Now coloc-without-channels
+     correctly renders as ghost color. */
+  var useGeneSrc=mode==="gene"&&_geneMode==="single"&&selGene&&geneExprCache[selGene];
   var usePathway=!useColoc&&mode==="pathway"&&_pathwayColorId&&_pathwayScoreCache[_pathwayColorId];
   var useGene=useGeneSrc||usePathway; /* "use scalar coloring" — name kept for blame-friendliness */
   var ex=useGeneSrc?geneExprCache[selGene]:(usePathway?_pathwayScoreCache[_pathwayColorId]:null);
@@ -5018,10 +5324,37 @@ function recolor(){
     col.set(_cached.col);
     pos.set(_cached.pos);
     if(_updateSz&&_cached.aSize){_szArr.set(_cached.aSize);_alArr.set(_cached.aAlpha);}
-    if(ringPos&&_cached.ringPos){
-      ringPos.set(_cached.ringPos);
-      ringCol.set(_cached.ringCol);
-      if(_rszArr&&_cached.ringSize)_rszArr.set(_cached.ringSize);
+    /* Re-derive the ring buffer from the CURRENT cellGroupMap rather than
+       restoring it from cache. The fingerprint encodes selGroups by id +
+       cells.size + visibility + color — it does NOT capture cell identity,
+       so a clear-then-reselect-same-count sequence produces an identical
+       fp and the cached ring positions are silently wrong (typically
+       all-EXILE from a prior no-selection state, which renders as no
+       ring at all even though selections exist). One small extra pass
+       keeps ring rendering correct under every cache-hit scenario. */
+    if(ringPos){
+      var _useRingC=highlightMode==="ring";
+      for(var _ri=0;_ri<n;_ri++){
+        var _sgC=cellGroupMap?cellGroupMap[_ri]:-1;
+        var _inGrpC=_sgC>=0&&_sgC<selGroups.length&&groupVisible[selGroups[_sgC].id]!==false;
+        /* Only ring cells that are actually visible in this view (not
+           hidden by cluster filter, slice filter, or delete). */
+        if(_inGrpC&&_useRingC){
+          var _rp=_ri*3;
+          var _hidR=visibleClusters[D.cluster_ids[_ri]]===false||(sliceMask&&!sliceMask[_ri])||(_deletedCells&&_deletedCells.has(_ri));
+          if(!_hidR){
+            ringPos[_rp]=D._cachedPos[_rp];ringPos[_rp+1]=D._cachedPos[_rp+1];ringPos[_rp+2]=D._cachedPos[_rp+2];
+            var _scC=selGroups[_sgC].color;
+            ringCol[_rp]=_scC[0];ringCol[_rp+1]=_scC[1];ringCol[_rp+2]=_scC[2];
+          }else{
+            ringPos[_rp]=EXILE;ringPos[_rp+1]=EXILE;ringPos[_rp+2]=EXILE;
+          }
+        }else{
+          var _rp2=_ri*3;
+          ringPos[_rp2]=EXILE;ringPos[_rp2+1]=EXILE;ringPos[_rp2+2]=EXILE;
+        }
+        if(_rszArr&&_szArr)_rszArr[_ri]=_szArr[_ri];
+      }
     }
     _nHidden=_cached.nHidden;
     /* Refresh LRU ordering so frequently-used genes stay cached. */
@@ -5047,6 +5380,7 @@ function recolor(){
       ringPts.geometry.attributes.color.needsUpdate=true;
       ringPts.geometry.attributes.position.needsUpdate=true;
       if(_ringSzAttr&&_rszArr)_ringSzAttr.needsUpdate=true;
+      ringPts.geometry.computeBoundingSphere();
     }
     if(_haloActive&&haloPts){
       haloPts.geometry.attributes.position.needsUpdate=true;
@@ -5190,6 +5524,15 @@ function recolor(){
        the base _szArr write), so we just flag the upload here — no second
        O(N) copy pass. */
     if(_ringSzAttr&&_rszArr)_ringSzAttr.needsUpdate=true;
+    /* Recompute the geometry bounding sphere — Three.js caches it on
+       first render and uses it for whole-object frustum culling. The
+       multi-split _recolorView path already does this, but the
+       single-view path historically did not, so a transition that left
+       the ring buffer at all-EXILE positions (sphere centered ~99999,
+       past cam.far=10000) culled the entire ring layer permanently —
+       subsequent position updates were never seen even though the
+       buffer was correct. */
+    ringPts.geometry.computeBoundingSphere();
   }
   /* Cache the freshly-computed buffers so the next recolor for this gene
      (with the same view state) can memcpy instead of re-running the loop.
@@ -5220,7 +5563,7 @@ function recolor(){
    so it always appears centered in that view. For a tethered active view the globals
    are the source of truth (and sync into _liveViews after this runs), so return tgt3. */
 function _pivotTgt3(){
-  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+  if(_splitActive&&_liveViews.length>=2&&_splitViewIds.length>=2){
     var _ah=_splitViewIds.indexOf(_activeViewId);
     if(_ah>=0&&_ah<_liveViews.length){
       var _av=_liveViews[_ah];
@@ -5231,7 +5574,7 @@ function _pivotTgt3(){
 }
 /* 2D analog: active view's pan2 (world-space point at view center). */
 function _pivotPan2(){
-  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+  if(_splitActive&&_liveViews.length>=2&&_splitViewIds.length>=2){
     var _ah=_splitViewIds.indexOf(_activeViewId);
     if(_ah>=0&&_ah<_liveViews.length){
       var _av=_liveViews[_ah];
@@ -5302,48 +5645,46 @@ function animate(){
       else{boundaryShell.material.opacity=_boundaryOpacity;boundaryShell.visible=_boundaryOpacity>0.001;}
     }
   }else{update2dCam();_applyPivotPos();}
-  /* ── Render: split-screen or single ── */
-  if(_splitActive&&_liveViews.length===2){
+  /* ── Render: split-screen or single ──
+     Generalized to render N=1..4 split views laid out via
+     _splitQuadrantRect. For each quadrant: hide all other views' pts,
+     show this view's pts, set viewport+scissor to its rect (converting
+     screen-y → webgl-y), render, then restore. Final pass leaves view 0's
+     pts visible and viewport reset to the full canvas. */
+  if(_splitActive&&_liveViews.length>=2){
+    var _N=_liveViews.length;
     /* Sync globals → tethered views. Untethered views keep their own camera state. */
-    for(var _vi=0;_vi<2;_vi++){
+    for(var _vi=0;_vi<_N;_vi++){
       if(_liveViews[_vi].tethered){
         _liveViews[_vi].sph.theta=sph.theta;_liveViews[_vi].sph.phi=sph.phi;_liveViews[_vi].sph.radius=sph.radius;
         _liveViews[_vi].tgt3.x=tgt3.x;_liveViews[_vi].tgt3.y=tgt3.y;_liveViews[_vi].tgt3.z=tgt3.z;
         _liveViews[_vi].pan2.x=pan2.x;_liveViews[_vi].pan2.y=pan2.y;_liveViews[_vi].zoom2=zoom2;
       }
     }
-    var _halfW=Math.floor(canvasW/2);
-    var _rightW=canvasW-_halfW;
     renderer.setScissorTest(true);
     /* Hide boundary shell during split render — it's shared geometry */
     var _bsVis=boundaryShell?boundaryShell.visible:false;
     if(boundaryShell)boundaryShell.visible=false;
-    /* Left half: view 0 */
-    _hideViewPts(1);_showViewPts(0);
-    renderer.setViewport(0,0,_halfW,canvasH);
-    renderer.setScissor(0,0,_halfW,canvasH);
-    if(viewIs3d){
-      _liveViews[0].cam3d.aspect=_halfW/canvasH;_liveViews[0].cam3d.updateProjectionMatrix();
-      _update3dCamView(_liveViews[0]);
-      renderer.render(scene,_liveViews[0].cam3d);
-    }else{
-      _update2dCamView(_liveViews[0]);
-      renderer.render(scene,_liveViews[0].cam2d);
+    for(var _qi=0;_qi<_N;_qi++){
+      var _qr=_splitQuadrantRect(_qi,_N,canvasW,canvasH);
+      var _qWebglY=canvasH-_qr.y-_qr.h; /* setViewport uses webgl coords (y=0 bottom) */
+      /* Show only this quadrant's pts during its render pass. */
+      for(var _hi=0;_hi<_N;_hi++){if(_hi===_qi)_showViewPts(_hi);else _hideViewPts(_hi);}
+      renderer.setViewport(_qr.x,_qWebglY,_qr.w,_qr.h);
+      renderer.setScissor(_qr.x,_qWebglY,_qr.w,_qr.h);
+      var _qv=_liveViews[_qi];
+      if(viewIs3d){
+        _qv.cam3d.aspect=_qr.w/_qr.h;_qv.cam3d.updateProjectionMatrix();
+        _update3dCamView(_qv);
+        renderer.render(scene,_qv.cam3d);
+      }else{
+        _update2dCamView(_qv);
+        renderer.render(scene,_qv.cam2d);
+      }
     }
-    /* Right half: view 1 */
-    _hideViewPts(0);_showViewPts(1);
-    renderer.setViewport(_halfW,0,_rightW,canvasH);
-    renderer.setScissor(_halfW,0,_rightW,canvasH);
-    if(viewIs3d){
-      _liveViews[1].cam3d.aspect=_rightW/canvasH;_liveViews[1].cam3d.updateProjectionMatrix();
-      _update3dCamView(_liveViews[1]);
-      renderer.render(scene,_liveViews[1].cam3d);
-    }else{
-      _update2dCamView(_liveViews[1]);
-      renderer.render(scene,_liveViews[1].cam2d);
-    }
-    /* Restore: show view 0 pts, hide view 1, reset viewport */
-    _hideViewPts(1);_showViewPts(0);
+    /* Restore: show only view 0's pts (canonical), hide the rest, reset
+       viewport. Other consumers expect this baseline state. */
+    for(var _ri=0;_ri<_N;_ri++){if(_ri===0)_showViewPts(_ri);else _hideViewPts(_ri);}
     if(boundaryShell)boundaryShell.visible=_bsVis;
     renderer.setScissorTest(false);
     renderer.setViewport(0,0,canvasW,canvasH);
@@ -5376,9 +5717,9 @@ function animate(){
       if(tRing&&tRing.material.uniforms)tRing.material.uniforms.uVpH.value=_vpH;
       if(tHalo&&tHalo.material.uniforms){tHalo.material.uniforms.uVpH.value=_vpH;tHalo.material.uniforms.uSize.value=tPts.material.size;tHalo.material.uniforms.uPulse.value=_pulse;}
     }
-    if(_splitActive&&_liveViews.length===2){
+    if(_splitActive&&_liveViews.length>=2){
       /* Each split view uses its own zoom2 for 2D point size */
-      for(var _psi=0;_psi<2;_psi++){
+      for(var _psi=0;_psi<_liveViews.length;_psi++){
         var _sv=_liveViews[_psi];
         _applyPtSize(_sv.pts,_sv.ringPts,_sv.haloPts,_sv.zoom2);
       }
@@ -5524,11 +5865,15 @@ function setupCtrl(){
   var cv=document.getElementById("c");
   crosshairEl=document.getElementById("crosshair");
   function _posCrosshair(){
-    /* In split mode, center crosshair in the hovered half; otherwise canvas center */
-    if(_splitActive&&_liveViews.length===2){
-      crosshairEl.style.left=_hoveredViewIdx===0?"25%":"75%";
+    /* In split mode, center crosshair in the hovered quadrant; otherwise
+       canvas center. */
+    if(_splitActive&&_liveViews.length>=2&&_cvRect.width>0){
+      var qr=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,_cvRect.width,_cvRect.height);
+      crosshairEl.style.left=((qr.x+qr.w/2)/_cvRect.width*100)+"%";
+      crosshairEl.style.top=((qr.y+qr.h/2)/_cvRect.height*100)+"%";
     }else{
       crosshairEl.style.left="50%";
+      crosshairEl.style.top="50%";
     }
   }
   cv.addEventListener("contextmenu",function(e){e.preventDefault();});
@@ -5578,8 +5923,8 @@ function setupCtrl(){
     /* Release focus from any slider/input so keyboard shortcuts work */
     if(document.activeElement&&document.activeElement!==cv)document.activeElement.blur();
     introAnim=null;_flyAnim=null;_introTargetCam=null;
-    /* Click in split half → activate that split */
-    if(_splitActive&&_splitViewIds.length===2){
+    /* Click in split quadrant → activate that split */
+    if(_splitActive&&_splitViewIds.length>=2&&_hoveredViewIdx>=0&&_hoveredViewIdx<_splitViewIds.length){
       var _clickId=_splitViewIds[_hoveredViewIdx];
       if(_clickId!==_activeViewId)_viewSwitch(_clickId);
     }
@@ -5647,9 +5992,9 @@ function setupCtrl(){
       raycaster.params.Points.threshold=pickThreshold();
       var cam;
       if(_pickView){
-        /* Build the half-aspect camera for the captured half directly. */
-        var _halfW=Math.floor(canvasW/2);
-        _pickView.cam3d.aspect=_halfW/canvasH;_pickView.cam3d.updateProjectionMatrix();
+        /* Build the quadrant-aspect camera for the captured half directly. */
+        var _qr=_splitQuadrantRect(_pickHalf,_liveViews.length,canvasW,canvasH);
+        _pickView.cam3d.aspect=_qr.w/_qr.h;_pickView.cam3d.updateProjectionMatrix();
         _update3dCamView(_pickView);
         cam=_pickView.cam3d;
       }else{
@@ -5697,9 +6042,9 @@ function setupCtrl(){
     var dx=e.clientX-prev.x,dy=e.clientY-prev.y;prev={x:e.clientX,y:e.clientY};
     /* Determine which camera state to modify: globals for single/master/tethered, per-view for untethered split */
     var _cSph=sph,_cTgt3=tgt3,_cPan2=pan2,_cZoom2Ref=null;
-    if(_splitActive&&_liveViews.length===2){
+    if(_splitActive&&_liveViews.length>=2&&_hoveredViewIdx<_liveViews.length){
       var _tgtView=_liveViews[_hoveredViewIdx];
-      if(!_tgtView.tethered){
+      if(_tgtView&&!_tgtView.tethered){
         _cSph=_tgtView.sph;_cTgt3=_tgtView.tgt3;_cPan2=_tgtView.pan2;_cZoom2Ref=_tgtView;
       }
     }
@@ -5740,9 +6085,9 @@ function setupCtrl(){
     if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
     /* Determine target camera state for split-view routing */
     var _wSph=sph,_wTgt3=tgt3,_wPan2=pan2,_wZoom2Ref=null;
-    if(_splitActive&&_liveViews.length===2){
+    if(_splitActive&&_liveViews.length>=2&&_hoveredViewIdx<_liveViews.length){
       var _wv=_liveViews[_hoveredViewIdx];
-      if(!_wv.tethered){
+      if(_wv&&!_wv.tethered){
         _wSph=_wv.sph;_wTgt3=_wv.tgt3;_wPan2=_wv.pan2;_wZoom2Ref=_wv;
       }
     }
@@ -5907,12 +6252,15 @@ function setupCtrl(){
     mouseScreenX=e.clientX;
     mouseScreenY=e.clientY;
     mouseOnCanvas=true;
-    /* Track which split-view half the mouse is over — lock during drag */
-    if(_splitActive&&_liveViews.length===2){
+    /* Track which split-view quadrant the mouse is over — lock during drag */
+    if(_splitActive&&_liveViews.length>=2){
       if(!dragging&&!panning&&!dollying&&!lassoActive){
         var localX=e.clientX-_cvRect.left;
+        var localY=e.clientY-_cvRect.top;
         var _prevHov=_hoveredViewIdx;
-        _hoveredViewIdx=localX<_cvRect.width*0.5?0:1;
+        var _newHov=_splitQuadrantAt(localX,localY,_liveViews.length,_cvRect.width,_cvRect.height);
+        if(_newHov<0)_newHov=_prevHov; /* outside — keep last known */
+        _hoveredViewIdx=_newHov;
         if(_prevHov!==_hoveredViewIdx)_splitUpdateLabels();
       }
     }else{_hoveredViewIdx=0;}
@@ -6020,16 +6368,16 @@ function setupCtrl(){
        handles both flipping to gene mode if needed AND switching the
        sub-mode. */
     if(e.key==="l"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){_setGeneMode("coloc");_flashAction("Colocalization","L");}
-    /* i = toggle the Info HUD overlay(s) in the canvas. Both halves get
-       toggled together in split mode so the user doesn't end up with
-       one open and one closed by accident. */
+    /* i = toggle the Info HUD overlay in EVERY active split. The
+       previous handler still pointed at #hud-R (the legacy name from
+       the 2-split era), so it only toggled the left HUD in 4-up mode.
+       _hudToggleAll iterates all four quadrant HUDs and snaps them to
+       the inverse of quad 0's current state. */
     if(e.key==="i"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
-      var _hL=document.getElementById("hud");
-      var _hR=document.getElementById("hud-R");
-      var _newOpen=_hL?!_hL.classList.contains("open"):true;
-      if(_hL)_hL.classList.toggle("open",_newOpen);
-      if(_hR)_hR.classList.toggle("open",_newOpen);
-      _flashAction(_newOpen?"Info Open":"Info Closed","I");
+      var _hLChk=document.getElementById("hud");
+      var _willOpen=_hLChk?!_hLChk.classList.contains("open"):true;
+      _hudToggleAll();
+      _flashAction(_willOpen?"Info Open":"Info Closed","I");
     }
     /* Shift+H = toggle all selection group highlights */
     if(e.key==="H"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSelVis();_flashAction("Toggle All Groups","Shift+H");}
@@ -6075,10 +6423,19 @@ function setupCtrl(){
     }
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
-    /* s = toggle side-by-side split-screen (requires ≥2 views) */
+    /* s = cycle split count: 1 → 2 → 4 → 1 (skips 3 in the cycle; users
+       who want 3 can pick it from the pip selector in Split Views).
+       Requires ≥2 saved view splits; otherwise flashes a hint. */
     if(e.key==="s"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){
-      if(_views.length>=2){_viewCompare();_flashAction(_splitActive?"Split Screen On":"Split Screen Off","S");}
-      else{_flashAction("Need 2+ views to split","S");}
+      if(_views.length<2){_flashAction("Need 2+ views to split","S");}
+      else{
+        var _cur=_splitActive?_liveViews.length:1;
+        var _next=_cur===1?2:_cur===2?4:1;
+        _splitSetCount(_next);
+        _viewUpdateUI();
+        var _label=_next===1?"Single View":(_next+"-up Split");
+        _flashAction(_label,"S");
+      }
     }
     /* Ctrl+1-9 = switch views */
     if(e[_MOD_KEY]&&!e.altKey&&!e.shiftKey&&e.key>="1"&&e.key<="9"&&_views.length>1){
@@ -6087,8 +6444,39 @@ function setupCtrl(){
     }
     /* j/k = vim-style list navigation (works with key repeat for holding) */
     if((e.key==="j"||e.key==="k")&&!e.metaKey&&!e.ctrlKey&&!e.altKey){e.preventDefault();_jkNavigate(e.key);}
+    /* +/− = adjust point size; Alt+ +/− = adjust opacity. Holding the key
+       repeats at a controlled cadence (native key repeat is too fast to
+       give precise control on small sliders). Use e.code so Mac's
+       Alt-modified key remap (Alt+= → "≠") doesn't break the binding. */
+    if((e.code==="Equal"||e.code==="Minus")&&!e.metaKey&&!e.ctrlKey){
+      e.preventDefault();
+      var _now=performance.now();
+      if(e.repeat&&(_now-_lastSzOpaTs)<80)return;
+      _lastSzOpaTs=_now;
+      var _dec=(e.code==="Minus");
+      if(e.altKey){
+        if(pts){
+          var _opa=pts.material.opacity;
+          var _opaNew=Math.max(0.05,Math.min(1,Math.round((_opa+(_dec?-0.05:0.05))*100)/100));
+          if(_opaNew!==_opa){
+            setPtOpacity(_opaNew,true);
+            var _opaSl=document.getElementById("pt-opacity");if(_opaSl)_opaSl.value=_opaNew;
+            _flashAction("Opacity "+Math.round(_opaNew*100)+"%",_dec?_ALT+"+−":_ALT+"++");
+          }
+        }
+      }else{
+        var _ps=basePtSz;
+        var _psNew=Math.max(1,Math.min(100,_ps+(_dec?-5:5)));
+        if(_psNew!==_ps){
+          setPtSz(_psNew,true);
+          var _psSl=document.getElementById("pt-size");if(_psSl)_psSl.value=_psNew;
+          _flashAction("Size "+_psNew+"%",_dec?"−":"+");
+        }
+      }
+    }
   });
 }
+var _lastSzOpaTs=0;
 
 /* ── View switching ── */
 function setView(v){
@@ -8175,7 +8563,9 @@ function _lineageSelect(cids){
       }
     }
   }
-  renderSelPanel();recolor();saveState();
+  renderSelPanel();recolor();
+  if(!_splitActive)_forceRingRebuild();
+  saveState();
 }
 
 function _lineageSolo(path,cids){
@@ -8294,7 +8684,7 @@ function _computeVisStats(){
   var n=D.header.n_cells,nc=D.header.n_clusters;
   /* In split mode, use the ACTIVE split's geometry for stats (not always view 0) */
   var _statPts=pts;
-  if(_splitActive&&_liveViews.length===2){
+  if(_splitActive&&_liveViews.length>=2){
     var _sHalf=_splitViewIds.indexOf(_activeViewId);
     if(_sHalf>=0&&_sHalf<_liveViews.length)_statPts=_liveViews[_sHalf].pts;
   }
@@ -8426,20 +8816,30 @@ function _pick2DScreen(ndc,targetPts){
      Visual CSS-pixel radius = gl_PointSize / 2 / DPR */
   var dpr=Math.min(window.devicePixelRatio||1,2);
   var _z2=_splitActive&&_liveViews.length>_hoveredViewIdx?_liveViews[_hoveredViewIdx].zoom2:zoom2;
-  var pxDiamBase=baseWSz*(canvasH*_z2/(2*frustum2))*0.5; /* material.size (fb pixels) */
+  /* In 2x2 splits the per-quadrant height is half the canvas — use it so
+     pxDiamBase matches the rendered point size in that quadrant. */
+  var _qrCanvasH=canvasH;
+  if(_splitActive&&_liveViews.length>=3){
+    var _qrPxH=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,canvasW,canvasH);
+    _qrCanvasH=_qrPxH.h;
+  }
+  var pxDiamBase=baseWSz*(_qrCanvasH*_z2/(2*frustum2))*0.5; /* material.size (fb pixels) */
   /* Zoom-dependent pick bonus: when zoomed out, points are tiny so add a
      minimum clickable radius. Scales as 1/sqrt(zoom) so it fades as you zoom in. */
   var _zFit=zoom2Fit?zoom2Fit():1;
   var _zRatio=_zFit/Math.max(_z2,0.01); /* >1 when zoomed out, <1 when zoomed in */
   var _pickBonus=Math.max(0,15*Math.sqrt(Math.max(0,_zRatio-1))); /* 0 at fit, grows when zoomed out */
   /* In split mode both NDCs (mouse via canvasNDC and points via project(_splitCam))
-     span [-1,+1] across a HALF, so we must scale X by half-width — not full canvasW —
-     to get real CSS pixels. Otherwise X distances are 2x inflated and picks are
-     tighter horizontally than vertically. */
-  var _vpW=(_splitActive&&_liveViews.length===2)?canvasW*0.5:canvasW;
-  /* Mouse in CSS pixels relative to viewport */
+     span [-1,+1] across the hovered QUADRANT, so we must scale by the
+     quadrant's width/height — not full canvas — to get real CSS pixels. */
+  var _vpW=canvasW,_vpH=canvasH;
+  if(_splitActive&&_liveViews.length>=2){
+    var _qrPick=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,canvasW,canvasH);
+    _vpW=_qrPick.w;_vpH=_qrPick.h;
+  }
+  /* Mouse in CSS pixels relative to the hovered viewport */
   var mPx=(ndc.x+1)*0.5*_vpW;
-  var mPy=(1-ndc.y)*0.5*canvasH;
+  var mPy=(1-ndc.y)*0.5*_vpH;
   var _pv=new THREE.Vector3();
   var bestIdx=-1;
   for(var i=0;i<n;i++){
@@ -8447,7 +8847,7 @@ function _pick2DScreen(ndc,targetPts){
     _pv.set(posArr[i*3],posArr[i*3+1],posArr[i*3+2]);
     _pv.project(cam);
     var px=(_pv.x+1)*0.5*_vpW;
-    var py=(1-_pv.y)*0.5*canvasH;
+    var py=(1-_pv.y)*0.5*_vpH;
     var dx=px-mPx,dy=py-mPy;
     var d2=dx*dx+dy*dy;
     var as=szArr?szArr[i]:1.0;
@@ -9950,7 +10350,13 @@ function _update3dCamView(v){
   v.cam3d.lookAt(new THREE.Vector3(v.tgt3.x,v.tgt3.y,v.tgt3.z));
 }
 function _update2dCamView(v){
-  var a=(canvasW*0.5)/canvasH; /* split view uses half width */
+  /* Use the live view's actual quadrant rect to set the 2D ortho aspect.
+     Falls back to split-2 (W/2 x H) when we can't find this view in
+     _liveViews (defensive — shouldn't happen in normal flow). */
+  var _idx=_liveViews?_liveViews.indexOf(v):-1;
+  var _count=(_liveViews&&_liveViews.length)?_liveViews.length:2;
+  var _qr=_idx>=0?_splitQuadrantRect(_idx,_count,canvasW,canvasH):{w:Math.floor(canvasW/2),h:canvasH};
+  var a=_qr.w/_qr.h;
   v.cam2d.left=(-frustum2*a)/v.zoom2+v.pan2.x;
   v.cam2d.right=(frustum2*a)/v.zoom2+v.pan2.x;
   v.cam2d.top=frustum2/v.zoom2+v.pan2.y;
@@ -9998,8 +10404,12 @@ function _recolorView(vIdx){
     }
   }
   var isLight=document.body.classList.contains("light");
-  /* Per-view dimming: only dim if THIS view has visible selections */
-  var _vDim=hasAnyVisible?(mode==="gene"?(isLight?45:33):(isLight?90:75)):0;
+  /* Per-view dimming: read the global bgDimPct (set by the slider AND by
+     _autoBumpDim — both already ran in the split recolor caller). The
+     gating against hasAnyVisible keeps a quadrant un-dimmed when its
+     own filters hide every selection cell, even though other quadrants
+     may still show them. */
+  var _vDim=hasAnyVisible?bgDimPct:0;
   var dimFactor=1-_vDim/100;
   var dimBias=_vDim/100;
   var ringPos=vRing?vRing.geometry.attributes.position.array:null;
@@ -10012,7 +10422,11 @@ function _recolorView(vIdx){
      gene-single and pathway as the same scalar pipeline (point `ex`
      at whichever array applies). */
   var useColoc=(mode==="gene"&&_geneMode==="coloc"&&((_colocR&&geneExprCache[_colocR])||(_colocG&&geneExprCache[_colocG])));
-  var useGeneSrc=!useColoc&&mode==="gene"&&selGene&&geneExprCache[selGene];
+  /* Single-gene coloring requires _geneMode === "single" specifically.
+     Without this, a split toggled to coloc with no channels picked
+     would fall through to the leftover snapshot.selGene and stay
+     painted with the previous single-gene values. */
+  var useGeneSrc=mode==="gene"&&_geneMode==="single"&&selGene&&geneExprCache[selGene];
   var usePathway=!useColoc&&mode==="pathway"&&_pathwayColorId&&_pathwayScoreCache[_pathwayColorId];
   var useGene=useGeneSrc||usePathway;
   var ex=useGeneSrc?geneExprCache[selGene]:(usePathway?_pathwayScoreCache[_pathwayColorId]:null);
@@ -10121,11 +10535,10 @@ function _recolorView(vIdx){
     }
   }
   v._dirty=false;
-  /* Update per-view HUD: left view uses main HUD, right view uses hud-R */
-  var _hPre=vIdx===0?"hud":"hud-R";
-  var _hV=document.getElementById(_hPre+(vIdx===0?"-visible":"-visible"));
-  var _hH=document.getElementById(_hPre+(vIdx===0?"-hidden":"-hidden"));
-  var _hT=document.getElementById(_hPre+(vIdx===0?"-total":"-total"));
+  /* Update per-view HUD: each quadrant's HUD has ids built by _hudFieldId. */
+  var _hV=document.getElementById(_hudFieldId(vIdx,"visible"));
+  var _hH=document.getElementById(_hudFieldId(vIdx,"hidden"));
+  var _hT=document.getElementById(_hudFieldId(vIdx,"total"));
   if(_hV)_hV.textContent=(n-_nHidden).toLocaleString();
   if(_hH)_hH.textContent=_nHidden>0?_nHidden.toLocaleString():"0";
   if(_hT)_hT.textContent=n.toLocaleString();
@@ -10137,11 +10550,61 @@ function _recolorView(vIdx){
 
 function _splitViewById(id){return _views.find(function(v){return v.id===id;});}
 
-function _splitViewActivate(){
-  /* Activate dual-view split screen.
-     Live views hold ONLY GPU resources + cameras. All state lives in _views[] snapshots and globals. */
+/* Apply the count-driven CSS class on #cw. When split is inactive #cw
+   has no split-N class. When active, exactly one of split-1..split-4
+   is present. (split-1 means we're in single view but "split mode"
+   conceptually; we don't enter split-1 in practice.) */
+function _splitApplyCwClass(count){
+  var cw=document.getElementById("cw");
+  if(!cw)return;
+  cw.classList.remove("split-1","split-2","split-3","split-4");
+  if(count>=2&&count<=4)cw.classList.add("split-"+count);
+}
+/* Fetch any genes referenced by any split's snapshot that aren't yet
+   in geneExprCache, then trigger a recolor once all pending fetches
+   land. Without the recolor step, prefetchGene populates the cache but
+   never tells the renderer to re-paint — so a non-active split could
+   sit gray-ghosted with the right gene name in its caption until the
+   user manually re-picked. Coloc and single share the same fetch path
+   here (just /api/gene?name=...), and we collect the in-flight
+   promises so a single recolor() at the end refreshes every quadrant
+   simultaneously. */
+function _ensureSplitGenesLoaded(){
+  if(!_splitActive||!_splitViewIds||!_splitViewIds.length||!D)return;
+  var pending=[];
+  function _q(name){
+    if(!name||geneExprCache[name])return;
+    /* If a fetch is already in flight for this gene (e.g. the active
+       split is mid-load), hook into its existing promise so we recolor
+       once it resolves rather than duplicating the request. */
+    if(_genePrefetchInflight&&_genePrefetchInflight[name]){
+      pending.push(_genePrefetchInflight[name]);
+      return;
+    }
+    var p=prefetchGene(name);
+    if(p)pending.push(p);
+  }
+  for(var i=0;i<_splitViewIds.length;i++){
+    var v=_splitViewById(_splitViewIds[i]);
+    if(!v||v.mode!=="gene")continue;
+    var gm=v.geneMode||"single";
+    if(gm==="coloc"){_q(v.colocR);_q(v.colocG);}
+    else{_q(v.selGene);}
+  }
+  if(pending.length===0)return;
+  /* .catch on each so one 404 doesn't poison the whole Promise.all
+     and prevent the recolor that the OTHER fetches need. */
+  Promise.all(pending.map(function(p){return p&&p.catch?p.catch(function(){}):p;}))
+    .then(function(){if(D&&pts&&typeof recolor==="function")recolor();});
+}
+function _splitViewActivate(count){
+  /* Activate split-screen with `count` views (default 2, max 4). Live
+     views hold ONLY GPU resources + cameras; all state lives in _views[]
+     snapshots and globals. Picks the active view first then the next
+     N-1 distinct views from _views[] in order. */
+  count=Math.max(2,Math.min(4,count|0||2));
   if(_splitActive||!D||!pts||_views.length<2){console.warn("_splitViewActivate bail");return;}
-  /* Exit old compare mode if active */
+  /* Exit legacy compare mode if active */
   var cw=document.getElementById("cw");
   if(cw.classList.contains("comparing")){
     cw.classList.remove("comparing");
@@ -10153,32 +10616,37 @@ function _splitViewActivate(){
   }
   /* Save current view state to its snapshot */
   _viewSaveCurrent();
-  /* Pick which two splits go into the halves: active + first other */
-  var _aIdx=_views.findIndex(function(v){return v.id===_activeViewId;});
-  var _oIdx=_aIdx===0?1:0;
-  /* Active always goes left, other goes right */
-  _splitViewIds=[_views[_aIdx].id,_views[_oIdx].id];
-  var viewL=_splitViewById(_splitViewIds[0]);
-  var viewR=_splitViewById(_splitViewIds[1]);
-  var lv0=_createLiveView(0,viewL.name);
-  var lv1=_createLiveView(1,viewR.name);
-  /* Seed each half with its view's saved camera (falls back to globals if none)
-     and its persisted tether state. */
-  if(viewL&&viewL.camera)_applyCameraToLive(viewL.camera,lv0);
-  if(viewR&&viewR.camera)_applyCameraToLive(viewR.camera,lv1);
-  if(viewL&&viewL.tethered!==undefined)lv0.tethered=viewL.tethered;
-  if(viewR&&viewR.tethered!==undefined)lv1.tethered=viewR.tethered;
-  _liveViews=[lv0,lv1];
+  /* Pick which views populate quad 0..count-1: active first, then the
+     next distinct views in declaration order. If we don't have enough
+     unique views to fill `count`, fill remaining quadrants by repeating
+     the active view (user can reassign via the per-label dropdown). */
+  var ids=[_activeViewId];
+  for(var i=0;i<_views.length&&ids.length<count;i++){
+    if(_views[i].id!==_activeViewId)ids.push(_views[i].id);
+  }
+  while(ids.length<count)ids.push(_activeViewId);
+  _splitViewIds=ids.slice();
+  _liveViews=[];
+  for(var q=0;q<count;q++){
+    var v=_splitViewById(_splitViewIds[q]);
+    var lv=_createLiveView(q,v?v.name:("Split "+(q+1)));
+    if(v&&v.camera)_applyCameraToLive(v.camera,lv);
+    if(v&&v.tethered!==undefined)lv.tethered=v.tethered;
+    _liveViews.push(lv);
+  }
   _masterViewIdx=0;
   _splitActive=true;
-  /* Show right HUD */
-  var _hudR=document.getElementById("hud-R");if(_hudR)_hudR.style.display="";
   /* Restore globals to the ACTIVE split's state so sidebar matches */
-  _restoreSplitViewState(viewL);
-  /* Recolor both views (recolor() handles save/load of each snapshot) */
+  _restoreSplitViewState(_splitViewById(_splitViewIds[0]));
+  /* Recolor all views (recolor() handles save/load of each snapshot) */
   recolor();
+  /* Fetch any genes referenced by ANY split's snapshot that aren't yet
+     in cache — handles session restore (where the active split's gene
+     gets fetched but the others' do not) and any post-activate state. */
+  _ensureSplitGenesLoaded();
   /* Update UI */
   cw.classList.add("split-active");
+  _splitApplyCwClass(count);
   _splitUpdateLabels();
   _syncSlicePills();_updateSliceUI();
   renderLeg();
@@ -10188,60 +10656,114 @@ function _splitViewActivate(){
 
 function _splitViewDeactivate(){
   if(!_splitActive)return;
-  /* Save non-active half's camera + tether state explicitly (active gets saved via _viewSaveCurrent) */
-  if(_liveViews.length===2&&_splitViewIds.length===2){
-    for(var _hv=0;_hv<2;_hv++){
-      var _snap=_splitViewById(_splitViewIds[_hv]);
-      if(_snap){
-        _snap.tethered=_liveViews[_hv].tethered;
-        if(_splitViewIds[_hv]!==_activeViewId)_snap.camera=_snapCameraFromLive(_liveViews[_hv]);
-      }
+  /* Persist each half's tether state and (for non-active halves) its
+     live camera to its snapshot before disposing. */
+  for(var _hv=0;_hv<_liveViews.length;_hv++){
+    var _snap=_splitViewById(_splitViewIds[_hv]);
+    if(_snap){
+      _snap.tethered=_liveViews[_hv].tethered;
+      if(_splitViewIds[_hv]!==_activeViewId)_snap.camera=_snapCameraFromLive(_liveViews[_hv]);
     }
   }
-  /* Save active view's state to snapshot (globals are already the active split's state) */
+  /* Save active view's state to snapshot (globals already mirror it). */
   _viewSaveCurrent();
-  /* Apply active's camera to globals so single-view state lands on its saved camera */
+  /* Apply active's camera to globals so single-view lands on its saved camera */
   var _av=_views.find(function(v){return v.id===_activeViewId;});
   if(_av)_applyCameraToGlobals(_av.camera);
   _splitActive=false;
   _splitViewIds=[];
-  /* Hide right HUD */
-  var _hudR=document.getElementById("hud-R");if(_hudR)_hudR.style.display="none";
-  /* Dispose BOTH live views' GPU resources — both halves hold clones, not
-     globals. Leaving view 0 behind (as the pre-fix code did) leaked cloned
-     pts/ringPts/haloPts across activate/deactivate cycles and could mask
-     real highlight rings on later split sessions. */
+  /* Dispose ALL live views' GPU resources. Each holds clones, not globals. */
   for(var _dvi=_liveViews.length-1;_dvi>=0;_dvi--)_disposeLiveView(_liveViews[_dvi]);
   _liveViews=[];
-  /* Remove split class */
+  /* Remove split classes */
   var cw=document.getElementById("cw");
-  cw.classList.remove("split-active");
+  cw.classList.remove("split-active","split-2","split-3","split-4");
   /* Defensive: the split recolor path cycles globals through each view's state,
-     which can leave cellGroupMap out of sync with selGroups. Rebuild before the
-     final single-view recolor so rings render the shared selections correctly. */
+     which can leave cellGroupMap out of sync with selGroups. */
   rebuildCellGroupMap();
-  /* Make sure main pts/ringPts are visible — split render's _hideViewPts(0) could
-     have left them hidden if the last split frame ended mid-cycle. */
   if(pts)pts.visible=true;
+  /* Drop the per-gene buffer cache: the global pts/ringPts buffers were
+     last touched by view 0's snapshot during split rendering, with that
+     quadrant's filters — content the active view's fp shouldn't trust
+     even when it incidentally matches a cached entry. */
+  if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
   recolor();
+  /* Hard guarantee: rewrite the ring buffer + visibility from the
+     current selection state, in case recolor() left it in a state that
+     reflects view 0's quadrant rather than the active view. */
+  _forceRingRebuild();
+  _splitUpdateLabels();
+  if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
   _syncSlicePills();_updateSliceUI();
   requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
 }
 
-/* Update the floating top-center gene indicator(s). In split mode, shows per-
-   view gene name read from each view's SNAPSHOT (not globals, which only
-   reflect the active split). In single-view mode, shows the global selGene
-   centered over the whole canvas. Safe to call any time — cheap DOM work. */
+/* Switch the active count without exiting split mode. Bumps live-view
+   count up (creates new live views, fills with next distinct splits in
+   declaration order) or down (disposes the trailing live view, applies
+   its live camera back to its snapshot). */
+function _splitSetCount(newCount){
+  newCount=Math.max(1,Math.min(4,newCount|0));
+  if(newCount===1){_splitViewDeactivate();return;}
+  if(!_splitActive){_splitViewActivate(newCount);return;}
+  var cur=_liveViews.length;
+  if(newCount===cur)return;
+  if(newCount>cur){
+    /* Add live views for new quadrants. Pick splits not yet shown, in
+       declaration order; fall back to repeating the active split. */
+    for(var add=cur;add<newCount;add++){
+      var picked=null;
+      for(var i=0;i<_views.length;i++){
+        if(_splitViewIds.indexOf(_views[i].id)<0){picked=_views[i];break;}
+      }
+      if(!picked)picked=_splitViewById(_activeViewId)||_views[0];
+      _splitViewIds.push(picked.id);
+      var lv=_createLiveView(add,picked.name);
+      if(picked.camera)_applyCameraToLive(picked.camera,lv);
+      if(picked.tethered!==undefined)lv.tethered=picked.tethered;
+      _liveViews.push(lv);
+    }
+  }else{
+    /* Remove trailing live views. If the active view occupies one of
+       the trailing quadrants, switch active to quad 0 first so we don't
+       leave _activeViewId pointing at a no-longer-rendered split. */
+    var actHalf=_splitViewIds.indexOf(_activeViewId);
+    if(actHalf>=newCount){
+      var keepId=_splitViewIds[0];
+      if(keepId)_viewSwitch(keepId);
+    }
+    while(_liveViews.length>newCount){
+      var trim=_liveViews.length-1;
+      var snapTrim=_splitViewById(_splitViewIds[trim]);
+      if(snapTrim){
+        snapTrim.tethered=_liveViews[trim].tethered;
+        snapTrim.camera=_snapCameraFromLive(_liveViews[trim]);
+      }
+      _disposeLiveView(_liveViews[trim]);
+      _liveViews.pop();
+      _splitViewIds.pop();
+    }
+  }
+  _splitApplyCwClass(_liveViews.length);
+  recolor();
+  _ensureSplitGenesLoaded(); /* fetch genes for newly-added quadrants */
+  _splitUpdateLabels();
+  if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
+  if(typeof _updateHudColor==="function")_updateHudColor();
+  if(typeof _updateHudGroup==="function")_updateHudGroup();
+  requestAnimationFrame(function(){requestAnimationFrame(syncCanvasSize);});
+}
+
+/* Update the floating top-center gene indicator(s). One per quadrant
+   (gene-indicator-0..3); each reads from its split's snapshot (not
+   globals, since globals are scratch state during the cross-half render
+   loop). In single-view, only quad 0 is shown, centered. */
 function _updateGeneIndicators(){
-  var iL=document.getElementById("gene-indicator-L");
-  var iR=document.getElementById("gene-indicator-R");
-  if(!iL||!iR)return;
-  /* Build the pill HTML for one indicator. snap=null → use globals
-     (single-view mode); snap=view → read its per-view coloc/single state.
-     Single mode emits one .gi-pill; coloc emits one or two (one per
-     non-empty channel) separated by a thin divider. Each pill is its
-     own clickable target via the delegated handler attached below. */
+  var els=[];
+  for(var q=0;q<4;q++)els.push(document.getElementById("gene-indicator-"+q));
+  if(!els[0])return;
   function _renderInto(el,snap){
+    if(!el)return;
     var sm=snap?snap.mode:mode;
     if(sm!=="gene"){el.innerHTML="";el.classList.remove("on");return;}
     var sgm=snap?(snap.geneMode||"single"):_geneMode;
@@ -10268,27 +10790,40 @@ function _updateGeneIndicators(){
     el.innerHTML=html;
     el.classList.add("on");
   }
-  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
-    iL.style.left="25%";iL.style.transform="translateX(-50%)";
-    iR.style.left="75%";iR.style.transform="translateX(-50%)";
-    var snapL=_splitViewById(_splitViewIds[0]);
-    var snapR=_splitViewById(_splitViewIds[1]);
-    _renderInto(iL,snapL);
-    _renderInto(iR,snapR);
+  if(_splitActive&&_liveViews.length>=2&&_splitViewIds.length>=2){
+    var n=_splitViewIds.length;
+    /* Quadrant horizontal centers within the canvas: 2-up = 25%/75%;
+       3/4-up = 25%/75% top row, 25%/75% bottom row. Vertical is top:8px
+       for top row, top:calc(50% + 8px) for bottom row. */
+    for(var q=0;q<4;q++){
+      var el=els[q];
+      if(!el)continue;
+      if(q>=n){el.innerHTML="";el.classList.remove("on");el.style.display="none";continue;}
+      el.style.display="";
+      var col=(n===2)?q:(q%2);
+      var row=(n>=3)?((q/2)|0):0;
+      el.style.left=(col===0?"25%":"75%");
+      el.style.top=(row===0?"8px":"calc(50% + 8px)");
+      el.style.transform="translateX(-50%)";
+      _renderInto(el,_splitViewById(_splitViewIds[q]));
+    }
   }else{
-    iL.style.left="8px";iL.style.transform="none";
-    _renderInto(iL,null);
-    /* Single-view mode: only the left indicator is shown. Clear the
-       right one explicitly — _renderInto with null would mirror the
-       globals onto iR and stack two identical pills on top of each
-       other at different anchor positions. */
-    iR.innerHTML="";iR.classList.remove("on");
+    /* Single-view: only quad 0 is shown, centered at top (mirrors the
+       split-mode placement where gene name sits above the panel center
+       and the split-name label sits at the corner). */
+    if(els[0]){
+      els[0].style.display="";
+      els[0].style.left="50%";els[0].style.top="8px";els[0].style.transform="translateX(-50%)";
+      _renderInto(els[0],null);
+    }
+    for(var q2=1;q2<4;q2++){
+      if(els[q2]){els[q2].innerHTML="";els[q2].classList.remove("on");els[q2].style.display="none";}
+    }
   }
 }
-/* Delegated click handler for the gene indicators. Attached once at
-   parse time so the per-pill onclick attribute can stay out of the
-   inner HTML (avoids quoting headaches with gene names containing
-   apostrophes). */
+/* Delegated click handler for gene-indicator pills. Attached once at
+   parse time so per-pill onclick attributes can stay out of innerHTML
+   (avoids quoting headaches with gene names containing apostrophes). */
 (function(){
   function _giClick(e){
     var p=e.target.closest&&e.target.closest(".gi-pill");
@@ -10298,30 +10833,45 @@ function _updateGeneIndicators(){
     e.stopPropagation();
   }
   function _attach(){
-    var iL=document.getElementById("gene-indicator-L");
-    var iR=document.getElementById("gene-indicator-R");
-    if(iL)iL.addEventListener("click",_giClick);
-    if(iR)iR.addEventListener("click",_giClick);
+    for(var q=0;q<4;q++){
+      var el=document.getElementById("gene-indicator-"+q);
+      if(el)el.addEventListener("click",_giClick);
+    }
   }
   if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",_attach);
   else _attach();
 })();
 
+/* Refresh per-quadrant labels and the active-quadrant focus ring.
+   Generalized for 1-4 splits. Hides labels / focus boxes for any
+   quadrant beyond the active count. */
+var _CHAIN_SVG='<svg viewBox="0 0 24 24" width="14" height="14" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M13.54 10.46C11.84 8.75 9.07 8.75 7.37 10.46L4.28 13.54C2.57 15.25 2.57 18.02 4.28 19.72C5.98 21.43 8.75 21.43 10.46 19.72L12 18.18"/><path d="M10.46 13.54C12.16 15.25 14.93 15.25 16.63 13.54L19.72 10.46C21.43 8.75 21.43 5.98 19.72 4.28C18.02 2.57 15.25 2.57 13.54 4.28L12 5.82"/><\/svg>';
+var _CHAIN_BROKEN_SVG='<svg viewBox="0 0 512 512" width="14" height="14" style="fill:currentColor;vertical-align:-2px;"><path d="M212.3 390.2l-60.3 60.3c-25 25-65.5 25-90.5 0-25-25-25-65.5 0-90.5l120.7-120.7c25-25 65.5-25 90.5 0 8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2-41.7-41.7-109.2-41.7-150.8 0L31.3 329.9c-41.7 41.7-41.7 109.2 0 150.8 41.6 41.7 109.2 41.7 150.9 0l60.3-60.3c8.3-8.3 8.3-21.8 0-30.2s-21.8-8.3-30.2 0z"/><path d="M480.8 182.1c41.7-41.7 41.7-109.2 0-150.8-41.7-41.7-109.2-41.7-150.8 0l-72.4 72.4c-8.3 8.3-8.3 21.8 0 30.2s21.8 8.3 30.2 0l72.4-72.4c25-25 65.5-25 90.5 0s25 65.5 0 90.5L317.9 284.6c-25 25-65.5 25-90.5 0-8.3-8.3-21.8-8.3-30.2 0s-8.3 21.8 0 30.2c41.7 41.7 109.2 41.7 150.8 0L480.8 182.1z"/><path d="M399.1 368.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64c8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2l-64-64z"/><path d="M112.9 143.1c8.3 8.3 21.8 8.3 30.2 0s8.3-21.8 0-30.2L79.1 48.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64z"/><path d="M490.7 320h-64c-11.8 0-21.3 9.6-21.3 21.3s9.6 21.3 21.3 21.3h64c11.8 0 21.3-9.6 21.3-21.3S502.5 320 490.7 320z"/><path d="M170.7 106.7c11.8 0 21.3-9.6 21.3-21.3v-64C192 9.6 182.5 0 170.7 0s-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3z"/><path d="M21.3 192h64c11.8 0 21.3-9.6 21.3-21.3 0-11.8-9.6-21.3-21.3-21.3h-64C9.6 149.3 0 158.9 0 170.7 0 182.4 9.6 192 21.3 192z"/><path d="M341.3 405.3c-11.8 0-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3s21.3-9.6 21.3-21.3v-64c0-11.8-9.5-21.3-21.3-21.3z"/><\/svg>';
 function _splitUpdateLabels(){
-  var lblL=document.getElementById("split-label-L");
-  var lblR=document.getElementById("split-label-R");
-  if(!lblL||!lblR)return;
+  var labels=[];
+  var focuses=[];
+  for(var q=0;q<4;q++){
+    labels.push(document.getElementById("split-label-"+q));
+    focuses.push(document.getElementById("split-focus-"+q));
+  }
+  if(!labels[0])return;
   if(!_splitActive||_liveViews.length<2){
-    lblL.style.display="none";lblR.style.display="none";
+    for(var q2=0;q2<4;q2++){
+      if(labels[q2])labels[q2].style.display="none";
+      if(focuses[q2])focuses[q2].classList.remove("active");
+    }
     return;
   }
-  var v0=_liveViews[0],v1=_liveViews[1];
-  /* Populate dropdown menus with all available splits */
-  var selL=lblL.querySelector(".split-view-select");
-  var selR=lblR.querySelector(".split-view-select");
-  if(selL&&selR){
-    [selL,selR].forEach(function(sel,half){
-      var curId=_splitViewIds[half];
+  var n=_liveViews.length;
+  for(var q3=0;q3<4;q3++){
+    var lbl=labels[q3];
+    if(!lbl)continue;
+    if(q3>=n){lbl.style.display="none";continue;}
+    lbl.style.display=""; /* CSS .split-N drives display:flex */
+    /* Populate dropdown with available splits, marking the current one. */
+    var sel=lbl.querySelector(".split-view-select");
+    if(sel){
+      var curId=_splitViewIds[q3];
       sel.innerHTML="";
       for(var i=0;i<_views.length;i++){
         var opt=document.createElement("option");
@@ -10330,31 +10880,28 @@ function _splitUpdateLabels(){
         if(_views[i].id===curId)opt.selected=true;
         sel.appendChild(opt);
       }
-    });
+    }
+    /* Tether button reflects this view's state. */
+    var tb=lbl.querySelector(".tether-btn");
+    var v=_liveViews[q3];
+    if(tb&&v){
+      tb.innerHTML=v.tethered?_CHAIN_SVG:_CHAIN_BROKEN_SVG;
+      tb.className="tether-btn"+(v.tethered?" tethered":"");
+      tb.title=v.tethered?"Camera tethered — click to untether":"Camera independent — click to tether";
+    }
   }
-  var tb0=lblL.querySelector(".tether-btn");
-  var tb1=lblR.querySelector(".tether-btn");
-  var _chainSvg='<svg viewBox="0 0 24 24" width="14" height="14" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M13.54 10.46C11.84 8.75 9.07 8.75 7.37 10.46L4.28 13.54C2.57 15.25 2.57 18.02 4.28 19.72C5.98 21.43 8.75 21.43 10.46 19.72L12 18.18"/><path d="M10.46 13.54C12.16 15.25 14.93 15.25 16.63 13.54L19.72 10.46C21.43 8.75 21.43 5.98 19.72 4.28C18.02 2.57 15.25 2.57 13.54 4.28L12 5.82"/><\/svg>';
-  var _chainBrokenSvg='<svg viewBox="0 0 512 512" width="14" height="14" style="fill:currentColor;vertical-align:-2px;"><path d="M212.3 390.2l-60.3 60.3c-25 25-65.5 25-90.5 0-25-25-25-65.5 0-90.5l120.7-120.7c25-25 65.5-25 90.5 0 8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2-41.7-41.7-109.2-41.7-150.8 0L31.3 329.9c-41.7 41.7-41.7 109.2 0 150.8 41.6 41.7 109.2 41.7 150.9 0l60.3-60.3c8.3-8.3 8.3-21.8 0-30.2s-21.8-8.3-30.2 0z"/><path d="M480.8 182.1c41.7-41.7 41.7-109.2 0-150.8-41.7-41.7-109.2-41.7-150.8 0l-72.4 72.4c-8.3 8.3-8.3 21.8 0 30.2s21.8 8.3 30.2 0l72.4-72.4c25-25 65.5-25 90.5 0s25 65.5 0 90.5L317.9 284.6c-25 25-65.5 25-90.5 0-8.3-8.3-21.8-8.3-30.2 0s-8.3 21.8 0 30.2c41.7 41.7 109.2 41.7 150.8 0L480.8 182.1z"/><path d="M399.1 368.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64c8.3 8.3 21.8 8.3 30.2 0 8.3-8.3 8.3-21.8 0-30.2l-64-64z"/><path d="M112.9 143.1c8.3 8.3 21.8 8.3 30.2 0s8.3-21.8 0-30.2L79.1 48.9c-8.3-8.3-21.8-8.3-30.2 0-8.3 8.3-8.3 21.8 0 30.2l64 64z"/><path d="M490.7 320h-64c-11.8 0-21.3 9.6-21.3 21.3s9.6 21.3 21.3 21.3h64c11.8 0 21.3-9.6 21.3-21.3S502.5 320 490.7 320z"/><path d="M170.7 106.7c11.8 0 21.3-9.6 21.3-21.3v-64C192 9.6 182.5 0 170.7 0s-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3z"/><path d="M21.3 192h64c11.8 0 21.3-9.6 21.3-21.3 0-11.8-9.6-21.3-21.3-21.3h-64C9.6 149.3 0 158.9 0 170.7 0 182.4 9.6 192 21.3 192z"/><path d="M341.3 405.3c-11.8 0-21.3 9.6-21.3 21.3v64c0 11.8 9.6 21.3 21.3 21.3s21.3-9.6 21.3-21.3v-64c0-11.8-9.5-21.3-21.3-21.3z"/><\/svg>';
-  tb0.innerHTML=v0.tethered?_chainSvg:_chainBrokenSvg;
-  tb0.className="tether-btn"+(v0.tethered?" tethered":"");
-  tb0.title=v0.tethered?"Camera tethered — click to untether":"Camera independent — click to tether";
-  tb1.innerHTML=v1.tethered?_chainSvg:_chainBrokenSvg;
-  tb1.className="tether-btn"+(v1.tethered?" tethered":"");
-  tb1.title=v1.tethered?"Camera tethered — click to untether":"Camera independent — click to tether";
-  lblL.style.display="";lblR.style.display=""; /* let CSS .split-active rule control display:flex */
-  /* Highlight the half containing the ACTIVE split */
+  /* Highlight the quadrant containing the ACTIVE split. */
   var _focusHalf=_splitViewIds.indexOf(_activeViewId);
-  var fL=document.getElementById("split-focus-L");
-  var fR=document.getElementById("split-focus-R");
-  if(fL)fL.classList.toggle("active",_focusHalf===0);
-  if(fR)fR.classList.toggle("active",_focusHalf===1);
+  for(var q4=0;q4<4;q4++){
+    if(focuses[q4])focuses[q4].classList.toggle("active",q4===_focusHalf);
+  }
 }
 
 function _splitReassign(half,newId){
-  /* Reassign which split is shown in the given half (0=left, 1=right).
-     The same split can be shown in both halves (e.g. for comparing camera angles). */
-  if(!_splitActive||half<0||half>1)return;
+  /* Reassign which split is shown in the given quadrant (0..N-1). The
+     same split can be shown in multiple quadrants (e.g. for comparing
+     camera angles). */
+  if(!_splitActive||half<0||half>=_liveViews.length)return;
   /* Save outgoing view's live camera to its snapshot */
   var _outId=_splitViewIds[half];
   if(_liveViews[half]&&_outId!==newId){
@@ -10365,13 +10912,14 @@ function _splitReassign(half,newId){
   /* Apply incoming view's saved camera to the live view */
   var _inSnap=_splitViewById(newId);
   if(_inSnap&&_inSnap.camera&&_liveViews[half])_applyCameraToLive(_inSnap.camera,_liveViews[half]);
-  /* Update live view names */
-  var vL=_splitViewById(_splitViewIds[0]);
-  var vR=_splitViewById(_splitViewIds[1]);
-  if(vL)_liveViews[0].name=vL.name;
-  if(vR)_liveViews[1].name=vR.name;
-  /* Recolor both halves with the new assignments */
+  /* Sync live view names for ALL quadrants (a swap can ripple through). */
+  for(var q=0;q<_liveViews.length;q++){
+    var sv=_splitViewById(_splitViewIds[q]);
+    if(sv)_liveViews[q].name=sv.name;
+  }
+  /* Recolor all halves with the new assignments */
   recolor();
+  _ensureSplitGenesLoaded(); /* fetch genes for the newly-assigned split */
   _splitUpdateLabels();
 }
 
@@ -10527,7 +11075,7 @@ function _viewSaveCurrent(){
   v.pathwayColorId=_pathwayColorId||"";
   v.pathwayColorName=_pathwayColorName||"";
   /* Camera: pull from active live view in split mode, else from globals */
-  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+  if(_splitActive&&_liveViews.length>=2&&_splitViewIds.length>=2){
     var _ah=_splitViewIds.indexOf(_activeViewId);
     v.camera=(_ah>=0&&_ah<_liveViews.length)?_snapCameraFromLive(_liveViews[_ah]):_snapCameraFromGlobals();
   }else{
@@ -10823,6 +11371,22 @@ function _viewUpdateUI(){
     cmpBtn.style.display=_views.length>1?"inline-flex":"none";
     cmpBtn.style.background=_splitActive?"rgba(99,102,241,0.2)":"none";
     cmpBtn.style.color="var(--accent2)";
+  }
+  /* Split-count selector pips: visible whenever ≥2 saved splits exist.
+     Highlight the pip matching the current effective count (1 = single
+     view, 2/3/4 = split). */
+  var pipRow=document.getElementById("split-count-row");
+  if(pipRow){
+    pipRow.style.display=_views.length>1?"inline-flex":"none";
+    var curN=_splitActive?_liveViews.length:1;
+    var pips=pipRow.querySelectorAll(".split-count-pip");
+    for(var pi=0;pi<pips.length;pi++){
+      var pn=parseInt(pips[pi].getAttribute("data-count"))|0;
+      var on=(pn===curN);
+      pips[pi].style.background=on?"rgba(99,102,241,0.15)":"transparent";
+      pips[pi].style.color=on?"var(--accent2)":"var(--text3)";
+      pips[pi].style.fontWeight=on?"600":"400";
+    }
   }
   /* Canvas overlay label: name + download + tether toggle. Shown whenever a
      dataset is loaded and split-screen isn't active (in split mode the
@@ -12153,6 +12717,7 @@ function _pathwayApply(pid, mode){
     if(typeof rebuildCellGroupMap==="function")rebuildCellGroupMap();
     if(typeof renderSelPanel==="function")renderSelPanel();
     if(typeof recolor==="function")recolor();
+    if(!_splitActive&&typeof _forceRingRebuild==="function")_forceRingRebuild();
     if(typeof saveState==="function")saveState();
     var status=document.getElementById("path-status");
     if(status){
@@ -12763,9 +13328,9 @@ function _plotDrawViolin(gene, facetCol, data){
 
 function _exportGetCamera(snap){
   if(!snap)return _snapCameraFromGlobals();
-  if(_splitActive&&_liveViews.length===2&&_splitViewIds.length===2){
+  if(_splitActive&&_liveViews.length>=2&&_splitViewIds.length>=2){
     var hIdx=_splitViewIds.indexOf(snap.id);
-    if(hIdx>=0)return _snapCameraFromLive(_liveViews[hIdx]);
+    if(hIdx>=0&&hIdx<_liveViews.length)return _snapCameraFromLive(_liveViews[hIdx]);
   }
   if(snap.id===_activeViewId)return _snapCameraFromGlobals();
   return snap.camera||_snapCameraFromGlobals();
@@ -12802,9 +13367,18 @@ function _exportOpen(viewId){
      prior side-by-side export doesn't auto-trigger one for a single split. */
   var bothRow=document.getElementById("export-svg-both-row");
   var bothCb=document.getElementById("export-svg-both");
-  var bothActive=!!(_splitActive&&_splitViewIds&&_splitViewIds.length===2);
+  /* "All splits" export option is available whenever split-screen is
+     active with ≥2 splits (covers 2-up, 3-up, and 4-up). The checkbox
+     label is updated to reflect the count. */
+  var bothActive=!!(_splitActive&&_splitViewIds&&_splitViewIds.length>=2);
   if(bothRow)bothRow.style.display=bothActive?"flex":"none";
   if(bothCb&&!bothActive)bothCb.checked=false;
+  /* Update the checkbox's label text to mention the active count. */
+  var bothLbl=document.getElementById("export-svg-both-label");
+  if(bothLbl&&_splitViewIds){
+    var n=_splitViewIds.length;
+    bothLbl.textContent=n===2?"Side-by-side both splits":"All "+n+" splits in one image";
+  }
   _exportShowOpts();
   _exportUpdateEstimate();
   document.getElementById("export-overlay").style.display="flex";
@@ -12898,7 +13472,11 @@ function _exportComputeRenderState(snap, includeGhost){
   if(useColoc){
     exR=snapR?geneExprCache[snapR]:null;
     exG=snapG?geneExprCache[snapG]:null;
-  }else if(snapMode==="gene"&&snapGene&&geneExprCache[snapGene]){
+  }else if(snapMode==="gene"&&snapGM==="single"&&snapGene&&geneExprCache[snapGene]){
+    /* Single-gene path requires geneMode === "single" specifically — a
+       coloc snapshot with no channels picked must NOT fall through to
+       its leftover selGene (which would render the SVG with the prior
+       single-gene coloration even though on screen it's gray ghost). */
     ex=geneExprCache[snapGene];
   }else if(snapMode==="pathway"&&snapPid&&_pathwayScoreCache[snapPid]){
     ex=_pathwayScoreCache[snapPid];
@@ -13096,12 +13674,16 @@ function _exportProjectSnap(snap, w, h, includeGhost){
   return {entries:entries, rs:rs};
 }
 
-/* Render one half's <g> group string (points + optional rings), offset by
-   xOffset so it can sit in either pane of a side-by-side layout. */
-function _exportRenderHalfGroup(proj, xOffset, includeRings, hexFn, idSuffix){
+/* Render one pane's <g> group string (points + optional rings), offset by
+   (xOffset, yOffset) so it can sit in any pane of a multi-split layout
+   (2-up side-by-side, 3/4-up 2x2 grid). yOffset defaults to 0 for the
+   legacy 2-up callers. */
+function _exportRenderHalfGroup(proj, xOffset, includeRings, hexFn, idSuffix, yOffset){
+  if(yOffset===undefined)yOffset=0;
   var entries=proj.entries, rs=proj.rs;
+  var tx="translate("+xOffset.toFixed(1)+","+yOffset.toFixed(1)+")";
   var parts=[];
-  parts.push('<g id="points'+idSuffix+'" transform="translate('+xOffset.toFixed(1)+',0)">\n');
+  parts.push('<g id="points'+idSuffix+'" transform="'+tx+'">\n');
   for(var e=0;e<entries.length;e++){
     var en=entries[e],i=en.i;
     var rC='#'+hexFn(rs.color[i*3])+hexFn(rs.color[i*3+1])+hexFn(rs.color[i*3+2]);
@@ -13112,7 +13694,7 @@ function _exportRenderHalfGroup(proj, xOffset, includeRings, hexFn, idSuffix){
   }
   parts.push('</g>\n');
   if(includeRings){
-    parts.push('<g id="rings'+idSuffix+'" fill="none" stroke-width="1.4" transform="translate('+xOffset.toFixed(1)+',0)">\n');
+    parts.push('<g id="rings'+idSuffix+'" fill="none" stroke-width="1.4" transform="'+tx+'">\n');
     for(var e=0;e<entries.length;e++){
       var en=entries[e],i=en.i;
       var sg=rs.group[i];
@@ -13160,62 +13742,159 @@ function _exportSVG(){
   var includeRings=document.getElementById("export-svg-rings").checked;
   var includeBg=document.getElementById("export-svg-bg").checked;
   var bothCb=document.getElementById("export-svg-both");
-  var sideBySide=!!(bothCb&&bothCb.checked&&_splitActive&&_splitViewIds&&_splitViewIds.length===2);
-  /* Each half uses HALF the canvas width to match what's on screen. */
+  /* "Multi-split" export covers 2-up (side-by-side) AND 3/4-up (2x2
+     grid). Single-split path is unchanged below. */
+  var multiSplit=!!(bothCb&&bothCb.checked&&_splitActive&&_splitViewIds&&_splitViewIds.length>=2);
+  var nSplit=multiSplit?_splitViewIds.length:0;
+  /* Per-pane dimensions: 2-up uses halfW x fullH; 3/4-up uses
+     halfW x halfH so the SVG mirrors the on-screen 2x2 grid. */
   var fullW=_cvRect.width||canvasW||1200;
   var fullH=_cvRect.height||canvasH||800;
   var inSplitHalf=_splitActive&&_splitViewIds&&_splitViewIds.indexOf(snap.id)>=0;
-  var halfW=Math.max(400,Math.round((sideBySide||inSplitHalf)?fullW/2:fullW));
+  var halfW=Math.max(400,Math.round((multiSplit||inSplitHalf)?fullW/2:fullW));
   var h=Math.max(600,Math.round(fullH));
-  var W=sideBySide?halfW*2:halfW;
+  var multiCols=multiSplit?2:1;
+  var multiRows=(multiSplit&&nSplit>=3)?2:1;
+  var paneW=multiSplit?halfW:halfW;
+  var paneH=(multiRows===2)?Math.max(300,Math.round(h/2)):h;
+  var W=multiSplit?paneW*multiCols:halfW;
+  var H=multiSplit?paneH*multiRows:h;
   var bg=getBG();
   function _hex(c){var v=Math.round(c*255);if(v<0)v=0;if(v>255)v=255;return (v<16?'0':'')+v.toString(16);}
   var bgHex='#'+_hex(bg[0])+_hex(bg[1])+_hex(bg[2]);
+  /* Theme-aware label colors so a small "Split N \u00b7 GENE" caption sits in
+     each pane's corner. Uses the same accent2 used by the on-screen
+     gene-indicator pills, on a translucent backdrop that reads on both
+     light and dark backgrounds. */
+  var isLightExp=document.body.classList.contains("light");
+  var lblFill=isLightExp?"rgba(255,255,255,0.85)":"rgba(20,22,32,0.82)";
+  var lblStroke=isLightExp?"rgba(180,190,210,0.7)":"rgba(80,90,120,0.7)";
+  var lblText=isLightExp?"#374151":"#c5cae9";
+  var lblAccent=isLightExp?"#5b6ed8":"#a5b4fc"; /* accent2 ~equivalent */
+  function _esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+  /* Visible caption for one pane based on its snapshot. Returns the
+     gene name (or coloc pair / pathway name / "Cell Types" for cluster
+     mode). The split name is intentionally omitted \u2014 only the visual
+     encoding matters for interpreting the saved image. */
+  function _paneCaption(s){
+    if(!s)return "";
+    var m=s.mode||"cluster";
+    var gm=s.geneMode||"single";
+    if(m==="gene"){
+      if(gm==="coloc"){
+        var R=s.colocR||"", G=s.colocG||"";
+        if(R||G)return (R||"?")+" + "+(G||"?");
+        return "";
+      }
+      return s.selGene||"";
+    }
+    if(m==="pathway"&&s.pathwayColorId){
+      return s.pathwayColorName||s.pathwayColorId;
+    }
+    if(m==="cluster")return "Cell Types";
+    return "";
+  }
+  /* Accurate text-width measurement via canvas 2D so the box's
+     horizontal padding stays visually constant regardless of glyph
+     widths. Estimating width as length*charW gave wider padding for
+     narrow strings (Trat1) than for wide ones (TNFRSF14) — the box
+     hugged some labels and ballooned around others. */
+  var _capMeasCv=document.createElement("canvas");
+  var _capMeasCtx=_capMeasCv.getContext("2d");
+  function _measureCapWidth(text,fontSize){
+    _capMeasCtx.font=fontSize+'px -apple-system, system-ui, sans-serif';
+    return _capMeasCtx.measureText(text).width;
+  }
   var parts=[];
   parts.push('<?xml version="1.0" encoding="UTF-8"?>\n');
-  parts.push('<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+h+'" viewBox="0 0 '+W+' '+h+'">\n');
-  if(sideBySide){
-    var snapL=_splitViewById(_splitViewIds[0]);
-    var snapR=_splitViewById(_splitViewIds[1]);
-    var titleStr=(snapL?snapL.name:"left")+_geneTitleSnippet(snapL)+'  |  '+(snapR?snapR.name:"right")+_geneTitleSnippet(snapR);
-    parts.push('<title>'+titleStr+'<\/title>\n');
-    /* clipPaths bound each half to its own pane. The on-screen renderer
-       lets points spill 5% past the visible NDC range; without clipping,
-       those overshoots cross the divider into the other half after the
-       per-half translate. With clipping, even a point straddling the
-       seam gets neatly cut at the divider line. */
+  parts.push('<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">\n');
+  if(multiSplit){
+    /* SVG <title> joins all panes with " | ". */
+    var titleParts=[];
+    for(var ti=0;ti<nSplit;ti++){
+      var tSnap=_splitViewById(_splitViewIds[ti]);
+      titleParts.push((tSnap?tSnap.name:"split "+(ti+1))+_geneTitleSnippet(tSnap));
+    }
+    parts.push('<title>'+_esc(titleParts.join("  |  "))+'<\/title>\n');
+    /* clipPaths per pane so points spilling past the NDC range get
+       cleanly cut at the pane boundaries. */
     parts.push('<defs>\n');
-    parts.push('<clipPath id="ex-clip-L"><rect x="0" y="0" width="'+halfW+'" height="'+h+'"/><\/clipPath>\n');
-    parts.push('<clipPath id="ex-clip-R"><rect x="'+halfW+'" y="0" width="'+halfW+'" height="'+h+'"/><\/clipPath>\n');
+    for(var ci=0;ci<nSplit;ci++){
+      var col=ci%2, row=(ci/2)|0;
+      var x=col*paneW, y=row*paneH;
+      parts.push('<clipPath id="ex-clip-'+ci+'"><rect x="'+x+'" y="'+y+'" width="'+paneW+'" height="'+paneH+'"/><\/clipPath>\n');
+    }
     parts.push('<\/defs>\n');
-    if(includeBg)parts.push('<rect width="'+W+'" height="'+h+'" fill="'+bgHex+'"/>\n');
-    var projL=_exportProjectSnap(snapL,halfW,h,includeGhost);
-    var projR=_exportProjectSnap(snapR,halfW,h,includeGhost);
-    parts.push('<g clip-path="url(#ex-clip-L)">\n');
-    parts.push(_exportRenderHalfGroup(projL,0,includeRings,_hex,'-L'));
-    parts.push('<\/g>\n');
-    parts.push('<g clip-path="url(#ex-clip-R)">\n');
-    parts.push(_exportRenderHalfGroup(projR,halfW,includeRings,_hex,'-R'));
-    parts.push('<\/g>\n');
-    /* Thin divider line at the seam \u2014 same idea as the on-screen split-view
-       divider, no surrounding focus box. Theme-aware muted tone. */
-    var isLight=document.body.classList.contains("light");
-    var divCol=isLight?"#c4ccdd":"#3a4258";
-    parts.push('<line x1="'+halfW+'" y1="0" x2="'+halfW+'" y2="'+h+'" stroke="'+divCol+'" stroke-width="1" opacity="0.7"/>\n');
+    if(includeBg)parts.push('<rect width="'+W+'" height="'+H+'" fill="'+bgHex+'"/>\n');
+    /* Each pane: project that snap's points to paneW x paneH, render
+       inside a translated + clipped group. */
+    for(var pi=0;pi<nSplit;pi++){
+      var pcol=pi%2, prow=(pi/2)|0;
+      var px=pcol*paneW, py=prow*paneH;
+      var pSnap=_splitViewById(_splitViewIds[pi]);
+      if(!pSnap)continue;
+      var proj=_exportProjectSnap(pSnap,paneW,paneH,includeGhost);
+      parts.push('<g clip-path="url(#ex-clip-'+pi+')">\n');
+      parts.push(_exportRenderHalfGroup(proj,px,includeRings,_hex,'-'+pi,py));
+      parts.push('<\/g>\n');
+    }
+    /* Dividers \u2014 vertical (always for 2+) and horizontal (only for 3/4-up). */
+    var divCol=isLightExp?"#c4ccdd":"#3a4258";
+    parts.push('<line x1="'+paneW+'" y1="0" x2="'+paneW+'" y2="'+H+'" stroke="'+divCol+'" stroke-width="1" opacity="0.7"/>\n');
+    if(multiRows===2){
+      parts.push('<line x1="0" y1="'+paneH+'" x2="'+W+'" y2="'+paneH+'" stroke="'+divCol+'" stroke-width="1" opacity="0.7"/>\n');
+    }
+    /* Per-pane caption: small "Split N \u00b7 GENE" tag in each occupied pane's
+       top-left, mirroring the on-screen gene-indicator + split-label pair.
+       lblPadH is the FIXED horizontal padding on each side of the
+       measured text, independent of string length. */
+    var lblPad=8, lblPadH=6, lblFontSize=Math.max(11,Math.round(paneH*0.018));
+    for(var li=0;li<nSplit;li++){
+      var lcol=li%2, lrow=(li/2)|0;
+      var lx=lcol*paneW+lblPad, ly=lrow*paneH+lblPad;
+      var lSnap=_splitViewById(_splitViewIds[li]);
+      var capText=_paneCaption(lSnap);
+      if(!capText)continue;
+      var textW=_measureCapWidth(capText,lblFontSize);
+      var rectW=Math.ceil(textW)+lblPadH*2;
+      var rectH=lblFontSize+lblPad;
+      parts.push('<g>\n');
+      parts.push('<rect x="'+lx+'" y="'+ly+'" width="'+rectW+'" height="'+rectH+'" rx="4" fill="'+lblFill+'" stroke="'+lblStroke+'" stroke-width="1"/>\n');
+      parts.push('<text x="'+(lx+rectW/2)+'" y="'+(ly+lblFontSize+lblPad*0.25)+'" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="'+lblFontSize+'" fill="'+lblText+'">'+_esc(capText)+'<\/text>\n');
+      parts.push('<\/g>\n');
+    }
   }else{
-    parts.push('<title>'+(snap.name||"FLEEK export")+_geneTitleSnippet(snap)+'<\/title>\n');
+    parts.push('<title>'+_esc((snap.name||"FLEEK export")+_geneTitleSnippet(snap))+'<\/title>\n');
     if(includeBg)parts.push('<rect width="'+halfW+'" height="'+h+'" fill="'+bgHex+'"/>\n');
     var proj=_exportProjectSnap(snap,halfW,h,includeGhost);
     parts.push(_exportRenderHalfGroup(proj,0,includeRings,_hex,''));
+    /* Single-pane caption: same "Split N \u00b7 GENE" tag as multi-split, so
+       every exported image self-identifies which split + gene it shows
+       (regardless of split-screen mode). */
+    var sCap=_paneCaption(snap);
+    if(sCap){
+      var sFontSize=Math.max(11,Math.round(h*0.014));
+      var sPad=8, sPadH=6;
+      var sTextW=_measureCapWidth(sCap,sFontSize);
+      var sRectW=Math.ceil(sTextW)+sPadH*2;
+      var sRectH=sFontSize+sPad;
+      parts.push('<g>\n');
+      parts.push('<rect x="'+sPad+'" y="'+sPad+'" width="'+sRectW+'" height="'+sRectH+'" rx="4" fill="'+lblFill+'" stroke="'+lblStroke+'" stroke-width="1"/>\n');
+      parts.push('<text x="'+(sPad+sRectW/2)+'" y="'+(sPad+sFontSize+sPad*0.25)+'" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="'+sFontSize+'" fill="'+lblText+'">'+_esc(sCap)+'<\/text>\n');
+      parts.push('<\/g>\n');
+    }
   }
   parts.push('<\/svg>\n');
-  /* Filename: side-by-side joins both half names with "+". */
+  /* Filename: multi-split joins all pane names with "+". */
   var fname;
-  if(sideBySide){
-    var snapL2=_splitViewById(_splitViewIds[0]);
-    var snapR2=_splitViewById(_splitViewIds[1]);
+  if(multiSplit){
+    var nameTags=[];
+    for(var fi=0;fi<nSplit;fi++){
+      var fSnap=_splitViewById(_splitViewIds[fi]);
+      nameTags.push((fSnap&&fSnap.name)||"S"+(fi+1));
+    }
     var fakeSnap={
-      name:((snapL2&&snapL2.name)||"L")+"+"+((snapR2&&snapR2.name)||"R"),
+      name:nameTags.join("+"),
       mode:snap.mode,geneMode:snap.geneMode,selGene:snap.selGene,
       colocR:snap.colocR,colocG:snap.colocG
     };
@@ -13355,13 +14034,20 @@ function _exportCSV(){
   _exportClose();
 }
 
-function _viewCompare(){
+function _viewCompare(count){
   if(_views.length<2||!renderer){console.warn("_viewCompare bail: views="+_views.length+" renderer="+(!!renderer));return;}
+  /* count is optional. With no arg: toggle 2-up split on/off (legacy
+     behavior of the split-screen button). With a numeric count 1..4:
+     set the split count exactly. */
+  if(typeof count==="number"){
+    try{_splitSetCount(count);_viewUpdateUI();}catch(e){console.error("_splitSetCount error:",e);}
+    return;
+  }
   if(_splitActive){
     try{_splitViewDeactivate();_viewUpdateUI();}catch(e){console.error("_splitViewDeactivate error:",e);}
     return;
   }
-  try{_splitViewActivate();_viewUpdateUI();}catch(e){console.error("_splitViewActivate error:",e);}
+  try{_splitViewActivate(2);_viewUpdateUI();}catch(e){console.error("_splitViewActivate error:",e);}
 }
 var vDragging=false, vPrev={x:0,y:0};
 var _volcanoPts=[]; /* cached rendered points [{x,y,g}] rebuilt each renderVolcano() */
@@ -14350,7 +15036,8 @@ function _applySessionState(s){
   if(Array.isArray(s.splitViewIds))_splitViewIds=s.splitViewIds.slice();
   var _wantSplit=!!s.splitActive;
   if(_wantSplit&&!_splitActive&&_views.length>=2){
-    try{_splitViewActivate();}catch(e){console.error("session: splitViewActivate failed",e);}
+    var _wantCnt=(Array.isArray(s.splitViewIds)&&s.splitViewIds.length)?s.splitViewIds.length:2;
+    try{_splitViewActivate(_wantCnt);}catch(e){console.error("session: splitViewActivate failed",e);}
   }else if(!_wantSplit&&_splitActive){
     try{_splitViewDeactivate();}catch(e){console.error("session: splitViewDeactivate failed",e);}
   }
@@ -15999,6 +16686,75 @@ function _addSectionResizer(opts){
   });
 }
 
+/* Element-bottom variant of _addSectionResizer for elements that aren't
+   sidebar `.sec` containers (e.g. the file-browser column area). Inserts
+   a `.elem-resize-bar` as the IMMEDIATE NEXT SIBLING of the target;
+   dragging it adjusts target.style.height. Inherits the same sidebar
+   scroll-lock and cursor-tracking treatment as `_addSectionResizer`. */
+function _addElementBottomResizer(targetId,opts){
+  var target=document.getElementById(targetId);
+  if(!target)return;
+  /* Idempotent: don't double-install. */
+  var nxt=target.nextElementSibling;
+  if(nxt&&nxt.classList&&nxt.classList.contains("elem-resize-bar"))return;
+  var bar=document.createElement("div");
+  bar.className="elem-resize-bar";
+  bar.title="Drag to resize";
+  if(target.parentNode)target.parentNode.insertBefore(bar,target.nextSibling);
+  var min=(opts&&opts.min)||60;
+  var max=(opts&&opts.max)||1200;
+  /* Defeat any inline / CSS min-height on the target so JS clamping is
+     the only floor (otherwise dragging up past the floor causes
+     cursor-vs-bar drift). */
+  target.style.minHeight="0px";
+  function _scrollContainer(el){
+    var p=el.parentNode;
+    while(p&&p!==document.body){
+      if(p.id==="sidebar-upper"||p.id==="sidebar-right-upper")return p;
+      p=p.parentNode;
+    }
+    return null;
+  }
+  var startY=0,startH=0,startScroll=0,scrollEl=null,prevOverflowY="";
+  function onWheel(e){e.preventDefault();e.stopPropagation();}
+  function onScroll(){if(scrollEl&&scrollEl.scrollTop!==startScroll)scrollEl.scrollTop=startScroll;}
+  function onMove(ev){
+    var dy=ev.clientY-startY;
+    var newH=Math.max(min,Math.min(max,startH+dy));
+    target.style.height=newH+"px";
+    target.style.maxHeight=newH+"px";
+    if(opts&&opts.onResize)opts.onResize();
+  }
+  function onUp(){
+    document.removeEventListener("mousemove",onMove);
+    document.removeEventListener("mouseup",onUp);
+    document.body.style.cursor="";
+    bar.classList.remove("dragging");
+    if(scrollEl){
+      scrollEl.style.overflowY=prevOverflowY||"";
+      scrollEl.removeEventListener("wheel",onWheel,{capture:true});
+      scrollEl.removeEventListener("scroll",onScroll);
+    }
+  }
+  bar.addEventListener("mousedown",function(e){
+    e.preventDefault();
+    scrollEl=_scrollContainer(target);
+    startY=target.getBoundingClientRect().bottom;
+    startH=target.getBoundingClientRect().height;
+    startScroll=scrollEl?scrollEl.scrollTop:0;
+    if(scrollEl){
+      prevOverflowY=scrollEl.style.overflowY;
+      scrollEl.style.overflowY="hidden";
+      scrollEl.addEventListener("wheel",onWheel,{passive:false,capture:true});
+      scrollEl.addEventListener("scroll",onScroll);
+    }
+    document.body.style.cursor="ns-resize";
+    bar.classList.add("dragging");
+    document.addEventListener("mousemove",onMove);
+    document.addEventListener("mouseup",onUp);
+  });
+}
+
 function _setupResizableLists(){
   /* Use a tall ceiling tied to the viewport so users don't run into a
      hardcoded max while dragging — when the resize hits max, the cursor
@@ -16045,6 +16801,12 @@ function _setupResizableLists(){
     resolveTarget:function(){return document.getElementById("path-results");},
     min:120, max:BIG
   });
+  /* File browser column area (inside the Data panel). Drag the line
+     just below the column area to resize the browser to fit more
+     directories at once. Same scroll-lock and tracking treatment as
+     the section-level resizers so it doesn't drift when the data
+     section is itself short. */
+  _addElementBottomResizer("browse-columns",{min:120,max:BIG});
 }
 
 function setupCustomScrollbars(){
