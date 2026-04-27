@@ -234,9 +234,17 @@
   .hud-quad{position:absolute;bottom:12px;left:12px;z-index:10;font-size:10px;color:var(--text3);max-width:220px;}
   .hud-quad .hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;line-height:1.6;}
   .hud-quad.open .hud-body{display:block;}
-  .hud-quad .hud-row{display:flex;justify-content:space-between;gap:8px;}
-  .hud-quad .hud-label{color:var(--text4);}
-  .hud-quad .hud-val{color:var(--text2);font-variant-numeric:tabular-nums;text-align:right;}
+  /* HUD rows: fixed gap between label and value, NOT space-between.
+     space-between expanded the box width whenever the box was wider
+     than its widest row's natural content (e.g. on splits where the
+     "Color" row's gene name was much shorter than other rows in the
+     box). The visual gap then varied per row — short rows had wide
+     gaps, long rows had only the 8 px min gap. With flex-start + a
+     constant 12 px gap, every row has the same gap by construction
+     and the box width is determined by the widest natural row. */
+  .hud-quad .hud-row{display:flex;justify-content:flex-start;gap:12px;align-items:baseline;}
+  .hud-quad .hud-label{color:var(--text4);flex-shrink:0;}
+  .hud-quad .hud-val{color:var(--text2);font-variant-numeric:tabular-nums;}
   /* Default state: only quad 0's HUD is visible. Quads 1-3 light up
      via the split-N override rules below. */
   .hud-quad[data-quad="1"],.hud-quad[data-quad="2"],.hud-quad[data-quad="3"]{display:none;}
@@ -352,9 +360,9 @@
      inline style, and inline style would otherwise win against the
      :hover rule (the same pattern #deg-run-btn uses). */
   #plot-render-btn:hover,#path-run-btn:hover{background:rgba(16,185,129,0.28)!important;filter:brightness(0.92);}
-  #plot-gene-results .pg-hit{padding:3px 8px;font-size:10px;color:var(--text2);cursor:pointer;}
-  #plot-gene-results .pg-hit:hover{background:var(--bg-hover);color:var(--text);}
-  #plot-gene-results .pg-hit.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
+  #plot-gene-results .pg-hit,#plot-dp-genes-results .pg-hit{padding:3px 8px;font-size:10px;color:var(--text2);cursor:pointer;}
+  #plot-gene-results .pg-hit:hover,#plot-dp-genes-results .pg-hit:hover{background:var(--bg-hover);color:var(--text);}
+  #plot-gene-results .pg-hit.active,#plot-dp-genes-results .pg-hit.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
   /* Info-toggle button — quad 0 has a fixed id (#hud-toggle); the other
      three quadrants share the .hud-quad-toggle class. Each toggles its
      OWN HUD's open state; the I keyboard shortcut still toggles all. */
@@ -450,8 +458,11 @@
      and gets reliably placed via JS relative to the trigger's rect.
      The JS writes top/left/maxHeight inline; this rule only carries
      base styling. */
-  #expr-grad-dd,#coloc-scheme-dd{display:none;position:fixed;min-width:280px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:1000;padding:4px 0;}
-  #expr-grad-dd.open,#coloc-scheme-dd.open{display:block;}
+  #expr-grad-dd,#coloc-scheme-dd,#plot-grad-dd{display:none;position:fixed;min-width:280px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:1000;padding:4px 0;}
+  #expr-grad-dd.open,#coloc-scheme-dd.open,#plot-grad-dd.open{display:block;}
+  /* Plot gradient dropdown sits above the plot overlay (z-index 280),
+     so it must be high enough to appear over modal content. */
+  #plot-grad-dd{z-index:1100;}
   .grad-group{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text4);padding:6px 10px 2px;}
   .grad-row{display:grid;grid-template-columns:48px 1fr;column-gap:8px;row-gap:1px;align-items:center;padding:5px 10px;cursor:pointer;transition:background var(--dur-fast);}
   .grad-row:hover{background:var(--bg-hover);}
@@ -1321,18 +1332,42 @@
         <select id="plot-type" onchange="_plotTypeChanged();if(typeof saveState==='function')saveState();" style="flex:1;">
           <option value="raincloud">Raincloud plot</option>
           <option value="violin">Violin plot</option>
+          <option value="dotplot">Dot plot</option>
         </select>
       </div>
-      <!-- Raincloud options. Plot reflects the active view's state: visible
+      <!-- Plot options. Plot reflects the active view's state: visible
            cell types (Cell Types panel), slice filter (Slice panel), any
-           deleted cells. "Plot what you see." Change visibility or slice on
-           the main view and re-render to get a different plot subset. -->
+           deleted cells. "Plot what you see." Change visibility or slice
+           on the main view and re-render to get a different plot subset.
+           Type-specific input rows + toggles toggle visibility based on
+           plot-type; shared facet/filter-summary/render-button live at
+           the bottom. -->
       <div id="plot-opts-raincloud" class="plot-opts">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        <!-- Single-gene input row (raincloud / violin) -->
+        <div id="plot-gene-input-row" style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
           <span style="font-size:10px;color:var(--text4);min-width:40px;">Gene</span>
-          <input type="text" id="plot-gene-input" placeholder="Gene name&hellip;" oninput="_plotGeneInput(this.value)" style="flex:1;min-width:0;padding:3px 6px;font-size:11px;">
+          <input type="text" id="plot-gene-input" placeholder="Gene name&hellip;" oninput="_plotGeneInput(this.value)" onkeydown="_plotGeneInputKey(event)" autocomplete="off" style="flex:1;min-width:0;padding:3px 6px;font-size:11px;">
         </div>
         <div id="plot-gene-results" style="display:none;max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:3px;margin-bottom:6px;background:var(--bg3);"></div>
+        <!-- Multi-gene chip input (dot plot). Live autocomplete on the
+             inline input; Enter / click adds the highlighted match as a
+             chip; pasting a comma- or newline-separated list validates
+             each token against the dataset and adds the found ones as
+             chips. Comma typed inline also acts as a separator. -->
+        <div id="plot-gene-list-row" style="display:none;flex-direction:column;gap:3px;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:10px;color:var(--text4);min-width:40px;">Genes</span>
+            <span id="plot-gene-list-count" style="font-size:9px;color:var(--text4);font-variant-numeric:tabular-nums;">0 genes</span>
+            <span style="flex:1;"></span>
+            <button onclick="_plotDpClear()" title="Remove all genes" style="background:none;border:none;color:var(--text4);font-size:9px;cursor:pointer;padding:0 4px;font-family:inherit;">clear</button>
+          </div>
+          <div style="position:relative;">
+            <div id="plot-dp-genes-wrap" style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;padding:4px 6px;border:1px solid var(--border);border-radius:3px;background:var(--bg3);min-height:32px;cursor:text;" onclick="var i=document.getElementById('plot-dp-genes-input');if(i)i.focus();">
+              <input id="plot-dp-genes-input" type="text" placeholder="Type a gene, paste a list, or press Enter to add" autocomplete="off" oninput="_plotDpInput()" onkeydown="_plotDpKeyDown(event)" onpaste="_plotDpPaste(event)" onblur="setTimeout(_plotDpHideDropdown,150);" style="border:none;background:transparent;color:var(--text);font-size:11px;font-family:'JetBrains Mono','SF Mono',monospace;outline:none;flex:1;min-width:120px;padding:2px 0;">
+            </div>
+            <div id="plot-dp-genes-results" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:2px;max-height:160px;overflow-y:auto;border:1px solid var(--border);border-radius:3px;background:var(--bg3);z-index:30;box-shadow:0 4px 12px rgba(0,0,0,0.25);"></div>
+          </div>
+        </div>
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
           <span style="font-size:10px;color:var(--text4);min-width:40px;">Facet</span>
           <select id="plot-facet" onchange="if(typeof saveState==='function')saveState();" style="flex:1;" title="Split the plot into panels by this obs column (or 'None' for a single panel). Columns already constrained to a single value by the active Slice are excluded — they'd produce a pointless 1-panel facet.">
@@ -1340,22 +1375,48 @@
           </select>
         </div>
         <div id="plot-filter-summary" style="font-size:10px;color:var(--text4);margin-bottom:6px;line-height:1.4;" title="Plot uses the currently visible cell types and the active slice filter. Adjust the Cell Types / Slice panels to change what's plotted."></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on, density curve width = √(% expressing). Wider = more cells express the gene; shape inside = distribution of those that do (matches dot-plot convention where dot radius ∝ √fraction). Sqrt keeps small detection rates legible; pure linear would make a 5% cluster vanish. Turn off for shape-only view. See Help → Plots for details.">
-          <span>Scale width by % expressing</span>
-          <label class="s-toggle"><input type="checkbox" id="plot-width-pct" checked onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
+        <!-- Raincloud / violin toggles -->
+        <div id="plot-toggles-rv">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on, density curve width = √(% expressing). Wider = more cells express the gene; shape inside = distribution of those that do (matches dot-plot convention where dot radius ∝ √fraction). Sqrt keeps small detection rates legible; pure linear would make a 5% cluster vanish. Turn off for shape-only view. See Help → Plots for details.">
+            <span>Scale width by % expressing</span>
+            <label class="s-toggle"><input type="checkbox" id="plot-width-pct" checked onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on, the density / violin curve includes zero-expression cells. Off (default) draws the curve from expressing cells only — usually preferred because the zero mass otherwise dominates and every cluster's density looks the same.">
+            <span>Include zeros in density</span>
+            <label class="s-toggle"><input type="checkbox" id="plot-density-incl-zero" onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on (default), the IQR bar + median tick are computed over ALL cells in the cluster, so a mostly-zero cluster shows a collapsed IQR at zero. Off: IQR + median use only expressing cells, so the bar reports the spread of the cells that actually express — independent of how many didn't.">
+            <span>Include zeros in IQR</span>
+            <label class="s-toggle"><input type="checkbox" id="plot-iqr-incl-zero" checked onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="Gaussian KDE smoothing strength. 0 = raw histogram (jagged). 1.0 ≈ classic 5-tap Gaussian (the default — good general-purpose). Larger values smooth more aggressively at the cost of detail; smaller values preserve sharp peaks. Re-render after changing.">
+            <span style="flex:1;">KDE smoothing</span>
+            <input type="range" id="plot-kde-sigma" min="0" max="5" step="0.5" value="1" oninput="document.getElementById('plot-kde-sigma-val').textContent=parseFloat(this.value).toFixed(1);" onchange="if(typeof saveState==='function')saveState();this.blur();" style="flex:1.2;min-width:0;">
+            <span id="plot-kde-sigma-val" style="font-variant-numeric:tabular-nums;color:var(--text3);min-width:22px;text-align:right;">1.0</span>
+          </div>
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on, the density / violin curve includes zero-expression cells. Off (default) draws the curve from expressing cells only — usually preferred because the zero mass otherwise dominates and every cluster's density looks the same.">
-          <span>Include zeros in density</span>
-          <label class="s-toggle"><input type="checkbox" id="plot-density-incl-zero" onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on (default), the IQR bar + median tick are computed over ALL cells in the cluster, so a mostly-zero cluster shows a collapsed IQR at zero. Off: IQR + median use only expressing cells, so the bar reports the spread of the cells that actually express — independent of how many didn't.">
-          <span>Include zeros in IQR</span>
-          <label class="s-toggle"><input type="checkbox" id="plot-iqr-incl-zero" checked onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="Gaussian KDE smoothing strength. 0 = raw histogram (jagged). 1.0 ≈ classic 5-tap Gaussian (the default — good general-purpose). Larger values smooth more aggressively at the cost of detail; smaller values preserve sharp peaks. Re-render after changing.">
-          <span style="flex:1;">KDE smoothing</span>
-          <input type="range" id="plot-kde-sigma" min="0" max="5" step="0.5" value="1" oninput="document.getElementById('plot-kde-sigma-val').textContent=parseFloat(this.value).toFixed(1);" onchange="if(typeof saveState==='function')saveState();this.blur();" style="flex:1.2;min-width:0;">
-          <span id="plot-kde-sigma-val" style="font-variant-numeric:tabular-nums;color:var(--text3);min-width:22px;text-align:right;">1.0</span>
+        <!-- Dot plot toggles -->
+        <div id="plot-toggles-dp" style="display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on (default), each gene's color scale is normalised to its own min/max — answers 'which clusters express this gene most?' regardless of absolute level. Off: a single shared color scale across all genes — answers 'which gene is highest expressing overall?' Compresses low-expressing genes uniformly.">
+            <span>Color scale per gene</span>
+            <label class="s-toggle"><input type="checkbox" id="plot-dp-per-gene" checked onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on (default — scanpy / Seurat convention), each cluster's mean expression is computed over ALL cells in the cluster, so a cluster where 5% of cells express at level 1.0 has mean ≈ 0.05. Off: mean is computed only over expressing cells, so detection rate is encoded purely by dot size and color encodes the expression level of cells that do express.">
+            <span>Mean over all cells</span>
+            <label class="s-toggle"><input type="checkbox" id="plot-dp-mean-all" checked onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="Hide cluster columns where fewer than this many cells exist after filters. Dot plot statistics are noisy on tiny clusters; this keeps the plot readable. Set to 0 to show every cluster regardless of size.">
+            <span style="flex:1;">Min cells per cluster</span>
+            <input type="number" id="plot-dp-min-cells" min="0" max="10000" step="1" value="5" onchange="if(typeof saveState==='function')saveState();" style="width:54px;font-size:10px;text-align:right;padding:2px 4px;">
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="Color gradient for the dot plot's mean-expression scale. Changes apply on next render and to the open plot (if any) immediately. Auto follows the global gradient picker (theme-aware).">
+            <span>Gradient</span>
+            <button id="plot-sidebar-grad-trigger" class="grad-btn" onclick="_plotDpToggleGradientDropdown(event,'plot-sidebar-grad-trigger')" style="padding:2px 6px;">
+              <span class="grad-strip" id="plot-sidebar-grad-strip" style="width:32px;height:10px;border-radius:2px;border:1px solid var(--border);display:inline-block;vertical-align:middle;"></span>
+              <span id="plot-sidebar-grad-label" style="margin-left:5px;">Auto</span>
+              <span class="grad-chev">&#9660;</span>
+            </button>
+          </div>
         </div>
         <button id="plot-render-btn" onclick="_plotRender()" class="btn-primary-like" style="width:100%;padding:5px 10px;background:rgba(16,185,129,0.15);border:1px solid var(--success);border-radius:4px;color:var(--success);font-weight:600;font-size:11px;font-family:inherit;cursor:pointer;transition:filter 0.1s,background 0.1s;">Render plot</button>
         <div id="plot-status" style="font-size:10px;color:var(--text4);margin-top:4px;min-height:11px;"></div>
@@ -1600,7 +1661,7 @@
     <div class="s-row s-key-row">
       <span>Claude API key</span>
       <div class="s-key-input-wrap">
-        <input type="password" id="set-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+        <input type="password" id="set-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();saveApiKey();}">
         <button class="s-key-save" onclick="saveApiKey()">Save</button>
         <button class="s-key-save" id="test-api-key-btn" onclick="testApiKey()" style="background:rgba(99,102,241,0.25);" title="Send a minimal request to api.anthropic.com to verify the currently-saved key works">Test</button>
         <button class="s-key-save" id="clear-api-key-btn" onclick="clearApiKey()" style="background:#f87171;display:none;" title="Remove API key from server and ~/.fleek.env">Clear</button>
@@ -1706,6 +1767,7 @@
       <option value="padj">-log₁₀ padj</option>
       <option value="cohens_d">|Cohen's d|</option>
     </select>
+    <button class="icon-btn download" onclick="downloadVolcanoPNG()" title="Download volcano plot (PNG)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></button>
     <button class="icon-btn download" onclick="downloadDEG()" title="Download DEG table (TSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
     <button class="deg-close" onclick="closeDEG()" title="Close">&times;</button>
   </div>
@@ -1985,7 +2047,7 @@
           <tr><td><strong>CSV</strong></td><td>Tabular columns: coordinates, cluster ID + name, RGB + alpha, gene expression (when in gene mode), rendered pixel size, selection-group ID. Each column is opt-in.</td><td>Anything tabular — R/ggplot, Python/matplotlib, Excel</td></tr>
         </table>
         <p><strong>Active camera:</strong> SVG uses the camera currently in use for that split — what's rendered is what gets exported. If you're in split-screen mode, each half uses its own camera. If the split isn't currently rendered (not in a split half, not the active single-view), SVG falls back to the split's saved camera snapshot.</p>
-        <p><strong>File naming:</strong> <code>&lt;dataset&gt;.&lt;split-name&gt;.&lt;timestamp&gt;.&lt;ext&gt;</code>. The modal shows an estimated file size before you commit.</p>
+        <p><strong>File naming:</strong> every download in FLEEK follows the same template — <code>&lt;dataset-stem&gt;_&lt;what&gt;_&lt;detail&gt;_&lt;YYYYMMDD-HHMMSS&gt;.&lt;ext&gt;</code> — so files are self-describing in a downloads folder and reruns never silently overwrite. Examples: split SVG/PLY/CSV uses <code>&lt;stem&gt;_&lt;split-name&gt;_&lt;gene-or-pathway&gt;_&lt;ts&gt;.&lt;ext&gt;</code>; plot SVGs use <code>&lt;stem&gt;_raincloud_FOXP3_&lt;ts&gt;.svg</code> / <code>&lt;stem&gt;_dotplot_FOXP3-CD4-IL2_&lt;ts&gt;.svg</code> (faceted plots add <code>_by-&lt;facet&gt;</code>); volcano PNG uses <code>&lt;stem&gt;_volcano_singlecell_GroupA_vs_GroupB_&lt;ts&gt;.png</code>; DEG TSV uses <code>&lt;stem&gt;_DEG_pseudobulk_&lt;A&gt;_vs_&lt;B&gt;_&lt;ts&gt;.tsv</code>; subset h5ads use <code>&lt;stem&gt;_subset_&lt;group&gt;_&lt;N&gt;cells_&lt;ts&gt;.h5ad</code>. The modal shows an estimated file size before you commit.</p>
         <p><strong>Selection-group subset export:</strong> Each selection group in the Selection Groups panel has its own download icon that exports just the cells in that group as an <code>.h5ad</code> subset (the server writes a proper AnnData file). For exporting all cells matching a slice filter (not a selection), use the download button in the Slice panel header.</p>
         <p><strong>DEG results:</strong> The DEG panel has its own download icon that writes the current DEG table as TSV.</p>
       </div>
@@ -2082,7 +2144,7 @@
         <p><strong>Single Expression vs Colocalization.</strong> At the top of the Gene panel is a two-button toggle:</p>
         <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
           <li><strong>Single</strong> — the default. One gene, colored on the active gradient, with the full expression legend and gradient picker described below.</li>
-          <li><strong>Colocalization</strong> — pick two genes to overlay as independent color channels. Cells bright in both light up in a composite "coloc" color (e.g. near-white on dark, near-black on light); cells bright in only one show that channel's color. The panel shows two channel slots — click a slot to mark it the active channel, then pick a gene from the list / search below. Picks auto-alternate between the two slots so two consecutive picks fill both. Each slot has an × to clear it and a color dot that reflects the current channel palette.</li>
+          <li><strong>Colocalization</strong> — pick two genes to overlay as independent color channels. Cells bright in both light up in a composite "coloc" color (e.g. near-white on dark, near-black on light); cells bright in only one show that channel's color. The panel shows two channel slots — click a slot to mark it the active channel, then pick a gene from the list / search / dropdown / table below. Every pick (click in a row, j/k navigation, arrow + Enter in the search dropdown) routes into the active slot and <em>leaves the active slot put</em>, so you can scroll through the gene table comparing candidates without the highlighted slot ping-ponging. To fill the second slot, click the other slot row first, then pick a gene. Each slot has an × to clear it and a color dot that reflects the current channel palette.</li>
         </ul>
         <p><strong>Colocalization colorblind-safety:</strong> the default palette is <strong>magenta + green</strong>, which is discriminable for all forms of color-vision deficiency (red-green deficiency is by far the most common; magenta and green remain distinct there). Uncheck the <em>Colorblind-safe</em> toggle to switch to <em>red + green</em> if you specifically want to match a figure that uses the classic pair. Each channel's expression is normalized independently (per-gene 98th-percentile of expressing cells), so intensity is comparable across channels regardless of absolute expression levels. Coloc state (mode + both gene names + colorblind toggle) is persisted to sessionStorage so your setup survives page reloads.</p>
         <p><strong>Interaction with the gradient picker:</strong> single-gene mode uses the selected gradient (Viridis, Plasma, etc.). Colocalization mode ignores the gradient entirely — the two channel colors are fixed by the colorblind-safe toggle. Raincloud plots always use cluster colors, so colocalization mode doesn't affect them.</p>
@@ -2148,6 +2210,18 @@
           <li><strong>IQR bar + median tick</strong> (center, gray) — inter-quartile range and median computed across <em>all</em> cells in the cluster (including zeros). For zero-inflated genes the box collapses near y=0, which is the truthful signal that most cells don't express the gene.</li>
         </ul>
         <p><strong>Violin plot:</strong> the same per-cluster density mirrored to both sides of the centerline (the classic Seaborn / scanpy violin look), with the IQR bar + median tick running through the violin's center. No raindrops — the violin alone conveys both the shape and detection rate (when <em>Scale width by % expressing</em> is on). Use it when you want a denser, more familiar figure that emphasizes distribution shape over per-cell visibility, and reach for the raincloud when you want to see every cell. The underlying computation is identical, so switching plot types is instant — no re-fetch.</p>
+        <p><strong>Dot plot:</strong> a gene × cluster grid summarising a panel of marker genes at a glance. Rows are genes (in input order), columns are clusters (visible cell types only), each dot encodes <em>two</em> things at once:</p>
+        <ul>
+          <li><strong>Dot size</strong> ∝ √(% of cells in that cluster expressing the gene). Sqrt scaling matches the raincloud's width-by-% — keeps a 5% cluster legible without making 1% clusters disappear.</li>
+          <li><strong>Dot color</strong> = mean expression in that cluster, mapped through the active gradient (the same one the gene-coloring picker uses). A bright dot = high mean, a dim dot = low mean.</li>
+        </ul>
+        <p>Two encodings together let you read the standard "small-but-bright = rare-but-strong; big-but-dim = common-but-weak; big-and-bright = ubiquitous-and-strong" pattern that Seurat's <code>DotPlot</code> and scanpy's <code>sc.pl.dotplot</code> standardised.</p>
+        <p><strong>Gene input</strong>: type a gene name and a live autocomplete dropdown shows matching symbols. Click a suggestion or press <span class="help-key">Enter</span> to add it as a chip. <span class="help-key">↑</span> / <span class="help-key">↓</span> walk the dropdown; comma or semicolon while typing also commits the current token. Press <span class="help-key">Backspace</span> in an empty input to remove the last chip; click any chip's <strong>×</strong> to remove it directly. <strong>Pasting</strong> a comma-, newline-, tab-, or space-separated list (e.g. a column copied from Excel or a marker panel from a paper) validates each token against the dataset and turns the matches into chips automatically — tokens not found in the dataset are reported in the status line beneath the panel. Up to 64 genes per render; beyond that the plot becomes hard to read.</p>
+        <p><strong>Color scale per gene</strong> (default on): each row's color scale is normalised to its own min/max — answers "<em>which clusters express this gene most?</em>" Off: a single shared scale across all genes — answers "<em>which gene is highest expressing overall?</em>" but compresses low-expressing genes to a flat dim row. Use per-gene for marker panels, global for absolute-expression comparison.</p>
+        <p><strong>Mean over all cells</strong> (default on, scanpy / Seurat convention): mean expression for the dot color is computed over <em>every</em> cell in the cluster, so a cluster where 5% of cells express at level 1.0 has mean ≈ 0.05 — detection rate is encoded in both size <em>and</em> color. Off: mean is computed only over expressing cells, so size encodes detection rate and color encodes "how strongly the cells that do express express."</p>
+        <p><strong>Min cells per cluster</strong> (default 5): hide cluster columns with fewer cells than this after the visibility / slice filters have been applied. Dot-plot statistics on a cluster of 3 cells are nearly meaningless; the threshold removes that noise from the figure. Set to 0 to show every visible cluster regardless of size.</p>
+        <p><strong>Gradient</strong>: the dot-color gradient picker appears in <em>two</em> synchronised places — the <strong>Plots panel</strong> (so you can pick before rendering) and the <strong>popup header</strong> of the open plot (so you can swap gradients while looking at the result). Both show a list of gradient previews (Viridis, Plasma, Inferno, Cividis, Reds, Blues, …) with a strip swatch next to each name; click one to apply. <em>Auto</em> follows the global gene-coloring picker (View panel) and flips with theme; any other entry overrides only the dot plot. Changing from the popup re-renders the open plot from cached data immediately — no re-fetch. The popup-header <strong>Color</strong> toggle is hidden for dot plots because it doesn't apply (the dot plot's encoding is gene × cluster, not the violin/raincloud per-cluster palette).</p>
+        <p><strong>Download:</strong> the popup's download button (top-right) saves the dot plot as a single SVG (faceted plots combine into one file). Same icon and behaviour as the raincloud / violin export.</p>
         <p><strong>What's plotted reflects the active view.</strong> Visible cell types (from the Cell Types panel) determine which clusters appear; the active slice filter further subsets cells. Change the main view to change what's plotted — there's no duplicate filtering UI in the Plots panel.</p>
         <p><strong>Facet</strong> splits the plot into side-by-side panels by any obs column that (a) has between 2 and 20 non-empty values in the dataset, and (b) still has ≥ 2 of those active under the current Slice. Columns pinned to a single value are hidden from the dropdown (they'd yield a pointless one-panel facet). The upper cap of 20 is pragmatic: past that, individual raincloud panels get too narrow to read, and the limit also guards against accidentally faceting by a high-cardinality column (sample ids, barcodes) that would spawn hundreds of empty panels. If you need more panels and are comfortable with the space, that number is a one-character bump in the source. Combine slicing with facets to build nested views — e.g. slice to <code>timepoint = D8</code> and facet by <code>organ</code> for a "cell types within a single timepoint but across organs" figure. When the Slice panel's <strong>Show Empty</strong> toggle is off, facet values with zero cells are dropped as whole panels and don't count toward the cardinality threshold. Empty cell types (clusters with 0 cells) are always dropped — the raincloud never draws an empty cluster column.</p>
         <p><strong>Scale width by % expressing:</strong> when on (default), the density curve's horizontal width is scaled by <code>√(% expressing)</code>, so a cluster where 5% of cells express the gene has a narrower curve than one where 80% do. This mirrors the standard scRNA-seq dot-plot convention (dot radius ∝ √fraction so dot area ∝ fraction) and makes the plot encode <em>both</em> the detection rate (width) and the distribution shape of the expressing cells (shape inside the width) simultaneously. A 2 px floor keeps ~1% clusters still visible. Turn off for shape-only comparison.</p>
@@ -2442,7 +2516,8 @@
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">Z</span></td><td>Undo</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">Shift</span>+<span class="help-key">Z</span></td><td>Redo</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span> / <span class="help-key">]</span></td><td>Undo / Redo (alternate)</td></tr>
-          <tr><td><span class="help-key">Enter</span></td><td>Confirm dialog / load file</td></tr>
+          <tr><td><span class="help-key">Enter</span></td><td>Confirm the active dialog: <em>Save</em> a session prompt, <em>Delete</em> a confirm dialog, <em>Export</em> the points (Export modal), <em>Save</em> the API key (Settings), <em>Load</em> a chosen file. The primary action button is the green / accent one in the dialog.</td></tr>
+          <tr><td><span class="help-key">Esc</span></td><td>Close any open dialog (Help, Plot popup, Export, Confirm, Prompt, Gene info, Feedback) — falls back to clearing the visible cell selection when no dialog is open.</td></tr>
           <tr><td>Drag file onto Data panel</td><td>Upload .h5ad dataset</td></tr>
         </table>
       </div>
@@ -2545,15 +2620,24 @@
     </div>
   </div>
 </div>
+<div id="plot-grad-dd"></div>
 <div id="plot-overlay" style="display:none;position:fixed;inset:0;z-index:280;background:rgba(0,0,0,0.5);justify-content:center;align-items:center;" onclick="if(event.target===this)_plotClose()">
   <div id="plot-window" style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;max-width:94vw;max-height:90vh;width:auto;min-width:420px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,0.4);position:relative;">
     <div id="plot-header" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);cursor:move;user-select:none;" onmousedown="_plotDragStart(event)">
       <span id="plot-title" style="font-size:12px;color:var(--text);font-weight:600;"></span>
       <span id="plot-subtitle" style="font-size:10px;color:var(--text4);flex:1;"></span>
-      <label style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);cursor:pointer;user-select:none;" title="When off, the density curve and raindrops switch to a single neutral tone so the distribution shape stands out without the palette. The cluster-colour dot under each label stays coloured so you can still tell the columns apart." onmousedown="event.stopPropagation();">
+      <label id="plot-color-row" style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3);cursor:pointer;user-select:none;" title="When off, the density curve and raindrops switch to a single neutral tone so the distribution shape stands out without the palette. The cluster-colour dot under each label stays coloured so you can still tell the columns apart." onmousedown="event.stopPropagation();">
         <span>Color</span>
         <span class="s-toggle"><input type="checkbox" id="plot-color" checked onchange="_plotSetColor(this.checked)"><span class="s-slider"></span></span>
       </label>
+      <span id="plot-gradient-row" style="display:none;align-items:center;gap:6px;font-size:10px;color:var(--text3);user-select:none;" title="Gradient for the dot plot's mean-expression coloring. Changing this re-renders the open plot from cached data — no re-fetch." onmousedown="event.stopPropagation();">
+        <span>Gradient</span>
+        <button id="plot-popup-grad-trigger" class="grad-btn" onclick="_plotDpToggleGradientDropdown(event,'plot-popup-grad-trigger')" title="Choose a color gradient for the dot plot">
+          <span class="grad-strip" id="plot-popup-grad-strip" style="width:32px;height:10px;border-radius:2px;border:1px solid var(--border);display:inline-block;vertical-align:middle;"></span>
+          <span id="plot-popup-grad-label" style="margin-left:5px;">Auto</span>
+          <span class="grad-chev">&#9660;</span>
+        </button>
+      </span>
       <button onclick="_plotSave()" class="btn-icon download" title="Save as SVG"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
       <button onclick="_plotClose()" class="btn-icon danger" title="Close (Esc)"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
     </div>
@@ -2703,7 +2787,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.16";
+var FLEEK_VERSION="v0.4.21";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2829,6 +2913,34 @@ function _gradientBuildLUT(name){
 }
 function _gradientLUT(name){name=name||_gradientResolvedName();if(!_gradientLUTCache[name])_gradientLUTCache[name]=_gradientBuildLUT(name);return _gradientLUTCache[name];}
 function _gradientSample(v,name){var lut=_gradientLUT(name);var i=v>=1?255:(v<=0?0:(v*255)|0);return [lut[i*3],lut[i*3+1],lut[i*3+2]];}
+/* Populate a native <select> with the gradient catalog grouped by
+   _gradientGroups. Used by per-plot gradient pickers (e.g. dot plot)
+   that need a simple dropdown distinct from the main viewer's
+   custom-styled gradient popover. Idempotent — calling on an already-
+   populated select is a no-op (preserves the current selection). */
+function _populateGradientSelect(sel){
+  if(!sel||sel._populated)return;
+  /* Group the catalog by group key, preserving group order from
+     _gradientGroups so the dropdown ordering is consistent. */
+  var byGroup={};
+  for(var k in _gradients){var g=_gradients[k];(byGroup[g.group]||(byGroup[g.group]=[])).push(k);}
+  var groupKeys=Object.keys(_gradientGroups);
+  for(var gi=0;gi<groupKeys.length;gi++){
+    var gk=groupKeys[gi];
+    if(!byGroup[gk])continue;
+    var og=document.createElement("optgroup");
+    og.label=_gradientGroups[gk];
+    for(var ni=0;ni<byGroup[gk].length;ni++){
+      var key=byGroup[gk][ni];
+      var opt=document.createElement("option");
+      opt.value=key;
+      opt.textContent=_gradients[key].name;
+      og.appendChild(opt);
+    }
+    sel.appendChild(og);
+  }
+  sel._populated=true;
+}
 function _gradientCSS(name){
   var stops=[];
   for(var i=0;i<=10;i++){
@@ -2931,8 +3043,8 @@ function _renderGradientDropdown(){
   }
   dd.innerHTML=h;
 }
-/* Close dropdown on outside click. Same handler covers both the
-   single-gene gradient dropdown and the coloc scheme dropdown. */
+/* Close dropdown on outside click. Same handler covers the gradient
+   popovers (expression + dot plot) and the coloc scheme dropdown. */
 document.addEventListener("mousedown",function(e){
   var dd=document.getElementById("expr-grad-dd");
   if(dd&&dd.classList.contains("open")){
@@ -2943,6 +3055,13 @@ document.addEventListener("mousedown",function(e){
   if(cdd&&cdd.classList.contains("open")){
     var ctrig=document.getElementById("coloc-legend-wrap");
     if(!cdd.contains(e.target)&&!(ctrig&&ctrig.contains(e.target)))_closeColocSchemeDropdown();
+  }
+  var pdd=document.getElementById("plot-grad-dd");
+  if(pdd&&pdd.classList.contains("open")){
+    var ptrigA=document.getElementById("plot-sidebar-grad-trigger");
+    var ptrigB=document.getElementById("plot-popup-grad-trigger");
+    var inside=pdd.contains(e.target)||(ptrigA&&ptrigA.contains(e.target))||(ptrigB&&ptrigB.contains(e.target));
+    if(!inside)_plotDpCloseGradientDropdown();
   }
 });
 
@@ -3076,11 +3195,12 @@ function _colocSetActiveChannel(ch){
 function _colocActiveGene(){
   return _colocActiveChannel==="R"?_colocR:_colocG;
 }
-/* Assign a gene to the currently-active coloc slot WITHOUT flipping to
-   the other channel — the flip behavior in pickGene() is for the "two
-   consecutive picks fill both slots" mouse flow; for j/k navigation we
-   want the slot to stay put so each step replaces the active slot's
-   gene as the cursor walks the list. */
+/* Assign a gene to the currently-active coloc slot. The active slot
+   is sticky — it does NOT flip after a pick (pickGene() agrees, so
+   click and j/k both feel the same). This is the leaner variant used
+   by the j/k navigator; it skips the mode-setting / DOM-toggling
+   pickGene does for completeness, since j/k only fires when coloc
+   is already active. */
 function _colocSetActiveGene(g){
   if(!g)return;
   if(_colocActiveChannel==="R")_colocR=g;
@@ -3390,12 +3510,15 @@ document.addEventListener("keydown",function(e){
    the sidebar scrolls or the window resizes while open, the trigger
    moves but the dropdown doesn't — close it rather than repositioning
    on every scroll tick (matches native dropdown behavior). */
-window.addEventListener("resize",function(){_closeGradientDropdown();});
+window.addEventListener("resize",function(){_closeGradientDropdown();_plotDpCloseGradientDropdown();});
 window.addEventListener("scroll",function(e){
   /* Don't close when the user is scrolling inside the dropdown itself. */
   var dd=document.getElementById("expr-grad-dd");
   if(dd&&dd.contains(e.target))return;
+  var pdd=document.getElementById("plot-grad-dd");
+  if(pdd&&pdd.contains(e.target))return;
   _closeGradientDropdown();
+  _plotDpCloseGradientDropdown();
 },true);
 var typeSortMode="alpha"; // "alpha" or "count"
 var markerAnnotations=null; // {cluster_id: [{predictions}]} from marker DB
@@ -3773,6 +3896,11 @@ function saveState(){
       plotDensityInclZero:(function(){var el=document.getElementById("plot-density-incl-zero");return el?!!el.checked:false;})(),
       plotIqrInclZero:(function(){var el=document.getElementById("plot-iqr-incl-zero");return el?!!el.checked:true;})(),
       plotKdeSigma:(function(){var el=document.getElementById("plot-kde-sigma");return el?parseFloat(el.value||"1"):1;})(),
+      plotGeneList:(_plotDpGenes&&_plotDpGenes.slice())||[],
+      plotDpPerGene:(function(){var el=document.getElementById("plot-dp-per-gene");return el?!!el.checked:true;})(),
+      plotDpMeanAll:(function(){var el=document.getElementById("plot-dp-mean-all");return el?!!el.checked:true;})(),
+      plotDpMinCells:(function(){var el=document.getElementById("plot-dp-min-cells");return el?parseInt(el.value||"5",10):5;})(),
+      plotDpGradient:_plotDpGradient||"",
       plotColor:_plotColor
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
@@ -3814,6 +3942,11 @@ function saveCameraOnly(){
       plotDensityInclZero:(function(){var el=document.getElementById("plot-density-incl-zero");return el?!!el.checked:false;})(),
       plotIqrInclZero:(function(){var el=document.getElementById("plot-iqr-incl-zero");return el?!!el.checked:true;})(),
       plotKdeSigma:(function(){var el=document.getElementById("plot-kde-sigma");return el?parseFloat(el.value||"1"):1;})(),
+      plotGeneList:(_plotDpGenes&&_plotDpGenes.slice())||[],
+      plotDpPerGene:(function(){var el=document.getElementById("plot-dp-per-gene");return el?!!el.checked:true;})(),
+      plotDpMeanAll:(function(){var el=document.getElementById("plot-dp-mean-all");return el?!!el.checked:true;})(),
+      plotDpMinCells:(function(){var el=document.getElementById("plot-dp-min-cells");return el?parseInt(el.value||"5",10):5;})(),
+      plotDpGradient:_plotDpGradient||"",
       plotColor:_plotColor
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
@@ -3971,10 +4104,51 @@ function restoreState(preloaded){
       if(ksvEl)ksvEl.textContent=parseFloat(s.plotKdeSigma).toFixed(1);
     }
   }
+  if(Array.isArray(s.plotGeneList)){
+    /* New format: array of gene strings → chip list. */
+    _plotDpGenes=s.plotGeneList.slice();
+    if(typeof _plotDpRenderChips==="function")_plotDpRenderChips();
+  }else if(typeof s.plotGeneList==="string"&&s.plotGeneList){
+    /* Legacy format from the textarea era: split on whitespace/commas
+       and seed the chip list. Skip server validation on restore — the
+       chips are advisory; the actual render-time fetch will reject
+       invalid names with the existing "missing" handling. */
+    var legacyTokens=s.plotGeneList.split(/[\s,;]+/);
+    var seen={};_plotDpGenes=[];
+    for(var lti=0;lti<legacyTokens.length;lti++){
+      var lt=legacyTokens[lti].trim();
+      if(lt&&!seen[lt]){seen[lt]=true;_plotDpGenes.push(lt);}
+    }
+    if(typeof _plotDpRenderChips==="function")_plotDpRenderChips();
+  }
+  if(typeof s.plotDpPerGene==="boolean"){
+    var pgEl=document.getElementById("plot-dp-per-gene");
+    if(pgEl)pgEl.checked=s.plotDpPerGene;
+  }
+  if(typeof s.plotDpMeanAll==="boolean"){
+    var maEl=document.getElementById("plot-dp-mean-all");
+    if(maEl)maEl.checked=s.plotDpMeanAll;
+  }
+  if(typeof s.plotDpMinCells==="number"){
+    var mcEl=document.getElementById("plot-dp-min-cells");
+    if(mcEl)mcEl.value=s.plotDpMinCells;
+  }
+  if(typeof s.plotDpGradient==="string"){
+    /* "" means "Auto" (follow global). Validate against catalog before
+       trusting the saved key — drops stale keys from removed gradients. */
+    _plotDpGradient=(s.plotDpGradient&&_gradients[s.plotDpGradient])?s.plotDpGradient:"";
+    if(typeof _plotDpSyncLabels==="function")_plotDpSyncLabels();
+  }
   if(typeof s.plotColor==="boolean"){
     _plotColor=s.plotColor;
     var pcEl=document.getElementById("plot-color");
     if(pcEl)pcEl.checked=_plotColor;
+  }
+  /* If the restored plot type is dotplot, swap in the textarea + dotplot
+     toggles so the user sees their saved gene list immediately. */
+  if(typeof _plotTypeChanged==="function"){
+    var ptEl2=document.getElementById("plot-type");
+    if(ptEl2&&ptEl2.value==="dotplot")_plotTypeChanged();
   }
   _restoring=false;
   /* Seed undo history with restored state */
@@ -5172,15 +5346,15 @@ function _colorModeLabel(snap){
       var parts=[];
       if(R)parts.push(R);
       if(G)parts.push(G);
-      return parts.length?"gene · "+parts.join(" + ")+" (coloc)":"gene (coloc, none picked)";
+      return parts.length?"gene · "+parts.join(" + ")+" (coloc)":"gene (coloc, none)";
     }
     var sg=snap?(snap.selGene||""):selGene;
-    return sg?"gene · "+sg:"gene (none picked)";
+    return sg?"gene · "+sg:"gene (none)";
   }
   if(m==="pathway"){
     var pid=snap?(snap.pathwayColorId||""):_pathwayColorId;
     var pname=snap?(snap.pathwayColorName||""):_pathwayColorName;
-    if(!pid)return "pathway (none picked)";
+    if(!pid)return "pathway (none)";
     var label=pname||pid;
     if(label.length>40)label=label.slice(0,38)+"…";
     return "pathway · "+label+" (overlap mean)";
@@ -5193,6 +5367,31 @@ function _colorModeLabel(snap){
    (NOT from globals — globals are scratch state during the cross-half
    render loop, so reading them would always show the active half's
    mode in both chips). */
+/* Render the Color value into a HUD cell. For coloc with both genes
+   set, the second gene wraps onto the next line so the HUD's bounding
+   box can hug a long pair of names instead of stretching wide. Plain
+   text otherwise. */
+function _setHudColorCell(el,snap){
+  if(!el)return;
+  var m=snap?snap.mode:mode;
+  if(m==="gene"){
+    var gm=snap?(snap.geneMode||"single"):_geneMode;
+    if(gm==="coloc"){
+      var R=snap?(snap.colocR||""):_colocR;
+      var G=snap?(snap.colocG||""):_colocG;
+      function _h(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+      if(R&&G){
+        /* Two-line layout: "gene · R +" then "G (coloc)" indented under
+           it. Wrap span lets the value column shrink horizontally. */
+        el.innerHTML='<span style="display:inline-block;">gene &middot; '+_h(R)+' +<br>'+_h(G)+' (coloc)<\/span>';
+        return;
+      }
+    }
+  }
+  /* Non-coloc: plain text path keeps innerHTML overhead off the hot
+     recolor path. */
+  el.textContent=_colorModeLabel(snap);
+}
 function _updateHudColor(){
   /* Per-quadrant Color row: in split mode each HUD reads from its own
      view's snapshot (NOT globals — globals are scratch state during the
@@ -5204,12 +5403,12 @@ function _updateHudColor(){
       var snap=_splitViewById(_splitViewIds[q]);
       var el=document.getElementById(_hudFieldId(q,"color"));
       var row=document.getElementById(_hudFieldId(q,"color-row"));
-      if(el)el.textContent=_colorModeLabel(snap);
+      _setHudColorCell(el,snap);
       if(row)row.style.display="flex";
     }
   }else{
     var el0=document.getElementById("hud-color");
-    if(el0)el0.textContent=_colorModeLabel(null);
+    _setHudColorCell(el0,null);
     var row0=document.getElementById("hud-color-row");
     if(row0)row0.style.display="flex";
   }
@@ -6397,6 +6596,8 @@ function setupCtrl(){
       if(pr&&pr.style.display==="flex"){_promptResolve(null);return;}
       var conf=document.getElementById("confirm-overlay");
       if(conf&&conf.style.display==="flex"){_confirmResolve(false);return;}
+      var exov=document.getElementById("export-overlay");
+      if(exov&&exov.style.display==="flex"){_exportClose();return;}
       var help=document.getElementById("help-overlay");
       if(help.style.display==="block"){help.style.display="none";return;}
       var plov=document.getElementById("plot-overlay");
@@ -6415,6 +6616,12 @@ function setupCtrl(){
       /* Prompt dialog — Enter submits (already handled by input onkeydown, but catch here too) */
       var pr=document.getElementById("prompt-overlay");
       if(pr&&pr.style.display==="flex"){e.preventDefault();_promptResolve(document.getElementById("prompt-input").value);return;}
+      /* Export dialog — Enter triggers the green Export button. */
+      var exov=document.getElementById("export-overlay");
+      if(exov&&exov.style.display==="flex"){
+        var exBtn=document.getElementById("export-go-btn");
+        if(exBtn&&!exBtn.disabled){e.preventDefault();_exportRun();return;}
+      }
       /* Upload/browse Load buttons */
       var up=document.getElementById("upload-popover");
       if(up&&up.style.display!=="none"){
@@ -7334,10 +7541,12 @@ function _jkGene(key,count){
   if(!g)return;
   if(coloc){
     /* In coloc mode the j/k highlight is tied to the currently active
-       slot — assign without flipping channels (the auto-flip behaviour
-       only applies to mouse-driven pickGene, where two consecutive
-       picks fill both slots). The list is force-refreshed so the row
-       at the new cursor picks up the channel-colour highlight. */
+       slot — every step replaces that slot's gene in place. _colocSet-
+       ActiveGene is the leaner variant of pickGene (skips a few DOM
+       mode updates that don't matter inside coloc) and matches the
+       no-flip semantics pickGene now also has. The list is force-
+       refreshed so the row at the new cursor picks up the channel-
+       colour highlight. */
     _colocSetActiveGene(g);
     if(typeof _updateGeneVarHighlight==="function")_updateGeneVarHighlight();
   }else{
@@ -7963,14 +8172,17 @@ function pickGene(g){
   /* Clear the shared search box so recent genes re-show */
   var srch=document.getElementById("gsearch");if(srch)srch.value="";
   if(_geneMode==="coloc"){
-    /* Route into whichever channel the user last marked active. Each
-       channel is an independent fetch into geneExprCache; recolor picks
-       up partial state gracefully (missing channel renders as all-zero). */
+    /* Route into whichever channel the user has marked active and
+       LEAVE THE ACTIVE CHANNEL PUT. The previous design auto-flipped to
+       the other channel after each pick so a quick double-click would
+       fill both slots, but it made keyboard navigation (j/k or arrow +
+       Enter through the gene table) confusing — every pick swapped which
+       slot was being edited. The user model is now: explicitly click
+       the R or G slot to choose which one receives picks; subsequent
+       picks (click, j/k, search) all stay in that slot. To fill both
+       slots, click the other slot then pick a gene. */
     if(_colocActiveChannel==="R")_colocR=g;
     else _colocG=g;
-    /* Flip the active channel for the NEXT pick so two picks in a row
-       fill both slots without the user having to click between them. */
-    _colocActiveChannel=(_colocActiveChannel==="R")?"G":"R";
     _colocRefreshUI();
     /* Hide the single-gene legend; coloc has its own legend. */
     var el=document.getElementById("expr-legend");if(el)el.style.display="none";
@@ -11851,15 +12063,286 @@ function _plotUpdateFilterSummary(){
 
 function _plotTypeChanged(){
   var t=document.getElementById("plot-type").value;
-  /* Raincloud and violin share the same option set (gene, facet, width-by-%
-     toggle) since their underlying distribution computation is identical
-     and the user-facing controls are too. */
-  var sameOpts=(t==="raincloud"||t==="violin");
-  document.getElementById("plot-opts-raincloud").style.display=sameOpts?"block":"none";
+  /* Raincloud and violin share single-gene input + the
+     density/IQR/KDE/width toggles. Dot plot swaps in a multi-gene
+     textarea and its own toggle set (per-gene color, mean-over-all,
+     min-cells, gradient picker). Facet, filter summary, and the
+     render button live outside both groups so they're always visible. */
+  var isRV=(t==="raincloud"||t==="violin");
+  var isDP=(t==="dotplot");
+  var giRow=document.getElementById("plot-gene-input-row");
+  if(giRow)giRow.style.display=isRV?"flex":"none";
+  var glRow=document.getElementById("plot-gene-list-row");
+  if(glRow)glRow.style.display=isDP?"flex":"none";
+  var rvT=document.getElementById("plot-toggles-rv");
+  if(rvT)rvT.style.display=isRV?"block":"none";
+  var dpT=document.getElementById("plot-toggles-dp");
+  if(dpT)dpT.style.display=isDP?"block":"none";
+  /* Hide the raincloud/violin gene-search dropdown when switching to
+     dot plot — it's not used by the textarea path. */
+  var gres=document.getElementById("plot-gene-results");
+  if(gres&&!isRV){gres.style.display="none";gres.innerHTML="";}
+  /* Sync the sidebar gradient trigger label/strip from current state
+     when revealing the dot plot toggles for the first time. */
+  if(isDP&&typeof _plotDpSyncLabels==="function")_plotDpSyncLabels();
+  if(typeof _plotUpdateFilterSummary==="function")_plotUpdateFilterSummary();
 }
 
-/* Gene search — reuses /api/search. Shows a small dropdown under the input. */
+/* ── Dot plot chip-style gene input ─────────────────────────────
+   _plotDpGenes is the canonical state — the chip cluster in the DOM
+   is a render of this array, not the source of truth. The inline
+   <input> only holds whatever the user is currently typing; it
+   becomes a chip on Enter / click / comma / paste, never on its own.
+   Source of truth lives in JS so saveState can persist the array
+   intact (a reload that restored the textarea text would have to
+   re-parse / re-validate every gene against the server, an
+   unnecessary round-trip). */
+var _plotDpGenes=[];
+var _plotDpSearchTimer=null;
+var _plotDpDropdownItems=[]; /* ordered list of completions in current dropdown */
+var _plotDpDropdownCursor=-1; /* keyboard cursor; -1 = nothing highlighted */
+function _plotParseGeneList(){return _plotDpGenes.slice();}
+function _plotDpRenderChips(){
+  var wrap=document.getElementById("plot-dp-genes-wrap");
+  var input=document.getElementById("plot-dp-genes-input");
+  if(!wrap||!input)return;
+  /* Wipe and re-render: cheap (≤ 64 chips) and avoids tracking deltas. */
+  var existing=wrap.querySelectorAll(".plot-dp-chip");
+  for(var i=0;i<existing.length;i++)existing[i].remove();
+  for(var gi=0;gi<_plotDpGenes.length;gi++){
+    var g=_plotDpGenes[gi];
+    var chip=document.createElement("span");
+    chip.className="plot-dp-chip gbtn on";
+    chip.style.cssText="display:inline-flex;align-items:center;gap:5px;cursor:default;margin:0;padding:1px 5px 1px 7px;";
+    var label=document.createElement("span");
+    label.textContent=g;
+    var x=document.createElement("span");
+    x.textContent="×";
+    x.title="Remove";
+    x.style.cssText="cursor:pointer;color:var(--text3);font-size:13px;line-height:1;";
+    (function(idx){x.onclick=function(e){e.stopPropagation();_plotDpRemove(idx);};})(gi);
+    chip.appendChild(label);
+    chip.appendChild(x);
+    wrap.insertBefore(chip,input);
+  }
+  var c=document.getElementById("plot-gene-list-count");
+  if(c)c.textContent=_plotDpGenes.length+" gene"+(_plotDpGenes.length!==1?"s":"");
+  if(typeof saveState==="function")saveState();
+}
+function _plotDpAddGene(g){
+  if(!g)return false;
+  for(var i=0;i<_plotDpGenes.length;i++)if(_plotDpGenes[i]===g)return false;
+  if(_plotDpGenes.length>=64)return false; /* render cap */
+  _plotDpGenes.push(g);
+  return true;
+}
+function _plotDpRemove(idx){
+  if(idx<0||idx>=_plotDpGenes.length)return;
+  _plotDpGenes.splice(idx,1);
+  _plotDpRenderChips();
+}
+function _plotDpClear(){
+  if(_plotDpGenes.length===0)return;
+  _plotDpGenes=[];
+  _plotDpRenderChips();
+  var inp=document.getElementById("plot-dp-genes-input");
+  if(inp){inp.value="";inp.focus();}
+  _plotDpHideDropdown();
+}
+function _plotDpHideDropdown(){
+  var host=document.getElementById("plot-dp-genes-results");
+  if(host){host.style.display="none";host.innerHTML="";}
+  _plotDpDropdownItems=[];_plotDpDropdownCursor=-1;
+}
+function _plotDpRenderDropdown(){
+  var host=document.getElementById("plot-dp-genes-results");
+  if(!host)return;
+  if(!_plotDpDropdownItems.length){host.style.display="none";host.innerHTML="";return;}
+  var h="";
+  for(var i=0;i<_plotDpDropdownItems.length;i++){
+    var g=_plotDpDropdownItems[i];
+    var cls="pg-hit"+(i===_plotDpDropdownCursor?" active":"");
+    h+='<div class="'+cls+'" data-i="'+i+'" onmousedown="event.preventDefault();_plotDpPickIdx('+i+')">'+String(g).replace(/</g,"&lt;")+'<\/div>';
+  }
+  host.innerHTML=h;
+  host.style.display="block";
+  /* Scroll the highlighted row into view if keyboard nav moved it
+     offscreen. */
+  if(_plotDpDropdownCursor>=0){
+    var row=host.querySelector('.pg-hit[data-i="'+_plotDpDropdownCursor+'"]');
+    if(row&&row.scrollIntoView)row.scrollIntoView({block:"nearest"});
+  }
+}
+function _plotDpPickIdx(idx){
+  var g=_plotDpDropdownItems[idx];
+  if(!g)return;
+  if(_plotDpAddGene(g))_plotDpRenderChips();
+  var inp=document.getElementById("plot-dp-genes-input");
+  if(inp){inp.value="";inp.focus();}
+  _plotDpHideDropdown();
+}
+/* Debounced live autocomplete via /api/search — same endpoint the
+   single-gene plot input uses. Filters out genes already in the chip
+   list so the dropdown only offers additions. */
+function _plotDpInput(){
+  clearTimeout(_plotDpSearchTimer);
+  var inp=document.getElementById("plot-dp-genes-input");
+  var q=inp?inp.value.trim():"";
+  if(!q){_plotDpHideDropdown();return;}
+  _plotDpSearchTimer=setTimeout(function(){
+    fetch("/api/search?q="+encodeURIComponent(q))
+      .then(function(r){return r.json();})
+      .then(function(genes){
+        var picked={};
+        for(var i=0;i<_plotDpGenes.length;i++)picked[_plotDpGenes[i]]=true;
+        var avail=[];
+        for(var j=0;j<genes.length;j++)if(!picked[genes[j]])avail.push(genes[j]);
+        _plotDpDropdownItems=avail.slice(0,20);
+        _plotDpDropdownCursor=avail.length?0:-1;
+        _plotDpRenderDropdown();
+      })
+      .catch(function(){_plotDpHideDropdown();});
+  },150);
+}
+function _plotDpKeyDown(e){
+  var inp=e.target;
+  var q=inp.value;
+  if(e.key==="Enter"){
+    e.preventDefault();
+    /* If exactly one match, that's the unambiguous pick. Otherwise
+       pick whatever the keyboard cursor highlights. If user typed a
+       string with no completions, validate the literal string against
+       the server and add if found. */
+    if(_plotDpDropdownItems.length===1){
+      _plotDpPickIdx(0);
+    }else if(_plotDpDropdownItems.length>1&&_plotDpDropdownCursor>=0){
+      _plotDpPickIdx(_plotDpDropdownCursor);
+    }else if(q.trim()){
+      _plotDpTryAddTyped(q.trim());
+    }
+  }else if(e.key==="ArrowDown"){
+    if(_plotDpDropdownItems.length){
+      e.preventDefault();
+      _plotDpDropdownCursor=Math.min(_plotDpDropdownItems.length-1,_plotDpDropdownCursor+1);
+      _plotDpRenderDropdown();
+    }
+  }else if(e.key==="ArrowUp"){
+    if(_plotDpDropdownItems.length){
+      e.preventDefault();
+      _plotDpDropdownCursor=Math.max(0,_plotDpDropdownCursor-1);
+      _plotDpRenderDropdown();
+    }
+  }else if(e.key==="Escape"){
+    if(_plotDpDropdownItems.length){e.preventDefault();_plotDpHideDropdown();}
+  }else if(e.key==="Backspace"&&!q&&_plotDpGenes.length>0){
+    /* Pop last chip when user backspaces in an empty input. */
+    e.preventDefault();
+    _plotDpRemove(_plotDpGenes.length-1);
+  }else if(e.key===","||e.key===";"){
+    /* Comma / semicolon while typing acts as a separator. Treat as
+       Enter on the typed token. */
+    if(q.trim()){
+      e.preventDefault();
+      _plotDpTryAddTyped(q.trim());
+    }
+  }
+}
+function _plotDpPaste(e){
+  /* Detect multi-token paste: any whitespace, comma, or semicolon
+     separates tokens. Single-word paste falls through to the default
+     paste behaviour (the user is just inserting text into the input). */
+  var data=(e.clipboardData||window.clipboardData);
+  if(!data)return;
+  var text=data.getData("text");
+  if(!text)return;
+  if(!/[\s,;]/.test(text.trim()))return; /* single token, let it through */
+  e.preventDefault();
+  var tokens=text.split(/[\s,;]+/);
+  var clean=[];
+  var seen={};
+  for(var i=0;i<tokens.length;i++){
+    var t=tokens[i].trim();
+    if(!t||seen[t])continue;
+    seen[t]=true;
+    clean.push(t);
+  }
+  if(!clean.length)return;
+  _plotDpTryAddBatch(clean);
+}
+/* Validate a single typed string against the server (exact match,
+   case-insensitive). The /api/search endpoint returns substring
+   matches; we accept only an EXACT match so a typed "FOX" doesn't
+   accidentally add "FOXP3". Falls back to a status message when no
+   gene matches. */
+function _plotDpTryAddTyped(q){
+  fetch("/api/search?q="+encodeURIComponent(q))
+    .then(function(r){return r.json();})
+    .then(function(genes){
+      var qlc=q.toLowerCase();
+      var exact=null;
+      for(var i=0;i<genes.length;i++)if(String(genes[i]).toLowerCase()===qlc){exact=genes[i];break;}
+      if(exact){
+        if(_plotDpAddGene(exact))_plotDpRenderChips();
+        var inp=document.getElementById("plot-dp-genes-input");
+        if(inp){inp.value="";inp.focus();}
+        _plotDpHideDropdown();
+      }else{
+        _plotStatus("Gene '"+q+"' not in dataset",true);
+      }
+    });
+}
+/* Batch validation for paste. One /api/search per token (cheap on
+   the server's gene index). Tokens that match exactly become chips;
+   missing ones land in the status line so the user can see what
+   wasn't found. */
+function _plotDpTryAddBatch(tokens){
+  _plotStatus("Validating "+tokens.length+" gene"+(tokens.length!==1?"s":"")+"…");
+  var fetches=tokens.map(function(t){
+    return fetch("/api/search?q="+encodeURIComponent(t))
+      .then(function(r){return r.json();})
+      .then(function(genes){
+        var tlc=t.toLowerCase();
+        for(var i=0;i<genes.length;i++)if(String(genes[i]).toLowerCase()===tlc)return genes[i];
+        return null;
+      })
+      .catch(function(){return null;});
+  });
+  Promise.all(fetches).then(function(results){
+    var added=0, missing=[], dup=0;
+    for(var i=0;i<results.length;i++){
+      var g=results[i];
+      if(g){
+        if(_plotDpAddGene(g))added++;else dup++;
+      }else{
+        missing.push(tokens[i]);
+      }
+    }
+    _plotDpRenderChips();
+    var inp=document.getElementById("plot-dp-genes-input");
+    if(inp){inp.value="";inp.focus();}
+    _plotDpHideDropdown();
+    var bits=[];
+    if(added)bits.push(added+" added");
+    if(dup)bits.push(dup+" already in list");
+    if(missing.length){
+      var preview=missing.slice(0,3).join(", ")+(missing.length>3?(" +"+(missing.length-3)+" more"):"");
+      bits.push(missing.length+" not found ("+preview+")");
+    }
+    _plotStatus(bits.join(" · "),missing.length>0&&added===0);
+  });
+}
+/* Legacy textarea-input handler kept as a no-op so any sessionStorage
+   from before the chip refactor doesn't error on restore. */
+function _plotGeneListInput(){}
+/* Gene search — reuses /api/search. Shows a small dropdown under the
+   input with keyboard navigation. ↑/↓ walk the suggestion list, Enter
+   picks the highlighted one, Esc dismisses. _plotGeneItems tracks the
+   suggestion list for the keydown handler; the cursor is stored on
+   the dropdown DOM element so refreshing the dropdown markup keeps
+   the highlight aligned with whatever was typed. */
 var _plotGeneTimer=null;
+var _plotGeneItems=[];
+var _plotGeneCursor=-1;
 function _plotGeneInput(q){
   clearTimeout(_plotGeneTimer);
   /* Persist typing progress too — saveState() reads the input value so a
@@ -11869,6 +12352,7 @@ function _plotGeneInput(q){
   if(!host)return;
   if(!q||q.length<1){
     host.style.display="none";host.innerHTML="";
+    _plotGeneItems=[];_plotGeneCursor=-1;
     _plotSelectedGene=q||"";
     return;
   }
@@ -11876,15 +12360,61 @@ function _plotGeneInput(q){
     fetch("/api/search?q="+encodeURIComponent(q))
       .then(function(r){return r.json();})
       .then(function(genes){
-        var h="";
-        for(var i=0;i<Math.min(20,genes.length);i++){
-          var g=String(genes[i]).replace(/</g,"&lt;");
-          h+='<div class="pg-hit" onclick="_plotGenePick(\''+g.replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\')">'+g+'<\/div>';
-        }
-        host.innerHTML=h;
-        host.style.display=genes.length?"block":"none";
+        _plotGeneItems=genes.slice(0,20);
+        _plotGeneCursor=_plotGeneItems.length?0:-1;
+        _plotGeneRenderResults();
       }).catch(function(){});
   },150);
+}
+function _plotGeneRenderResults(){
+  var host=document.getElementById("plot-gene-results");
+  if(!host)return;
+  if(!_plotGeneItems.length){host.style.display="none";host.innerHTML="";return;}
+  var h="";
+  for(var i=0;i<_plotGeneItems.length;i++){
+    var g=String(_plotGeneItems[i]).replace(/</g,"&lt;");
+    var cls="pg-hit"+(i===_plotGeneCursor?" active":"");
+    h+='<div class="'+cls+'" data-i="'+i+'" onmousedown="event.preventDefault();_plotGenePickIdx('+i+')">'+g+'<\/div>';
+  }
+  host.innerHTML=h;
+  host.style.display="block";
+  if(_plotGeneCursor>=0){
+    var row=host.querySelector('.pg-hit[data-i="'+_plotGeneCursor+'"]');
+    if(row&&row.scrollIntoView)row.scrollIntoView({block:"nearest"});
+  }
+}
+function _plotGenePickIdx(i){
+  var g=_plotGeneItems[i];
+  if(g)_plotGenePick(g);
+}
+/* Keyboard handler for #plot-gene-input. Wires arrow keys, Enter and
+   Escape to the suggestion dropdown. Bound at DOMContentLoaded below. */
+function _plotGeneInputKey(e){
+  if(e.key==="ArrowDown"){
+    if(_plotGeneItems.length){
+      e.preventDefault();
+      _plotGeneCursor=Math.min(_plotGeneItems.length-1,_plotGeneCursor+1);
+      _plotGeneRenderResults();
+    }
+  }else if(e.key==="ArrowUp"){
+    if(_plotGeneItems.length){
+      e.preventDefault();
+      _plotGeneCursor=Math.max(0,_plotGeneCursor-1);
+      _plotGeneRenderResults();
+    }
+  }else if(e.key==="Enter"){
+    if(_plotGeneItems.length&&_plotGeneCursor>=0){
+      e.preventDefault();
+      _plotGenePickIdx(_plotGeneCursor);
+    }
+  }else if(e.key==="Escape"){
+    var host=document.getElementById("plot-gene-results");
+    if(host&&host.style.display!=="none"){
+      e.preventDefault();
+      host.style.display="none";host.innerHTML="";
+      _plotGeneItems=[];_plotGeneCursor=-1;
+    }
+  }
 }
 /* Canonical "user picked a gene inside a plot panel" entrypoint. Any future
    plot type should route its gene-selection here so the behaviour stays
@@ -11931,6 +12461,7 @@ function _plotClose(){
   /* Reset any drag offset so the next open re-centers under flex layout. */
   var win=document.getElementById("plot-window");
   if(win){win.style.left="";win.style.top="";win.style.transform="";win.style.position="";}
+  if(typeof _plotDpCloseGradientDropdown==="function")_plotDpCloseGradientDropdown();
 }
 
 /* Drag the popup by its header. We flip the container to absolute positioning
@@ -12283,8 +12814,10 @@ function _plotRerenderForTheme(){
     var svg;
     if(_plotLast.type==="violin")svg=_plotDrawViolin(_plotLast.gene,_plotLast.facetCol,_plotLast.data);
     else if(_plotLast.type==="raincloud")svg=_plotDrawRaincloud(_plotLast.gene,_plotLast.facetCol,_plotLast.data);
+    else if(_plotLast.type==="dotplot")svg=_plotDrawDotplot(_plotLast.facetCol,_plotLast.data);
     else return;
     document.getElementById("plot-canvas").innerHTML=svg;
+    if(typeof _plotUpdateHeaderControls==="function")_plotUpdateHeaderControls();
   }catch(e){console.error(e);}
 }
 
@@ -12296,6 +12829,153 @@ function _plotSetColor(on){
   _plotColor=!!on;
   if(typeof saveState==="function")saveState();
   _plotRerenderForTheme();
+}
+/* ── Dot plot gradient picker (shared sidebar + popup-header) ─────────
+   _plotDpGradient is the canonical state. "" means "Auto" (resolves to
+   the global gradient via _gradientResolvedName). Two triggers
+   (#plot-sidebar-grad-trigger, #plot-popup-grad-trigger) open the same
+   #plot-grad-dd popover; clicking a row updates state, syncs both
+   trigger labels/strips, persists via saveState, and re-renders the
+   open dot plot in place. Modeled on _toggleGradientDropdown /
+   _renderGradientDropdown. */
+var _plotDpGradient="";
+try{var _pdg=sessionStorage.getItem("fleek_plot_gradient");if(_pdg!==null&&(_pdg===""||_gradients[_pdg]))_plotDpGradient=_pdg;}catch(_pdgerr){}
+function _plotDpGradientName(){return (_plotDpGradient&&_gradients[_plotDpGradient])?_plotDpGradient:_gradientResolvedName();}
+function _plotDpSyncLabels(){
+  var name=_plotDpGradient||"";
+  var dispKey=name||_gradientResolvedName();
+  var dispName=name?(_gradients[name]&&_gradients[name].name||name):"Auto";
+  var lblIds=["plot-sidebar-grad-label","plot-popup-grad-label"];
+  for(var i=0;i<lblIds.length;i++){var el=document.getElementById(lblIds[i]);if(el)el.textContent=dispName;}
+  var stripIds=["plot-sidebar-grad-strip","plot-popup-grad-strip"];
+  for(var j=0;j<stripIds.length;j++){var st=document.getElementById(stripIds[j]);if(st)st.style.background=_gradientCSS(dispKey);}
+}
+function _plotDpRenderGradientDropdown(){
+  var dd=document.getElementById("plot-grad-dd");
+  if(!dd)return;
+  var h='';
+  /* "Auto" entry first — resolves to whatever the global picker selects. */
+  var autoActive=!_plotDpGradient;
+  h+='<div class="grad-row'+(autoActive?" active":"")+'" onclick="_plotDpPickGradient(\'\')">'
+    +'<span class="grad-strip" style="background:'+_gradientCSS(_gradientResolvedName())+';"><\/span>'
+    +'<span class="grad-name">Auto<\/span>'
+    +'<span class="grad-note">Follows global gradient<\/span>'
+    +'<\/div>';
+  var groups={perceptual:[],contrast:[],"single-hue":[]};
+  for(var k in _gradients){groups[_gradients[k].group].push(k);}
+  var order=["perceptual","contrast","single-hue"];
+  for(var gi=0;gi<order.length;gi++){
+    var grp=order[gi], items=groups[grp];
+    if(!items||items.length===0)continue;
+    h+='<div class="grad-group">'+(_gradientGroups[grp]||grp)+'<\/div>';
+    for(var ii=0;ii<items.length;ii++){
+      var k2=items[ii], g=_gradients[k2], active=(_plotDpGradient===k2);
+      h+='<div class="grad-row'+(active?" active":"")+'" onclick="_plotDpPickGradient(\''+k2+'\')">'
+        +'<span class="grad-strip" style="background:'+_gradientCSS(k2)+';"><\/span>'
+        +'<span class="grad-name">'+g.name+'<\/span>'
+        +'<span class="grad-note">'+g.note+'<\/span>'
+        +'<\/div>';
+    }
+  }
+  dd.innerHTML=h;
+}
+function _plotDpCloseGradientDropdown(){var dd=document.getElementById("plot-grad-dd");if(dd){dd.classList.remove("open");dd._trigId=null;}}
+function _plotDpPositionGradientDropdown(triggerId){
+  var dd=document.getElementById("plot-grad-dd");
+  var trig=document.getElementById(triggerId);
+  if(!dd||!trig)return;
+  dd.style.maxHeight="";dd.style.top="";dd.style.left="";dd.style.bottom="";
+  var tr=trig.getBoundingClientRect();
+  var vw=window.innerWidth, vh=window.innerHeight, pad=8;
+  var ddW=Math.min(dd.offsetWidth||280, vw-pad*2);
+  var ddH=dd.offsetHeight||0;
+  var spaceBelow=vh-tr.bottom-pad;
+  var spaceAbove=tr.top-pad;
+  var placeBelow=(ddH<=spaceBelow)||(spaceBelow>=spaceAbove);
+  if(placeBelow){
+    dd.style.maxHeight=Math.max(120,spaceBelow)+"px";
+    dd.style.top=(tr.bottom+4)+"px";
+  }else{
+    dd.style.maxHeight=Math.max(120,spaceAbove)+"px";
+    dd.style.bottom=(vh-tr.top+4)+"px";
+  }
+  var left=tr.right-ddW;
+  if(left<pad)left=pad;
+  if(left+ddW>vw-pad)left=vw-pad-ddW;
+  dd.style.left=left+"px";
+}
+function _plotDpToggleGradientDropdown(ev,triggerId){
+  if(ev){ev.stopPropagation();}
+  var dd=document.getElementById("plot-grad-dd");
+  if(!dd)return;
+  var prevTrig=dd._trigId;
+  var willOpen=!dd.classList.contains("open")||prevTrig!==triggerId;
+  if(willOpen){
+    dd._trigId=triggerId;
+    _plotDpRenderGradientDropdown();
+    dd.classList.add("open");
+    _plotDpPositionGradientDropdown(triggerId);
+  }else{
+    _plotDpCloseGradientDropdown();
+  }
+}
+function _plotDpPickGradient(name){
+  if(name&&!_gradients[name])return;
+  _plotDpGradient=name||"";
+  try{sessionStorage.setItem("fleek_plot_gradient",_plotDpGradient);}catch(_){}
+  _plotDpSyncLabels();
+  _plotDpRenderGradientDropdown();
+  _plotDpCloseGradientDropdown();
+  if(typeof saveState==="function")saveState();
+  _plotRerenderForTheme();
+}
+/* Show / hide popup-header rows based on the currently-rendered plot
+   type. Called from _plotRender variants once _plotLast is set, and
+   from _plotRerenderForTheme on theme/state changes. */
+function _plotUpdateHeaderControls(){
+  var gradRow=document.getElementById("plot-gradient-row");
+  var colorRow=document.getElementById("plot-color-row");
+  var t=_plotLast&&_plotLast.type;
+  var usesGradient=(t==="dotplot");
+  if(gradRow)gradRow.style.display=usesGradient?"inline-flex":"none";
+  /* The Color toggle controls the violin/raincloud palette swap; it has
+     no effect on dot plot, so hide it there to avoid the impression
+     that it does something. */
+  if(colorRow)colorRow.style.display=usesGradient?"none":"flex";
+  if(typeof _plotDpSyncLabels==="function")_plotDpSyncLabels();
+}
+
+/* ── Shared download filename helpers ─────────────────────────────────
+   Every save action in the program — images, data files, exports —
+   uses these helpers so filenames are descriptive AND unique. The
+   timestamp guards against silent overwrites when the user re-runs an
+   export with the same options; the dataset stem makes it obvious in a
+   downloads folder which dataset a file came from. */
+function _dlTimestamp(){
+  /* Sortable, filename-safe, human-readable local-time stamp:
+     YYYY-MM-DD_HH-MM-SS. Local time (not ISO/UTC) so files line up
+     with the user's wall clock when they look in a downloads folder.
+     The dashes/underscore are valid on every common filesystem (macOS,
+     Linux, Windows, FAT). */
+  var d=new Date();
+  function p(n){return n<10?"0"+n:""+n;}
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"_"+p(d.getHours())+"-"+p(d.getMinutes())+"-"+p(d.getSeconds());
+}
+function _dlDatasetStem(){
+  /* Currently-loaded dataset's filename without the .h5ad extension,
+     sanitized for use in a filename. Falls back to "fleek" when no
+     dataset is loaded (shouldn't happen at export time, but keeps the
+     fallback path safe). */
+  if(typeof D!=="undefined"&&D&&D.header&&D.header.loaded_path){
+    var fn=D.header.loaded_path.split("/").pop();
+    return _dlSafe(fn.replace(/\.h5ad$/i,""))||"fleek";
+  }
+  return "fleek";
+}
+function _dlSafe(s){
+  /* Collapse anything that's not alnum / dot / dash / underscore into
+     a single underscore, and trim leading/trailing underscores. */
+  return String(s||"").replace(/[^A-Za-z0-9_.-]+/g,"_").replace(/^_+|_+$/g,"");
 }
 
 /* Download the currently displayed plot as a standalone SVG file.
@@ -12310,26 +12990,45 @@ function _plotSave(){
   if(!canvas)return;
   var svgEls=canvas.querySelectorAll("svg");
   if(!svgEls.length){_plotStatus("Nothing to save \u2014 render a plot first",true);return;}
-  var GAP=12;            /* matches the on-screen flex gap between facets */
   var XMLNS='xmlns="http://www.w3.org/2000/svg"';
   var FONT='"JetBrains Mono","SF Mono",monospace';
-  var totalW=0, maxH=0, xs=[];
+  /* Lay panels out using their actual on-screen positions so a
+     wrapped multi-row layout (flex-wrap:wrap on #plot-canvas) is
+     preserved in the export. The previous left-to-right concat broke
+     for plots with many facets because (a) the file became absurdly
+     wide and (b) panels that wrapped to a second on-screen row were
+     placed off the right edge of the page in the export. */
+  var canvasRect=canvas.getBoundingClientRect();
+  var panels=[];
+  var minX=Infinity, minY=Infinity;
   for(var i=0;i<svgEls.length;i++){
-    var w=parseFloat(svgEls[i].getAttribute("width"))||svgEls[i].getBBox().width;
-    var h=parseFloat(svgEls[i].getAttribute("height"))||svgEls[i].getBBox().height;
-    xs.push(totalW);
-    totalW+=w+(i<svgEls.length-1?GAP:0);
-    if(h>maxH)maxH=h;
+    var rect=svgEls[i].getBoundingClientRect();
+    var w=parseFloat(svgEls[i].getAttribute("width"))||rect.width;
+    var h=parseFloat(svgEls[i].getAttribute("height"))||rect.height;
+    var x=rect.left-canvasRect.left;
+    var y=rect.top-canvasRect.top;
+    panels.push({el:svgEls[i],x:x,y:y,w:w,h:h});
+    if(x<minX)minX=x;
+    if(y<minY)minY=y;
+  }
+  /* Normalise so the leftmost / topmost panel lands at (0,0); strips
+     the canvas's 16 px content padding so the file isn't padded. */
+  var totalW=0, totalH=0;
+  for(var k=0;k<panels.length;k++){
+    panels[k].x-=minX;
+    panels[k].y-=minY;
+    if(panels[k].x+panels[k].w>totalW)totalW=panels[k].x+panels[k].w;
+    if(panels[k].y+panels[k].h>totalH)totalH=panels[k].y+panels[k].h;
   }
   var parts=['<?xml version="1.0" encoding="UTF-8"?>\n',
-    '<svg '+XMLNS+' width="'+totalW+'" height="'+maxH+'" viewBox="0 0 '+totalW+' '+maxH+'" font-family=\''+FONT+'\'>'];
+    '<svg '+XMLNS+' width="'+Math.ceil(totalW)+'" height="'+Math.ceil(totalH)+'" viewBox="0 0 '+Math.ceil(totalW)+' '+Math.ceil(totalH)+'" font-family=\''+FONT+'\'>'];
   var ser=new XMLSerializer();
-  for(var j=0;j<svgEls.length;j++){
-    var inner=ser.serializeToString(svgEls[j]);
+  for(var j=0;j<panels.length;j++){
+    var inner=ser.serializeToString(panels[j].el);
     /* Strip the outer <svg ...> / </svg> wrappers; we'll re-wrap in a <g>
-       translated to the correct offset so the facets sit side-by-side. */
+       translated to the panel's on-screen offset. */
     inner=inner.replace(/^<svg\b[^>]*>/,"").replace(/<\/svg>\s*$/,"");
-    parts.push('<g transform="translate('+xs[j]+',0)">'+inner+'</g>');
+    parts.push('<g transform="translate('+panels[j].x.toFixed(2)+','+panels[j].y.toFixed(2)+')">'+inner+'</g>');
   }
   parts.push('</svg>');
   var blob=new Blob([parts.join("")],{type:"image/svg+xml"});
@@ -12337,10 +13036,20 @@ function _plotSave(){
   var type=(_plotLast&&_plotLast.type)||"plot";
   var gene=(_plotLast&&_plotLast.gene)||"";
   var facet=(_plotLast&&_plotLast.facetCol)||"";
-  var nameParts=[type];
-  if(gene)nameParts.push(gene);
-  if(facet)nameParts.push("by-"+facet);
-  var fname=nameParts.join("_").replace(/[^\w.-]+/g,"_")+".svg";
+  var nameParts=[_dlDatasetStem(),type];
+  if(gene){
+    nameParts.push(_dlSafe(gene));
+  }else if(type==="dotplot"&&_plotLast&&_plotLast.data&&_plotLast.data.genes&&_plotLast.data.genes.length){
+    /* Dot plot has a panel of genes, not a single one — tag with the
+       first few names so a marker-panel export isn't an anonymous
+       "dotplot_<ts>.svg". Cap at 3 + count to keep paths short. */
+    var gs=_plotLast.data.genes;
+    var label=gs.length<=3?gs.join("-"):(gs.slice(0,3).join("-")+"+"+(gs.length-3)+"more");
+    nameParts.push(_dlSafe(label));
+  }
+  if(facet)nameParts.push("by-"+_dlSafe(facet));
+  nameParts.push(_dlTimestamp());
+  var fname=nameParts.join("_")+".svg";
   var a=document.createElement("a");
   a.href=url;a.download=fname;document.body.appendChild(a);a.click();
   setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},0);
@@ -12373,6 +13082,7 @@ function _plotRender(){
   if(_plotRendering){_plotStopRender();return;}
   if(!D){_plotStatus("Load a dataset first",true);return;}
   var type=document.getElementById("plot-type").value;
+  if(type==="dotplot"){_plotRenderDotplot();return;}
   if(type!=="raincloud"&&type!=="violin"){_plotStatus("Unknown plot type",true);return;}
   var gene=(_plotSelectedGene||document.getElementById("plot-gene-input").value||"").trim();
   if(!gene){_plotStatus("Pick a gene",true);return;}
@@ -12440,6 +13150,7 @@ function _plotRender(){
            closed. */
         var _pcEl=document.getElementById("plot-color");
         if(_pcEl)_pcEl.checked=_plotColor;
+        if(typeof _plotUpdateHeaderControls==="function")_plotUpdateHeaderControls();
         document.getElementById("plot-overlay").style.display="flex";
         _plotStatus("");
       }catch(e){console.error(e);_plotStatus("Render failed: "+e.message,true);}
@@ -12462,6 +13173,97 @@ function _plotRender(){
       _plotStatus("Gene '"+gene+"' not found",true);
       _plotRendering=false;_plotSetRenderBtn(false);
     });
+}
+
+/* Dot plot render. Same render-button toggle behaviour as the
+   raincloud / violin path. Differences: takes a list of genes from the
+   textarea, fetches whichever aren't cached (in parallel — the server
+   serves binary float32 arrays so concurrent fetches just stream out
+   the same way). Up to 64 genes per render — plenty for typical marker
+   panels and bounded so a paste of a thousand-gene module doesn't lock
+   the browser. */
+function _plotRenderDotplot(){
+  var genes=_plotParseGeneList();
+  if(genes.length===0){_plotStatus("Paste at least one gene",true);return;}
+  var MAX_GENES=64;
+  var truncated=genes.length>MAX_GENES;
+  if(truncated)genes=genes.slice(0,MAX_GENES);
+  var facetCol=document.getElementById("plot-facet").value||"";
+  var selClus=[];
+  var nClu=(D.header&&D.header.cluster_names||[]).length;
+  for(var i=0;i<nClu;i++)if(visibleClusters[i]!==false&&!_isEmptyCluster(i))selClus.push(i);
+  if(selClus.length===0){_plotStatus("No cell types visible — show at least one in the Cell Types panel",true);return;}
+  _plotRendering=true;
+  _plotSetRenderBtn(true);
+  /* Fetch any uncached genes in parallel. We resolve all promises
+     (success or failure) and let _plotComputeDotplot tag missing genes
+     with stats.missing rather than aborting the whole plot — a typo'd
+     gene shouldn't kill an otherwise good marker panel. */
+  var pending=[];
+  var missing=[];
+  _plotInflight=new AbortController();
+  for(var gi=0;gi<genes.length;gi++){
+    (function(g){
+      if(geneExprCache[g])return;
+      var p=fetch("/api/gene?name="+encodeURIComponent(g),{signal:_plotInflight.signal})
+        .then(function(r){if(!r.ok)throw new Error("not found");return r.arrayBuffer();})
+        .then(function(buf){
+          geneExprCache[g]=new Float32Array(buf);
+          if(typeof _geneLruBump==="function")_geneLruBump(g);
+        })
+        .catch(function(err){
+          if(err&&err.name==="AbortError")return;
+          missing.push(g);
+        });
+      pending.push(p);
+    })(genes[gi]);
+  }
+  if(pending.length>0){
+    _plotStatus("Fetching "+pending.length+" of "+genes.length+" gene"+(genes.length!==1?"s":"")+"…");
+  }else{
+    _plotStatus("Computing distribution…");
+  }
+  Promise.all(pending).then(function(){
+    if(!_plotRendering)return;
+    _plotInflight=null;
+    setTimeout(function(){
+      if(!_plotRendering)return;
+      try{
+        var validGenes=[];
+        var geneEx={};
+        for(var i=0;i<genes.length;i++){
+          var g=genes[i];
+          if(geneExprCache[g]){validGenes.push(g);geneEx[g]=geneExprCache[g];}
+        }
+        if(validGenes.length===0){
+          _plotStatus("None of those genes were found",true);
+          _plotRendering=false;_plotSetRenderBtn(false);return;
+        }
+        _plotStatus("Computing distribution…");
+        var data=_plotComputeDotplot(geneEx,validGenes,selClus,facetCol);
+        if(!_plotRendering)return;
+        var svg=_plotDrawDotplot(facetCol,data);
+        _plotLast={type:"dotplot", genes:validGenes, facetCol:facetCol, data:data};
+        document.getElementById("plot-title").textContent="Dot plot · "+validGenes.length+" gene"+(validGenes.length!==1?"s":"");
+        var sub=facetCol?("faceted by "+facetCol+" · "+data.facets.length+" panel"+(data.facets.length!==1?"s":"")):("single panel");
+        if(missing.length){
+          var miss=missing.slice(0,4).join(", ")+(missing.length>4?(" +"+(missing.length-4)+" more"):"");
+          sub+=" · "+missing.length+" not found ("+miss+")";
+        }
+        if(truncated)sub+=" · truncated to "+MAX_GENES+" genes";
+        document.getElementById("plot-subtitle").textContent=sub;
+        var canvas=document.getElementById("plot-canvas");
+        canvas.innerHTML=svg;
+        var _pcEl=document.getElementById("plot-color");
+        if(_pcEl)_pcEl.checked=_plotColor;
+        if(typeof _plotUpdateHeaderControls==="function")_plotUpdateHeaderControls();
+        document.getElementById("plot-overlay").style.display="flex";
+        _plotStatus("");
+      }catch(e){console.error(e);_plotStatus("Render failed: "+e.message,true);}
+      _plotRendering=false;
+      _plotSetRenderBtn(false);
+    },0);
+  });
 }
 
 /* ── Pathways panel: ORA over pre-computed gene-set databases. ──────
@@ -13359,6 +14161,102 @@ function _plotComputeRaincloud(ex, clusters, facetCol){
   return {facets:facets, clusters:clusters, yMin:yMin, yMax:yMax, bins:BINS};
 }
 
+/* ── Dot plot computation ──────────────────────────────────────────
+   Input: object {geneName: Float32Array(ex)} for each gene the user
+   typed (already fetched into geneExprCache by the caller), plus the
+   cluster list, facet column, and visibility/slice gates from globals.
+   Output: per-(facet, cluster, gene) {mean, pct} table the renderer
+   can map directly to dot size + dot color.
+
+   The mean is computed over ALL cells in the cluster by default
+   (scanpy / Seurat convention). When the "Mean over all cells" toggle
+   is off the mean is computed only over expressing cells (≥ EPS).
+   Detection rate (pct) always comes from all cells in the cluster
+   regardless of toggle — that's the dot-size encoding's whole job.
+   Clusters with fewer cells than the user's "Min cells per cluster"
+   threshold are dropped from the per-facet column list. */
+function _plotComputeDotplot(geneEx, geneNames, clusters, facetCol){
+  var n=D.header.n_cells;
+  var facetCats=[""];
+  var facetCodes=null;
+  if(facetCol&&D.obs_codes&&D.obs_codes[facetCol]){
+    facetCats=(D.header.obs_categories[facetCol].categories||[]).slice();
+    facetCodes=D.obs_codes[facetCol];
+  }
+  var vClus=visibleClusters||{};
+  var sm=sliceMask;
+  var delSet=_deletedCells;
+  /* Cell index buckets per (facet, cluster). One pass over n cells. */
+  var cluSet={};for(var k=0;k<clusters.length;k++)cluSet[clusters[k]]=true;
+  var bucket={};/* facet*1e5 + cluster -> array of cell indices */
+  var key=function(f,c){return f*100000+c;};
+  for(var i=0;i<n;i++){
+    var cid=D.cluster_ids[i];
+    if(!cluSet[cid])continue;
+    if(vClus[cid]===false)continue;
+    if(sm&&!sm[i])continue;
+    if(delSet&&delSet.has(i))continue;
+    var f=0;
+    if(facetCodes){f=facetCodes[i];if(f<0||f==null)continue;}
+    var kk=key(f,cid);
+    if(!bucket[kk])bucket[kk]=[];
+    bucket[kk].push(i);
+  }
+  var EPS=0.01;
+  var _pgEl=document.getElementById("plot-dp-per-gene");
+  var perGene=_pgEl?!!_pgEl.checked:true;
+  var _maEl=document.getElementById("plot-dp-mean-all");
+  var meanOverAll=_maEl?!!_maEl.checked:true;
+  var _mcEl=document.getElementById("plot-dp-min-cells");
+  var minCells=_mcEl?Math.max(0,parseInt(_mcEl.value||"5",10)):5;
+  /* Per-gene min/max collected as we go for the per-gene color scale.
+     globalMax tracks the overall max for the global-color-scale option. */
+  var perGeneMin=geneNames.map(function(){return Infinity;});
+  var perGeneMax=geneNames.map(function(){return 0;});
+  var globalMax=0;
+  var facets=[];
+  for(var fi=0;fi<facetCats.length;fi++){
+    if(facetCol&&_isSliceValEmptyHidden(facetCol,fi))continue;
+    var facet={name:facetCats[fi]||"All cells", clusters:[], totalCells:0};
+    for(var ci=0;ci<clusters.length;ci++){
+      var cid=clusters[ci];
+      var idx=bucket[key(fi,cid)]||[];
+      if(idx.length<minCells)continue; /* drop tiny columns */
+      facet.totalCells+=idx.length;
+      var stats=new Array(geneNames.length);
+      for(var gi=0;gi<geneNames.length;gi++){
+        var ex=geneEx[geneNames[gi]];
+        if(!ex){stats[gi]={mean:0,pct:0,missing:true};continue;}
+        var sumAll=0, nExpr=0, sumExpr=0;
+        for(var j=0;j<idx.length;j++){
+          var v=ex[idx[j]];
+          sumAll+=v;
+          if(v>=EPS){nExpr++;sumExpr+=v;}
+        }
+        var pct=idx.length>0?(nExpr/idx.length):0;
+        var mean=meanOverAll
+          ?(idx.length>0?sumAll/idx.length:0)
+          :(nExpr>0?sumExpr/nExpr:0);
+        if(mean<perGeneMin[gi])perGeneMin[gi]=mean;
+        if(mean>perGeneMax[gi])perGeneMax[gi]=mean;
+        if(mean>globalMax)globalMax=mean;
+        stats[gi]={mean:mean,pct:pct,n:idx.length,nExpr:nExpr};
+      }
+      facet.clusters.push({cid:cid, n:idx.length, stats:stats});
+    }
+    facets.push(facet);
+  }
+  /* Floor zero ranges so a flat all-zero gene still gets a sensible (0..1)
+     scale instead of a degenerate divide-by-zero in the renderer. */
+  for(var pgi=0;pgi<geneNames.length;pgi++){
+    if(!isFinite(perGeneMin[pgi]))perGeneMin[pgi]=0;
+    if(perGeneMax[pgi]<=perGeneMin[pgi])perGeneMax[pgi]=perGeneMin[pgi]+1e-6;
+  }
+  if(globalMax<=0)globalMax=1e-6;
+  return {facets:facets, genes:geneNames, perGene:perGene, meanOverAll:meanOverAll,
+          perGeneMin:perGeneMin, perGeneMax:perGeneMax, globalMax:globalMax};
+}
+
 /* Draw the raincloud SVG. Layout: one SVG per facet, horizontally. Each facet:
    clusters along x; per cluster column = half density curve (right) + strip of
    raindrops (center) + median/IQR bar. Shared y-axis (expression 0..1). */
@@ -13688,6 +14586,177 @@ function _plotDrawViolin(gene, facetCol, data){
   return '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;">'+panels.join("")+'<\/div>';
 }
 
+/* Draw the dot plot SVG. Layout: rows = genes (top to bottom in input
+   order), cols = clusters (left to right in cluster-id order). Each
+   intersection draws a single dot whose radius encodes √(% expressing)
+   and whose color encodes mean expression. Color scale is per-gene
+   (each row normalised to its own [min,max]) by default, or global
+   (all dots share a single 0..globalMax mapping) when "Color scale
+   per gene" is off. One SVG per facet, side-by-side via the same flex
+   row layout raincloud / violin use. */
+function _plotDrawDotplot(facetCol, data){
+  var cluNames=(D.header&&D.header.cluster_names)||[];
+  var isLight=document.body.classList.contains("light");
+  var axisColor=isLight?"#4a4e5c":"#929ab4";
+  var gridColor=isLight?"#dde1f3":"#2c3045";
+  var bgColor=isLight?"#ffffff":"#0c0c14";
+  var labelColor=isLight?"#3a3e4c":"#b8bed0";
+  var ghostHex=isLight?"#f0f2f5":"#1a1c26";
+  /* Tightly hug the data: ~22 px per cell is dense but readable; gene
+     row is 22 px. */
+  var DOT_W=22, ROW_H=22;
+  var nGenes=data.genes.length;
+  /* Longest cluster name across all facets (rotated 90° so vertical
+     space ≈ char count × ~6.5 px, plus the n/cell suffix). */
+  var maxCluLen=0;
+  for(var fi=0;fi<data.facets.length;fi++){
+    var fcl=data.facets[fi].clusters;
+    for(var li=0;li<fcl.length;li++){
+      var nm=String(cluNames[fcl[li].cid]||("Cluster "+fcl[li].cid));
+      var pct=Math.round(((fcl[li].n||0)>0?fcl[li].n:0));
+      var full=nm+" ("+pct.toLocaleString()+")";
+      if(full.length>maxCluLen)maxCluLen=full.length;
+    }
+  }
+  /* Cluster names live BELOW the grid (matches raincloud / violin
+     convention); TOP only needs to fit the facet title + subtitle
+     row, so it's small. BOT sizes to the longest rotated cluster
+     label. */
+  var TOP=40;
+  var BOT=Math.max(60,Math.ceil(6.5*maxCluLen+30));
+  /* Longest gene name: ~7 px per char at 11 px font. */
+  var maxGeneLen=0;
+  for(var gi=0;gi<nGenes;gi++)if(data.genes[gi].length>maxGeneLen)maxGeneLen=data.genes[gi].length;
+  var LEFT=Math.max(60,Math.ceil(7*maxGeneLen+18));
+  var RIGHT=130; /* legends */
+  /* Resolve the gradient name once via the shared dot-plot picker
+     state. _plotDpGradient="" means "Auto" → global gradient. */
+  var dpgName=(typeof _plotDpGradientName==="function")?_plotDpGradientName():_gradientResolvedName();
+  /* Sample the resolved gradient and convert to hex per dot. */
+  function _ehex(v){
+    var rgb=_gradientSample(v,dpgName);
+    function h(x){var n=Math.round(x*255);if(n<0)n=0;if(n>255)n=255;return (n<16?"0":"")+n.toString(16);}
+    return "#"+h(rgb[0])+h(rgb[1])+h(rgb[2]);
+  }
+  function drawOne(facet){
+    var nClus=facet.clusters.length;
+    var W=LEFT+nClus*DOT_W+RIGHT;
+    var H=TOP+nGenes*ROW_H+BOT;
+    var svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="background:'+bgColor+';border:1px solid '+gridColor+';border-radius:4px;">';
+    svg+='<text x="'+(W/2)+'" y="14" text-anchor="middle" font-size="11" font-weight="600" fill="'+labelColor+'">'+facet.name.replace(/</g,"&lt;")+'<\/text>';
+    svg+='<text x="'+(W/2)+'" y="26" text-anchor="middle" font-size="9" fill="'+axisColor+'">'+facet.totalCells.toLocaleString()+' cells · '+nClus+' cluster'+(nClus!==1?"s":"")+' · '+nGenes+' gene'+(nGenes!==1?"s":"")+'<\/text>';
+    /* Cluster names BELOW the grid, rotated 90° so the label descends
+       under each column. text-anchor="start" + rotate(+90) makes the
+       glyph row extend DOWNWARD from the anchor; anchor sits a few
+       pixels below the bottom of the dot grid so there's a small gap
+       between the last row of dots and the labels. */
+    var cluLabelY=TOP+nGenes*ROW_H+8;
+    for(var ci=0;ci<nClus;ci++){
+      var c=facet.clusters[ci];
+      var cx=LEFT+(ci+0.5)*DOT_W;
+      var cnm=String(cluNames[c.cid]||("Cluster "+c.cid));
+      var cnLbl=cnm+" ("+(c.n||0).toLocaleString()+")";
+      var cnEsc=cnLbl.replace(/</g,"&lt;");
+      svg+='<g transform="translate('+cx+','+cluLabelY+')">';
+      svg+='<text x="0" y="3" text-anchor="start" font-size="10" fill="'+labelColor+'" transform="rotate(90)">'+cnEsc+'<title>'+cnEsc+'<\/title><\/text>';
+      svg+='<\/g>';
+    }
+    /* Gene names (left, right-aligned). */
+    for(var gi=0;gi<nGenes;gi++){
+      var gy=TOP+(gi+0.5)*ROW_H;
+      var gn=data.genes[gi].replace(/</g,"&lt;");
+      svg+='<text x="'+(LEFT-8)+'" y="'+(gy+3.5)+'" text-anchor="end" font-size="10.5" fill="'+labelColor+'" font-style="italic">'+gn+'<title>'+gn+'<\/title><\/text>';
+    }
+    /* Faint grid lines so columns are easy to track across rows. */
+    for(var gci=0;gci<nClus;gci++){
+      var gridX=LEFT+(gci+0.5)*DOT_W;
+      svg+='<line x1="'+gridX+'" y1="'+TOP+'" x2="'+gridX+'" y2="'+(TOP+nGenes*ROW_H)+'" stroke="'+gridColor+'" stroke-width="1" opacity="0.35"/>';
+    }
+    /* Dots. */
+    var maxR=DOT_W*0.45;
+    var minR=0.6;
+    for(var ggi=0;ggi<nGenes;ggi++){
+      var dy=TOP+(ggi+0.5)*ROW_H;
+      for(var cci=0;cci<nClus;cci++){
+        var dx=LEFT+(cci+0.5)*DOT_W;
+        var s=facet.clusters[cci].stats[ggi];
+        if(!s||s.missing)continue;
+        var pct=Math.max(0,Math.min(1,s.pct||0));
+        var r=Math.max(minR,Math.sqrt(pct)*maxR);
+        var hex;
+        if(s.mean<=0&&pct<=0){
+          hex=ghostHex;
+        }else{
+          var norm;
+          if(data.perGene){
+            var lo=data.perGeneMin[ggi], hi=data.perGeneMax[ggi];
+            norm=(s.mean-lo)/(hi-lo);
+          }else{
+            norm=s.mean/data.globalMax;
+          }
+          if(!isFinite(norm)||norm<0)norm=0;
+          if(norm>1)norm=1;
+          hex=_ehex(norm);
+        }
+        var tip=data.genes[ggi]+" · "+(cluNames[facet.clusters[cci].cid]||"")
+              +"\nmean="+(s.mean||0).toFixed(3)
+              +"  pct="+(pct*100).toFixed(1)+"%"
+              +"  n="+(s.n||0)+" ("+(s.nExpr||0)+" expr)";
+        svg+='<circle cx="'+dx.toFixed(1)+'" cy="'+dy.toFixed(1)+'" r="'+r.toFixed(2)+'" fill="'+hex+'" stroke="'+gridColor+'" stroke-width="0.5" stroke-opacity="0.4"><title>'+tip.replace(/</g,"&lt;").replace(/"/g,"&quot;")+'<\/title><\/circle>';
+      }
+    }
+    /* Legends on the right: size key (4 reference dots at 25/50/75/100%)
+       above a vertical color gradient bar. Dot spacing is variable —
+       computed from the actual radius of each reference dot — so the
+       largest dots (which are 2 × 9 px diameter) don't overlap their
+       neighbours the way they did with a fixed 14 px pitch. */
+    var legX=LEFT+nClus*DOT_W+18;
+    var legSizeY=TOP+8;
+    svg+='<text x="'+legX+'" y="'+(legSizeY-6)+'" font-size="9" fill="'+axisColor+'">% expressing<\/text>';
+    var pcts=[0.25,0.5,0.75,1.0];
+    var DOT_GAP=6;
+    var py=legSizeY+8;
+    var lastR=0;
+    var lastBottom=py;
+    for(var pi=0;pi<pcts.length;pi++){
+      var pr=Math.max(minR,Math.sqrt(pcts[pi])*maxR);
+      /* Advance to this dot's centre: previous-bottom + gap + this-radius. */
+      py = (pi===0) ? (legSizeY+8+pr) : (lastBottom+DOT_GAP+pr);
+      svg+='<circle cx="'+(legX+8)+'" cy="'+py.toFixed(1)+'" r="'+pr.toFixed(2)+'" fill="'+labelColor+'" fill-opacity="0.8"/>';
+      svg+='<text x="'+(legX+22)+'" y="'+(py+3).toFixed(1)+'" font-size="9" fill="'+axisColor+'">'+Math.round(pcts[pi]*100)+'%<\/text>';
+      lastR=pr;
+      lastBottom=py+pr;
+    }
+    /* Color bar: vertical gradient strip with low/high labels. */
+    var cbX=legX, cbY=lastBottom+22;
+    var cbW=14, cbH=Math.min(110,Math.max(60,nGenes*ROW_H*0.6));
+    var cbId="dpcb-"+Math.random().toString(36).slice(2,8);
+    /* Build a vertical gradient by stacking 16 horizontal strips
+       sampled from the active gradient — keeps the SVG self-contained
+       (no <linearGradient> with stops referencing CSS variables). */
+    var stripN=16;
+    for(var si=0;si<stripN;si++){
+      var t=1-(si/(stripN-1));
+      var sH=cbH/stripN;
+      var sy=cbY+si*sH;
+      svg+='<rect x="'+cbX+'" y="'+sy+'" width="'+cbW+'" height="'+(sH+0.6)+'" fill="'+_ehex(t)+'"/>';
+    }
+    svg+='<rect x="'+cbX+'" y="'+cbY+'" width="'+cbW+'" height="'+cbH+'" fill="none" stroke="'+gridColor+'" stroke-width="1"/>';
+    svg+='<text x="'+(cbX+cbW+4)+'" y="'+(cbY+8)+'" font-size="9" fill="'+axisColor+'">high<\/text>';
+    svg+='<text x="'+(cbX+cbW+4)+'" y="'+(cbY+cbH)+'" font-size="9" fill="'+axisColor+'">low<\/text>';
+    var scaleNote=data.perGene?"per-gene":"shared";
+    svg+='<text x="'+cbX+'" y="'+(cbY-6)+'" font-size="9" fill="'+axisColor+'">mean expr<\/text>';
+    svg+='<text x="'+cbX+'" y="'+(cbY+cbH+12)+'" font-size="8" fill="'+axisColor+'" opacity="0.7">('+scaleNote+')<\/text>';
+    svg+='<\/svg>';
+    return svg;
+  }
+  if(data.facets.length===0||nGenes===0){
+    return '<div style="padding:16px;font-size:11px;color:var(--text4);">No data to plot — check the gene list, cell-type visibility, and slice filter.<\/div>';
+  }
+  var panels=data.facets.map(drawOne);
+  return '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;">'+panels.join("")+'<\/div>';
+}
+
 function _exportGetCamera(snap){
   if(!snap)return _snapCameraFromGlobals();
   if(_splitActive&&_liveViews.length>=2&&_splitViewIds.length>=2){
@@ -13903,37 +14972,33 @@ function _exportComputeRenderState(snap, includeGhost){
 }
 
 function _exportFilename(snap,ext){
-  var base="fleek";
-  if(D&&D.header&&D.header.loaded_path){
-    var fn=D.header.loaded_path.split("/").pop();
-    base=fn.replace(/\.h5ad$/i,"");
-  }
-  var nm=(snap.name||"split").replace(/[^A-Za-z0-9_-]+/g,"-");
+  var base=_dlDatasetStem();
+  var nm=_dlSafe(snap&&snap.name?snap.name:"split");
   /* Embed gene context in the filename so multiple exports of the same
-     split don't collide silently: "...split.ACTB+CD4..." for coloc,
-     "...split.ACTB..." for single, "...split.path-IL2-STAT5..." for
+     split don't collide silently: "..._split_ACTB+CD4_..." for coloc,
+     "..._split_ACTB_..." for single, "..._split_path-IL2-STAT5_..." for
      pathway-score, plain for cluster. */
-  var geneTag="";
+  var parts=[base,nm];
   if(snap){
     var gm=snap.geneMode||"single";
     if(snap.mode==="gene"){
       if(gm==="coloc"&&(snap.colocR||snap.colocG)){
-        var rN=(snap.colocR||"_").replace(/[^A-Za-z0-9_-]+/g,"-");
-        var gN=(snap.colocG||"_").replace(/[^A-Za-z0-9_-]+/g,"-");
-        geneTag="."+rN+"+"+gN;
+        var rN=_dlSafe(snap.colocR||"_");
+        var gN=_dlSafe(snap.colocG||"_");
+        parts.push(rN+"+"+gN);
       }else if(snap.selGene){
-        geneTag="."+snap.selGene.replace(/[^A-Za-z0-9_-]+/g,"-");
+        parts.push(_dlSafe(snap.selGene));
       }
     }else if(snap.mode==="pathway"&&snap.pathwayColorId){
-      var pthN=(snap.pathwayColorName||snap.pathwayColorId).replace(/[^A-Za-z0-9_-]+/g,"-");
+      var pthN=_dlSafe(snap.pathwayColorName||snap.pathwayColorId);
       /* Truncate so we don't blow out the path-length budget on Reactome
          pathway names that can run 60+ chars. */
       if(pthN.length>40)pthN=pthN.slice(0,40);
-      geneTag=".path-"+pthN;
+      parts.push("path-"+pthN);
     }
   }
-  var when=new Date().toISOString().replace(/[:T]/g,"-").slice(0,19);
-  return base+"."+nm+geneTag+"."+when+"."+ext;
+  parts.push(_dlTimestamp());
+  return parts.join("_")+"."+ext;
 }
 
 function _exportDownload(blob, filename){
@@ -14134,27 +15199,31 @@ function _exportSVG(){
   var lblText=isLightExp?"#374151":"#c5cae9";
   var lblAccent=isLightExp?"#5b6ed8":"#a5b4fc"; /* accent2 ~equivalent */
   function _esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
-  /* Visible caption for one pane based on its snapshot. Returns the
-     gene name (or coloc pair / pathway name / "Cell Types" for cluster
-     mode). The split name is intentionally omitted \u2014 only the visual
-     encoding matters for interpreting the saved image. */
+  /* Visible caption for one pane based on its snapshot. Returns an
+     array of one or more lines (one <text> per line in the SVG so the
+     stroke-painted halo conforms to each line's exact glyph shape).
+     Coloc captions split onto two lines so a long pair of gene names
+     doesn't push the (invisible) right edge wide. The split name is
+     intentionally omitted \u2014 only the visual encoding matters for
+     interpreting the saved image. */
   function _paneCaption(s){
-    if(!s)return "";
+    if(!s)return [];
     var m=s.mode||"cluster";
     var gm=s.geneMode||"single";
     if(m==="gene"){
       if(gm==="coloc"){
         var R=s.colocR||"", G=s.colocG||"";
-        if(R||G)return (R||"?")+" + "+(G||"?");
-        return "";
+        if(R&&G)return [R+" +",G];
+        if(R||G)return [(R||"?")+" + "+(G||"?")];
+        return [];
       }
-      return s.selGene||"";
+      return s.selGene?[s.selGene]:[];
     }
     if(m==="pathway"&&s.pathwayColorId){
-      return s.pathwayColorName||s.pathwayColorId;
+      return [s.pathwayColorName||s.pathwayColorId];
     }
-    if(m==="cluster")return "Cell Types";
-    return "";
+    if(m==="cluster")return ["Cell Types"];
+    return [];
   }
   /* Measure the caption by rendering it into a temporary, off-screen
      SVG <text> and reading its getBBox().
@@ -14248,11 +15317,19 @@ function _exportSVG(){
     for(var li=0;li<nSplit;li++){
       var lcol=li%2, lrow=(li/2)|0;
       var lSnap=_splitViewById(_splitViewIds[li]);
-      var capText=_paneCaption(lSnap);
-      if(!capText)continue;
+      var capLines=_paneCaption(lSnap);
+      if(!capLines||!capLines.length)continue;
       var lx=lcol*paneW+lblMargin;
-      var ly=lrow*paneH+lblMargin+lblFontSize;
-      parts.push('<text x="'+lx+'" y="'+ly+'" text-anchor="start" style="'+capStyle+'" paint-order="stroke fill" stroke="'+lblHalo+'" stroke-width="3.5" stroke-linejoin="round" stroke-opacity="0.95" fill="'+lblText+'">'+_esc(capText)+'<\/text>\n');
+      var ly0=lrow*paneH+lblMargin+lblFontSize;
+      /* Render each line as its own <text> so the stroke halo
+         conforms to that line's glyph shape exactly (a single <text>
+         with <tspan> children would halo the whole bbox, defeating
+         the purpose). Lines are separated by a generous ~1.25 em so
+         the haloed glyphs don't visually clip into each other. */
+      for(var lk=0;lk<capLines.length;lk++){
+        var ly=ly0+lk*Math.round(lblFontSize*1.25);
+        parts.push('<text x="'+lx+'" y="'+ly+'" text-anchor="start" style="'+capStyle+'" paint-order="stroke fill" stroke="'+lblHalo+'" stroke-width="3.5" stroke-linejoin="round" stroke-opacity="0.95" fill="'+lblText+'">'+_esc(capLines[lk])+'<\/text>\n');
+      }
     }
   }else{
     parts.push('<title>'+_esc((snap.name||"FLEEK export")+_geneTitleSnippet(snap))+'<\/title>\n');
@@ -14260,14 +15337,19 @@ function _exportSVG(){
     var proj=_exportProjectSnap(snap,halfW,h,includeGhost);
     parts.push(_exportRenderHalfGroup(proj,0,includeRings,_hex,''));
     /* Single-pane caption: same stroke-halo treatment as multi-split.
-       See that block for rationale (why no rectangle). */
-    var sCap=_paneCaption(snap);
-    if(sCap){
+       See that block for rationale (why no rectangle). Coloc renders
+       on two lines (R + / G) — see _paneCaption. */
+    var sCapLines=_paneCaption(snap);
+    if(sCapLines&&sCapLines.length){
       var sFontSize=Math.max(11,Math.round(h*0.014));
       var sMargin=8;
       var sHalo=isLightExp?"#ffffff":"#0c0c14";
       var sCapStyle="font-family:-apple-system,system-ui,sans-serif;font-size:"+sFontSize+"px;font-weight:600;letter-spacing:normal;font-style:normal;";
-      parts.push('<text x="'+sMargin+'" y="'+(sMargin+sFontSize)+'" text-anchor="start" style="'+sCapStyle+'" paint-order="stroke fill" stroke="'+sHalo+'" stroke-width="3.5" stroke-linejoin="round" stroke-opacity="0.95" fill="'+lblText+'">'+_esc(sCap)+'<\/text>\n');
+      var sY0=sMargin+sFontSize;
+      for(var sk=0;sk<sCapLines.length;sk++){
+        var sY=sY0+sk*Math.round(sFontSize*1.25);
+        parts.push('<text x="'+sMargin+'" y="'+sY+'" text-anchor="start" style="'+sCapStyle+'" paint-order="stroke fill" stroke="'+sHalo+'" stroke-width="3.5" stroke-linejoin="round" stroke-opacity="0.95" fill="'+lblText+'">'+_esc(sCapLines[sk])+'<\/text>\n');
+      }
     }
   }
   parts.push('<\/svg>\n');
@@ -15959,6 +17041,27 @@ function degHoverGene(gene){
   renderVolcano();
 }
 
+/* Save the volcano plot as a PNG image. Convention: every plot in
+   FLEEK has a download icon next to it (.icon-btn.download) that
+   exports the on-screen rendering to a portable image file. The plot
+   popup uses _plotSave (SVG); the volcano is canvas-based and uses
+   toDataURL("image/png") for a pixel-faithful capture. */
+function downloadVolcanoPNG(){
+  if(!degData){return;}
+  var cv=document.getElementById("volcano-cv");
+  if(!cv)return;
+  try{
+    var url=cv.toDataURL("image/png");
+    var nameA=degGrpA?degGrpA.name:"GroupA";
+    var nameB=degGrpB?degGrpB.name:"GroupB";
+    var pbTag=(degData&&degData._pb)?"pseudobulk":"singlecell";
+    var fname=[_dlDatasetStem(),"volcano",pbTag,_dlSafe(nameA)+"_vs_"+_dlSafe(nameB),_dlTimestamp()].join("_")+".png";
+    var a=document.createElement("a");
+    a.href=url;a.download=fname;
+    document.body.appendChild(a);a.click();
+    document.body.removeChild(a);
+  }catch(e){console.error("Volcano PNG export failed:",e);}
+}
 function downloadDEG(){
   if(!degData)return;
   var nameA=degGrpA?degGrpA.name:"Group_A";
@@ -15971,7 +17074,8 @@ function downloadDEG(){
   var blob=new Blob([header+rows],{type:"text/tab-separated-values"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download="DEG_"+nameA+"_vs_"+nameB+".tsv";
+  var pbTag=isPB?"pseudobulk":"singlecell";
+  a.download=[_dlDatasetStem(),"DEG",pbTag,_dlSafe(nameA)+"_vs_"+_dlSafe(nameB),_dlTimestamp()].join("_")+".tsv";
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -16516,6 +17620,10 @@ function applyTheme(t){
      dropdown preview strips and recolor so the cloud matches. */
   if(typeof _applyGradient==="function")_applyGradient();
   if(typeof _renderGradientDropdown==="function")_renderGradientDropdown();
+  /* Dot plot picker shows an "Auto" strip that follows the global
+     gradient — refresh on theme flip so the strip matches. */
+  if(typeof _plotDpSyncLabels==="function")_plotDpSyncLabels();
+  if(typeof _plotDpRenderGradientDropdown==="function")_plotDpRenderGradientDropdown();
   /* Colocalization channel colors are theme-aware (dark uses bright
      additive tones; light uses dark ink). Refresh so the dots + legend
      reflect the current theme. */

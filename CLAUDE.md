@@ -199,6 +199,21 @@ Two-stage locally standardized trend residual:
 
 Red-flagged genes: bitmask (bit 0: no expression, bit 1: low mean, bit 2: high mean, bit 3: low fraction)
 
+### Plots: every plot must ship with a download button
+**Every plot in FLEEK — current and future — must have a download icon next to it that exports the on-screen rendering to a portable image file.** Use the same SVG download glyph used everywhere else (the `<polyline points="7 10 12 15 17 10"/>...` "tray + down arrow" path) on a `.icon-btn.download` (or `.btn-icon.download`) button.
+
+**Format choices:**
+- SVG-rendered plots (raincloud, violin, dot plot, anything assembled into the `#plot-canvas` popup): export as **standalone SVG** via `_plotSave()`. The function combines facet panels into a single outer `<svg>` and bakes a font-family on the root so the file renders correctly outside the browser.
+- Canvas-rendered plots (volcano, anything `<canvas>`): export as **PNG** via `canvas.toDataURL("image/png")` then trigger a hidden `<a download>` click — see `downloadVolcanoPNG()` for the pattern.
+
+**Filename convention:** every download in FLEEK uses one template — `<dataset-stem>_<what>_<detail>_<YYYY-MM-DD_HH-MM-SS>.<ext>` — built via the shared helpers `_dlDatasetStem()`, `_dlSafe()`, `_dlTimestamp()` (defined near `_plotSave` in fleek.html). The dataset stem comes first so a downloads folder groups by dataset; the timestamp guards against silent overwrites on repeated exports. New code MUST use the helpers, not roll its own filename string. Examples: `colon_atlas_raincloud_FOXP3_2026-04-27_14-30-22.svg`, `colon_atlas_dotplot_FOXP3-CD4-IL2_2026-04-27_14-30-22.svg`, `colon_atlas_volcano_singlecell_TumorA_vs_TumorB_2026-04-27_14-30-22.png`, `colon_atlas_DEG_pseudobulk_A_vs_B_2026-04-27_14-30-22.tsv`. Server-side h5ad subsets follow the same template (`<parent-stem>_subset_<group>_<N>cells_<ts>.h5ad` from `export_h5ad_subset`). When you add a new download path, use the helpers; don't introduce a new convention.
+
+**When you add a new plot:**
+1. Place a `<button class="icon-btn download">` (or `btn-icon download`) in the plot's header / toolbar with the standard download SVG glyph and a `title="Download <plot type> (<format>)"`.
+2. Wire its `onclick` to a `download<PlotType><Format>()` helper (e.g. `downloadVolcanoPNG`, `_plotSave`).
+3. Add a one-line bullet in the Help panel's plot section saying the download exists.
+4. If the plot has multiple panels (facets / splits), serialize **all panels** into one image, not just the first — see `_plotSave`'s flex-row → translated `<g>` pattern.
+
 ### Design system (tokens + primitives)
 Every new style rule MUST resolve size/spacing/radius/duration values to the design tokens in `:root` at the top of `fleek.html`. If a hard-coded pixel value is tempting, the right answer is almost always "use a token"; if no existing token fits, add a new one rather than inlining.
 

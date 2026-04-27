@@ -3670,8 +3670,17 @@ def export_h5ad_subset(cell_indices, group_name):
     n_emb = sum(k in sub.obsm for k in ("X_umap", "X_pacmap", "X_pca"))
     print(f"  Export: {len(cell_indices)} cells, {n_emb} embeddings in obsm")
 
-    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in group_name)
-    fname = f"subset_{safe_name}_{len(cell_indices)}cells.h5ad"
+    # Filename: <parent-stem>_subset_<group>_<N>cells_<YYYY-MM-DD_HH-MM-SS>.h5ad
+    # The parent stem makes it obvious in a downloads folder which dataset
+    # the subset came from; the timestamp guards against silent overwrites
+    # when the user re-exports the same group with the same options.
+    # Dashes + underscore are filename-safe on macOS/Linux/Windows/FAT.
+    import datetime
+    ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in group_name).strip("_") or "subset"
+    parent_stem = Path(LOADED_PATH).stem if LOADED_PATH else "fleek"
+    parent_safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in parent_stem).strip("_") or "fleek"
+    fname = f"{parent_safe}_subset_{safe_name}_{len(cell_indices)}cells_{ts}.h5ad"
     fpath = os.path.join(tempfile.gettempdir(), fname)
     sub.write_h5ad(fpath)
     print(f"  Export: {len(cell_indices)} cells -> {fpath}")
