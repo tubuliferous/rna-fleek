@@ -214,6 +214,43 @@ Red-flagged genes: bitmask (bit 0: no expression, bit 1: low mean, bit 2: high m
 3. Add a one-line bullet in the Help panel's plot section saying the download exists.
 4. If the plot has multiple panels (facets / splits), serialize **all panels** into one image, not just the first — see `_plotSave`'s flex-row → translated `<g>` pattern.
 
+### Search palette: every named feature must register
+**Every named, user-visible feature in FLEEK — panels, modes, toggles, actions, plots, picker rows — MUST have a corresponding entry in `_searchRegistry` (single array near the top of fleek.html's script section, search for `var _searchRegistry`).** The palette (triggered by `/` or `Cmd/Ctrl+K`) is the keyboard-driven jump-anywhere index; if a feature isn't in the registry, the user can't find it that way and the registry's promise as the single source of truth breaks.
+
+**Applies to:**
+- New panels (jump to + expand if collapsed).
+- New modes (color modes, plot types, DEG modes, pathway sources).
+- New toggles, switches, threshold sliders, gradient pickers, scheme pickers.
+- New actions (anything bound to a button or shortcut: render plot, run DEG, save session, send feedback, reset camera, etc.).
+- New keyboard shortcuts (the entry's `shortcut` field surfaces them in the palette).
+
+**Doesn't apply to:**
+- Pure refactors / internal plumbing.
+- Per-row dynamic UI (cluster rows, gene rows, gene chips, pathway rows in a results list — these are content, not features).
+- Dialogs that are reachable only as a side-effect of another action (Confirm, Prompt — not separately searchable).
+
+**Entry shape:**
+```js
+{
+  id:        "unique-stable-id",      // used by the recent-actions list, NEVER reuse / rename
+  label:     "Render Raincloud",      // primary text shown in the palette
+  secondary: "Plots",                 // panel/group context, faint
+  keywords:  "distribution density",  // extra matchable terms (no need to repeat label words)
+  shortcut:  "G",                     // optional — surfaces the existing key binding in the palette
+  available: function(){ return D!==null; },  // optional — return false to gray out (still findable)
+  panel:     "plot-sec",              // optional — section id to expand before navigating
+  target:    "plot-render-btn",       // optional — element id to spotlight after the action
+  action:    function(){ ... }        // what Enter does (toggle, mode change, focus, click, etc.)
+}
+```
+
+**How to apply:**
+1. When adding a feature, write the entry alongside the markup/handler. Use a short, lowercase `id` (e.g. `mode-coloc`, `plot-render`, `settings-api-key`) — the id is referenced by the recent-actions storage and renaming it loses recents.
+2. Match-target hierarchy: `target` (specific element) > `panel` (whole panel). If both are present the panel is expanded and the element is spotlit.
+3. For toggles, `action` should perform the toggle (e.g. `document.getElementById('show-non-expr').click()`) so the palette's behaviour matches the user clicking the control.
+4. For `available()`, only gate things that genuinely don't work in the current state (e.g. coloc R slot unavailable in single-gene mode). Don't gate by "panel collapsed" — the palette can expand panels.
+5. After adding the entry, smoke-test: open the palette, type a few characters of the label, hit Enter, and verify the spotlight lands on the right thing.
+
 ### Design system (tokens + primitives)
 Every new style rule MUST resolve size/spacing/radius/duration values to the design tokens in `:root` at the top of `fleek.html`. If a hard-coded pixel value is tempting, the right answer is almost always "use a token"; if no existing token fits, add a new one rather than inlining.
 

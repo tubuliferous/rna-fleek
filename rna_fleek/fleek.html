@@ -764,6 +764,59 @@
   /* Feedback modal — stacks above the help overlay so launching it
      from the help panel doesn't force the user to re-open help after
      submitting. Close via the × button, Esc, or clicking the backdrop. */
+  /* ── Search palette (Cmd/Ctrl+K or "/") ────────────────────────────
+     Keyboard-driven jump-anywhere index. Dim full-screen backdrop;
+     centred card with input + result list; Esc / click-outside dismiss.
+     Selection scrolls + spotlights the target via _paletteSpotlight. */
+  #palette-overlay{display:none;position:fixed;inset:0;z-index:260;background:rgba(0,0,0,0.45);align-items:flex-start;justify-content:center;padding-top:12vh;}
+  .light #palette-overlay{background:rgba(0,0,0,0.25);}
+  #palette-overlay.open{display:flex;}
+  #palette-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;width:min(540px,92vw);max-height:70vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,0.5);}
+  .light #palette-modal{box-shadow:0 24px 80px rgba(0,0,0,0.15);}
+  #palette-input-wrap{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);}
+  #palette-input-wrap .pal-icon{color:var(--text4);font-size:14px;line-height:1;flex-shrink:0;}
+  #palette-input{flex:1;background:transparent;border:none;color:var(--text);font-family:inherit;font-size:13px;padding:0;outline:none;line-height:1.4;}
+  #palette-input::placeholder{color:var(--text4);}
+  #palette-results{flex:1;overflow-y:auto;padding:4px 0;}
+  .pal-section{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text4);padding:8px 14px 4px;}
+  .pal-row{display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:12px;color:var(--text2);user-select:none;}
+  .pal-row:hover{background:var(--bg-hover);}
+  .pal-row.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
+  .pal-row.disabled{opacity:0.4;cursor:not-allowed;}
+  .pal-row .pal-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pal-row .pal-secondary{font-size:10px;color:var(--text4);flex-shrink:0;}
+  .pal-row.active .pal-secondary{color:var(--accent2);opacity:0.8;}
+  .pal-row .pal-shortcut{font-size:9px;font-family:var(--font-mono,"SF Mono",Menlo,monospace);background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--text3);flex-shrink:0;}
+  .pal-row.active .pal-shortcut{border-color:var(--accent2);color:var(--accent2);}
+  .pal-row .pal-match{color:var(--accent2);font-weight:600;}
+  .pal-row.active .pal-match{color:var(--accent2);}
+  .pal-empty{padding:14px;font-size:11px;color:var(--text4);text-align:center;font-style:italic;}
+  /* Discoverability hint: tiny "/" chip near the sidebar version pill,
+     visible until the user opens the palette once. */
+  #palette-hint{display:inline-flex;align-items:center;gap:3px;font-size:9px;color:var(--text4);background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 4px;margin-left:6px;cursor:pointer;user-select:none;opacity:0.7;transition:opacity var(--dur-fast),color var(--dur-fast),border-color var(--dur-fast);}
+  #palette-hint:hover{opacity:1;color:var(--accent2);border-color:var(--accent2);}
+  #palette-hint .pal-hint-key{font-family:var(--font-mono,"SF Mono",Menlo,monospace);font-weight:700;}
+
+  /* ── Spotlight backdrop (4 dim strips that surround the target) ────
+     A target-mask alternative to clip-path that's reliable across
+     browsers — four position:fixed strips at top/bottom/left/right of
+     the spotlit element. Each fades in then out via .active class. */
+  #fleek-spotlight-bd{position:fixed;inset:0;pointer-events:none;z-index:9000;}
+  #fleek-spotlight-bd .sp-strip{position:fixed;background:rgba(0,0,0,0);transition:background 0.25s ease-out;pointer-events:none;}
+  .light #fleek-spotlight-bd .sp-strip{background:rgba(0,0,0,0);}
+  #fleek-spotlight-bd.active .sp-strip{background:rgba(0,0,0,0.55);}
+  .light #fleek-spotlight-bd.active .sp-strip{background:rgba(0,0,0,0.32);}
+  /* Spotlit target: bright outline + glow, brief pulse animation.
+     Position:relative ensures z-index applies; z-index sits above the
+     backdrop so the target is fully readable. */
+  .fleek-spotlight-target{position:relative;z-index:9001;border-radius:5px;animation:fleek-spotlight-pulse 1.6s ease-out forwards;}
+  @keyframes fleek-spotlight-pulse{
+    0%{box-shadow:0 0 0 0 rgba(99,102,241,0),0 0 0 0 rgba(99,102,241,0);}
+    15%{box-shadow:0 0 0 4px var(--accent2),0 0 28px var(--accent2);}
+    60%{box-shadow:0 0 0 3px var(--accent2),0 0 18px var(--accent2);}
+    100%{box-shadow:0 0 0 0 rgba(99,102,241,0),0 0 0 0 rgba(99,102,241,0);}
+  }
+
   #fb-overlay{display:none;position:fixed;inset:0;z-index:250;background:rgba(0,0,0,0.55);align-items:center;justify-content:center;}
   .light #fb-overlay{background:rgba(0,0,0,0.3);}
   #fb-overlay.open{display:flex;}
@@ -966,6 +1019,7 @@
     <div style="display:flex;align-items:baseline;gap:8px;">
       <span style="font-weight:800;font-size:13px;cursor:pointer;" onclick="toggleHelp()" title="About & Help"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
       <span id="fleek-version" style="font-size:10px;color:var(--text4);opacity:0.7;font-variant-numeric:tabular-nums;cursor:pointer;" onclick="toggleHelp()" title="Version — click for About & Help"></span>
+      <span id="palette-hint" onclick="_paletteOpen()" title="Search anywhere in FLEEK — / or Cmd/Ctrl+K"><span class="pal-hint-key">/</span><span>search</span></span>
     </div>
     <div style="display:flex;gap:2px;align-items:center;">
       <button onclick="toggleSidebar()" title="Hide sidebar (\)" style="background:none;border:none;color:var(--accent2);cursor:pointer;font-size:20px;font-family:inherit;padding:2px 6px;line-height:1;opacity:0.4;margin-left:2px;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.4'">&laquo;</button>
@@ -1284,12 +1338,12 @@
            the gene-search input below — so the user can immediately type a
            gene name without an extra click on the search box. -->
       <div id="coloc-panel" style="display:none;margin-bottom:8px;">
-        <div class="coloc-row" data-channel="R" onclick="_colocSetActiveChannel('R');_colocFocusSearch();">
+        <div id="coloc-row-R" class="coloc-row" data-channel="R" onclick="_colocSetActiveChannel('R');_colocFocusSearch();">
           <span class="coloc-dot" id="coloc-dot-R"></span>
           <span class="coloc-name" id="coloc-name-R">pick a gene…</span>
           <button class="coloc-clear" onclick="event.stopPropagation();_colocClearChannel('R')" title="Clear this channel">&times;</button>
         </div>
-        <div class="coloc-row" data-channel="G" onclick="_colocSetActiveChannel('G');_colocFocusSearch();">
+        <div id="coloc-row-G" class="coloc-row" data-channel="G" onclick="_colocSetActiveChannel('G');_colocFocusSearch();">
           <span class="coloc-dot" id="coloc-dot-G"></span>
           <span class="coloc-name" id="coloc-name-G">pick a gene…</span>
           <button class="coloc-clear" onclick="event.stopPropagation();_colocClearChannel('G')" title="Clear this channel">&times;</button>
@@ -2548,6 +2602,7 @@
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">Z</span></td><td>Undo</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">Shift</span>+<span class="help-key">Z</span></td><td>Redo</td></tr>
           <tr><td><span class="help-key">⌘</span>+<span class="help-key">[</span> / <span class="help-key">]</span></td><td>Undo / Redo (alternate)</td></tr>
+          <tr><td><span class="help-key">/</span> or <span class="help-key">⌘</span>+<span class="help-key">K</span></td><td><strong>Search palette</strong> — keyboard-driven jump to any panel, mode, toggle, or action. Type a few characters of what you want, ↑/↓ to navigate, <span class="help-key">Enter</span> to land. Recently-used items appear first when the input is empty. The selected target is briefly spotlit in the UI so you can see exactly where you landed.</td></tr>
           <tr><td><span class="help-key">Enter</span></td><td>Confirm the active dialog: <em>Save</em> a session prompt, <em>Delete</em> a confirm dialog, <em>Export</em> the points (Export modal), <em>Save</em> the API key (Settings), <em>Load</em> a chosen file. The primary action button is the green / accent one in the dialog.</td></tr>
           <tr><td><span class="help-key">Esc</span></td><td>Close any open dialog (Help, Plot popup, Export, Confirm, Prompt, Gene info, Feedback) — falls back to clearing the visible cell selection when no dialog is open.</td></tr>
           <tr><td>Drag file onto Data panel</td><td>Upload .h5ad dataset</td></tr>
@@ -2642,6 +2697,18 @@
 </div>
 </div>
 </div>
+<!-- Search palette: keyboard-driven jump-anywhere index. -->
+<div id="palette-overlay" onclick="if(event.target===this)_paletteClose()">
+  <div id="palette-modal">
+    <div id="palette-input-wrap">
+      <span class="pal-icon">⌕</span>
+      <input id="palette-input" type="text" placeholder="Jump to a panel, mode, toggle, or action…" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="palette-results"></div>
+  </div>
+</div>
+<!-- Spotlight backdrop: 4 dim strips that surround the target. -->
+<div id="fleek-spotlight-bd"><div class="sp-strip sp-top"></div><div class="sp-strip sp-bot"></div><div class="sp-strip sp-left"></div><div class="sp-strip sp-right"></div></div>
 <div id="prompt-overlay" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.45);justify-content:center;align-items:center;" onclick="if(event.target===this)_promptResolve(null)">
   <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:20px 24px;max-width:340px;width:90vw;box-shadow:0 16px 48px rgba(0,0,0,0.4);">
     <div id="prompt-msg" style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px;"></div>
@@ -2819,7 +2886,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.23";
+var FLEEK_VERSION="v0.4.24";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -6628,6 +6695,24 @@ function setupCtrl(){
 
   /* ── Keyboard shortcuts: Cmd+[ undo, Cmd+] redo, 1-9 switch group, Esc clear ── */
   document.addEventListener("keydown",function(e){
+    /* Search palette: Cmd/Ctrl+K opens from anywhere (even inside
+       inputs — it's a navigation shortcut, not a typeable char). */
+    if((e.metaKey||e.ctrlKey)&&!e.altKey&&!e.shiftKey&&(e.key==="k"||e.key==="K")){
+      e.preventDefault();
+      if(typeof _paletteOpen==="function")_paletteOpen();
+      return;
+    }
+    /* "/" opens palette only when not typing into an input/textarea —
+       avoid eating the slash char in search boxes. */
+    if(e.key==="/"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+      var ae=document.activeElement;
+      var inField=ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"||ae.isContentEditable);
+      if(!inField){
+        e.preventDefault();
+        if(typeof _paletteOpen==="function")_paletteOpen();
+        return;
+      }
+    }
     if((e.metaKey||e.ctrlKey)&&e.key==="["){e.preventDefault();histUndo();_flashAction("Undo",_MOD+"[");}
     if((e.metaKey||e.ctrlKey)&&e.key==="]"){e.preventDefault();histRedo();_flashAction("Redo",_MOD+"]");}
     if((e.metaKey||e.ctrlKey)&&e.key==="z"&&!e.shiftKey){e.preventDefault();histUndo();_flashAction("Undo",_MOD+"Z");}
@@ -6636,6 +6721,8 @@ function setupCtrl(){
     if(e.key==="Escape"){
       if(document.activeElement)document.activeElement.blur();
       /* Dismiss dialogs first */
+      var pal=document.getElementById("palette-overlay");
+      if(pal&&pal.classList.contains("open")){_paletteClose();return;}
       var pr=document.getElementById("prompt-overlay");
       if(pr&&pr.style.display==="flex"){_promptResolve(null);return;}
       var conf=document.getElementById("confirm-overlay");
@@ -17866,6 +17953,379 @@ function _flashAction(text,key,durationMs){
     el.classList.remove("show");
   },durationMs||700);
 }
+
+/* ── Search palette ────────────────────────────────────────────────
+   Keyboard-driven jump-anywhere index. Triggered by "/" or Cmd/Ctrl+K
+   outside text inputs. The _searchRegistry below is the single source
+   of truth — see CLAUDE.md "Search palette" section for the contract:
+   every named, user-visible feature MUST register here.
+
+   Registry entry shape:
+   {
+     id:        "unique-stable-id",       used by recent-actions storage
+     label:     "Render Raincloud",       primary text in the palette
+     secondary: "Plots",                  panel/group context (faint)
+     keywords:  "distribution density",   extra matchable terms
+     shortcut:  "G",                      optional key binding hint
+     available: function(){return ...},   optional — false to gray out
+     panel:     "plot-sec",               optional — section to expand
+     target:    "plot-render-btn",        optional — element to spotlight
+     action:    function(){...}           what Enter runs
+   } */
+var _searchRegistry=[]; /* populated below; see _buildSearchRegistry */
+var _paletteFiltered=[];
+var _paletteCursor=0;
+var _paletteRecent=[];
+try{var _pr=sessionStorage.getItem("fleek_palette_recent");if(_pr)_paletteRecent=JSON.parse(_pr).slice(0,10);}catch(_){}
+
+/* Fuzzy matcher: walk query chars left-to-right through target,
+   awarding bonuses for word-start hits and consecutive matches.
+   Returns {score, indices} where indices marks which target chars
+   matched (used to bold them in the rendered row), or null on no
+   match. Higher score = better. */
+function _paletteFuzzy(query,target){
+  if(!query)return {score:0,indices:[]};
+  var q=query.toLowerCase(), t=target.toLowerCase();
+  var qi=0, indices=[];
+  var score=0, lastMatch=-2, prevAtBoundary=true;
+  for(var ti=0;ti<t.length&&qi<q.length;ti++){
+    var atBoundary=(ti===0||/[\s\-_·]/.test(t[ti-1]));
+    if(t[ti]===q[qi]){
+      var add=10;
+      if(ti===lastMatch+1)add+=8;
+      if(atBoundary)add+=6;
+      if(ti===qi)add+=4; /* prefix bonus */
+      score+=add;
+      indices.push(ti);
+      lastMatch=ti;
+      qi++;
+    }
+    prevAtBoundary=atBoundary;
+  }
+  if(qi<q.length)return null;
+  /* Shorter targets score higher when otherwise equal */
+  score-=t.length*0.08;
+  return {score:score,indices:indices};
+}
+
+/* Highlight matched chars by wrapping them in <span class="pal-match">. */
+function _paletteHighlight(label,indices){
+  if(!indices||!indices.length)return _paletteEsc(label);
+  var out="", set={};
+  for(var i=0;i<indices.length;i++)set[indices[i]]=true;
+  var inMatch=false;
+  for(var c=0;c<label.length;c++){
+    var hit=!!set[c];
+    if(hit&&!inMatch){out+='<span class="pal-match">';inMatch=true;}
+    if(!hit&&inMatch){out+='<\/span>';inMatch=false;}
+    out+=_paletteEsc(label[c]);
+  }
+  if(inMatch)out+='<\/span>';
+  return out;
+}
+function _paletteEsc(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+
+/* Score the registry against the current query. Empty query falls
+   back to recents (in their stored order) followed by the registry's
+   declaration order. */
+function _paletteScore(query){
+  var entries=_searchRegistry;
+  if(!query.trim()){
+    /* Recent-first order: every recent id (in order), then everything else. */
+    var recentSet={};
+    var ordered=[];
+    for(var ri=0;ri<_paletteRecent.length;ri++){
+      var id=_paletteRecent[ri];
+      for(var ei=0;ei<entries.length;ei++){
+        if(entries[ei].id===id){ordered.push({entry:entries[ei],indices:[],fromRecent:true});recentSet[id]=true;break;}
+      }
+    }
+    for(var ej=0;ej<entries.length;ej++){
+      if(!recentSet[entries[ej].id])ordered.push({entry:entries[ej],indices:[],fromRecent:false});
+    }
+    return ordered.slice(0,40);
+  }
+  /* Query: score against label + " " + secondary + " " + keywords. */
+  var q=query.trim();
+  var hits=[];
+  for(var i=0;i<entries.length;i++){
+    var e=entries[i];
+    var hay=e.label+" "+(e.secondary||"")+" "+(e.keywords||"");
+    var labelMatch=_paletteFuzzy(q,e.label);
+    var hayMatch=_paletteFuzzy(q,hay);
+    if(!labelMatch&&!hayMatch)continue;
+    var score=Math.max(labelMatch?labelMatch.score:-Infinity,hayMatch?hayMatch.score-3:-Infinity);
+    /* Available items rank above unavailable ones */
+    if(typeof e.available==="function"){
+      try{if(!e.available())score-=200;}catch(_){}
+    }
+    hits.push({entry:e,indices:labelMatch?labelMatch.indices:[],score:score});
+  }
+  hits.sort(function(a,b){return b.score-a.score;});
+  return hits.slice(0,30);
+}
+
+function _paletteOpen(){
+  var ov=document.getElementById("palette-overlay");
+  if(!ov)return;
+  ov.classList.add("open");
+  var inp=document.getElementById("palette-input");
+  if(inp){inp.value="";inp.focus();}
+  _paletteCursor=0;
+  _paletteRender();
+  /* Mark hint as seen so it can fade out — keeps the chip visible
+     until the user actually opens the palette once. */
+  try{sessionStorage.setItem("fleek_palette_seen","1");}catch(_){}
+  var hint=document.getElementById("palette-hint");
+  if(hint)hint.style.opacity="0.4";
+}
+function _paletteClose(){
+  var ov=document.getElementById("palette-overlay");
+  if(!ov)return;
+  ov.classList.remove("open");
+}
+function _paletteRender(){
+  var inp=document.getElementById("palette-input");
+  var host=document.getElementById("palette-results");
+  if(!host)return;
+  var q=(inp?inp.value:"")||"";
+  _paletteFiltered=_paletteScore(q);
+  if(_paletteCursor>=_paletteFiltered.length)_paletteCursor=Math.max(0,_paletteFiltered.length-1);
+  if(_paletteFiltered.length===0){
+    host.innerHTML='<div class="pal-empty">No matches.<\/div>';
+    return;
+  }
+  var html="";
+  var showSection=!q.trim()&&_paletteRecent.length>0;
+  var inRecent=showSection;
+  if(showSection)html+='<div class="pal-section">Recent<\/div>';
+  for(var i=0;i<_paletteFiltered.length;i++){
+    var f=_paletteFiltered[i], e=f.entry;
+    if(showSection&&inRecent&&!f.fromRecent){
+      html+='<div class="pal-section">All<\/div>';
+      inRecent=false;
+    }
+    var disabled=false;
+    if(typeof e.available==="function"){try{disabled=!e.available();}catch(_){disabled=false;}}
+    var cls="pal-row"+(i===_paletteCursor?" active":"")+(disabled?" disabled":"");
+    var lbl=q.trim()?_paletteHighlight(e.label,f.indices):_paletteEsc(e.label);
+    var sec=e.secondary?'<span class="pal-secondary">'+_paletteEsc(e.secondary)+'<\/span>':'';
+    var sc=e.shortcut?'<span class="pal-shortcut">'+_paletteEsc(e.shortcut)+'<\/span>':'';
+    html+='<div class="'+cls+'" data-i="'+i+'" onclick="_paletteExecuteIndex('+i+')"><span class="pal-label">'+lbl+'<\/span>'+sec+sc+'<\/div>';
+  }
+  host.innerHTML=html;
+  /* Scroll the active row into view if keyboard nav moved it. */
+  var act=host.querySelector(".pal-row.active");
+  if(act&&act.scrollIntoView)act.scrollIntoView({block:"nearest"});
+}
+
+function _paletteExecuteIndex(idx){
+  var f=_paletteFiltered[idx];
+  if(!f)return;
+  var e=f.entry;
+  if(typeof e.available==="function"){try{if(!e.available())return;}catch(_){}}
+  /* Push to recents — most-recent first, dedup, cap at 10. */
+  _paletteRecent=[e.id].concat(_paletteRecent.filter(function(id){return id!==e.id;})).slice(0,10);
+  try{sessionStorage.setItem("fleek_palette_recent",JSON.stringify(_paletteRecent));}catch(_){}
+  _paletteClose();
+  /* Run action then spotlight. requestAnimationFrame gives the action
+     time to flip mode / expand panels before we measure the target's
+     rect. */
+  if(e.panel){var ps=document.getElementById(e.panel);if(ps&&ps.classList.contains("collapsed"))ps.classList.remove("collapsed");}
+  if(typeof e.action==="function"){
+    try{e.action();}catch(err){console.error("Palette action failed:",err);}
+  }
+  if(e.target){
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        var el=document.getElementById(e.target);
+        if(el){
+          if(typeof el.scrollIntoView==="function")el.scrollIntoView({block:"center",behavior:"smooth"});
+          _paletteSpotlight(el);
+        }
+      });
+    });
+  }else if(e.panel){
+    requestAnimationFrame(function(){
+      var el=document.getElementById(e.panel);
+      if(el){
+        if(typeof el.scrollIntoView==="function")el.scrollIntoView({block:"center",behavior:"smooth"});
+        _paletteSpotlight(el);
+      }
+    });
+  }
+}
+
+/* Spotlight: 4 dim strips around the target, plus a glow + outline
+   pulse on the target itself (CSS animation). Auto-clears after the
+   pulse finishes so the UI returns to normal. */
+var _spotlightTimer=null;
+function _paletteSpotlight(el){
+  if(!el)return;
+  var bd=document.getElementById("fleek-spotlight-bd");
+  if(!bd)return;
+  /* getBoundingClientRect AFTER scrollIntoView — even though smooth
+     scroll is async, requestAnimationFrame chains in
+     _paletteExecuteIndex give it time. Worst case the strips highlight
+     the pre-scroll position; the glow on the target follows it. */
+  function place(){
+    var r=el.getBoundingClientRect();
+    var pad=8;
+    var x=Math.max(0,r.left-pad), y=Math.max(0,r.top-pad);
+    var w=r.width+pad*2, h=r.height+pad*2;
+    var W=window.innerWidth, H=window.innerHeight;
+    var top=bd.querySelector(".sp-top");
+    var bot=bd.querySelector(".sp-bot");
+    var lft=bd.querySelector(".sp-left");
+    var rgt=bd.querySelector(".sp-right");
+    if(top)top.style.cssText="position:fixed;top:0;left:0;right:0;height:"+y+"px;";
+    if(bot)bot.style.cssText="position:fixed;left:0;right:0;top:"+(y+h)+"px;height:"+Math.max(0,H-(y+h))+"px;";
+    if(lft)lft.style.cssText="position:fixed;top:"+y+"px;left:0;width:"+x+"px;height:"+h+"px;";
+    if(rgt)rgt.style.cssText="position:fixed;top:"+y+"px;left:"+(x+w)+"px;right:0;height:"+h+"px;";
+  }
+  place();
+  bd.classList.add("active");
+  el.classList.add("fleek-spotlight-target");
+  /* Re-place once after smooth scroll typically completes (~300ms). */
+  setTimeout(place,320);
+  clearTimeout(_spotlightTimer);
+  _spotlightTimer=setTimeout(function(){
+    bd.classList.remove("active");
+    el.classList.remove("fleek-spotlight-target");
+  },1700);
+}
+
+function _paletteHandleKey(e){
+  if(e.key==="Escape"){e.preventDefault();_paletteClose();return;}
+  if(e.key==="ArrowDown"){
+    e.preventDefault();
+    if(_paletteCursor<_paletteFiltered.length-1)_paletteCursor++;
+    _paletteRender();
+    return;
+  }
+  if(e.key==="ArrowUp"){
+    e.preventDefault();
+    if(_paletteCursor>0)_paletteCursor--;
+    _paletteRender();
+    return;
+  }
+  if(e.key==="Enter"){
+    e.preventDefault();
+    _paletteExecuteIndex(_paletteCursor);
+    return;
+  }
+}
+
+/* Build the registry. Defined as a function called once at startup
+   so individual entry actions can reference functions defined later
+   in the file. */
+function _buildSearchRegistry(){
+  function _click(id){return function(){var el=document.getElementById(id);if(el)el.click();};}
+  function _toggle(id){return function(){var el=document.getElementById(id);if(el){el.checked=!el.checked;el.dispatchEvent(new Event("change"));}};}
+  function _hasData(){return typeof D!=="undefined"&&D!==null;}
+  function _isColoc(){return _hasData()&&_geneMode==="coloc";}
+  /* Helper: cycle through whatever embeddings the embedding selector
+     currently shows (matches the "E" key handler at the global level). */
+  function _cycleEmbedding(){
+    var sel=document.getElementById("emb-select");
+    if(!sel||sel.options.length<=1)return;
+    var methods=[];for(var oi=0;oi<sel.options.length;oi++)methods.push(sel.options[oi].value);
+    var ci=methods.indexOf(typeof embMethod!=="undefined"?embMethod:methods[0]);
+    if(ci<0)ci=0;
+    var next=methods[(ci+1)%methods.length];
+    if(typeof setEmbMethod==="function")setEmbMethod(next);
+  }
+  /* Cycle split count 1→2→4→1, mirrors the "S" key handler. */
+  function _cycleSplit(){
+    if(!_views||_views.length<2)return;
+    var cur=(_splitActive&&_liveViews&&_liveViews.length)?_liveViews.length:1;
+    var nxt=cur===1?2:cur===2?4:1;
+    if(typeof _splitSetCount==="function"){_splitSetCount(nxt);if(typeof _viewUpdateUI==="function")_viewUpdateUI();}
+  }
+  function _setTheme(){
+    var sel=document.getElementById("set-theme");
+    if(!sel)return;
+    sel.value=sel.value==="dark"?"light":"dark";
+    if(typeof saveSettings==="function")saveSettings();
+  }
+  _searchRegistry=[
+    /* Panels */
+    {id:"panel-data",label:"Data panel",secondary:"Panel",keywords:"file load h5ad upload",panel:"data-sec",action:function(){var s=document.getElementById("data-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-view",label:"View panel",secondary:"Panel",keywords:"size opacity brightness rotate camera",panel:"view-sec",action:function(){var s=document.getElementById("view-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-celltypes",label:"Cell Types panel",secondary:"Panel",keywords:"clusters legend lineage annotation",panel:"ct-sec",action:function(){var s=document.getElementById("ct-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-gene",label:"Gene Expression panel",secondary:"Panel",keywords:"gene search variability marker",panel:"gene-sec",action:function(){var s=document.getElementById("gene-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-selgroups",label:"Selection Groups panel",secondary:"Panel",keywords:"select highlight subset",panel:"sel-sec",action:function(){var s=document.getElementById("sel-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-slice",label:"Slice panel",secondary:"Panel",keywords:"filter obs metadata subset",panel:"slice-sec",action:function(){var s=document.getElementById("slice-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-views",label:"View Splits panel",secondary:"Panel",keywords:"split compare camera",panel:"split-sec",action:function(){var s=document.getElementById("split-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-plots",label:"Plots panel",secondary:"Panel",keywords:"raincloud violin dotplot distribution",panel:"plots-sec",action:function(){var s=document.getElementById("plots-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-pathway",label:"Pathways panel",secondary:"Panel",keywords:"ora gsea enrichment go reactome hallmark",panel:"pathway-sec",action:function(){var s=document.getElementById("pathway-sec");if(s)s.classList.remove("collapsed");}},
+    {id:"panel-deg",label:"DEG panel",secondary:"Panel",keywords:"differential expression cohen volcano",target:"deg-panel",action:function(){if(typeof showDEGPanel==="function")showDEGPanel();else{var d=document.getElementById("deg-panel");if(d)d.style.display="block";}}},
+    {id:"open-help",label:"Help & About",secondary:"Action",keywords:"docs documentation reference",action:function(){if(typeof toggleHelp==="function")toggleHelp();}},
+    {id:"open-settings",label:"Settings",secondary:"Action",keywords:"preferences api key theme",action:function(){if(typeof toggleSettings==="function")toggleSettings();else{var s=document.getElementById("settings-popup");if(s)s.style.display="block";}}},
+    /* Color modes */
+    {id:"mode-cluster",label:"Color by cell type",secondary:"Mode",keywords:"cluster category palette",shortcut:"C",available:_hasData,action:function(){if(typeof setMode==="function")setMode("cluster");}},
+    {id:"mode-gene",label:"Color by gene expression",secondary:"Mode",keywords:"single gene scalar",shortcut:"G",available:_hasData,action:function(){if(typeof _setGeneMode==="function")_setGeneMode("single");if(typeof setMode==="function")setMode("gene");},target:"gsearch"},
+    {id:"mode-coloc",label:"Color by colocalization",secondary:"Mode",keywords:"two genes overlap merge",shortcut:"L",available:_hasData,action:function(){if(typeof _setGeneMode==="function")_setGeneMode("coloc");if(typeof setMode==="function")setMode("gene");}},
+    /* View toggles */
+    {id:"view-2d3d",label:"Toggle 2D / 3D",secondary:"View",keywords:"dimension projection",shortcut:"D",available:_hasData,action:function(){if(typeof setView==="function")setView(viewIs3d?"2d":"3d");}},
+    {id:"view-embedding",label:"Cycle embedding (UMAP / PCA / PaCMAP)",secondary:"View",keywords:"projection coordinates",shortcut:"E",available:_hasData,action:_cycleEmbedding},
+    {id:"view-theme",label:"Toggle dark / light theme",secondary:"View",shortcut:"T",action:_setTheme},
+    {id:"view-sidebar",label:"Toggle sidebar",secondary:"View",shortcut:"\\",action:function(){if(typeof toggleSidebar==="function")toggleSidebar();}},
+    {id:"view-hud",label:"Toggle info HUD",secondary:"View",keywords:"overlay counts",shortcut:"I",action:function(){if(typeof _hudToggleAll==="function")_hudToggleAll();}},
+    {id:"view-rotate",label:"Toggle auto-rotate",secondary:"View",keywords:"spin",action:_click("b-auto")},
+    {id:"view-reset",label:"Reset camera",secondary:"View",keywords:"recenter zoom",shortcut:"R",available:_hasData,action:function(){if(typeof resetView==="function")resetView();}},
+    {id:"view-reset-all",label:"Reset everything (camera + visibility)",secondary:"View",keywords:"unhide all",shortcut:"⌥+R",available:_hasData,action:function(){if(typeof resetView==="function")resetView({altKey:true});}},
+    {id:"view-show-all",label:"Show all cells",secondary:"View",keywords:"unhide visibility restore",shortcut:"H",available:_hasData,action:function(){if(typeof showAllClusters==="function")showAllClusters();}},
+    /* Gene-mode toggles + controls */
+    {id:"gene-show-nonexpr",label:"Toggle non-expressing cells",secondary:"Gene mode",keywords:"ghost zero",available:function(){return _hasData()&&mode==="gene";},target:"show-non-expr",panel:"gene-sec",action:_toggle("show-non-expr")},
+    {id:"gene-expr-size",label:"Toggle expression → size",secondary:"Gene mode",keywords:"scale point",available:function(){return _hasData()&&mode==="gene";},target:"show-expr-size",panel:"gene-sec",action:_toggle("show-expr-size")},
+    {id:"gene-expr-glow",label:"Toggle expression glow",secondary:"Gene mode",keywords:"halo bloom",available:function(){return _hasData()&&mode==="gene";},target:"show-expr-glow",panel:"gene-sec",action:_toggle("show-expr-glow")},
+    {id:"gene-expr-pulse",label:"Toggle expression pulse",secondary:"Gene mode",keywords:"breathe animate",available:function(){return _hasData()&&mode==="gene";},target:"show-expr-pulse",panel:"gene-sec",action:_toggle("show-expr-pulse")},
+    {id:"gene-gradient",label:"Open gradient picker",secondary:"Gene mode",keywords:"color palette viridis blues",available:function(){return _hasData()&&mode==="gene"&&_geneMode==="single";},target:"expr-legend",panel:"gene-sec",action:function(){if(typeof _toggleGradientDropdown==="function"){var t=document.getElementById("expr-legend");if(t)_toggleGradientDropdown({stopPropagation:function(){},target:t});}}},
+    {id:"coloc-r",label:"Coloc R / magenta channel",secondary:"Colocalization",keywords:"channel red",available:_isColoc,target:"coloc-row-R",panel:"gene-sec",action:function(){if(typeof _colocSetActiveChannel==="function"){_colocSetActiveChannel("R");if(typeof _colocFocusSearch==="function")_colocFocusSearch();}}},
+    {id:"coloc-g",label:"Coloc G / green channel",secondary:"Colocalization",keywords:"channel",available:_isColoc,target:"coloc-row-G",panel:"gene-sec",action:function(){if(typeof _colocSetActiveChannel==="function"){_colocSetActiveChannel("G");if(typeof _colocFocusSearch==="function")_colocFocusSearch();}}},
+    {id:"coloc-scheme",label:"Coloc color scheme",secondary:"Colocalization",keywords:"magenta green red",available:_isColoc,target:"coloc-legend-wrap",panel:"gene-sec",action:function(){if(typeof _toggleColocSchemeDropdown==="function"){var t=document.getElementById("coloc-legend-wrap");if(t)_toggleColocSchemeDropdown({stopPropagation:function(){},target:t});}}},
+    /* Plots */
+    {id:"plot-render",label:"Render plot",secondary:"Plots",keywords:"draw build go",available:_hasData,target:"plot-render-btn",panel:"plots-sec",action:_click("plot-render-btn")},
+    {id:"plot-raincloud",label:"Switch to raincloud plot",secondary:"Plots",keywords:"density distribution dots",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="raincloud";s.dispatchEvent(new Event("change"));}}},
+    {id:"plot-violin",label:"Switch to violin plot",secondary:"Plots",keywords:"density seaborn",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="violin";s.dispatchEvent(new Event("change"));}}},
+    {id:"plot-dotplot",label:"Switch to dot plot",secondary:"Plots",keywords:"marker panel cellxgene",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="dotplot";s.dispatchEvent(new Event("change"));}}},
+    /* DEG */
+    {id:"deg-run",label:"Run DEG analysis",secondary:"DEG",keywords:"differential expression compare groups",available:_hasData,target:"deg-run-btn",action:function(){if(typeof showDEGPanel==="function")showDEGPanel();var b=document.getElementById("deg-run-btn");if(b)setTimeout(function(){b.click();},80);}},
+    {id:"deg-singlecell",label:"DEG mode: single-cell",secondary:"DEG",keywords:"wilcoxon t-test cohen",available:_hasData,target:"deg-mode-sc",action:function(){if(typeof showDEGPanel==="function")showDEGPanel();var b=document.getElementById("deg-mode-sc");if(b)setTimeout(function(){b.click();},80);}},
+    {id:"deg-pseudobulk",label:"DEG mode: pseudo-bulk",secondary:"DEG",keywords:"deseq2 replicate",available:_hasData,target:"deg-mode-pb",action:function(){if(typeof showDEGPanel==="function")showDEGPanel();var b=document.getElementById("deg-mode-pb");if(b)setTimeout(function(){b.click();},80);}},
+    /* Pathways */
+    {id:"pathway-run",label:"Run pathway analysis (ORA)",secondary:"Pathways",keywords:"enrichment hypergeometric",available:_hasData,target:"path-run-btn",panel:"pathway-sec",action:_click("path-run-btn")},
+    {id:"pathway-source-deg",label:"Pathway source: current DEG result",secondary:"Pathways",available:_hasData,target:"path-source",panel:"pathway-sec",action:function(){var s=document.getElementById("path-source");if(s){s.value="deg";s.dispatchEvent(new Event("change"));}}},
+    {id:"pathway-source-cluster",label:"Pathway source: cluster vs rest",secondary:"Pathways",available:_hasData,target:"path-source",panel:"pathway-sec",action:function(){var s=document.getElementById("path-source");if(s){s.value="cluster";s.dispatchEvent(new Event("change"));}}},
+    {id:"pathway-source-custom",label:"Pathway source: paste gene list",secondary:"Pathways",available:_hasData,target:"path-source",panel:"pathway-sec",action:function(){var s=document.getElementById("path-source");if(s){s.value="custom";s.dispatchEvent(new Event("change"));}}},
+    /* Splits */
+    {id:"split-toggle",label:"Cycle split-screen (1→2→4)",secondary:"View Splits",shortcut:"S",available:_hasData,action:_cycleSplit},
+    {id:"split-add",label:"New split",secondary:"View Splits",keywords:"add view",available:_hasData,action:function(){if(typeof _viewAdd==="function")_viewAdd(false);}},
+    /* Selection groups */
+    {id:"selgrp-add",label:"New selection group",secondary:"Selection Groups",available:_hasData,target:"sel-sec",panel:"sel-sec",action:function(){if(typeof addSelGroup==="function")addSelGroup();}},
+    {id:"selgrp-clear-vis",label:"Clear visible cells from active group",secondary:"Selection Groups",keywords:"deselect",shortcut:"Esc",available:_hasData,action:function(){if(typeof clearActiveGroup==="function")clearActiveGroup(false);}},
+    {id:"selgrp-clear-all",label:"Clear ALL cells from all groups",secondary:"Selection Groups",keywords:"deselect everything",shortcut:"⌥+Esc",available:_hasData,action:function(){if(typeof clearActiveGroup==="function")clearActiveGroup(true);}},
+    /* Sessions / data */
+    {id:"session-save",label:"Save session as…",secondary:"Sessions",keywords:"snapshot bookmark named",available:_hasData,action:function(){if(typeof saveSessionAs==="function")saveSessionAs();}},
+    {id:"slice-save",label:"Download current slice as h5ad",secondary:"Slice",keywords:"export subset",available:function(){return _hasData()&&typeof sliceFilter!=="undefined"&&Object.keys(sliceFilter||{}).length>0;},target:"slice-save-btn",panel:"slice-sec",action:_click("slice-save-btn")},
+    /* Settings sub-controls */
+    {id:"set-api-key",label:"Settings: Claude API key",secondary:"Settings",keywords:"anthropic claude",target:"set-api-key",action:function(){if(typeof toggleSettings==="function")toggleSettings();var i=document.getElementById("set-api-key");if(i)setTimeout(function(){i.focus();},50);}},
+    {id:"set-auto-quit",label:"Settings: Auto-quit on disconnect",secondary:"Settings",keywords:"unload server kill",target:"set-auto-unload",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-flash",label:"Settings: Shortcut flash",secondary:"Settings",keywords:"overlay action key",target:"set-flash",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    /* Feedback */
+    {id:"feedback-open",label:"Send feedback",secondary:"Action",keywords:"bug report issue github email",action:function(){if(typeof _feedbackOpen==="function")_feedbackOpen();}}
+  ];
+}
+document.addEventListener("DOMContentLoaded",function(){
+  _buildSearchRegistry();
+  /* Wire palette input handlers. */
+  var inp=document.getElementById("palette-input");
+  if(inp){
+    inp.addEventListener("input",function(){_paletteCursor=0;_paletteRender();});
+    inp.addEventListener("keydown",_paletteHandleKey);
+  }
+});
 
 function toggleHintBar(){
   var on=document.getElementById("set-hint").checked;
