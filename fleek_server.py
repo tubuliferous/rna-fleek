@@ -38,7 +38,7 @@ import numpy as np
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
 # Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
-FLEEK_VERSION = "0.4.15"
+FLEEK_VERSION = "0.4.16"
 
 # Globals set at startup
 ADATA = None

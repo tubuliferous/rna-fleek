@@ -160,7 +160,11 @@
   #sidebar-right.panel-drop-col-empty{display:flex!important;}
   #sidebar-right.panel-drop-col-empty #sidebar-right-upper{min-height:100%;display:flex;align-items:center;justify-content:center;color:var(--text4);font-size:12px;}
   #sidebar-right.panel-drop-col-empty #sidebar-right-upper::before{content:"Drop panel here";padding:20px;border:2px dashed var(--border2);border-radius:6px;margin:12px;width:calc(100% - 24px);text-align:center;box-sizing:border-box;}
-  #glist,#hvg-scroll,#leg-scroll{overscroll-behavior:contain;}
+  /* Scroll-chain containment — when an inner panel reaches the end of
+     its content, additional wheel/trackpad scroll should NOT bleed into
+     the sidebar's parent scroll. The browser default chains scroll up;
+     overscroll-behavior:contain stops that chain at this boundary. */
+  #glist,#hvg-scroll,#leg-scroll,#path-results,#go-results,#lineage-tree,#plot-gene-results,#fb-body,#help-body,.sb-trap,.fleek-dropdown,.gv-dd-list{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;margin-top:4px;}
   .sec{padding:10px 14px;border-bottom:1px solid var(--border);}
   .col-hdr{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;}
@@ -178,8 +182,29 @@
   .btn{display:block;width:100%;padding:5px 8px;border-radius:4px;border:none;text-align:left;cursor:pointer;font-size:12px;margin-bottom:2px;background:transparent;color:var(--text2);font-family:inherit;transition:all 0.1s;}
   .btn:hover{background:var(--bg-hover);color:var(--accent2);}
   .btn.on{background:var(--bg-active);color:var(--accent2);}
+  /* Rotate / Reset buttons — borderless flat treatment that picks up the
+     same text2 / accent2 hover colour scheme as the rest of the sidebar
+     buttons. The Rotate "on" state (accent-tinted background) doubles
+     as the toggle indicator without needing a chrome border. */
+  .rrbtn{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:none;border-radius:4px;background:transparent;color:var(--text2);cursor:pointer;font-size:12px;font-family:inherit;transition:all 0.1s;}
+  .rrbtn:hover{background:var(--bg-hover);color:var(--accent2);}
+  .rrbtn.on{background:rgba(99,102,241,0.12);color:var(--accent2);}
+  .light .rrbtn.on{background:rgba(67,56,202,0.12);}
   .gbtn{display:inline-block;padding:3px 7px;border-radius:3px;border:none;cursor:pointer;font-size:11px;margin:1px;background:var(--bg3);color:var(--text4);font-family:inherit;transition:all 0.1s;border:1px solid var(--border);}
   .gbtn:hover{background:var(--bg-hover);color:#22c55e;border-color:var(--border2);}
+  /* Shared dropdown row primitive — used by the gene-search results in
+     the Gene panel and the GO-term search results. The keyboard cursor
+     and the mouse hover both highlight via .active so a row's "ready
+     to enter" state is visually consistent regardless of input
+     modality. .on flags the currently-loaded gene (or selected item),
+     in accent2 so the user can locate it at a glance. */
+  .search-dd-row{display:flex;align-items:center;gap:4px;padding:3px 6px;font-size:10px;cursor:pointer;border-radius:2px;color:var(--text2);transition:background 0.08s;}
+  .search-dd-row:hover,.search-dd-row.active{background:var(--bg-hover);}
+  .search-dd-row.on{color:var(--accent2);font-weight:600;}
+  .search-dd-row .sd-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .search-dd-row .sd-meta{color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;font-size:9px;}
+  .search-dd-row .sd-ns{font-weight:700;font-size:9px;flex-shrink:0;width:16px;}
+  .search-dd-row.dim{opacity:0.4;}
   .gbtn.on{background:rgba(34,197,94,0.1);color:#22c55e;border-color:rgba(34,197,94,0.3);}
   #gsearch{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;}
   .li{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px;color:var(--text2);}
@@ -207,7 +232,7 @@
      quadrant index drives placement via cw class — see the .split-N rules
      further down. */
   .hud-quad{position:absolute;bottom:12px;left:12px;z-index:10;font-size:10px;color:var(--text3);max-width:220px;}
-  .hud-quad .hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
+  .hud-quad .hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;line-height:1.6;}
   .hud-quad.open .hud-body{display:block;}
   .hud-quad .hud-row{display:flex;justify-content:space-between;gap:8px;}
   .hud-quad .hud-label{color:var(--text4);}
@@ -319,7 +344,14 @@
   #plot-clusters .plot-chip:hover{border-color:var(--border2);color:var(--text2);}
   #plot-clusters .plot-chip.on{border-color:var(--accent);background:rgba(99,102,241,0.12);color:var(--accent2);}
   #plot-clusters .plot-chip .plot-chip-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
-  #plot-render-btn:hover{filter:brightness(0.92);}
+  /* "Render plot" and "Run analysis" share the same affirmative
+     accent-green pill style as the DEG button. Match its hover too —
+     more saturated background fill plus a small brightness pull-down,
+     so the hover feedback feels equally substantive. !important is
+     required because both buttons set their default background as an
+     inline style, and inline style would otherwise win against the
+     :hover rule (the same pattern #deg-run-btn uses). */
+  #plot-render-btn:hover,#path-run-btn:hover{background:rgba(16,185,129,0.28)!important;filter:brightness(0.92);}
   #plot-gene-results .pg-hit{padding:3px 8px;font-size:10px;color:var(--text2);cursor:pointer;}
   #plot-gene-results .pg-hit:hover{background:var(--bg-hover);color:var(--text);}
   #plot-gene-results .pg-hit.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
@@ -330,7 +362,13 @@
   #hud-toggle:hover,.hud-quad-toggle:hover{opacity:var(--op-active);border-color:var(--border2);}
   /* Backwards-compat: #hud-body matches the same display rules now governed
      by .hud-quad. */
-  #hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;backdrop-filter:blur(8px);line-height:1.6;}
+  /* No backdrop-filter on the HUD body — the bg2 background is already
+     opaque enough that the blur effect was barely visible, and on macOS
+     Safari backdrop-filter on a position:absolute overlay flickers when
+     the underlying canvas/sidebar repaints (mousing over sidebar items
+     or scrolling the sidebar redraws layers; the blur can't keep up
+     with the compositor and momentarily disappears or shifts). */
+  #hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;line-height:1.6;}
   #hud.open #hud-body{display:block;}
   #action-flash{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.95);z-index:50;pointer-events:none;opacity:0;transition:opacity 0.2s,transform 0.2s;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:7px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
   .light #action-flash{box-shadow:0 4px 16px rgba(0,0,0,0.08);}
@@ -1074,10 +1112,10 @@
           <button id="vb2" onclick="setView('2d')" title="2D view (D)" style="background:transparent;border:none;color:var(--text2);cursor:pointer;font-size:12px;font-family:inherit;padding:4px 12px;transition:all 0.1s;">2D</button>
           <button id="vb3" onclick="setView('3d')" title="3D view (D)" style="background:rgba(99,102,241,0.12);border:none;border-left:1px solid var(--border2);color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:4px 12px;transition:all 0.1s;">3D</button>
         </span>
-        <div style="display:inline-flex;gap:2px;margin-left:auto;margin-right:4px;">
-          <button class="btn" id="b-auto" onclick="toggleAuto()" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Toggle auto-rotation"><svg viewBox="0 0 1203 706" width="12" height="7" style="width:12px;height:7px;flex-shrink:0;fill:currentColor;"><path d="m 439.45,701.38 c -2.9,-1.7 -6.86,-5.75 -8.82,-9.02 -3.35,-5.59 -3.6,-8.39 -4.36,-48.71 l -0.8,-42.78 -32.88,-6.07 C 339.15,584.93 296.71,573.75 251.45,557.62 93.08,501.16 1.42,410.27 1.1,309.38 1.01,281.1 4.16,264.66 14.44,239.78 83.46,72.61 412.24,-31.01 745.4,9.4 c 180.62,21.9 330.05,84.62 403.99,169.56 33.54,38.52 50.28,76.86 52.53,120.24 5.92,114.45 -103.52,215.84 -294.45,272.79 -61.04,18.21 -144.19,32.96 -215.11,38.17 l -16.99,1.25 -1.04,-18.76 c -0.58,-10.32 -1.05,-49.88 -1.05,-87.91 l -0.01,-69.15 3.61,-0.04 c 8.5,-0.09 66.39,-7.71 87.01,-11.46 91.9,-16.7 170.49,-47.6 221,-86.89 20.93,-16.29 42.06,-41.09 49.42,-58.03 4.93,-11.35 5.39,-13.85 5.42,-29.59 0.03,-15.57 -0.46,-18.39 -5.15,-29.73 C 1008,155.56 901.7,98.55 761.16,73.21 665.73,56 539.63,55.99 441.5,73.18 384.1,83.24 326.75,100.64 283.58,121.11 210.36,155.82 165.21,201.55 162.16,244.09 c -2.64,36.75 25,74.88 79.66,109.92 39.43,25.27 102.27,49.75 160.39,62.47 10.14,2.22 19.71,4.48 21.25,5.03 2.61,0.92 2.81,-1.94 2.81,-41.61 0,-37.8 0.33,-43.35 2.97,-49.25 5.63,-12.61 17.51,-18.11 30.31,-14.03 4.79,1.53 166.87,169.6 171.57,177.91 4.33,7.66 4.88,20.47 1.25,28.83 -2.28,5.25 -156.88,167 -168.84,176.66 -6.67,5.38 -16.29,5.93 -24.07,1.37 z"/><\/svg><span>Rotate</span></button>
-          <button class="btn" onclick="resetView(event)" style="display:inline-flex;width:auto;align-items:center;gap:4px;padding:3px 8px;margin:0;" title="Reset camera to default (R) · Alt+R or Alt+click: reset + show all cells"><svg viewBox="0 0 16 16" style="width:12px;height:12px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/><\/svg><span>Reset</span></button>
-        </div>
+        <span style="display:inline-flex;gap:0;margin-left:auto;margin-right:4px;">
+          <button class="rrbtn" id="b-auto" onclick="toggleAuto()" title="Toggle auto-rotation"><svg viewBox="0 0 1203 706" width="12" height="7" style="width:12px;height:7px;flex-shrink:0;fill:currentColor;"><path d="m 439.45,701.38 c -2.9,-1.7 -6.86,-5.75 -8.82,-9.02 -3.35,-5.59 -3.6,-8.39 -4.36,-48.71 l -0.8,-42.78 -32.88,-6.07 C 339.15,584.93 296.71,573.75 251.45,557.62 93.08,501.16 1.42,410.27 1.1,309.38 1.01,281.1 4.16,264.66 14.44,239.78 83.46,72.61 412.24,-31.01 745.4,9.4 c 180.62,21.9 330.05,84.62 403.99,169.56 33.54,38.52 50.28,76.86 52.53,120.24 5.92,114.45 -103.52,215.84 -294.45,272.79 -61.04,18.21 -144.19,32.96 -215.11,38.17 l -16.99,1.25 -1.04,-18.76 c -0.58,-10.32 -1.05,-49.88 -1.05,-87.91 l -0.01,-69.15 3.61,-0.04 c 8.5,-0.09 66.39,-7.71 87.01,-11.46 91.9,-16.7 170.49,-47.6 221,-86.89 20.93,-16.29 42.06,-41.09 49.42,-58.03 4.93,-11.35 5.39,-13.85 5.42,-29.59 0.03,-15.57 -0.46,-18.39 -5.15,-29.73 C 1008,155.56 901.7,98.55 761.16,73.21 665.73,56 539.63,55.99 441.5,73.18 384.1,83.24 326.75,100.64 283.58,121.11 210.36,155.82 165.21,201.55 162.16,244.09 c -2.64,36.75 25,74.88 79.66,109.92 39.43,25.27 102.27,49.75 160.39,62.47 10.14,2.22 19.71,4.48 21.25,5.03 2.61,0.92 2.81,-1.94 2.81,-41.61 0,-37.8 0.33,-43.35 2.97,-49.25 5.63,-12.61 17.51,-18.11 30.31,-14.03 4.79,1.53 166.87,169.6 171.57,177.91 4.33,7.66 4.88,20.47 1.25,28.83 -2.28,5.25 -156.88,167 -168.84,176.66 -6.67,5.38 -16.29,5.93 -24.07,1.37 z"/><\/svg><span>Rotate</span></button>
+          <button class="rrbtn" onclick="resetView(event)" title="Reset camera to default (R) &middot; Alt+R or Alt+click: reset + show all cells"><svg viewBox="0 0 16 16" style="width:12px;height:12px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;"><path d="M2.5 8A5.5 5.5 0 1 0 5.4 3.5"/><polyline points="2 2 2 6 6 6"/><\/svg><span>Reset</span></button>
+        </span>
       </div>
       <div id="emb-row" style="display:none;margin-bottom:8px;">
         <div class="lbl">Embedding</div>
@@ -1225,9 +1263,9 @@
           <button id="go-btn-go" onclick="_goSetMode(true)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:10px;font-family:inherit;padding:3px 6px;transition:all 0.1s;" title="Filter genes by Gene Ontology term">GO</button>
         </span>
       </div>
-      <div id="go-results" style="display:none;margin-top:4px;max-height:160px;overflow-y:auto;overflow-x:hidden;"></div>
+      <div id="go-results" style="display:none;margin-top:4px;max-height:200px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--border);border-radius:3px;background:var(--bg3);padding:2px 0;"></div>
       <div id="go-active" style="display:none;margin-top:4px;font-size:10px;color:var(--text2);"></div>
-      <div id="glist" style="margin-top:6px;"></div>
+      <div id="glist" style="margin-top:4px;"></div>
       <div id="hvg-section" style="display:none;margin-top:8px;">
         <div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;flex-wrap:wrap;">
           <span style="font-size:10px;color:var(--text4);">Ranking of gene variability in:</span>
@@ -1306,7 +1344,20 @@
           <span>Scale width by % expressing</span>
           <label class="s-toggle"><input type="checkbox" id="plot-width-pct" checked onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
         </div>
-        <button id="plot-render-btn" onclick="_plotRender()" class="btn-primary-like" style="width:100%;padding:5px 10px;background:rgba(16,185,129,0.15);border:1px solid var(--success);border-radius:4px;color:var(--success);font-weight:600;font-size:11px;font-family:inherit;cursor:pointer;transition:filter 0.1s;">Render plot</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on, the density / violin curve includes zero-expression cells. Off (default) draws the curve from expressing cells only — usually preferred because the zero mass otherwise dominates and every cluster's density looks the same.">
+          <span>Include zeros in density</span>
+          <label class="s-toggle"><input type="checkbox" id="plot-density-incl-zero" onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="When on (default), the IQR bar + median tick are computed over ALL cells in the cluster, so a mostly-zero cluster shows a collapsed IQR at zero. Off: IQR + median use only expressing cells, so the bar reports the spread of the cells that actually express — independent of how many didn't.">
+          <span>Include zeros in IQR</span>
+          <label class="s-toggle"><input type="checkbox" id="plot-iqr-incl-zero" checked onchange="if(typeof saveState==='function')saveState();"><span class="s-slider"></span></label>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);margin-bottom:6px;" title="Gaussian KDE smoothing strength. 0 = raw histogram (jagged). 1.0 ≈ classic 5-tap Gaussian (the default — good general-purpose). Larger values smooth more aggressively at the cost of detail; smaller values preserve sharp peaks. Re-render after changing.">
+          <span style="flex:1;">KDE smoothing</span>
+          <input type="range" id="plot-kde-sigma" min="0" max="5" step="0.5" value="1" oninput="document.getElementById('plot-kde-sigma-val').textContent=parseFloat(this.value).toFixed(1);" onchange="if(typeof saveState==='function')saveState();this.blur();" style="flex:1.2;min-width:0;">
+          <span id="plot-kde-sigma-val" style="font-variant-numeric:tabular-nums;color:var(--text3);min-width:22px;text-align:right;">1.0</span>
+        </div>
+        <button id="plot-render-btn" onclick="_plotRender()" class="btn-primary-like" style="width:100%;padding:5px 10px;background:rgba(16,185,129,0.15);border:1px solid var(--success);border-radius:4px;color:var(--success);font-weight:600;font-size:11px;font-family:inherit;cursor:pointer;transition:filter 0.1s,background 0.1s;">Render plot</button>
         <div id="plot-status" style="font-size:10px;color:var(--text4);margin-top:4px;min-height:11px;"></div>
       </div>
     </div>
@@ -1372,7 +1423,7 @@
       <div id="path-input-summary" style="font-size:10px;color:var(--text4);margin-bottom:4px;line-height:1.3;"></div>
 
       <!-- Run -->
-      <button id="path-run-btn" onclick="_pathwayRun()" style="width:100%;padding:5px 10px;background:rgba(16,185,129,0.15);border:1px solid var(--success);border-radius:4px;color:var(--success);font-weight:600;font-size:11px;font-family:inherit;cursor:pointer;transition:filter 0.1s;">Run analysis</button>
+      <button id="path-run-btn" onclick="_pathwayRun()" style="width:100%;padding:5px 10px;background:rgba(16,185,129,0.15);border:1px solid var(--success);border-radius:4px;color:var(--success);font-weight:600;font-size:11px;font-family:inherit;cursor:pointer;transition:filter 0.1s,background 0.1s;">Run analysis</button>
       <div id="path-status" style="font-size:10px;color:var(--text4);margin-top:4px;min-height:11px;"></div>
 
       <!-- Results -->
@@ -1459,8 +1510,8 @@
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:10px;color:var(--text4);margin-left:4px;">FPS</span></div>
   <div id="hist-btns" style="position:absolute;top:8px;right:44px;display:flex;gap:1px;z-index:15;">
-    <button id="hist-back" onclick="histUndo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px 0 0 4px;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
-    <button id="hist-fwd" onclick="histRedo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:0 4px 4px 0;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;backdrop-filter:blur(6px);transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
+    <button id="hist-back" onclick="histUndo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px 0 0 4px;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
+    <button id="hist-fwd" onclick="histRedo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:0 4px 4px 0;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
   <!-- Four HUD overlays, one per possible quadrant. Index 0 is the
        single-view HUD (also bottom-left in split modes); indices 1-3
@@ -2026,7 +2077,8 @@
         <span class="help-sec-title">Gene Expression</span>
       </div>
       <div class="help-sec-body">
-        <p>The Gene panel is always visible in the sidebar. Switch to <strong>Gene Expression</strong> coloring with <span class="help-key">G</span> (single gene) or <span class="help-key">L</span> (coLocalization — two-gene merge). Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results come from the server's full gene list. Click a gene to load its expression on the UMAP. When the panel is collapsed, the currently selected gene name appears in the header.</p>
+        <p>The Gene panel is always visible in the sidebar. Switch to <strong>Gene Expression</strong> coloring with <span class="help-key">G</span> (single gene) or <span class="help-key">L</span> (coLocalization — two-gene merge). Press <span class="help-key">C</span> to switch back to cell type coloring. Type a gene name in the search box — results appear in a scrollable dropdown. Click a row to load that gene, or use <span class="help-key">↓</span> / <span class="help-key">↑</span> to walk the list and <span class="help-key">Enter</span> to pick the highlighted row (pressing <span class="help-key">Enter</span> with nothing highlighted picks the first match). When the panel is collapsed, the currently selected gene name appears in the header.</p>
+        <p><strong>GO term filtering</strong> — toggle the <span class="help-key">GO</span> button next to the search box to switch the input into Gene Ontology mode. The same dropdown style applies: type ≥2 characters to see matching GO terms grouped by namespace (BP / MF / CC). Hover any row for the full domain name (Biological Process, Molecular Function, or Cellular Component) plus the dataset gene-count for that term. Use <span class="help-key">↓</span> / <span class="help-key">↑</span> + <span class="help-key">Enter</span> to add a term, the same as for genes. Multiple terms can be combined as ANY (union) or ALL (intersection); the active filter is shown as removable chips below the search box.</p>
         <p><strong>Single Expression vs Colocalization.</strong> At the top of the Gene panel is a two-button toggle:</p>
         <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
           <li><strong>Single</strong> — the default. One gene, colored on the active gradient, with the full expression legend and gradient picker described below.</li>
@@ -2101,7 +2153,8 @@
         <p><strong>Scale width by % expressing:</strong> when on (default), the density curve's horizontal width is scaled by <code>√(% expressing)</code>, so a cluster where 5% of cells express the gene has a narrower curve than one where 80% do. This mirrors the standard scRNA-seq dot-plot convention (dot radius ∝ √fraction so dot area ∝ fraction) and makes the plot encode <em>both</em> the detection rate (width) and the distribution shape of the expressing cells (shape inside the width) simultaneously. A 2 px floor keeps ~1% clusters still visible. Turn off for shape-only comparison.</p>
         <p><strong>Why sqrt specifically:</strong> Pure linear scaling (width ∝ % expressing) would compress 5–10% clusters into an unreadable hair, losing the distribution shape entirely. Sqrt keeps the horizontal room proportionally larger so low-detection distributions stay legible. The trade-off: slight perceptual overweighting of small-detection clusters vs. the "mass-correct" linear encoding.</p>
         <p><strong>What counts as "expressing":</strong> a cell's normalized expression value ≥ 0.01 on the [0, 1] scale returned by the server. That scale comes from <code>value / p98(positive values)</code> with clipping — so 0.01 is "1% of the 98th-percentile expressing cell." In practice this means <em>any</em> cell with detectable source expression counts as expressing (matching Seurat's <code>DotPlot</code> and ScanPy's <code>sc.pl.dotplot</code> defaults). The threshold was picked to sit safely above normalization noise without requiring an absolute minimum count. Note: a single transcript can be ambient RNA or sequencing noise in scRNA-seq, not "real" biological expression — so interpret low % expr values with that caveat in mind.</p>
-        <p><strong>Density scope:</strong> the density curve uses expressing cells <em>only</em> (value ≥ 0.01). Including zeros would make every cluster's density peak at y=0 and dominate the shape regardless of cluster, so clusters would look visually identical. The raindrops still show zeros so you can see the non-expressing cells; the box plot and median also use all cells so they reflect the true distribution including the zero mass.</p>
+        <p><strong>Density scope:</strong> the density curve uses expressing cells <em>only</em> (value ≥ 0.01) by default. Including zeros would make every cluster's density peak at y=0 and dominate the shape regardless of cluster, so clusters would look visually identical. The raindrops still show zeros so you can see the non-expressing cells; the box plot and median also use all cells by default so they reflect the true distribution including the zero mass.</p>
+        <p><strong>Include zeros in density / Include zeros in IQR:</strong> the two toggles in the Plots panel let you flip those defaults per plot. Turn <em>Include zeros in density</em> on if you want the curve to literally show the full per-cell distribution including the zero mass (note: the zero spike will dominate every cluster, so this is useful mainly for single-cluster reference figures, not for cross-cluster comparison). Turn <em>Include zeros in IQR</em> off if you want the median and IQR bar to describe the spread of cells that <em>actually express</em> — independent of detection rate — instead of the truthful "most cells don't express, so median = 0" picture. Re-render after toggling.</p>
         <p><strong>Boundary handling:</strong> normalized expression is bounded on <code>[0, 1]</code>, so a naive smoother biases the density inward at the edges — a cluster piling up at 100% would show its smoothed peak visibly <em>below</em> where the raindrops pile up, because the gaussian kernel gets truncated against the boundary. FLEEK uses two standard bounded-KDE corrections: (1) <strong>reflection smoothing</strong> — kernel taps that fall past the edge are mirrored back into the support, preserving total mass and keeping the mode flush against the boundary; and (2) <strong>edge-flush rendering</strong> — the density path is extended from each bin's center to the plot's top and bottom edges with the edge bin's width, closing the half-bin visual gap between the curve and the raindrop pile. Peaks at 0 or 1 now align with the raindrops instead of hovering half a bin away.</p>
         <p><strong>Labels:</strong> each cluster column is labeled with its full name, total cell count, and detection rate — e.g., <code>T cell (4,521 · 42% expr)</code>. Labels rotate 90° (straight down) so horizontal footprint is zero and adjacent cluster labels never overlap regardless of length. The bottom margin scales dynamically with the longest visible label — short names → compact plots, long names → taller plots. Hover any label for the native tooltip as a redundant affordance.</p>
         <p><strong>Stopping a render:</strong> click the Render button again (it flips red and reads "Stop") to abort an in-flight gene fetch. Useful when you queued a render on a dataset that needs a slow first-time fetch.</p>
@@ -2551,7 +2604,7 @@
       <label class="ex-fmt"><input type="radio" name="export-fmt" value="csv" onchange="_exportShowOpts()"><span class="ex-fmt-name">CSV</span><span class="ex-fmt-desc">coordinates + metadata (ggplot/matplotlib)</span></label>
     </div>
     <div id="export-opts-svg" class="export-opts-box">
-      <label class="ex-opt ex-opt-toggle" id="export-svg-both-row" style="display:none;" title="Render every active split into one SVG. 2-up: side-by-side. 3 / 4-up: 2x2 grid (3-up leaves the bottom-right empty). Each half uses its own camera, mode, and (single or coloc) gene selection, and is labelled with its split name + gene name in the corner."><span id="export-svg-both-label">Side-by-side both splits</span><span class="s-toggle"><input type="checkbox" id="export-svg-both" onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
+      <label class="ex-opt ex-opt-toggle" id="export-svg-both-row" style="display:none;" title="Render every active split into one SVG. 2-up: side-by-side. 3 / 4-up: 2x2 grid (3-up leaves the bottom-right empty). Each half uses its own camera, mode, and (single or coloc) gene selection, and is labelled with its split name + gene name in the corner."><span id="export-svg-both-label">Side-by-side both splits</span><span class="s-toggle"><input type="checkbox" id="export-svg-both" checked onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include selection-group highlight rings</span><span class="s-toggle"><input type="checkbox" id="export-svg-rings" checked onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include ghosted (near-zero expression) cells</span><span class="s-toggle"><input type="checkbox" id="export-svg-ghost" onchange="_exportUpdateEstimate()"><span class="s-slider"></span></span></label>
       <label class="ex-opt ex-opt-toggle"><span>Include background rectangle</span><span class="s-toggle"><input type="checkbox" id="export-svg-bg" checked><span class="s-slider"></span></span></label>
@@ -2650,7 +2703,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.15";
+var FLEEK_VERSION="v0.4.16";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2993,6 +3046,10 @@ function _setGeneMode(m){
     if(_colocG&&!geneExprCache[_colocG])_colocFetchGene(_colocG);
   }
   if(D&&pts)recolor();
+  /* Variability list highlights swap between single-gene accent and
+     coloc per-channel colours when the mode changes — refresh visible
+     rows so the list reflects the new mode immediately. */
+  if(typeof _updateGeneVarHighlight==="function")_updateGeneVarHighlight();
   _colocSave();
   /* Only persist to fleek_state once D is loaded — otherwise the
      DOMContentLoaded call to _setGeneMode(restored_value) would snapshot
@@ -3003,9 +3060,36 @@ function _colocSetActiveChannel(ch){
   if(ch!=="R"&&ch!=="G")return;
   _colocActiveChannel=ch;
   _colocRefreshUI();
+  /* Refresh visible rows so cursor anchor reflects the new active slot.
+     Use _updateGeneVarHighlight (visible rows only) instead of
+     _refreshGvList (full re-render + scroll to top), so the user's
+     scroll position is preserved when toggling slots. */
+  if(typeof _updateGeneVarHighlight==="function")_updateGeneVarHighlight();
   _colocSave();
   /* In split mode this routes through _viewSaveCurrent so the active-channel
      pick lands in the right view's snapshot. */
+  if(D&&typeof saveState==="function")saveState();
+}
+/* Returns the gene name currently assigned to the active coloc slot.
+   Used by j/k navigation to seed its cursor at the right starting row,
+   so the first arrow/key press doesn't jump from an unrelated row. */
+function _colocActiveGene(){
+  return _colocActiveChannel==="R"?_colocR:_colocG;
+}
+/* Assign a gene to the currently-active coloc slot WITHOUT flipping to
+   the other channel — the flip behavior in pickGene() is for the "two
+   consecutive picks fill both slots" mouse flow; for j/k navigation we
+   want the slot to stay put so each step replaces the active slot's
+   gene as the cursor walks the list. */
+function _colocSetActiveGene(g){
+  if(!g)return;
+  if(_colocActiveChannel==="R")_colocR=g;
+  else _colocG=g;
+  _colocRefreshUI();
+  _geneBufCacheInvalidate();
+  _colocFetchGene(g);
+  if(typeof _updateGeneVarHighlight==="function")_updateGeneVarHighlight();
+  _colocSave();
   if(D&&typeof saveState==="function")saveState();
 }
 function _colocClearChannel(ch){
@@ -3015,6 +3099,7 @@ function _colocClearChannel(ch){
   _colocRefreshUI();
   _geneBufCacheInvalidate();
   if(D&&pts)recolor();
+  if(typeof _updateGeneVarHighlight==="function")_updateGeneVarHighlight();
   _colocSave();
   saveState();
 }
@@ -3107,6 +3192,11 @@ function _pickColocScheme(cbSafe){
   _colocRefreshUI();
   if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
   if(D&&pts)recolor();
+  /* Variability-list highlights are coloured from the active coloc
+     scheme — refresh visible rows so a gradient swap repaints the R/G
+     gene rows immediately rather than waiting for the next selection
+     change. */
+  if(typeof _updateGeneVarHighlight==="function")_updateGeneVarHighlight();
   _colocSave();
   saveState();
 }
@@ -3482,7 +3572,7 @@ function applyHistEntry(snap){
   _navigating=true;
   _restoring=true; /* suppress saves during batch restore */
 
-  if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
+  if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="rrbtn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){
     var ps=Math.max(1,Math.min(100,Math.round(s.ptSize)));
     document.getElementById("pt-size").value=ps;
@@ -3680,6 +3770,9 @@ function saveState(){
       plotFacet:(document.getElementById("plot-facet")?document.getElementById("plot-facet").value:"")||"",
       plotType:(document.getElementById("plot-type")?document.getElementById("plot-type").value:"raincloud")||"raincloud",
       plotWidthPct:(function(){var el=document.getElementById("plot-width-pct");return el?!!el.checked:true;})(),
+      plotDensityInclZero:(function(){var el=document.getElementById("plot-density-incl-zero");return el?!!el.checked:false;})(),
+      plotIqrInclZero:(function(){var el=document.getElementById("plot-iqr-incl-zero");return el?!!el.checked:true;})(),
+      plotKdeSigma:(function(){var el=document.getElementById("plot-kde-sigma");return el?parseFloat(el.value||"1"):1;})(),
       plotColor:_plotColor
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
@@ -3718,6 +3811,9 @@ function saveCameraOnly(){
       plotFacet:(document.getElementById("plot-facet")?document.getElementById("plot-facet").value:"")||"",
       plotType:(document.getElementById("plot-type")?document.getElementById("plot-type").value:"raincloud")||"raincloud",
       plotWidthPct:(function(){var el=document.getElementById("plot-width-pct");return el?!!el.checked:true;})(),
+      plotDensityInclZero:(function(){var el=document.getElementById("plot-density-incl-zero");return el?!!el.checked:false;})(),
+      plotIqrInclZero:(function(){var el=document.getElementById("plot-iqr-incl-zero");return el?!!el.checked:true;})(),
+      plotKdeSigma:(function(){var el=document.getElementById("plot-kde-sigma");return el?parseFloat(el.value||"1"):1;})(),
       plotColor:_plotColor
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
@@ -3737,7 +3833,7 @@ function restoreState(preloaded){
   var s=preloaded||loadState();
   if(!s)return;
   _restoring=true;
-  if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
+  if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="rrbtn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){
     var ps=Math.max(1,Math.min(100,Math.round(s.ptSize)));
     document.getElementById("pt-size").value=ps;
@@ -3858,6 +3954,22 @@ function restoreState(preloaded){
   if(typeof s.plotWidthPct==="boolean"){
     var pwEl=document.getElementById("plot-width-pct");
     if(pwEl)pwEl.checked=s.plotWidthPct;
+  }
+  if(typeof s.plotDensityInclZero==="boolean"){
+    var pdEl=document.getElementById("plot-density-incl-zero");
+    if(pdEl)pdEl.checked=s.plotDensityInclZero;
+  }
+  if(typeof s.plotIqrInclZero==="boolean"){
+    var piEl=document.getElementById("plot-iqr-incl-zero");
+    if(piEl)piEl.checked=s.plotIqrInclZero;
+  }
+  if(typeof s.plotKdeSigma==="number"){
+    var ksEl=document.getElementById("plot-kde-sigma");
+    if(ksEl){
+      ksEl.value=s.plotKdeSigma;
+      var ksvEl=document.getElementById("plot-kde-sigma-val");
+      if(ksvEl)ksvEl.textContent=parseFloat(s.plotKdeSigma).toFixed(1);
+    }
   }
   if(typeof s.plotColor==="boolean"){
     _plotColor=s.plotColor;
@@ -5948,7 +6060,7 @@ function setupCtrl(){
       else if(e.button===0)dragging=true;
       else if(e.button===2)panning=true;
       _dragDist=0; /* track total movement before showing pivot */
-      if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
+      if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="rrbtn";saveCameraOnly();}
     }
     else{dragging=true;}
     prev={x:e.clientX,y:e.clientY};
@@ -6082,7 +6194,7 @@ function setupCtrl(){
   var wheelSaveTimer=null;
   cv.addEventListener("wheel",function(e){e.preventDefault();
     introAnim=null;_flyAnim=null;_introTargetCam=null;
-    if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="btn";saveCameraOnly();}
+    if(autoRotate){autoRotate=false;document.getElementById("b-auto").className="rrbtn";saveCameraOnly();}
     /* Determine target camera state for split-view routing */
     var _wSph=sph,_wTgt3=tgt3,_wPan2=pan2,_wZoom2Ref=null;
     if(_splitActive&&_liveViews.length>=2&&_hoveredViewIdx<_liveViews.length){
@@ -6373,7 +6485,10 @@ function setupCtrl(){
        the 2-split era), so it only toggled the left HUD in 4-up mode.
        _hudToggleAll iterates all four quadrant HUDs and snaps them to
        the inverse of quad 0's current state. */
-    if(e.key==="i"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+    if(e.key==="i"&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&!e.repeat){
+      /* !e.repeat guard prevents the HUD from flickering when the I key
+         is held — the OS would otherwise fire keydown ~30×/sec, toggling
+         open/closed in rapid succession. One press = one toggle. */
       var _hLChk=document.getElementById("hud");
       var _willOpen=_hLChk?!_hLChk.classList.contains("open"):true;
       _hudToggleAll();
@@ -6784,14 +6899,67 @@ function searchGenes(){
       .catch(function(){});
   },200);
 }
+/* Keyboard navigation for the search dropdown — works for both gene and
+   GO term searches. Arrow keys move the cursor; Enter picks the
+   highlighted item; Escape clears the input. j/k are NOT bound here
+   because they're typed characters and would conflict with searches
+   that contain those letters; the document-level j/k binding (outside
+   inputs) still navigates the lower variability list. */
+document.addEventListener("DOMContentLoaded",function(){
+  var inp=document.getElementById("gsearch");
+  if(!inp)return;
+  inp.addEventListener("keydown",function(e){
+    if(e.key==="ArrowDown"){e.preventDefault();_searchDdMove(1);}
+    else if(e.key==="ArrowUp"){e.preventDefault();_searchDdMove(-1);}
+    else if(e.key==="Enter"){
+      if(_searchDdEnter()){e.preventDefault();return;}
+      /* Enter with no cursor: pick first match if any, else fall through */
+      if(_searchDd.items&&_searchDd.items.length>0){
+        _searchDd.cursor=0;
+        if(_searchDdEnter()){e.preventDefault();return;}
+      }
+    }else if(e.key==="Escape"){
+      /* Existing Escape handler clears selections; here we just blur so
+         that handler doesn't fire while focus is in the search box. */
+      e.target.blur();
+    }
+  });
+});
 
 function showRecentGenes(){
+  /* Recent genes render as the original badge cluster (compact wrapping
+     pills) — different visual treatment from search-result rows because
+     it's a small ambient list of "things you recently picked", not a
+     scannable result set. Search results use the dropdown instead. */
+  var glist=document.getElementById("glist");
+  if(!glist){renderHVGChips();return;}
   if(recentGenes.length===0){
-    document.getElementById("glist").innerHTML='';
+    glist.innerHTML='';
   }else{
-    renderGeneList(recentGenes);
+    renderGeneBadges(recentGenes);
   }
+  /* Recents aren't a keyboard-navigable dropdown — clear the search
+     cursor state so ArrowDown after picking from recents doesn't jump
+     into a stale row index. */
+  _searchDd.kind=null;_searchDd.items=null;_searchDd.cursor=-1;_searchDd.container=null;
   renderHVGChips();
+}
+function renderGeneBadges(genes){
+  var varMap=_allGeneVarMap&&Object.keys(_allGeneVarMap).length>0?_allGeneVarMap:hvgVar;
+  var glist=document.getElementById("glist");
+  if(!glist)return;
+  /* Cap the badge cluster at three visible rows of pills — overflow is
+     hidden rather than scrollable on purpose (the user explicitly didn't
+     want a scroll-trap here). Each .gbtn is ~21px tall (3+11+3 padding +
+     2 border + 2 vertical margin), so 3 rows = ~63px; pad to 66 to leave
+     a hair of breathing room and avoid clipping on the bottom row. */
+  var badges=genes.map(function(g){
+    var tip=g;
+    var v=varMap[g];
+    if(v!==undefined)tip+="\nVariability: "+v.toFixed(4);
+    return '<button class="gbtn'+(selGene===g?' on':'')+'" data-g="'+g+'" onclick="pickGene(\''+g+'\')" onmouseenter="prefetchGeneHover(\''+g+'\')" title="'+tip.replace(/"/g,"&quot;")+'">'+g+'<\/button>';
+  }).join("");
+  glist.innerHTML='<div style="max-height:66px;overflow:hidden;">'+badges+'<\/div>';
 }
 
 /* ── Gene Ontology search ── */
@@ -6829,33 +6997,48 @@ function _goSetMode(on){
     showRecentGenes();
   }
 }
+/* Full GO namespace names — shown in the row tooltip so the BP/MF/CC
+   abbreviation isn't the only label users see. */
+var _goNsFull={"BP":"Biological Process","MF":"Molecular Function","CC":"Cellular Component"};
 function _goSearch(q){
   clearTimeout(_goTimer);
   var goRes=document.getElementById("go-results");
-  if(!q||q.length<2){goRes.innerHTML='<div style="font-size:10px;color:var(--text4);padding:4px;">Type at least 2 characters<\/div>';return;}
+  if(!q||q.length<2){
+    goRes.innerHTML='<div style="font-size:10px;color:var(--text4);padding:4px;">Type at least 2 characters<\/div>';
+    _searchDd.kind=null;_searchDd.items=null;_searchDd.cursor=-1;_searchDd.container=null;
+    return;
+  }
   _goTimer=setTimeout(function(){
     fetch("/api/go-search?q="+encodeURIComponent(q))
     .then(function(r){return r.json();})
     .then(function(data){
-      if(data.error){goRes.innerHTML='<div style="font-size:10px;color:var(--text4);padding:4px;">'+data.error+'<\/div>';return;}
+      if(data.error){goRes.innerHTML='<div style="font-size:10px;color:var(--text4);padding:4px;">'+data.error+'<\/div>';_searchDd.items=null;return;}
       var res=data.results||[];
-      if(res.length===0){goRes.innerHTML='<div style="font-size:10px;color:var(--text4);padding:4px;">No matching GO terms with genes in this dataset<\/div>';return;}
+      if(res.length===0){goRes.innerHTML='<div style="font-size:10px;color:var(--text4);padding:4px;">No matching GO terms with genes in this dataset<\/div>';_searchDd.items=null;return;}
       var nsColors={"BP":"#34d399","MF":"#818cf8","CC":"#fbbf24"};
       var h="";
       for(var i=0;i<res.length;i++){
         var r=res[i];
         var nsC=nsColors[r.ns]||"var(--text4)";
+        var nsFull=_goNsFull[r.ns]||r.ns;
         var already=_goActiveTerms.some(function(t){return t.id===r.id;});
-        h+='<div style="display:flex;align-items:center;gap:4px;padding:3px 4px;font-size:10px;cursor:pointer;border-radius:2px;'+(already?'opacity:0.4;':'')
-          +'" onmouseenter="this.style.background=\'var(--bg-hover)\'" onmouseleave="this.style.background=\'\'" onclick="_goSelectTerm(\''+r.id+'\')" title="'+r.name+' ('+r.id+')">'
-          +'<span style="color:'+nsC+';font-weight:700;font-size:9px;flex-shrink:0;width:16px;">'+r.ns+'<\/span>'
-          +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2);">'+r.name+'<\/span>'
-          +'<span style="color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;">'+r.n_dataset+'<\/span>'
+        var tip=(r.name+" ("+r.id+")\n"+nsFull+(typeof r.n_dataset==="number"?" · "+r.n_dataset+" genes in dataset":"")).replace(/"/g,"&quot;");
+        h+='<div class="search-dd-row'+(already?' dim':'')+'" data-i="'+i+'"'
+          +' onmouseenter="_searchDdHover('+i+')"'
+          +' onclick="_goSelectTerm(\''+r.id+'\')"'
+          +' title="'+tip+'">'
+          +'<span class="sd-ns" style="color:'+nsC+';">'+r.ns+'<\/span>'
+          +'<span class="sd-name">'+r.name+'<\/span>'
+          +'<span class="sd-meta">'+r.n_dataset+'<\/span>'
           +'<\/div>';
       }
       goRes.innerHTML=h;
+      _searchDd.kind="go";
+      _searchDd.items=res;
+      _searchDd.cursor=-1;
+      _searchDd.container=goRes;
     })
-    .catch(function(){goRes.innerHTML='<div style="font-size:10px;color:#d45;padding:4px;">Search failed<\/div>';});
+    .catch(function(){goRes.innerHTML='<div style="font-size:10px;color:#d45;padding:4px;">Search failed<\/div>';_searchDd.items=null;});
   },250);
 }
 function _goSelectTerm(goId){
@@ -6872,6 +7055,9 @@ function _goSelectTerm(goId){
     /* Keep search results visible for adding more terms */
     document.getElementById("gsearch").value="";
     document.getElementById("go-results").innerHTML='<div style="font-size:10px;color:var(--text4);padding:4px;">Term added. Search for more or switch to Gene mode.<\/div>';
+    /* Selecting a term invalidates the previous result list — clear the
+       keyboard-cursor state so the next ArrowDown starts fresh. */
+    _searchDd.kind=null;_searchDd.items=null;_searchDd.cursor=-1;_searchDd.container=null;
     _refreshGvList();
     /* Scroll filtered list to top */
     var scroll=document.getElementById("hvg-scroll");
@@ -7046,6 +7232,28 @@ function _renderGeneVarList(listEl){
   _scrollToSelectedGene(listEl);
 }
 
+/* Returns the inline rowStyle string for highlighting gene `g` in the
+   variability list, or null when no highlight applies. In single-gene
+   mode the active gene gets the indigo accent2 treatment (existing
+   behaviour); in coloc mode each slot's gene picks up its channel
+   colour (R = magenta or red, G = green) so the user can scan the
+   table and see at a glance which two genes are loaded. */
+function _gvHighlightStyle(g){
+  if(!g)return null;
+  if(_geneMode==="coloc"){
+    var colors=_colocChannelColors();
+    var c=null;
+    if(g===_colocR)c=colors.R;
+    else if(g===_colocG)c=colors.G;
+    if(!c)return null;
+    var r=c[0]*255|0, gr=c[1]*255|0, b=c[2]*255|0;
+    return "background:rgba("+r+","+gr+","+b+",0.18);color:rgb("+r+","+gr+","+b+");";
+  }
+  if(selGene===g){
+    return "background:rgba(99,102,241,0.18);color:var(--accent2);";
+  }
+  return null;
+}
 function _gvRenderRow(i){
   var di=_gvFilteredIdx?_gvFilteredIdx[i]:i;
   var g=_allGeneVar[di][0];
@@ -7054,11 +7262,12 @@ function _gvRenderRow(i){
   var flagged=flagBits>0;
   var barW=Math.max(0,Math.round(v/_gvMaxVar*100));
   var isHvg=_gvHvgSet[g];
-  var isSel=selGene===g;
-  var rowStyle=isSel?'background:rgba(99,102,241,0.18);color:var(--accent2);'
-    :flagged?'color:#d45;opacity:0.65;'
-    :isHvg?'color:var(--text);'
-    :'color:var(--text3);';
+  var hl=_gvHighlightStyle(g);
+  var isSel=hl!==null;
+  var rowStyle=hl
+    ||(flagged?'color:#d45;opacity:0.65;'
+      :isHvg?'color:var(--text);'
+      :'color:var(--text3);');
   var barBg=flagged?'#d45':isHvg?'var(--accent)':'var(--text4)';
   var barOp=flagged?'0.4':isHvg?'0.6':'0.25';
   var tip=g+'\n'+_gvMetricLabel+': '+v.toFixed(4)+'\nRank: '+(i+1)+' / '+_allGeneVar.length;
@@ -7104,21 +7313,36 @@ function _jkNavigate(key){
 
 function _jkGene(key,count){
   if(count===0)return;
-  /* Initialize cursor to current selection if not set */
+  var coloc=(_geneMode==="coloc");
+  /* Initialize cursor: in coloc mode anchor at the active slot's gene
+     (so j/k starts where the highlighted slot currently points); in
+     single-gene mode anchor at selGene. Falls back to row 0. */
   if(_gvCursor<0){
-    _gvCursor=_findGeneIdx(selGene);
+    var anchor=coloc?_colocActiveGene():selGene;
+    _gvCursor=_findGeneIdx(anchor);
     if(_gvCursor<0)_gvCursor=0;
   }
   if(key==="j") _gvCursor=Math.min(_gvCursor+1,count-1);
   else _gvCursor=Math.max(_gvCursor-1,0);
-  /* Pick the gene at cursor position */
+  /* Resolve the gene at the new cursor position. */
   var g;
   if(_gvMode==="cluster"&&_clusterGeneSorted&&_clusterGeneData){
     g=_clusterGeneData.genes[_clusterGeneSorted[_gvCursor]];
   }else if(_allGeneVar){
     g=_allGeneVar[_gvCursor][0];
   }
-  if(g)pickGene(g);
+  if(!g)return;
+  if(coloc){
+    /* In coloc mode the j/k highlight is tied to the currently active
+       slot — assign without flipping channels (the auto-flip behaviour
+       only applies to mouse-driven pickGene, where two consecutive
+       picks fill both slots). The list is force-refreshed so the row
+       at the new cursor picks up the channel-colour highlight. */
+    _colocSetActiveGene(g);
+    if(typeof _updateGeneVarHighlight==="function")_updateGeneVarHighlight();
+  }else{
+    pickGene(g);
+  }
 }
 
 function _findGeneIdx(gene){
@@ -7177,11 +7401,15 @@ function _gvVirtualRender(){
 
 function _scrollToSelectedGene(listEl){
   var items=(_gvMode==="cluster"&&_clusterGeneSorted)?_clusterGeneSorted:_allGeneVar;
-  if(!selGene||!items)return;
+  /* In coloc mode anchor scrolling on the active slot's gene so j/k
+     navigation that brings the cursor offscreen pulls the list back
+     into view. Falls back to selGene for single-gene mode. */
+  var target=(_geneMode==="coloc")?_colocActiveGene():selGene;
+  if(!target||!items)return;
   var n=items.length;
   for(var i=0;i<n;i++){
     var g=(_gvMode==="cluster")?_clusterGeneData.genes[items[i]]:items[i][0];
-    if(g===selGene){
+    if(g===target){
       var scroll=document.getElementById("hvg-scroll");
       if(scroll){
         var targetTop=i*_gvRowH;
@@ -7601,11 +7829,12 @@ function _gvRenderClusterRow(rank){
   var displayVal=m==="padj"?val.toFixed(1):m==="log2fc"?lfc.toFixed(2):cd.toFixed(2);
   var barVal=m==="padj"?val:Math.abs(val);
   var barW=Math.max(0,Math.min(100,Math.round(barVal/_gvMaxVar*100)));
-  var isSel=selGene===g;
+  var hl=_gvHighlightStyle(g);
+  var isSel=hl!==null;
   var isUp=lfc>=0;
   var barColor=isUp?'var(--accent)':'#d45';
   var barOp=isSel?'0.8':'0.5';
-  var rowStyle=isSel?'background:rgba(99,102,241,0.18);color:var(--accent2);':'color:var(--text);';
+  var rowStyle=hl||'color:var(--text);';
   var tip=g+'\nlog\u2082FC: '+lfc.toFixed(3)+'\npadj: '+(padj<0.001?padj.toExponential(2):padj.toFixed(4))
     +"\nCohen's d: "+cd.toFixed(3)+'\nRank: '+(rank+1)+' / '+_clusterGeneSorted.length;
   var gEsc=g.replace(/'/g,"\\'");
@@ -7620,12 +7849,82 @@ function _gvRenderClusterRow(rank){
 
 function renderGeneList(genes){
   var varMap=_allGeneVarMap&&Object.keys(_allGeneVarMap).length>0?_allGeneVarMap:hvgVar;
-  document.getElementById("glist").innerHTML=genes.map(function(g){
-    var tip=g;
+  var glist=document.getElementById("glist");
+  if(!glist)return;
+  if(!genes||genes.length===0){
+    glist.innerHTML='';
+    _searchDd.kind=null;_searchDd.items=null;_searchDd.cursor=-1;
+    return;
+  }
+  /* Only the search-result list scrolls — the badge cluster (recent
+     genes) renders in #glist directly and stays at its natural height,
+     so the user doesn't accidentally scroll-trap on a small set of
+     pills. The dropdown box's own overflow is contained so it doesn't
+     chain into the sidebar either. */
+  var box=document.createElement("div");
+  box.style.cssText="border:1px solid var(--border);border-radius:3px;background:var(--bg3);padding:2px 0;max-height:200px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;";
+  var h="";
+  for(var i=0;i<genes.length;i++){
+    var g=genes[i];
     var v=varMap[g];
-    if(v!==undefined)tip+="\nVariability: "+v.toFixed(4);
-    return '<button class="gbtn'+(selGene===g?' on':'')+'" data-g="'+g+'" onclick="pickGene(\''+g+'\')" onmouseenter="prefetchGeneHover(\''+g+'\')" title="'+tip.replace(/"/g,"&quot;")+'">'+g+'<\/button>';
-  }).join("");
+    var tip=g+(v!==undefined?"\nVariability: "+v.toFixed(4):"");
+    var isOn=(selGene===g)?" on":"";
+    h+='<div class="search-dd-row'+isOn+'" data-g="'+g+'" data-i="'+i+'"'
+      +' onmouseenter="_searchDdHover('+i+');prefetchGeneHover(\''+g+'\')"'
+      +' onclick="_searchDdPickGene(\''+g+'\')"'
+      +' title="'+tip.replace(/"/g,"&quot;")+'">'
+      +'<span class="sd-name">'+g+'</span>'
+      +(v!==undefined?'<span class="sd-meta">'+v.toFixed(2)+'</span>':'')
+      +'<\/div>';
+  }
+  box.innerHTML=h;
+  glist.innerHTML='';
+  glist.appendChild(box);
+  _searchDd.kind="gene";
+  _searchDd.items=genes.slice();
+  _searchDd.cursor=-1;
+  _searchDd.container=glist;
+}
+/* Shared search-dropdown state for keyboard navigation. The active
+   dropdown is whichever one is currently visible (gene results in
+   gene-search mode, GO-term results in GO-search mode); both render
+   .search-dd-row items into their own container, so navigation can
+   index into a single items[] array regardless of which one is up.
+   Cursor=-1 means "no row highlighted yet"; the first ArrowDown
+   advances it to 0. */
+var _searchDd={kind:null,items:null,cursor:-1,container:null};
+function _searchDdHover(idx){
+  if(_searchDd.cursor===idx)return;
+  _searchDd.cursor=idx;
+  _searchDdRefreshHighlight(false);
+}
+function _searchDdRefreshHighlight(scrollIntoView){
+  if(!_searchDd.container)return;
+  var rows=_searchDd.container.querySelectorAll(".search-dd-row");
+  for(var i=0;i<rows.length;i++){
+    if(i===_searchDd.cursor)rows[i].classList.add("active");
+    else rows[i].classList.remove("active");
+  }
+  if(scrollIntoView&&_searchDd.cursor>=0&&rows[_searchDd.cursor]){
+    rows[_searchDd.cursor].scrollIntoView({block:"nearest"});
+  }
+}
+function _searchDdMove(dir){
+  if(!_searchDd.items||_searchDd.items.length===0)return;
+  var n=_searchDd.items.length;
+  if(_searchDd.cursor<0)_searchDd.cursor=(dir>0)?0:n-1;
+  else _searchDd.cursor=Math.max(0,Math.min(n-1,_searchDd.cursor+dir));
+  _searchDdRefreshHighlight(true);
+}
+function _searchDdEnter(){
+  if(!_searchDd.items||_searchDd.cursor<0||_searchDd.cursor>=_searchDd.items.length)return false;
+  var item=_searchDd.items[_searchDd.cursor];
+  if(_searchDd.kind==="gene")_searchDdPickGene(item);
+  else if(_searchDd.kind==="go")_goSelectTerm(item.id);
+  return true;
+}
+function _searchDdPickGene(g){
+  pickGene(g);
 }
 
 /* ── UI ── */
@@ -7677,6 +7976,9 @@ function pickGene(g){
     var el=document.getElementById("expr-legend");if(el)el.style.display="none";
     _geneBufCacheInvalidate();
     _colocFetchGene(g);
+    /* Refresh the variability list so the row that just received this
+       gene picks up its channel-colour highlight. */
+    if(typeof _updateGeneVarHighlight==="function")_updateGeneVarHighlight();
     _colocSave();
     saveState();
     return;
@@ -7687,7 +7989,13 @@ function pickGene(g){
   if(idx>=0)_gvCursor=idx;
   var _egt=document.getElementById("egnm-text");
   if(_egt)_egt.textContent="Expression: "+g;
-  var btns=document.querySelectorAll(".gbtn");for(var i=0;i<btns.length;i++)btns[i].className="gbtn"+(btns[i].getAttribute("data-g")===g?" on":"");
+  /* Update .on highlight on any visible search-dd-row so the active
+     gene reads "selected" without waiting for a re-render. */
+  var sRows=document.querySelectorAll("#glist .search-dd-row");
+  for(var i=0;i<sRows.length;i++){
+    if(sRows[i].getAttribute("data-g")===g)sRows[i].classList.add("on");
+    else sRows[i].classList.remove("on");
+  }
   document.getElementById("expr-legend").style.display="block";
   _updateGeneCollapsedName();
   /* If already cached, recolor immediately before loadGene */
@@ -7697,6 +8005,10 @@ function pickGene(g){
      newly-picked gene. renderVolcano early-returns when degData is
      empty, so this is a no-op when no DEG result is shown. */
   if(typeof renderVolcano==="function"&&degData)renderVolcano();
+  /* Re-render dropdown with recent genes so the empty search box reflects
+     the latest pick instead of leaving the previous filter results
+     stranded with stale highlight state. */
+  showRecentGenes();
   saveState();
 }
 function _updateGeneCollapsedName(){
@@ -7751,7 +8063,7 @@ function setBgDim(v,noSave){
   recolor();
   if(!noSave)saveState();
 }
-function toggleAuto(){autoRotate=!autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");saveState();}
+function toggleAuto(){autoRotate=!autoRotate;document.getElementById("b-auto").className="rrbtn"+(autoRotate?" on":"");saveState();}
 
 function toggleHelp(){
   var el=document.getElementById("help-overlay");
@@ -12917,6 +13229,31 @@ function _plotComputeRaincloud(ex, clusters, facetCol){
                     per-cluster distributions actually differ visibly. With
                     zeros included, every cluster's histogram is dominated by
                     the zero bin and all density curves look identical. */
+  /* Toggles: density-incl-zero defaults OFF (the every-cluster-looks-the-same
+     issue); iqr-incl-zero defaults ON (truthful "median is zero when most
+     cells don't express" reading). Both can be flipped per plot. */
+  var _dEl=document.getElementById("plot-density-incl-zero");
+  var densityInclZero=_dEl?!!_dEl.checked:false;
+  var _qEl=document.getElementById("plot-iqr-incl-zero");
+  var iqrInclZero=_qEl?!!_qEl.checked:true;
+  /* KDE smoothing: sigma in bin units (BINS=48 covers [0,1]). 0 = raw
+     histogram (no convolution); 1 ≈ classic 5-tap Gaussian (default);
+     larger values smooth more aggressively. Compute the kernel once
+     here and reuse for every cluster — half-width capped at 12 bins
+     (sigma 4) to keep large-sigma kernels reasonable on 48 bins. */
+  var _sigEl=document.getElementById("plot-kde-sigma");
+  var kdeSigma=_sigEl?Math.max(0,parseFloat(_sigEl.value||"1")||0):1;
+  var kdeKernel=null, kdeHalfW=0;
+  if(kdeSigma>0){
+    kdeHalfW=Math.min(12,Math.max(1,Math.ceil(kdeSigma*2.5)));
+    kdeKernel=new Array(2*kdeHalfW+1);
+    var ksum=0;
+    for(var ki=-kdeHalfW;ki<=kdeHalfW;ki++){
+      var kv=Math.exp(-(ki*ki)/(2*kdeSigma*kdeSigma));
+      kdeKernel[ki+kdeHalfW]=kv;ksum+=kv;
+    }
+    for(var kj=0;kj<kdeKernel.length;kj++)kdeKernel[kj]/=ksum;
+  }
   var yMin=0, yMax=1; /* expression normalized to 0-1 server-side */
   var facets=[];
   for(var fi=0;fi<facetCats.length;fi++){
@@ -12931,33 +13268,48 @@ function _plotComputeRaincloud(ex, clusters, facetCol){
         facet.clusters.push({cid:cid, n:0, nExpr:0, pctExpr:0, hist:new Array(BINS).fill(0), drops:[], q1:0, med:0, q3:0});
         continue;
       }
-      /* Separate expressing (>=EPS) from non-expressing cells. Histogram + KDE
-         use expressing only; drops + quantiles use all cells so the zero mass
-         is still visible as raindrops at y=0 and pulls median/IQR. */
+      /* Separate expressing (>=EPS) from non-expressing cells. Histogram +
+         KDE use expressing only by default (toggle "Include zeros in
+         density" flips it); drops + quantiles use all cells by default
+         (toggle "Include zeros in IQR" flips that) so the zero mass is
+         visible as raindrops at y=0 and pulls median/IQR. */
       var expressing=[];
       for(var v=0;v<vals.length;v++)if(vals[v]>=EPS)expressing.push(vals[v]);
       var nExpr=expressing.length;
       var pctExpr=nExpr/vals.length;
-      /* Histogram of expressing cells (range EPS..1 mapped to bins 1..BINS-1) */
+      /* Histogram source: expressing-only (default) or all cells. */
+      var histSrc=densityInclZero?vals:expressing;
       var hist=new Array(BINS).fill(0);
-      for(var v2=0;v2<expressing.length;v2++){
-        var bi=Math.min(BINS-1, Math.floor((expressing[v2]-yMin)/(yMax-yMin)*BINS));
+      for(var v2=0;v2<histSrc.length;v2++){
+        var bi=Math.min(BINS-1, Math.floor((histSrc[v2]-yMin)/(yMax-yMin)*BINS));
         if(bi<0)bi=0;
         hist[bi]++;
       }
-      /* Gaussian smoother (5-tap) with reflection at both boundaries.
-         Expression is bounded on [0,1], so edge-clamping biases the
-         smoothed density inward and shifts the visible peak away from
-         the boundary — very visible when a cluster piles up at 100%.
-         Reflecting (q<0 -> -q, q>=BINS -> 2*(BINS-1)-q) is the standard
-         bounded-KDE boundary correction: preserves total mass and keeps
-         the mode flush against the support edge. */
-      var sm=new Array(BINS).fill(0);
-      var k5=[0.06,0.24,0.40,0.24,0.06];
-      for(var bi2=0;bi2<BINS;bi2++){
-        var s=0;
-        for(var dk=-2;dk<=2;dk++){var q=bi2+dk;if(q<0)q=-q;if(q>=BINS)q=2*(BINS-1)-q;if(q<0)q=0;if(q>=BINS)q=BINS-1;s+=hist[q]*k5[dk+2];}
-        sm[bi2]=s;
+      /* Gaussian smoother with reflection at both boundaries. Kernel
+         half-width and weights come from the kdeKernel computed once
+         above (sigma from the plot-kde-sigma slider). When sigma=0 we
+         skip convolution entirely and use the raw histogram. Reflection
+         (q<0 → -q, q≥BINS → 2*(BINS-1)-q) is the standard bounded-KDE
+         boundary correction: preserves total mass and keeps the mode
+         flush against the support edge for clusters that pile up at 0
+         or 1. */
+      var sm;
+      if(!kdeKernel){
+        sm=hist.slice();
+      }else{
+        sm=new Array(BINS).fill(0);
+        for(var bi2=0;bi2<BINS;bi2++){
+          var s=0;
+          for(var dk=-kdeHalfW;dk<=kdeHalfW;dk++){
+            var q=bi2+dk;
+            if(q<0)q=-q;
+            if(q>=BINS)q=2*(BINS-1)-q;
+            if(q<0)q=0;
+            if(q>=BINS)q=BINS-1;
+            s+=hist[q]*kdeKernel[dk+kdeHalfW];
+          }
+          sm[bi2]=s;
+        }
       }
       /* Normalize to [0,1] per cluster — still peak=1, but now peak reflects
          the mode of the expressing distribution, not the zero-mass spike. */
@@ -12989,9 +13341,14 @@ function _plotComputeRaincloud(ex, clusters, facetCol){
           }
         }
       }
-      /* Quantiles over ALL cells — so a cluster that's mostly zeros shows a
-         median at 0 and a collapsed IQR, which is the truthful story. */
-      var sorted=vals.slice().sort(function(a,b){return a-b;});
+      /* Quantiles: all cells (default — a mostly-zero cluster reads as
+         median = 0 and IQR collapsed to zero, which is the truthful
+         "most cells don't express" picture). With "Include zeros in
+         IQR" off, restrict to expressing cells so the bar reports the
+         spread of cells that actually express, independent of detection
+         rate. Falls back to all cells when there are zero expressers. */
+      var iqrSrc=(iqrInclZero||expressing.length===0)?vals:expressing;
+      var sorted=iqrSrc.slice().sort(function(a,b){return a-b;});
       var q1=sorted[Math.floor(sorted.length*0.25)];
       var med=sorted[Math.floor(sorted.length*0.50)];
       var q3=sorted[Math.floor(sorted.length*0.75)];
@@ -13308,7 +13665,12 @@ function _plotDrawViolin(gene, facetCol, data){
            shape; the bar's job is just to mark q1/q3/median crisply. */
         var y1=yScale(c.q1), y3=yScale(c.q3), ym=yScale(c.med);
         svg+='<line x1="'+cx+'" y1="'+y1+'" x2="'+cx+'" y2="'+y3+'" stroke="'+labelColor+'" stroke-width="3" stroke-linecap="round" opacity="'+iqrAlpha+'"/>';
-        svg+='<line x1="'+(cx-3.5)+'" y1="'+ym+'" x2="'+(cx+3.5)+'" y2="'+ym+'" stroke="'+(isLight?'#ffffff':'#0c0c14')+'" stroke-width="2" stroke-linecap="round"/>';
+        /* Median tick uses labelColor (white-ish on dark, dark gray on
+           light) so it matches the raincloud's median treatment instead
+           of using the bg-coloured contrast tick the violin previously
+           used. Slightly thicker (2 → 1.8 px) to compensate for being
+           drawn over the IQR bar at the same colour. */
+        svg+='<line x1="'+(cx-3.5)+'" y1="'+ym+'" x2="'+(cx+3.5)+'" y2="'+ym+'" stroke="'+labelColor+'" stroke-width="1.8" stroke-linecap="round"/>';
       }
       var fullName=String(cluNames[c.cid]||("Cluster "+c.cid));
       var pct=(c.pctExpr!=null)?Math.round(c.pctExpr*100):0;
@@ -13362,17 +13724,17 @@ function _exportOpen(viewId){
      by default. They can still override it explicitly in the modal. */
   var ghostCb=document.getElementById("export-svg-ghost");
   if(ghostCb)ghostCb.checked=!!showNonExpressing;
-  /* Side-by-side option only makes sense when split-screen is currently
-     active. Hide otherwise; reset its checked state on each open so a
-     prior side-by-side export doesn't auto-trigger one for a single split. */
+  /* "All splits in one image" is the default whenever split-screen is
+     active with ≥2 splits — that's almost always what the user wants.
+     Force-check on each open (even if a previous export unchecked it)
+     and force-uncheck when split-screen isn't active so a stale checked
+     state from a prior split session doesn't leak into a single-view
+     export. The checkbox is still user-toggleable inside the modal. */
   var bothRow=document.getElementById("export-svg-both-row");
   var bothCb=document.getElementById("export-svg-both");
-  /* "All splits" export option is available whenever split-screen is
-     active with ≥2 splits (covers 2-up, 3-up, and 4-up). The checkbox
-     label is updated to reflect the count. */
   var bothActive=!!(_splitActive&&_splitViewIds&&_splitViewIds.length>=2);
   if(bothRow)bothRow.style.display=bothActive?"flex":"none";
-  if(bothCb&&!bothActive)bothCb.checked=false;
+  if(bothCb)bothCb.checked=bothActive;
   /* Update the checkbox's label text to mention the active count. */
   var bothLbl=document.getElementById("export-svg-both-label");
   if(bothLbl&&_splitViewIds){
@@ -13794,16 +14156,41 @@ function _exportSVG(){
     if(m==="cluster")return "Cell Types";
     return "";
   }
-  /* Accurate text-width measurement via canvas 2D so the box's
-     horizontal padding stays visually constant regardless of glyph
-     widths. Estimating width as length*charW gave wider padding for
-     narrow strings (Trat1) than for wide ones (TNFRSF14) — the box
-     hugged some labels and ballooned around others. */
-  var _capMeasCv=document.createElement("canvas");
-  var _capMeasCtx=_capMeasCv.getContext("2d");
-  function _measureCapWidth(text,fontSize){
-    _capMeasCtx.font=fontSize+'px -apple-system, system-ui, sans-serif';
-    return _capMeasCtx.measureText(text).width;
+  /* Measure the caption by rendering it into a temporary, off-screen
+     SVG <text> and reading its getBBox().
+
+     CRITICAL: the test <text> must be styled via inline `style=...`,
+     NOT via SVG presentation attributes (`setAttribute("font-family",...)`).
+     Per the CSS cascade, presentation attributes have *lower* specificity
+     than inherited CSS — and this page's body sets
+     `font-family: 'JetBrains Mono', monospace`. So a <text> created with
+     setAttribute would inherit body's monospace and be measured in a
+     wider font than the standalone exported SVG (which has no inheriting
+     body CSS) actually renders in. The mismatch grew with string
+     length and showed up as ever-widening right-side padding. Inline
+     `style` wins over inherited CSS, so the test text is now measured
+     in the exact same proportional font (-apple-system) the export
+     will use. Cached by (text, fontSize). */
+  var _capBboxCache={};
+  function _measureCap(text,fontSize){
+    var key=fontSize+"|"+text;
+    if(_capBboxCache[key])return _capBboxCache[key];
+    var svgNS="http://www.w3.org/2000/svg";
+    var svg=document.createElementNS(svgNS,"svg");
+    svg.setAttribute("xmlns",svgNS);
+    svg.style.cssText="position:absolute;left:-9999px;top:-9999px;width:2000px;height:80px;";
+    var t=document.createElementNS(svgNS,"text");
+    t.setAttribute("x","0");
+    t.setAttribute("y",fontSize);
+    t.style.cssText="font-family:-apple-system,system-ui,sans-serif;font-size:"+fontSize+"px;letter-spacing:normal;font-weight:normal;font-style:normal;";
+    t.textContent=text;
+    svg.appendChild(t);
+    document.body.appendChild(svg);
+    var bb={x:0,width:0};
+    try{var raw=t.getBBox();bb.x=raw.x;bb.width=raw.width;}catch(e){bb.width=fontSize*text.length*0.55;}
+    document.body.removeChild(svg);
+    _capBboxCache[key]=bb;
+    return bb;
   }
   var parts=[];
   parts.push('<?xml version="1.0" encoding="UTF-8"?>\n');
@@ -13844,44 +14231,43 @@ function _exportSVG(){
     if(multiRows===2){
       parts.push('<line x1="0" y1="'+paneH+'" x2="'+W+'" y2="'+paneH+'" stroke="'+divCol+'" stroke-width="1" opacity="0.7"/>\n');
     }
-    /* Per-pane caption: small "Split N \u00b7 GENE" tag in each occupied pane's
-       top-left, mirroring the on-screen gene-indicator + split-label pair.
-       lblPadH is the FIXED horizontal padding on each side of the
-       measured text, independent of string length. */
-    var lblPad=8, lblPadH=6, lblFontSize=Math.max(11,Math.round(paneH*0.018));
+    /* Per-pane caption: text-only with a stroke-painted halo of the
+       background colour. No bounding rectangle — getting a separate box
+       to perfectly hug rendered text across browsers (Safari / Chrome /
+       Brave) proved unreliable, because each engine returns slightly
+       different glyph metrics and applies CSS specificity differently
+       to SVG presentation attributes. The halo is part of the glyph
+       paint itself (paint-order="stroke fill"), so it conforms to the
+       text shape exactly in any renderer — no measurement, no box, no
+       padding to mismatch. The result reads as a faintly-outlined label
+       without chrome. */
+    var lblFontSize=Math.max(11,Math.round(paneH*0.018));
+    var lblMargin=8;
+    var lblHalo=isLightExp?"#ffffff":"#0c0c14";
+    var capStyle="font-family:-apple-system,system-ui,sans-serif;font-size:"+lblFontSize+"px;font-weight:600;letter-spacing:normal;font-style:normal;";
     for(var li=0;li<nSplit;li++){
       var lcol=li%2, lrow=(li/2)|0;
-      var lx=lcol*paneW+lblPad, ly=lrow*paneH+lblPad;
       var lSnap=_splitViewById(_splitViewIds[li]);
       var capText=_paneCaption(lSnap);
       if(!capText)continue;
-      var textW=_measureCapWidth(capText,lblFontSize);
-      var rectW=Math.ceil(textW)+lblPadH*2;
-      var rectH=lblFontSize+lblPad;
-      parts.push('<g>\n');
-      parts.push('<rect x="'+lx+'" y="'+ly+'" width="'+rectW+'" height="'+rectH+'" rx="4" fill="'+lblFill+'" stroke="'+lblStroke+'" stroke-width="1"/>\n');
-      parts.push('<text x="'+(lx+rectW/2)+'" y="'+(ly+lblFontSize+lblPad*0.25)+'" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="'+lblFontSize+'" fill="'+lblText+'">'+_esc(capText)+'<\/text>\n');
-      parts.push('<\/g>\n');
+      var lx=lcol*paneW+lblMargin;
+      var ly=lrow*paneH+lblMargin+lblFontSize;
+      parts.push('<text x="'+lx+'" y="'+ly+'" text-anchor="start" style="'+capStyle+'" paint-order="stroke fill" stroke="'+lblHalo+'" stroke-width="3.5" stroke-linejoin="round" stroke-opacity="0.95" fill="'+lblText+'">'+_esc(capText)+'<\/text>\n');
     }
   }else{
     parts.push('<title>'+_esc((snap.name||"FLEEK export")+_geneTitleSnippet(snap))+'<\/title>\n');
     if(includeBg)parts.push('<rect width="'+halfW+'" height="'+h+'" fill="'+bgHex+'"/>\n');
     var proj=_exportProjectSnap(snap,halfW,h,includeGhost);
     parts.push(_exportRenderHalfGroup(proj,0,includeRings,_hex,''));
-    /* Single-pane caption: same "Split N \u00b7 GENE" tag as multi-split, so
-       every exported image self-identifies which split + gene it shows
-       (regardless of split-screen mode). */
+    /* Single-pane caption: same stroke-halo treatment as multi-split.
+       See that block for rationale (why no rectangle). */
     var sCap=_paneCaption(snap);
     if(sCap){
       var sFontSize=Math.max(11,Math.round(h*0.014));
-      var sPad=8, sPadH=6;
-      var sTextW=_measureCapWidth(sCap,sFontSize);
-      var sRectW=Math.ceil(sTextW)+sPadH*2;
-      var sRectH=sFontSize+sPad;
-      parts.push('<g>\n');
-      parts.push('<rect x="'+sPad+'" y="'+sPad+'" width="'+sRectW+'" height="'+sRectH+'" rx="4" fill="'+lblFill+'" stroke="'+lblStroke+'" stroke-width="1"/>\n');
-      parts.push('<text x="'+(sPad+sRectW/2)+'" y="'+(sPad+sFontSize+sPad*0.25)+'" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="'+sFontSize+'" fill="'+lblText+'">'+_esc(sCap)+'<\/text>\n');
-      parts.push('<\/g>\n');
+      var sMargin=8;
+      var sHalo=isLightExp?"#ffffff":"#0c0c14";
+      var sCapStyle="font-family:-apple-system,system-ui,sans-serif;font-size:"+sFontSize+"px;font-weight:600;letter-spacing:normal;font-style:normal;";
+      parts.push('<text x="'+sMargin+'" y="'+(sMargin+sFontSize)+'" text-anchor="start" style="'+sCapStyle+'" paint-order="stroke fill" stroke="'+sHalo+'" stroke-width="3.5" stroke-linejoin="round" stroke-opacity="0.95" fill="'+lblText+'">'+_esc(sCap)+'<\/text>\n');
     }
   }
   parts.push('<\/svg>\n');
@@ -14959,7 +15345,7 @@ function onSessionSelect(){
 
 function _applySessionState(s){
   _sessionLoading=true;_restoring=true;
-  if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="btn"+(autoRotate?" on":"");}
+  if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="rrbtn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){basePtSz=Math.max(1,Math.min(100,Math.round(s.ptSize)));document.getElementById("pt-size").value=basePtSz;}
   if(s.ptOpacity!==undefined){var op=Math.max(0.05,Math.min(1,s.ptOpacity));document.getElementById("pt-opacity").value=op;if(pts)pts.material.opacity=op;}
   if(s.bgDim!==undefined){bgDimPct=s.bgDim;document.getElementById("bg-dim").value=100-bgDimPct;}
@@ -16507,56 +16893,13 @@ function _forwardWheelToElement(fromEl, scrollEl){
     scrollEl.scrollTop+=e.deltaY;
   },{passive:false});
 }
-/* Resistance threshold for "push through": cumulative wheel delta in pixels
-   that has to pile up at the boundary before we start forwarding to the
-   outer sidebar. Roughly 1-2 wheel notches on a trackpad; more on a mouse.
-   Keeps a user who just reached the end of a list from immediately flinging
-   the whole sidebar — they get a soft "you've hit the edge" pause, then
-   persistent scrolling starts pushing through. */
-var _OVERSCROLL_THRESHOLD=90;
-/* Reset the accumulated boundary delta after this many ms of no wheel. */
-var _OVERSCROLL_RESET_MS=350;
-function _attachOverscrollForward(el){
-  if(!el||el._overscrollForward)return;
-  el._overscrollForward=true;
-  var boundaryDelta=0;
-  var lastDir=0;
-  var resetTimer=null;
-  function reset(){boundaryDelta=0;lastDir=0;}
-  el.addEventListener("wheel",function(e){
-    var max=el.scrollHeight-el.clientHeight;
-    /* No scroll possible here — forward immediately, no resistance. */
-    if(max<=0){
-      var outerA=_findOuterScrollable(el);
-      if(outerA){e.preventDefault();outerA.scrollTop+=e.deltaY;}
-      return;
-    }
-    var atTop=el.scrollTop<=0, atBot=el.scrollTop>=max-1;
-    var atBoundary=(atTop&&e.deltaY<0)||(atBot&&e.deltaY>0);
-    if(!atBoundary){
-      /* Scrolled back into the body of the list — drop any buffered delta so
-         the user doesn't get a sudden outer flush when they next overshoot. */
-      reset();
-      return;
-    }
-    /* Direction flip resets the buffer (going bottom→top after building up
-       at the bottom shouldn't instantly push the outer upward). */
-    var dir=e.deltaY>0?1:-1;
-    if(dir!==lastDir){boundaryDelta=0;lastDir=dir;}
-    boundaryDelta+=e.deltaY;
-    clearTimeout(resetTimer);
-    resetTimer=setTimeout(reset,_OVERSCROLL_RESET_MS);
-    /* Always consume the event while at the boundary so the browser's own
-       scroll-chaining doesn't fire in parallel. Only forward to the outer
-       once the cumulative push crosses the threshold — then the outer
-       tracks further wheel ticks 1:1 until the user lets go. */
-    e.preventDefault();
-    if(Math.abs(boundaryDelta)>=_OVERSCROLL_THRESHOLD){
-      var outerB=_findOuterScrollable(el);
-      if(outerB)outerB.scrollTop+=e.deltaY;
-    }
-  },{passive:false});
-}
+/* Overscroll-forwarding ("push through to the outer sidebar when the
+   inner list is saturated") was felt to be glitchy by the user — a
+   short flick at the bottom of the gene list could fling the whole
+   sidebar. The function is now a no-op; CSS overscroll-behavior:contain
+   on the inner scroll containers is the only mechanism left, and it
+   simply stops the chain at the inner boundary instead of forwarding. */
+function _attachOverscrollForward(el){ /* no-op — see comment above */ }
 
 /* Hijack the section's existing border-bottom as the drag affordance.
    Inserts an absolutely-positioned bar inside `sectionId` that overlays
