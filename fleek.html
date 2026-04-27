@@ -435,13 +435,22 @@
   #path-results{margin-right:-10px;max-height:320px;min-height:120px;overflow-y:auto;overflow-x:hidden;}
   .path-row{display:grid;grid-template-columns:1fr 44px 12px;column-gap:1px;align-items:center;padding:4px 2px 4px 6px;border-radius:3px;cursor:pointer;transition:background var(--dur-fast);font-size:11px;user-select:none;-webkit-user-select:none;}
   .path-row:hover{background:var(--bg-hover);}
-  .path-row.expanded{background:var(--bg3);}
+  /* Expanded row: square the bottom corners and drop the gap below
+     so the row visually merges with its detail block (forming one
+     unified card). */
+  .path-row.expanded{background:var(--bg3);border-bottom-left-radius:0;border-bottom-right-radius:0;}
   .path-name{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .path-row.expanded .path-name{color:var(--accent2);}
   .path-overlap{font-size:9px;color:var(--text3);text-align:right;font-variant-numeric:tabular-nums;cursor:help;}
   .path-chev{font-size:8px;color:var(--text4);transition:transform var(--dur-fast);text-align:center;}
   .path-row.expanded .path-chev{transform:rotate(90deg);}
-  .path-detail{padding:6px 10px 8px;background:var(--bg3);border-radius:3px;margin:2px 0 4px;font-size:10px;color:var(--text2);line-height:1.4;}
+  /* Indent + dotted accent-coloured left rail visually anchors the
+     detail block under its parent row, so a long results list reads
+     as "title → content" instead of one homogeneous bg3 mass. The
+     rail's accent2 colour matches the expanded title text, reinforcing
+     the pairing. Top corners stay square so the row above feels
+     attached; right side keeps rounded corners. */
+  .path-detail{padding:6px 10px 8px 12px;margin:0 0 6px 10px;background:var(--bg3);border-left:2px dotted var(--accent2);border-radius:0 3px 3px 0;font-size:10px;color:var(--text2);line-height:1.4;}
   .path-detail .path-fullname{font-size:11px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.3;}
   .path-detail .path-desc{margin-bottom:6px;color:var(--text3);font-style:italic;}
   /* Enrichment bar lives inside the expanded detail now — wider than the
@@ -2810,7 +2819,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.22";
+var FLEEK_VERSION="v0.4.23";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -4326,13 +4335,23 @@ function _forceRingRebuild(){
   ringPts.visible=hasVis;
 }
 
-function addSelGroup(){
+function addSelGroup(forceName){
   var id=++selGroupIdCounter;
-  /* Find a name that doesn't collide with existing groups */
-  var num=selGroups.length+1;
-  var existingNames={};
-  for(var i=0;i<selGroups.length;i++)existingNames[selGroups[i].name]=true;
-  while(existingNames["Group "+num])num++;
+  /* Find a name that doesn't collide with existing groups, unless the
+     caller explicitly requests a name (used by the Shift+1-9 keyboard
+     handler when filling gaps in the Group N sequence — that path
+     wants "Group 3" specifically even if the auto-picker would have
+     picked "Group 4"). */
+  var name;
+  if(forceName){
+    name=forceName;
+  }else{
+    var num=selGroups.length+1;
+    var existingNames={};
+    for(var i=0;i<selGroups.length;i++)existingNames[selGroups[i].name]=true;
+    while(existingNames["Group "+num])num++;
+    name="Group "+num;
+  }
   /* Pick a color not currently in use */
   var usedColors={};
   for(var i=0;i<selGroups.length;i++)usedColors[selGroups[i].color]=true;
@@ -4340,7 +4359,7 @@ function addSelGroup(){
   for(var ci=0;ci<SEL_COLORS.length;ci++){
     if(!usedColors[SEL_COLORS[ci]]){col=SEL_COLORS[ci];break;}
   }
-  var g={id:id, name:"Group "+num, color:col, cells:new Set()};
+  var g={id:id, name:name, color:col, cells:new Set()};
   selGroups.push(g);
   groupVisible[g.id]=true;
   activeGroupId=g.id;
@@ -6672,33 +6691,82 @@ function setupCtrl(){
       }
       return;
     }
-    /* Shift+1-9: create/activate selection group */
+    /* Shift+1-9: activate (or create) "Group N" by name. Lookup is
+       name-based — NOT array-position-based — so "Shift+1" always
+       lands on Group 1 even when the user has deleted earlier groups
+       and only "Group 5" remains. When pressing N for a number that
+       doesn't exist, every "Group i" missing in [1..N] is created so
+       the sequence stays contiguous; the panel is then sorted to
+       Group 1, Group 2, …, Group N (custom-renamed groups go after).
+       The flash leads with the now-active group; a creation clause
+       follows after a middot when entities were just added. */
     if(e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey&&e.code>="Digit1"&&e.code<="Digit9"&&!inInput){
-      var idx=parseInt(e.code.charAt(5))-1;
-      while(idx>=selGroups.length)addSelGroup();
-      setActiveGroup(selGroups[idx].id);
+      var _gn=parseInt(e.code.charAt(5));
+      /* Index existing "Group i" by number. Custom-named groups are
+         ignored here — the shortcut only manages the numbered slots. */
+      var _gExist={};
+      for(var _gi=0;_gi<selGroups.length;_gi++){
+        var _gm=selGroups[_gi].name.match(/^Group (\d+)$/);
+        if(_gm)_gExist[parseInt(_gm[1],10)]=true;
+      }
+      /* Walk 1..N and queue every missing slot. */
+      var _gMissing=[];
+      for(var _gi2=1;_gi2<=_gn;_gi2++){if(!_gExist[_gi2])_gMissing.push(_gi2);}
+      for(var _gmi=0;_gmi<_gMissing.length;_gmi++){
+        addSelGroup("Group "+_gMissing[_gmi]);
+      }
+      if(_gMissing.length>0){_sortGroupsByName();renderSelPanel();}
+      var _gObj=selGroups.find(function(g){return g.name==="Group "+_gn;});
+      if(_gObj)setActiveGroup(_gObj.id);
       _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
-      _flashAction("Group "+(idx+1),"Shift+"+(idx+1));
+      var _gActive="Group "+_gn;
+      var _gLabel=_gActive;
+      if(_gMissing.length===1)_gLabel=_gActive+" · created";
+      else if(_gMissing.length>1){
+        var _gFrom=_gMissing[0], _gTo=_gMissing[_gMissing.length-1];
+        var _gContig=(_gMissing.length===_gTo-_gFrom+1);
+        _gLabel=_gContig
+          ? _gActive+" · Groups "+_gFrom+"–"+_gTo+" created"
+          : _gActive+" · "+_gMissing.length+" groups created";
+      }
+      /* Lingering creation flash: keep the message up long enough to
+         read the secondary clause when entities were just added. */
+      _flashAction(_gLabel,"Shift+"+_gn,_gMissing.length>0?1600:undefined);
       return;
     }
-    /* Bare 1-9: switch to or create split N */
+    /* Bare 1-9: activate (or create) "Split N" by name. Same rules as
+       the Shift+1-9 group handler: lookup is name-based, missing
+       slots in [1..N] are filled, _views is then sorted so the panel
+       reads Split 1, Split 2, …, Split N (custom-renamed splits
+       follow). Pressing N when only Split 5 exists creates Splits 1–
+       (N-1) and lands on Split N; pressing 5 when only Split 1 exists
+       still works as before (creates 2–5). */
     if(!e.metaKey&&!e.ctrlKey&&!e.altKey&&!e.shiftKey&&e.key>="1"&&e.key<="9"&&!inInput){
       var _sn=parseInt(e.key);
-      /* Find split named "Split N" or create it (plus any intervening splits) */
-      var _sv=_views.find(function(v){return v.name==="Split "+_sn;});
-      if(!_sv){
-        /* Find highest existing split number */
-        var _maxN=0;
-        for(var _si=0;_si<_views.length;_si++){var _m=_views[_si].name.match(/^Split (\d+)$/);if(_m)_maxN=Math.max(_maxN,parseInt(_m[1]));}
-        /* Create all intervening splits from _maxN+1 up to _sn */
-        for(var _ci=_maxN+1;_ci<=_sn;_ci++){
-          _viewAdd();_views[_views.length-1].name="Split "+_ci;
-        }
-        _sv=_views.find(function(v){return v.name==="Split "+_sn;});
+      var _spExist={};
+      for(var _si=0;_si<_views.length;_si++){
+        var _smm=_views[_si].name.match(/^Split (\d+)$/);
+        if(_smm)_spExist[parseInt(_smm[1],10)]=true;
       }
-      _viewSwitch(_sv.id);
+      var _spMissing=[];
+      for(var _spi=1;_spi<=_sn;_spi++){if(!_spExist[_spi])_spMissing.push(_spi);}
+      for(var _spmi=0;_spmi<_spMissing.length;_spmi++){
+        _viewAdd(false,"Split "+_spMissing[_spmi]);
+      }
+      if(_spMissing.length>0)_sortViewsByName();
+      var _sv=_views.find(function(v){return v.name==="Split "+_sn;});
+      if(_sv)_viewSwitch(_sv.id);
       _viewUpdateUI();
-      _flashAction(_sv.name,_sn+"");
+      var _spLabel=_sv?_sv.name:"Split "+_sn;
+      if(_spMissing.length===1)_spLabel+=" · created";
+      else if(_spMissing.length>1){
+        var _spFrom=_spMissing[0], _spTo=_spMissing[_spMissing.length-1];
+        var _spContig=(_spMissing.length===_spTo-_spFrom+1);
+        _spLabel+=_spContig
+          ? " · Splits "+_spFrom+"–"+_spTo+" created"
+          : " · "+_spMissing.length+" splits created";
+      }
+      _flashAction(_spLabel,_sn+"",_spMissing.length>0?1600:undefined);
     }
     if(inInput)return; /* remaining shortcuts only outside inputs */
     /* c = cluster color mode */
@@ -11564,11 +11632,50 @@ function _nextSplitName(){
   }
   for(var n=1;;n++){if(!used[n])return "Split "+n;}
 }
-function _viewAdd(isDefault){
+/* Reorder _views in place so entries named "Split N" appear in
+   ascending N order. Custom-renamed views (no "Split N" pattern)
+   come AFTER all numbered splits and preserve their original
+   relative order — useful when the keyboard shortcut path fills a
+   gap (e.g. creates "Split 1" when only "Split 5" existed) and we
+   want the Split Views panel to read 1, 2, 3, …, 5 instead of
+   creation-order. The sort is purely visual: _splitViewIds,
+   _activeViewId, etc. all reference views by id, so ordering changes
+   here don't disturb any rendering / live-view state. */
+function _sortViewsByName(){
+  var indexed=_views.map(function(v,i){return {v:v,i:i};});
+  indexed.sort(function(a,b){
+    var ma=a.v.name.match(/^Split (\d+)$/);
+    var mb=b.v.name.match(/^Split (\d+)$/);
+    if(ma&&mb)return parseInt(ma[1],10)-parseInt(mb[1],10);
+    if(ma)return -1;
+    if(mb)return 1;
+    return a.i-b.i;
+  });
+  _views=indexed.map(function(o){return o.v;});
+}
+/* Same idea for selGroups: sort "Group N" entries in ascending N
+   order, custom-named groups after. */
+function _sortGroupsByName(){
+  var indexed=selGroups.map(function(g,i){return {g:g,i:i};});
+  indexed.sort(function(a,b){
+    var ma=a.g.name.match(/^Group (\d+)$/);
+    var mb=b.g.name.match(/^Group (\d+)$/);
+    if(ma&&mb)return parseInt(ma[1],10)-parseInt(mb[1],10);
+    if(ma)return -1;
+    if(mb)return 1;
+    return a.i-b.i;
+  });
+  selGroups=indexed.map(function(o){return o.g;});
+}
+function _viewAdd(isDefault,forceName){
   /* Save current view first */
   if(!isDefault)_viewSaveCurrent();
   var id=_viewIdCounter++;
-  var name=isDefault?"Split 1":_nextSplitName();
+  /* forceName lets the bare 1-9 keyboard handler fill gaps in the
+     Split N sequence by name (e.g. create "Split 1" when only Split 5
+     exists). Without forceName we fall back to "Split 1" for the
+     default boot view, or the lowest unused N otherwise. */
+  var name=forceName||(isDefault?"Split 1":_nextSplitName());
   /* Snapshot current per-view state. NOTE: selGroups / activeGroupId /
      selGroupIdCounter / groupVisible are intentionally NOT saved per-split —
      selections are fully global across splits so that cross-split DEG and
@@ -17744,7 +17851,11 @@ function toggleFPS(){
   document.getElementById("fps-box").style.display=on?"block":"none";
 }
 var _flashTimer=null;
-function _flashAction(text,key){
+/* Flash duration default (ms). Callers that announce a substantive
+   change — e.g. when a keypress creates one or more new splits or
+   selection groups — can pass a longer duration so the user has time
+   to read the secondary clause. */
+function _flashAction(text,key,durationMs){
   if(!document.getElementById("set-flash").checked)return;
   var el=document.getElementById("action-flash");
   if(!el)return;
@@ -17753,7 +17864,7 @@ function _flashAction(text,key){
   clearTimeout(_flashTimer);
   _flashTimer=setTimeout(function(){
     el.classList.remove("show");
-  },700);
+  },durationMs||700);
 }
 
 function toggleHintBar(){
