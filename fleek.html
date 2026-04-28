@@ -198,8 +198,27 @@
      to enter" state is visually consistent regardless of input
      modality. .on flags the currently-loaded gene (or selected item),
      in accent2 so the user can locate it at a glance. */
-  .search-dd-row{display:flex;align-items:center;gap:4px;padding:3px 6px;font-size:10px;cursor:pointer;border-radius:2px;color:var(--text2);transition:background 0.08s;}
-  .search-dd-row:hover,.search-dd-row.active{background:var(--bg-hover);}
+  /* Unified textbox style for the gene-dropdown inputs (sidebar gene
+     search, Plots panel single-gene input, dot-plot chip cluster input).
+     Background, text colour, placeholder, font, and focus border all
+     match — so the keyboard-driven gene-search experience reads the
+     same everywhere it appears. Layout (flex / min-width) stays on the
+     element's inline style. The dot-plot chip input lives inside a
+     wrapper that already provides the border + bg, so we keep its
+     border/bg transparent and just match font + colour + placeholder
+     to the standalone variants. */
+  #gsearch,#plot-gene-input{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:3px;font-family:inherit;font-size:11px;padding:3px 6px;outline:none;transition:border-color var(--dur-fast);}
+  #gsearch:focus,#plot-gene-input:focus{border-color:var(--accent);}
+  #gsearch::placeholder,#plot-gene-input::placeholder,#plot-dp-genes-input::placeholder{color:var(--text4);}
+  #plot-dp-genes-input{color:var(--text);font-family:inherit;font-size:11px;}
+  .search-dd-row{display:flex;align-items:center;gap:4px;padding:3px 6px;font-size:10px;cursor:pointer;border-radius:2px;color:var(--text2);transition:background 0.08s,color 0.08s;}
+  .search-dd-row:hover{background:var(--bg-hover);}
+  /* Keyboard-cursor highlight matches every other dropdown in the
+     program (plot-gene autocomplete, dot-plot gene chips, palette,
+     custom gv-dd dropdowns, browse rows) — accent-tinted background +
+     accent2 text. Hover keeps the neutral gray so a hovered-but-not-
+     keyboard-targeted row stays distinct from the active one. */
+  .search-dd-row.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
   .search-dd-row.on{color:var(--accent2);font-weight:600;}
   .search-dd-row .sd-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .search-dd-row .sd-meta{color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;font-size:9px;}
@@ -10838,6 +10857,13 @@ function pollProgress(){
 var degData=null;
 var degSort={col:"padj",asc:true};
 var degHlGene=null;
+/* Panel-local "sticky" selection set by degClickGene. Decouples the
+   DEG panel's persistent yellow highlight from the global selGene,
+   which doesn't get updated in coloc mode (pickGene routes to a
+   channel and returns) — without this the yellow dot + table row
+   would clear the moment the cursor left the volcano. Cleared
+   whenever degData itself is reset. */
+var degSelGene=null;
 var volcanoCtx=null;
 var FC_THRESH=0.5, PADJ_THRESH=0.05;
 var degGrpA=null, degGrpB=null;
@@ -11741,7 +11767,15 @@ function _sortViewsByName(){
   _views=indexed.map(function(o){return o.v;});
 }
 /* Same idea for selGroups: sort "Group N" entries in ascending N
-   order, custom-named groups after. */
+   order, custom-named groups after.
+
+   IMPORTANT: cellGroupMap is keyed by *index into selGroups* (Int8Array;
+   see rebuildCellGroupMap), so any reorder of selGroups invalidates
+   every entry. Without the rebuild call below, cells originally tagged
+   "selGroups[0]" would render with whatever group ended up at index 0
+   after sort — i.e. a group would visually "take on" another group's
+   colour until the next event happened to call rebuildCellGroupMap.
+   Always pair sorts with rebuild + recolor. */
 function _sortGroupsByName(){
   var indexed=selGroups.map(function(g,i){return {g:g,i:i};});
   indexed.sort(function(a,b){
@@ -11753,6 +11787,8 @@ function _sortGroupsByName(){
     return a.i-b.i;
   });
   selGroups=indexed.map(function(o){return o.g;});
+  if(typeof rebuildCellGroupMap==="function")rebuildCellGroupMap();
+  if(typeof recolor==="function"&&typeof D!=="undefined"&&D&&typeof pts!=="undefined"&&pts)recolor();
 }
 function _viewAdd(isDefault,forceName){
   /* Save current view first */
@@ -16111,7 +16147,7 @@ function _showPseudoBulkResult(data){
   };
   document.getElementById("deg-note").textContent="Pseudo-bulk "+data.method+" \u00b7 "+data.group_a_name+" ("+data.n_samples_a+" replicates) vs "+data.group_b_name+" ("+data.n_samples_b+" replicates) \u00b7 "+data.n_genes_tested+" genes";
   degSort={col:"padj",asc:true};
-  degHlGene=null;
+  degHlGene=null;degSelGene=null;
   vZoom={x:1,y:1};vPan={x:0,y:0};vGlobalZoom=1;_vScrollTarget=1;
   _applyDegUIForKind();
   renderVolcano();
@@ -16952,7 +16988,7 @@ function _showDEGResult(data,grpA,grpB){
   document.getElementById("deg-note").textContent=data.note||"";
   document.getElementById("deg-search").value="";
   degSort={col:"padj",asc:true};
-  degHlGene=null;
+  degHlGene=null;degSelGene=null;
   vZoom={x:1,y:1};vPan={x:0,y:0};vGlobalZoom=1;_vScrollTarget=1;
   /* Auto-expand panel if too small for a usable volcano */
   var panel=document.getElementById("deg-panel");
@@ -17262,10 +17298,12 @@ function renderDEGTable(){
   var colA=degGrpA?_rgb(degGrpA.color):"#f87171";
   var colB=degGrpB?_rgb(degGrpB.color):"#60a5fa";
   var tbody=document.getElementById("deg-tbody");
-  /* Same fallback as renderVolcano: hover wins, else the persistent
-     app-wide selGene drives the highlight. Keeps the table row in sync
-     with the volcano's yellow dot. */
-  var _hlNameT=degHlGene||(typeof selGene==="string"&&selGene)||null;
+  /* Same fallback as renderVolcano: hover wins, then the panel-local
+     sticky degSelGene (set on click — survives mouseleave), then the
+     global selGene as a final fallback for the case where a gene was
+     picked elsewhere in the app. Keeps the table row in sync with the
+     volcano's yellow dot. */
+  var _hlNameT=degHlGene||degSelGene||(typeof selGene==="string"&&selGene)||null;
   tbody.innerHTML=genes.map(function(g){
     var sig=Math.abs(g.log2fc)>=FC_THRESH&&g.padj<PADJ_THRESH;
     var fcCol=g.log2fc>0?colA:colB;
@@ -17283,8 +17321,12 @@ function degClickGene(gene){
   /* Clear previous highlight */
   var prev=document.querySelector("#deg-tbody tr.hl");
   if(prev)prev.className="";
-  /* Set new highlight */
+  /* Set new highlight + sticky panel selection. degSelGene survives
+     mouseleave so the yellow dot + row stay marked after the cursor
+     leaves the volcano; cleared on the next degClickGene or when
+     degData is replaced. */
   degHlGene=gene;
+  degSelGene=gene;
   var row=document.querySelector('#deg-tbody tr[data-gene="'+gene+'"]');
   if(row){
     row.className="hl";
@@ -17506,7 +17548,13 @@ function renderVolcano(){
          volcano dot or table row; cleared on mouse-leave.
      When both refer to the same gene, only one dot is drawn (they
      overlap). */
-  var _selName=(typeof selGene==="string"&&selGene)||null;
+  /* Persistent yellow dot: prefer the panel-local sticky degSelGene
+     (set by degClickGene; survives mouseleave), then fall back to the
+     global selGene. The split keeps the volcano's "what did I click
+     in this panel" separate from "what's the app-wide active gene",
+     which matters in coloc mode where pickGene routes to a channel
+     and never updates selGene. */
+  var _selName=degSelGene||(typeof selGene==="string"&&selGene)||null;
   var _hovName=degHlGene||null;
   var hlSel=null, hlHov=null; /* deferred highlight positions */
   _volcanoPts=[];
@@ -17698,12 +17746,15 @@ function setupVolcanoHover(){
       degHlGene=null;
       renderVolcano();
       tip.style.display="none";
-      /* Hover ended — table row highlight should fall back to the
-         persistent selGene's row (matches the renderDEGTable logic). */
+      /* Hover ended — table row highlight falls back to the panel-
+         local sticky selection first (set by degClickGene), then the
+         global selGene. Matches the renderDEGTable logic so the row
+         and yellow dot stay in lockstep after a click. */
       var prevHl=document.querySelector("#deg-tbody tr.hl");
       if(prevHl)prevHl.className="";
-      if(typeof selGene==="string"&&selGene){
-        var selRow=document.querySelector('#deg-tbody tr[data-gene="'+selGene+'"]');
+      var _stickyName=degSelGene||(typeof selGene==="string"&&selGene)||null;
+      if(_stickyName){
+        var selRow=document.querySelector('#deg-tbody tr[data-gene="'+_stickyName+'"]');
         if(selRow)selRow.className="hl";
       }
     }
@@ -17729,8 +17780,10 @@ function setupVolcanoHover(){
       tip.style.display="none";
       var prevHl=document.querySelector("#deg-tbody tr.hl");
       if(prevHl)prevHl.className="";
-      if(typeof selGene==="string"&&selGene){
-        var selRow=document.querySelector('#deg-tbody tr[data-gene="'+selGene+'"]');
+      /* Sticky degSelGene first, then global selGene as fallback. */
+      var _stickyName=degSelGene||(typeof selGene==="string"&&selGene)||null;
+      if(_stickyName){
+        var selRow=document.querySelector('#deg-tbody tr[data-gene="'+_stickyName+'"]');
         if(selRow)selRow.className="hl";
       }
     }
