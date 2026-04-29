@@ -2213,7 +2213,7 @@ def _reset_all():
 SKIPPED_LAYERS = {}
 
 
-def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0):
+def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0, skip_X=False):
     """Read an h5ad while omitting any DENSE layer above `dense_skip_gb`.
 
     Why this exists: anndata's read_h5ad — even with backed='r' — eagerly
@@ -2284,6 +2284,14 @@ def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0):
             if key not in f:
                 continue
             _check_abort()
+            # Optionally skip /X — caller will set adata.X from the
+            # csc_cache.npz mmap on disk after we return. This is the
+            # main cold-load speedup: a 14 GB sparse-X read goes away
+            # entirely when the CSC cache is already present.
+            if key == "X" and skip_X:
+                cost_gb = _component_gb(f[key])
+                _progress(f"Skipping /X read (~{cost_gb:.1f} GB) — will mmap from CSC cache", 5)
+                continue
             cost_gb = _component_gb(f[key])
             cost_str = f", ~{cost_gb:.1f} GB" if cost_gb >= 0.5 else ""
             _progress(f"Reading /{key}{cost_str}...", 5)
@@ -2417,19 +2425,66 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         adata = sc.read_h5ad(h5ad_path, backed="r")
         BACKED = True
     else:
+        # X-CSC short-circuit: if we already have a CSC index cached on
+        # disk, the bytes in /X are redundant — the cache *is* the same
+        # data, just transposed for fast column access. Skip the /X
+        # read entirely and load the cache instead, saving the slowest
+        # single read in the pipeline (10+ GB of sparse data on cold
+        # disks). After the helper returns adata with X=None we mmap
+        # the cache and assign it; the rest of fleek treats adata.X
+        # interchangeably whether it's CSR or CSC.
+        _csc_pre, _ = _cache_read_path(".csc_cache.npz")
+        skip_X = _csc_pre is not None and _csc_pre.exists()
         # Use the layer-skipping reader. For datasets with no dense
         # layers above the threshold, behaviour is identical to
         # sc.read_h5ad. For datasets with a huge dense layer (denoised
         # outputs, etc.), the offending layer is skipped and the
         # registry is populated so downstream code can route around
         # the gap (e.g. via the display-CSC cache for that layer).
-        adata, SKIPPED_LAYERS = _read_h5ad_skip_dense_layers(h5ad_path, dense_skip_gb=5.0)
+        adata, SKIPPED_LAYERS = _read_h5ad_skip_dense_layers(
+            h5ad_path, dense_skip_gb=5.0, skip_X=skip_X,
+        )
         BACKED = False
+        if skip_X:
+            # Load the cached CSC into adata.X. Use mmap when possible
+            # so the bytes don't actually fault into RAM until a gene
+            # column is accessed; falls back to a regular load_npz on
+            # any error. If the cache shape doesn't match the dataset
+            # (e.g. you re-uploaded a different version of the h5ad
+            # over an old cache), we re-read /X from the h5ad as the
+            # safe fallback rather than serving wrong data.
+            _progress("Loading X from CSC cache (mmap)...", 9)
+            try:
+                _x_cached = _load_csc_mmap(_csc_pre)
+                if _x_cached is None:
+                    _x_cached = sp.load_npz(str(_csc_pre))
+                if _x_cached.shape == (adata.n_obs, adata.n_vars):
+                    adata.X = _x_cached
+                    _mmap_note = " (mmap)" if _is_mmap_backed(getattr(_x_cached, "data", None)) else ""
+                    print(f"  X mmapped from CSC cache{_mmap_note} (skipped /X read)")
+                else:
+                    print(f"  X CSC cache shape mismatch ({_x_cached.shape} vs {(adata.n_obs, adata.n_vars)}); re-reading /X from h5ad")
+                    _x_cached = None
+                    raise ValueError("shape mismatch")
+            except Exception as _e:
+                # Fallback: read /X from h5ad after all
+                _progress("Re-reading /X from h5ad (cache short-circuit failed)...", 9)
+                try:
+                    from anndata.experimental import read_elem as _read_elem_fb
+                except ImportError:
+                    try:
+                        from anndata._io.specs.registry import read_elem as _read_elem_fb
+                    except ImportError:
+                        from anndata._io.specs import read_elem as _read_elem_fb
+                import h5py as _h5py
+                with _h5py.File(h5ad_path, "r") as _f:
+                    if "X" in _f:
+                        adata.X = _read_elem_fb(_f["X"])
         if SKIPPED_LAYERS:
             _progress(
                 f"Loaded with {len(SKIPPED_LAYERS)} dense layer(s) skipped "
                 f"to avoid OOM: {list(SKIPPED_LAYERS.keys())}",
-                7,
+                10,
             )
     _progress(f"Loaded {adata.n_obs:,} cells x {adata.n_vars:,} genes"
               f" ({'backed' if BACKED else 'in-memory'}, {time.time()-t0:.0f}s)", 10)
