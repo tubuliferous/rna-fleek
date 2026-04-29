@@ -1065,12 +1065,14 @@
           <button class="btn" id="browse-back" onclick="browseBack()" title="Step Back" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--accent2);">&#8634;</button>
           <button class="btn" id="browse-fwd" onclick="browseFwd()" title="Step Forward" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--accent2);">&#8635;</button>
           <button class="btn" onclick="browseTo('..')" title="Parent directory" style="padding:2px 4px;font-size:13px;line-height:1;">&#8593;</button>
+          <!-- Home button. In single-user mode it goes to the OS home dir
+               (~). In remote mode the server reroutes ~ to USER_DATA_DIR,
+               so the same button takes the user to their own data root —
+               the title is also rewritten by _applyServerInfo to read
+               "My data" so the affordance matches the destination. The
+               adjacent [Shared] button (visible only in remote mode) is
+               the matching switcher for the shared-atlas root. -->
           <button class="btn browse-home-btn" onclick="browseTo('~')" title="Home directory" style="padding:2px 4px;font-size:12px;line-height:1;"><svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:middle;fill:currentColor;"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg></button>
-          <!-- Remote-mode root switchers — hidden by default; shown when the
-               server reports remote_mode=true. Server endpoints accept the
-               literal sentinels "my" and "shared" and resolve to the user's
-               own dir / the shared dataset dir respectively. -->
-          <button class="btn browse-my-btn" onclick="browseTo('my')" title="My data" style="display:none;padding:2px 6px;font-size:10px;line-height:1.4;">My</button>
           <button class="btn browse-shared-btn" onclick="browseTo('shared')" title="Shared data (read-only)" style="display:none;padding:2px 6px;font-size:10px;line-height:1.4;">Shared</button>
         </div>
         <div style="flex:1;position:relative;">
@@ -2923,7 +2925,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.1";
+var FLEEK_VERSION="v0.5.2";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -18442,17 +18444,15 @@ function _applyServerInfo(){
      authoritative — the server-side lockdown is the security boundary,
      this is just UX so a button doesn't sit there inviting clicks
      that 403. */
-  /* File-browser root switchers: the [My] and [Shared] buttons let
-     the user jump between USER_DATA_DIR and SHARED_DATA_DIR (the two
-     valid roots in remote mode). The home-dir button (~) is hidden
-     because the server reroutes ~ to USER_DATA_DIR anyway and the
-     home-icon is misleading inside a chroot. */
-  var myBtn=document.querySelector(".browse-my-btn");
+  /* File-browser root switchers in remote mode: the home-icon button
+     doubles as "go to my data" (the server reroutes ~ to USER_DATA_DIR
+     in remote mode), and the [Shared] button jumps to SHARED_DATA_DIR.
+     The home button stays visible in both modes — only its tooltip
+     swaps so the affordance matches the destination. */
   var sharedBtn=document.querySelector(".browse-shared-btn");
   var homeBtn=document.querySelector(".browse-home-btn");
-  if(myBtn)myBtn.style.display=_remoteMode?"inline-flex":"none";
   if(sharedBtn)sharedBtn.style.display=_remoteMode?"inline-flex":"none";
-  if(homeBtn)homeBtn.style.display=_remoteMode?"none":"inline-flex";
+  if(homeBtn)homeBtn.title=_remoteMode?"My data":"Home directory";
   /* Sign-out row in Settings — only meaningful in remote mode. */
   var signoutRow=document.getElementById("s-row-signout");
   if(signoutRow)signoutRow.style.display=_remoteMode?"flex":"none";
