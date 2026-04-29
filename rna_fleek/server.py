@@ -2234,8 +2234,40 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     if backed == "on":
         use_backed = True
     elif backed == "auto":
-        # Use backed if file is > 40% of available RAM
-        use_backed = file_size_gb > avail_ram_gb * 0.4
+        # Inspect the h5ad's /X group via h5py BEFORE loading — h5ad
+        # files use HDF5 compression, so a 50-GB dense float32 matrix
+        # lands on disk as 5–10 GB. The naïve "file_size_gb > 0.4 *
+        # ram" heuristic decides "plenty of room" for that case, then
+        # anndata decompresses to 50 GB and OOMs. Computing the actual
+        # in-memory cost from shape × dtype (or the sparse arrays' own
+        # sizes) is the right comparison.
+        in_memory_cost_gb = file_size_gb  # fallback if inspection fails
+        try:
+            import h5py
+            with h5py.File(h5ad_path, "r") as _f:
+                _X = _f.get("X")
+                if isinstance(_X, h5py.Dataset):
+                    # Dense X: shape × dtype itemsize is the full cost.
+                    in_memory_cost_gb = (int(np.prod(_X.shape)) * _X.dtype.itemsize) / 1e9
+                elif isinstance(_X, h5py.Group):
+                    # Sparse X (CSR/CSC): cost is data + indices + indptr.
+                    _dat = _X.get("data");  _idx = _X.get("indices");  _ptr = _X.get("indptr")
+                    if _dat is not None and _idx is not None and _ptr is not None:
+                        in_memory_cost_gb = (
+                            _dat.size * _dat.dtype.itemsize
+                            + _idx.size * _idx.dtype.itemsize
+                            + _ptr.size * _ptr.dtype.itemsize
+                        ) / 1e9
+        except Exception as _e:
+            print(f"  Auto-detect: couldn't inspect /X metadata ({_e}); using file size as proxy")
+        # Use backed mode if the in-memory cost would exceed 50% of
+        # available RAM. Threshold gives headroom for working memory
+        # (CSC index, embeddings, supervisor + other users on shared VM).
+        use_backed = in_memory_cost_gb > avail_ram_gb * 0.5
+        print(f"  Auto-detect: file {file_size_gb:.1f}GB on disk, "
+              f"~{in_memory_cost_gb:.1f}GB in RAM, "
+              f"{avail_ram_gb:.0f}GB available → "
+              f"{'BACKED mode' if use_backed else 'in-memory'}")
     # backed == "off" → use_backed stays False
 
     if use_backed:
