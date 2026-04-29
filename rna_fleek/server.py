@@ -2658,9 +2658,18 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     if _obsm_umap is not None and _obsm_umap.shape[0] != N_CELLS:
         _obsm_umap = None  # stale / wrong size — ignore
     for nd in n_dims_list:
-        # Check method-specific key first, then legacy key, then obsm
+        # Cache key suffix marks how the UMAP was computed (full vs
+        # subsampled-and-projected); both are valid coords for display.
+        # Check the matching suffix first, fall back to the OTHER suffix
+        # so a cache built in full mode is honoured when loading in fast
+        # mode and vice versa. Without this fallback fleek would load
+        # UMAP from adata.obsm['X_umap'] instead, mark need_save=True,
+        # and re-write the entire ~115 MB cache file even though the
+        # data was already on disk under a slightly different key.
         cache_key = f"umap_{nd}d{umap_suffix}"
         legacy_key = f"umap_{nd}d"
+        other_suffix = "_full" if umap_suffix == "_quick" else "_quick"
+        other_key = f"umap_{nd}d{other_suffix}"
         if cache_key in cached:
             _progress(f"Loaded {nd}D UMAP from cache ({'quick' if use_fast else 'full'})", 25)
             if nd == 2:
@@ -2668,6 +2677,13 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             else:
                 UMAP_3D = cached[cache_key].astype(np.float32)
             EMBEDDING_SOURCES[f"umap_{nd}d"] = "cache_quick" if use_fast else "cache_full"
+        elif other_key in cached:
+            _progress(f"Loaded {nd}D UMAP from cache ({other_suffix.lstrip('_')} variant)", 25)
+            if nd == 2:
+                UMAP_2D = cached[other_key].astype(np.float32)
+            else:
+                UMAP_3D = cached[other_key].astype(np.float32)
+            EMBEDDING_SOURCES[f"umap_{nd}d"] = "cache_" + other_suffix.lstrip("_")
         elif legacy_key in cached:
             _progress(f"Loaded {nd}D UMAP from cache (legacy)", 25)
             if nd == 2:
@@ -2909,9 +2925,15 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         threading.Thread(target=_bg_pca, daemon=True).start()
 
     # ── PaCMAP embedding (background subprocess to avoid numba/threading issues) ──
+    # Same cross-suffix fallback pattern as UMAP — a cache from full mode
+    # is valid coords in fast mode and vice versa, so don't recompute or
+    # re-save when the data is already on disk under the other suffix.
     _pm_suffix = "_quick" if PACMAP_SETTINGS.get("fast", True) else "_full"
+    _pm_other_suffix = "_full" if _pm_suffix == "_quick" else "_quick"
     _pm_key2 = f"pacmap_2d{_pm_suffix}"
     _pm_key3 = f"pacmap_3d{_pm_suffix}"
+    _pm_other2 = f"pacmap_2d{_pm_other_suffix}"
+    _pm_other3 = f"pacmap_3d{_pm_other_suffix}"
     if _pm_key2 in cached and _pm_key3 in cached:
         PACMAP_2D = cached[_pm_key2].astype(np.float32)
         PACMAP_3D = cached[_pm_key3].astype(np.float32)
@@ -2920,6 +2942,13 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         src = "cache_quick" if _pm_suffix == "_quick" else "cache_full"
         EMBEDDING_SOURCES["pacmap_2d"] = src
         EMBEDDING_SOURCES["pacmap_3d"] = src
+    elif _pm_other2 in cached and _pm_other3 in cached:
+        PACMAP_2D = cached[_pm_other2].astype(np.float32)
+        PACMAP_3D = cached[_pm_other3].astype(np.float32)
+        PACMAP_COMPUTING = False
+        print(f"  PaCMAP loaded from cache ({_pm_other_suffix.lstrip('_')} variant)")
+        EMBEDDING_SOURCES["pacmap_2d"] = "cache_" + _pm_other_suffix.lstrip("_")
+        EMBEDDING_SOURCES["pacmap_3d"] = "cache_" + _pm_other_suffix.lstrip("_")
     elif _pm_key3 in cached:
         # 3D cached but no native 2D — derive 2D from 3D
         PACMAP_3D = cached[_pm_key3].astype(np.float32)
