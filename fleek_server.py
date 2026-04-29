@@ -2203,6 +2203,100 @@ def _reset_all():
     gc.collect()
     gc.collect()
 
+# ── Skipped-layer registry (populated by _read_h5ad_skip_dense_layers) ─
+# Maps layer name → {"shape", "dtype", "nbytes_gb"} for any layer the
+# read step omitted from the in-memory AnnData because loading it would
+# have OOMed. Display gene queries for these layers can still be served
+# from a pre-built display-CSC cache on disk; DEG / preprocessing on
+# these layers is unsupported in this fallback path. The user-visible
+# message (printed by the loader) names every skipped layer.
+SKIPPED_LAYERS = {}
+
+
+def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0):
+    """Read an h5ad while omitting any DENSE layer above `dense_skip_gb`.
+
+    Why this exists: anndata's read_h5ad — even with backed='r' — eagerly
+    materializes every entry in /layers into RAM. For datasets with a
+    large dense layer (e.g. denoised 664k×20k float32 = 50 GB), this
+    OOMs on Linux servers with no swap, even when .X itself is sparse
+    and small. macOS hides the problem because of aggressive memory
+    compression + dynamic swap; Linux is strict.
+
+    What it does instead:
+      1. Walks the h5ad with h5py
+      2. For .X / .obs / .var / .obsm / .obsp / .varm / .varp / .uns /
+         .raw — reads via anndata.experimental.read_elem (always small
+         compared to a multi-GB dense layer)
+      3. For /layers — reads each entry except DENSE ones above the
+         threshold. Sparse layers (h5py.Group with CSR/CSC encoding)
+         are loaded normally; their cost is bounded by nnz.
+      4. Returns (adata, skipped_dict) where skipped_dict records
+         {name: {shape, dtype, nbytes_gb}} for every omitted layer.
+
+    Callers should record skipped_dict somewhere globally (e.g.
+    SKIPPED_LAYERS) so downstream paths can decide whether to fall
+    back to a disk-cached display CSC, ignore the layer, or surface
+    a "not available" message in the UI.
+    """
+    import h5py
+    # The read_elem helper has shifted homes between anndata versions —
+    # try the public location first, then the internal ones.
+    try:
+        from anndata.experimental import read_elem
+    except ImportError:
+        try:
+            from anndata._io.specs.registry import read_elem
+        except ImportError:
+            from anndata._io.specs import read_elem
+
+    skipped = {}
+    kwargs = {}
+
+    with h5py.File(path, "r") as f:
+        # Lightweight components — every reasonable h5ad has these well
+        # below the cost of the heavy layer. Read them first so a
+        # failure here is easy to diagnose vs a layer-read failure.
+        for key in ("X", "obs", "var", "obsm", "obsp", "varm", "varp", "uns", "raw"):
+            if key in f:
+                try:
+                    kwargs[key] = read_elem(f[key])
+                except Exception as e:
+                    print(f"  Warn: couldn't read /{key}: {e}")
+
+        # Layers — selectively skip dense ones above the threshold.
+        if "layers" in f:
+            layers_dict = {}
+            for layer_name in f["layers"]:
+                layer = f["layers"][layer_name]
+                if isinstance(layer, h5py.Dataset):
+                    nbytes_gb = (int(np.prod(layer.shape)) * layer.dtype.itemsize) / 1e9
+                    if nbytes_gb > dense_skip_gb:
+                        skipped[layer_name] = {
+                            "shape": tuple(layer.shape),
+                            "dtype": str(layer.dtype),
+                            "nbytes_gb": nbytes_gb,
+                        }
+                        print(
+                            f"  Skipping dense layer '{layer_name}' "
+                            f"({tuple(layer.shape)} {layer.dtype}, {nbytes_gb:.1f} GB) — "
+                            f"would OOM in-memory load. Display CSC cache "
+                            f"(if present) still serves gene queries from this layer."
+                        )
+                        continue
+                # Sparse Group, or small dense Dataset — load normally.
+                try:
+                    layers_dict[layer_name] = read_elem(layer)
+                except Exception as e:
+                    print(f"  Warn: couldn't read /layers/{layer_name}: {e}")
+            if layers_dict:
+                kwargs["layers"] = layers_dict
+
+    import anndata as _ad
+    adata = _ad.AnnData(**kwargs)
+    return adata, skipped
+
+
 def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False,
                      fast_umap_subsample=50000, backed="off", native_2d=False):
     """Load h5ad, subsample if needed, compute UMAP(s).
@@ -2270,13 +2364,37 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
               f"{'BACKED mode' if use_backed else 'in-memory'}")
     # backed == "off" → use_backed stays False
 
+    # Reset the skipped-layer registry; any prior dataset's entries
+    # are stale once we start loading a new file.
+    global SKIPPED_LAYERS
+    SKIPPED_LAYERS = {}
     if use_backed:
+        # NOTE: backed mode is incompatible with the skip-dense-layers
+        # path because anndata's backed AnnData wraps the on-disk h5ad
+        # with all layers eagerly loaded. If a user explicitly requests
+        # --backed=on with a dataset that has a huge dense layer, they
+        # still hit the OOM. Practical mitigation: if the auto-detect
+        # picks backed mode but we'd hit a dense layer, fall back to
+        # the skip-layers path. (Auto-detect almost never picks backed
+        # for the in-memory cost we now compute, so this is rare.)
         _progress(f"Loading in backed mode ({file_size_gb:.1f}GB file, {avail_ram_gb:.0f}GB RAM avail)...", 5)
         adata = sc.read_h5ad(h5ad_path, backed="r")
         BACKED = True
     else:
-        adata = sc.read_h5ad(h5ad_path)
+        # Use the layer-skipping reader. For datasets with no dense
+        # layers above the threshold, behaviour is identical to
+        # sc.read_h5ad. For datasets with a huge dense layer (denoised
+        # outputs, etc.), the offending layer is skipped and the
+        # registry is populated so downstream code can route around
+        # the gap (e.g. via the display-CSC cache for that layer).
+        adata, SKIPPED_LAYERS = _read_h5ad_skip_dense_layers(h5ad_path, dense_skip_gb=5.0)
         BACKED = False
+        if SKIPPED_LAYERS:
+            _progress(
+                f"Loaded with {len(SKIPPED_LAYERS)} dense layer(s) skipped "
+                f"to avoid OOM: {list(SKIPPED_LAYERS.keys())}",
+                7,
+            )
     _progress(f"Loaded {adata.n_obs:,} cells x {adata.n_vars:,} genes"
               f" ({'backed' if BACKED else 'in-memory'}, {time.time()-t0:.0f}s)", 10)
 
