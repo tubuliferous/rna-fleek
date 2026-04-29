@@ -4792,7 +4792,14 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 )
             fast = req.get("fast_umap", True)
             fast_sub = int(req.get("fast_umap_n", 50000))
-            backed = req.get("backed", "off")
+            # Default 'auto' so a dataset that wouldn't otherwise fit in
+            # RAM (dense .X bigger than ~40% of available memory) loads
+            # in backed mode instead of OOMing the server. Small files
+            # still go fully in-memory for speed. The frontend doesn't
+            # currently expose a "backed mode" toggle in remote-mode UI;
+            # this default is what makes "just click a big dataset and
+            # it loads" work without manual intervention.
+            backed = req.get("backed", "auto")
             _native_2d = req.get("native_2d", False)
             DEG_SETTINGS["fast"] = req.get("fast_deg", True)
             DEG_SETTINGS["max_cells"] = int(req.get("fast_deg_n", 50000))
@@ -6040,8 +6047,8 @@ def main():
                         help="Use subsample-and-project for large datasets (>50k cells)")
     parser.add_argument("--fast-umap-n", type=int, default=50000,
                         help="Number of cells for UMAP subsample (default: 50000)")
-    parser.add_argument("--backed", type=str, default="off", choices=["auto", "on", "off"],
-                        help="Backed mode: auto (detect), on (force disk), off (force RAM, default)")
+    parser.add_argument("--backed", type=str, default="auto", choices=["auto", "on", "off"],
+                        help="Backed mode: auto (detect; default — falls back to disk-backed read when the file is bigger than ~40%% of available RAM), on (force disk), off (force fully in-memory; will OOM on huge datasets)")
     parser.add_argument("--cache-mode", type=str, default="dataset", choices=["dataset", "server"],
                         help="Where to store caches: 'dataset' (alongside h5ad, default) or 'server' (~/.fleek_cache)")
     parser.add_argument("--cache-dir", type=str, default=None,
