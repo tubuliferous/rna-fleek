@@ -1,0 +1,76 @@
+# nginx site config for RNA-FLEEK supervisor.
+#
+# Install:
+#   sudo cp deployment/nginx.conf.example /etc/nginx/sites-available/fleek
+#   sudo ln -s /etc/nginx/sites-available/fleek /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Edit the server_name, ssl_certificate paths, and the auth_basic
+# block to match your deployment before installing.
+
+# ── HTTP → HTTPS redirect ───────────────────────────────────────────
+server {
+    listen 80;
+    listen [::]:80;
+    server_name fleek.example.uab.edu;
+    return 301 https://$host$request_uri;
+}
+
+# ── HTTPS, lab-level basic-auth gate, proxy to supervisor ──────────
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name fleek.example.uab.edu;
+
+    # Use a UAB-issued cert if RC offers one, or a self-signed cert
+    # for an internal lab tool. Generate self-signed:
+    #   sudo openssl req -x509 -nodes -newkey rsa:4096 -days 825 \
+    #     -keyout /etc/nginx/certs/fleek.key \
+    #     -out    /etc/nginx/certs/fleek.crt \
+    #     -subj "/CN=fleek.example.uab.edu"
+    ssl_certificate     /etc/nginx/certs/fleek.crt;
+    ssl_certificate_key /etc/nginx/certs/fleek.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+
+    # ── Lab-level gate (the "shared lab password" layer) ──
+    # Generate the password file:
+    #   sudo apt install apache2-utils
+    #   sudo htpasswd -c /etc/nginx/.fleek-lab-htpasswd lab
+    # Then share that one (lab, <password>) credential with everyone
+    # in the lab. Per-user accounts are managed inside the supervisor
+    # via /signup; this layer only verifies "is this person in the
+    # lab at all". Comment the auth_basic block out to disable.
+    auth_basic "RNA-FLEEK · lab access";
+    auth_basic_user_file /etc/nginx/.fleek-lab-htpasswd;
+
+    # Pass the auth user along for the supervisor's logs.
+    proxy_set_header X-Lab-User      $remote_user;
+    proxy_set_header X-Real-IP       $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Host            $host;
+
+    # Long timeouts because some FLEEK operations (UMAP recompute,
+    # large h5ad load) are minutes-long. Adjust to taste.
+    proxy_read_timeout 900s;
+    proxy_send_timeout 900s;
+    proxy_connect_timeout 30s;
+
+    # Allow large h5ad uploads. The supervisor enforces per-user
+    # quotas; this is just the wire-level cap.
+    client_max_body_size 8G;
+    client_body_timeout 900s;
+
+    # Disable buffering for the binary init payload + streaming
+    # responses (gene fetches, exports). Buffering would queue large
+    # responses in /var/cache/nginx and add latency.
+    proxy_buffering off;
+    proxy_request_buffering off;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+    }
+}

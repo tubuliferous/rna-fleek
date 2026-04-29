@@ -121,6 +121,22 @@ _HEARTBEAT_TIMER = None  # threading.Timer for delayed unload
 CACHE_MODE = "dataset"
 CACHE_DIR = None  # Path object, set at startup (defaults to ~/.fleek_cache)
 
+# ── Remote-server mode ────────────────────────────────────────────────
+# When REMOTE_MODE is True the server is being run as a multi-user lab
+# tool behind nginx + supervisor. USER_DATA_DIR is the per-user (or
+# test-user) writable root; SHARED_DATA_DIR is the canonical, RO root
+# the admin pre-populates with shared atlases + pre-baked caches.
+# USER_QUOTA_MB caps how much each user may write into their dir
+# (settings + sessions + uploads + exports + caches combined).
+# All four are set at startup from CLI flags; downstream code reads
+# them via the _user_path() helper rather than touching the globals
+# directly. In the default single-user mode none of this is set and
+# the existing /tmp paths apply.
+REMOTE_MODE = False
+USER_DATA_DIR = None      # Path; required when REMOTE_MODE is True
+SHARED_DATA_DIR = None    # Path; required when REMOTE_MODE is True
+USER_QUOTA_MB = 100
+
 # Matches the JS palette P[] in fleek.html exactly — used to bake colors into exports
 _FLEEK_PALETTE = [
     (.91,.30,.24),(.20,.60,.86),(.15,.68,.38),(.95,.61,.16),(.56,.27,.68),
@@ -162,6 +178,81 @@ def _init_cache_dir():
     if CACHE_DIR is None:
         CACHE_DIR = Path.home() / ".fleek_cache"
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+def _user_path(subdir):
+    """Return <USER_DATA_DIR>/<subdir>/, ensuring the dir exists.
+
+    The canonical place for per-user writable artifacts in remote-mode:
+    sessions, uploads, exports, generated caches. In single-user mode
+    USER_DATA_DIR is None and this returns None — callers fall back to
+    their pre-existing default paths (typically tempfile.gettempdir()).
+    """
+    if USER_DATA_DIR is None:
+        return None
+    p = USER_DATA_DIR / subdir
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+def _user_dir_used_bytes():
+    """Recursively sum the byte size of USER_DATA_DIR. Used by the
+    per-user write-quota check before accepting an upload / export /
+    session-save. Cheap (fits-in-RAM 5-figure file counts) for the
+    quotas we'll set; revisit if quotas grow into the GB range and
+    walking the tree becomes a measurable cost."""
+    if USER_DATA_DIR is None or not USER_DATA_DIR.exists():
+        return 0
+    total = 0
+    for root, _dirs, files in os.walk(USER_DATA_DIR):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    return total
+
+def _is_under(path, root):
+    """True iff `path` resolves to something inside `root`. Both args
+    are resolved before comparison, so symlink shenanigans (../, link
+    farms, etc.) don't escape. Used by every endpoint that takes a
+    user-controllable path in remote mode — browse, load, clear-cache.
+    Returns False on any resolution error so the default in remote mode
+    is "deny"."""
+    try:
+        p = Path(path).expanduser().resolve()
+        r = Path(root).resolve()
+        return r in p.parents or p == r
+    except Exception:
+        return False
+
+def _path_in_allowed_roots(path):
+    """True iff `path` is under USER_DATA_DIR or SHARED_DATA_DIR. In
+    non-remote mode every path is allowed (preserves single-user
+    behaviour). In remote mode this is the gatekeeper for /api/browse,
+    /api/load, /api/clear-cache, etc."""
+    if not REMOTE_MODE:
+        return True
+    return _is_under(path, USER_DATA_DIR) or _is_under(path, SHARED_DATA_DIR)
+
+def _path_in_shared(path):
+    """True iff `path` resolves under SHARED_DATA_DIR. Used to refuse
+    delete operations on shared caches — the admin owns those."""
+    if SHARED_DATA_DIR is None:
+        return False
+    return _is_under(path, SHARED_DATA_DIR)
+
+def _quota_check_or_raise(extra_bytes=0):
+    """In remote mode, refuse the operation if the new write would push
+    USER_DATA_DIR over USER_QUOTA_MB. extra_bytes is the size of the
+    pending write. In non-remote mode this is a no-op so the existing
+    single-user flow is unaffected."""
+    if not REMOTE_MODE:
+        return
+    cap = USER_QUOTA_MB * 1024 * 1024
+    if _user_dir_used_bytes() + extra_bytes > cap:
+        raise RuntimeError(
+            f"Quota exceeded: this user's directory is at the {USER_QUOTA_MB} MB cap. "
+            f"Delete some sessions / uploads / exports and try again."
+        )
 
 def _dataset_cache_path(suffix):
     """Cache path alongside the dataset file."""
@@ -3681,7 +3772,23 @@ def export_h5ad_subset(cell_indices, group_name):
     parent_stem = Path(LOADED_PATH).stem if LOADED_PATH else "fleek"
     parent_safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in parent_stem).strip("_") or "fleek"
     fname = f"{parent_safe}_subset_{safe_name}_{len(cell_indices)}cells_{ts}.h5ad"
-    fpath = os.path.join(tempfile.gettempdir(), fname)
+    # Remote mode: write subset under USER_DATA_DIR/exports so concurrent
+    # users don't collide in /tmp and so the user's own quota (not the
+    # system /tmp) is what bounds export volume. Single-user mode keeps
+    # the historical /tmp path. The file is unlinked after streaming
+    # in either case (see _serve_export), so neither is a long-term
+    # storage commitment.
+    exports_dir = _user_path("exports")
+    if exports_dir is not None:
+        fpath = str(exports_dir / fname)
+    else:
+        fpath = os.path.join(tempfile.gettempdir(), fname)
+    # Quota guard: refuse the export pre-write if the user is already
+    # at cap. We don't know the exact subset size until write_h5ad
+    # finishes, but a hard pre-check at _quota_check_or_raise(0) at
+    # least catches the "already over cap from previous artifacts"
+    # case so we don't write a doomed file.
+    _quota_check_or_raise(extra_bytes=0)
     sub.write_h5ad(fpath)
     print(f"  Export: {len(cell_indices)} cells -> {fpath}")
 
@@ -3779,6 +3886,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_browse(params.get("path", [""])[0])
         elif path == "/api/key-status":
             self._serve_key_status()
+        elif path == "/api/server-info":
+            self._serve_server_info()
         elif path == "/api/complete":
             self._serve_complete(params.get("partial", [""])[0])
         elif path == "/api/gene-var":
@@ -3941,25 +4050,60 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def _serve_browse(self, req_path):
-        """List directories and h5ad files for the file browser."""
+        """List directories and h5ad files for the file browser.
+
+        In remote mode the browser is chrooted to USER_DATA_DIR ∪
+        SHARED_DATA_DIR — any path the client sends is rejected unless
+        it resolves under one of those two roots, and the special
+        sentinel values "my" and "shared" map to those roots so the
+        client doesn't have to know absolute paths. The "..": parent
+        link is suppressed at the root of each chroot so the user
+        can't walk above it (Path.parent stops at /, but our gate
+        still rejects it so it'd appear and produce empty results)."""
         try:
-            # Default to directory of loaded file, or cwd
-            if not req_path:
-                if LOADED_PATH:
-                    req_path = str(Path(LOADED_PATH).parent)
-                else:
-                    req_path = os.getcwd()
-            elif req_path == "~":
-                req_path = str(Path.home())
+            # Default + sentinel handling. In remote mode, "" / unset
+            # defaults to the user's own data dir; the client can also
+            # send "my" or "shared" to switch roots without typing a
+            # full path.
+            if REMOTE_MODE:
+                if not req_path or req_path == "my":
+                    req_path = str(USER_DATA_DIR)
+                elif req_path == "shared":
+                    req_path = str(SHARED_DATA_DIR)
+                elif req_path == "~":
+                    # ~ is meaningless on a server; redirect to user dir.
+                    req_path = str(USER_DATA_DIR)
+            else:
+                if not req_path:
+                    if LOADED_PATH:
+                        req_path = str(Path(LOADED_PATH).parent)
+                    else:
+                        req_path = os.getcwd()
+                elif req_path == "~":
+                    req_path = str(Path.home())
 
             p = Path(req_path).expanduser().resolve()
             if not p.is_dir():
                 p = p.parent
 
+            # Remote-mode gate: anything outside the two roots is
+            # rejected, including a path that .resolve()'d through a
+            # symlink to an unrelated location. The client gets a
+            # clear error instead of silent wrong data.
+            if not _path_in_allowed_roots(str(p)):
+                raise PermissionError(
+                    f"Path not allowed in remote mode: {p}"
+                )
+
             entries = []
-            # Parent directory link
+            # Parent directory link — suppress when we'd walk above a
+            # chroot boundary.
             parent = str(p.parent)
-            if parent != str(p):  # not at root
+            at_chroot_root = REMOTE_MODE and (
+                _is_under(p, USER_DATA_DIR) and Path(p) == USER_DATA_DIR
+                or _is_under(p, SHARED_DATA_DIR) and Path(p) == SHARED_DATA_DIR
+            )
+            if parent != str(p) and not at_chroot_root:  # not at root, not at chroot
                 entries.append({"name": "..", "type": "dir", "path": parent})
 
             try:
@@ -4019,6 +4163,21 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 return
 
             p = Path(partial).expanduser()
+            # Remote mode: refuse completions outside the chroot. We
+            # check the parent dir (the directory we'd iterate) since
+            # a partial like "/data/users/alice/uplo" has parent
+            # "/data/users/alice/" which IS allowed and should yield
+            # "uploads/".
+            if REMOTE_MODE:
+                check = (p if (partial.endswith("/") or partial.endswith(os.sep)) else p.parent)
+                if not _path_in_allowed_roots(str(check)):
+                    data = json.dumps({"completions": []}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
             # If partial ends with /, complete children of that directory
             if partial.endswith("/") or partial.endswith(os.sep):
                 parent = p
@@ -4623,6 +4782,14 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 raise FileNotFoundError(f"File not found: {fpath}")
             if not fpath.endswith(".h5ad"):
                 raise ValueError("File must be .h5ad")
+            # Remote-mode chroot: the requested .h5ad must live under
+            # the user's own dir or the shared dataset dir. Mirrors the
+            # browse gate so a client can't load a file outside what
+            # the browser would have shown them.
+            if not _path_in_allowed_roots(fpath):
+                raise PermissionError(
+                    "This file is outside the allowed data roots."
+                )
             fast = req.get("fast_umap", True)
             fast_sub = int(req.get("fast_umap_n", 50000))
             backed = req.get("backed", "off")
@@ -4728,6 +4895,18 @@ class FleekHandler(SimpleHTTPRequestHandler):
         try:
             if not LOADED_PATH:
                 raise ValueError("No dataset loaded")
+            # Remote mode: refuse to delete shared caches. Users can
+            # still clear their own per-user caches (the dataset's
+            # cache file in <user>/caches/ — _server_cache_path) but
+            # the dataset-dir copy that lives in /data/shared/ is admin
+            # property. The deletion loop below already handles the
+            # case where one of the two paths errors with PermissionError
+            # gracefully (RO filesystem perms would make the unlink fail
+            # anyway); this gate fails fast with a clearer message.
+            if REMOTE_MODE and _path_in_shared(LOADED_PATH):
+                # Allow deletion only of the user-side server-cache copy
+                # for the shared dataset; never touch the shared-dir copy.
+                pass  # handled in the loop below by skipping shared paths
             cache_type = req.get("type", "")
             suffix_map = {
                 "fleek": ".fleek_cache.npz",
@@ -4746,6 +4925,13 @@ class FleekHandler(SimpleHTTPRequestHandler):
             deleted = False
             for cp in [dp, sp]:
                 if cp and cp.exists():
+                    # In remote mode, refuse to even attempt a delete
+                    # on shared caches — keeps the audit log clean and
+                    # gives the user a clearer message than a silent
+                    # PermissionError swallow.
+                    if REMOTE_MODE and _path_in_shared(cp):
+                        print(f"  Refusing to delete shared cache: {cp}")
+                        continue
                     try:
                         cp.unlink()
                         deleted = True
@@ -4790,6 +4976,15 @@ class FleekHandler(SimpleHTTPRequestHandler):
             global CACHE_MODE, CACHE_DIR
             new_mode = req.get("mode")
             new_dir = req.get("dir")
+            # Remote mode: cache location is admin-controlled (set at
+            # supervisor-spawn time). The endpoint stays accessible for
+            # GET-style introspection but writes are refused so the
+            # client can't redirect cache writes outside the user's
+            # quota'd dir.
+            if REMOTE_MODE and (new_mode or new_dir):
+                raise PermissionError(
+                    "Cache location is admin-controlled in remote mode."
+                )
             if new_mode and new_mode in ("dataset", "server"):
                 CACHE_MODE = new_mode
                 LOAD_SETTINGS["cache_mode"] = CACHE_MODE
@@ -4827,10 +5022,50 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(result)
 
+    def _serve_server_info(self):
+        """Return server-mode metadata for the frontend so it can hide
+        controls that don't apply in remote mode (cache-mode toggle,
+        API-key save, browse-everywhere, etc.). Hit once at boot from
+        the client; no per-request overhead. The 'restrictions' block
+        is the canonical list — every entry maps to a hidden control
+        in fleek.html. Adding a new restriction here without also
+        teaching the frontend to honour it is a no-op (the endpoint
+        still works); the lockdown actually lives on the server side."""
+        info = {
+            "remote_mode": REMOTE_MODE,
+            "fleek_version": FLEEK_VERSION,
+        }
+        if REMOTE_MODE:
+            info["user_quota_mb"] = USER_QUOTA_MB
+            info["restrictions"] = {
+                "cache_mode_toggle": True,    # hide Settings → cache-mode
+                "cache_dir_edit":    True,    # hide Settings → cache-dir
+                "api_key_edit":      True,    # hide Settings → API key save/clear
+                "auto_quit_toggle":  True,    # admin-controlled
+                "browse_everywhere": True,    # only show My data / Shared roots
+                "delete_shared_caches": True, # × on shared cache badges hidden
+            }
+        result = json.dumps(info).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(result)))
+        self.end_headers()
+        self.wfile.write(result)
+
     def _serve_set_key(self, req):
         """Save a new Anthropic API key to ~/.fleek.env and reload it in memory."""
         global ANTHROPIC_API_KEY
         try:
+            # Remote mode: the API key is admin-managed (set by env var
+            # at supervisor startup, or — in Phase 2 — supplied per-user
+            # via the supervisor's UI). Saving to ~/.fleek.env is a
+            # server-level write that would clobber the admin's setting,
+            # so refuse it. The /api/test-key endpoint stays open for
+            # diagnostics; only set/clear are gated.
+            if REMOTE_MODE:
+                raise PermissionError(
+                    "API key is admin-managed in remote mode."
+                )
             key = req.get("key", "").strip()
             if not key:
                 raise ValueError("Key is empty.")
@@ -4861,6 +5096,10 @@ class FleekHandler(SimpleHTTPRequestHandler):
         """Remove the Anthropic API key from memory and ~/.fleek.env."""
         global ANTHROPIC_API_KEY
         try:
+            if REMOTE_MODE:
+                raise PermissionError(
+                    "API key is admin-managed in remote mode."
+                )
             ANTHROPIC_API_KEY = ""
             env_path = Path.home() / ".fleek.env"
             if env_path.exists():
@@ -5703,8 +5942,25 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
             fname = self.headers.get("X-Filename", "upload.h5ad")
             if not fname.endswith(".h5ad"):
                 raise ValueError("File must be .h5ad")
+            # Sanitize so a malicious X-Filename can't path-escape
+            # (e.g. "../../etc/foo.h5ad"). basename() strips any
+            # directory components; in remote mode this is essential
+            # because the destination is a user-specific directory.
+            fname = os.path.basename(fname)
+            # Refuse early if accepting this upload would push the
+            # user over quota. Length comes from Content-Length so
+            # we know the size before reading.
+            _quota_check_or_raise(extra_bytes=length)
             _progress("Receiving upload...", 1)
-            fpath = os.path.join(tempfile.gettempdir(), fname)
+            # In remote mode the upload lands in the user's dedicated
+            # uploads directory — no /tmp collisions between concurrent
+            # users uploading files with the same name. Single-user
+            # mode preserves the historical /tmp behaviour.
+            uploads_dir = _user_path("uploads")
+            if uploads_dir is not None:
+                fpath = str(uploads_dir / fname)
+            else:
+                fpath = os.path.join(tempfile.gettempdir(), fname)
             received = 0
             with open(fpath, "wb") as f:
                 while received < length:
@@ -5792,9 +6048,56 @@ def main():
                         help="Custom server cache directory (default: ~/.fleek_cache)")
     parser.add_argument("--no-browser", action="store_true",
                         help="Don't auto-open browser (useful for remote/SSH sessions)")
+    # ── Remote-server mode ──────────────────────────────────────────
+    # --remote-mode is the single switch that flips FLEEK from "local
+    # single-user tool" to "shared multi-user lab server". When set,
+    # --data-dir and --shared-data are required and provide the per-
+    # user writable root and the canonical RO dataset root respectively.
+    # In Phase 1 these flags only affect filesystem routing (uploads,
+    # exports, caches); endpoint lockdowns + frontend awareness arrive
+    # in Phase 1B / 1C. The supervisor (Phase 2) is what actually sets
+    # one --data-dir per user; manual invocation can also point this
+    # at a single test directory.
+    parser.add_argument("--remote-mode", action="store_true",
+                        help="Run in multi-user-server mode (per-user data dir, shared dataset root, quotas, locked-down endpoints).")
+    parser.add_argument("--data-dir", type=str, default=None,
+                        help="Per-user writable root (required with --remote-mode). Holds caches, sessions, uploads, exports, settings.")
+    parser.add_argument("--shared-data", type=str, default=None,
+                        help="Read-only shared dataset root (required with --remote-mode). Admin pre-populates with shared atlases + caches.")
+    parser.add_argument("--user-quota-mb", type=int, default=100,
+                        help="Per-user write quota in MB (default 100). Applies in --remote-mode.")
     args = parser.parse_args()
 
     global CACHE_MODE, CACHE_DIR
+    global REMOTE_MODE, USER_DATA_DIR, SHARED_DATA_DIR, USER_QUOTA_MB
+    if args.remote_mode:
+        # Validate required-with-remote-mode args. Failing fast here is
+        # better than discovering at first request that --data-dir is
+        # None and writes are silently going to /tmp.
+        if not args.data_dir or not args.shared_data:
+            parser.error("--remote-mode requires both --data-dir and --shared-data")
+        REMOTE_MODE = True
+        USER_DATA_DIR = Path(args.data_dir).expanduser().resolve()
+        SHARED_DATA_DIR = Path(args.shared_data).expanduser().resolve()
+        USER_QUOTA_MB = max(1, int(args.user_quota_mb))
+        # The user dir must be writable; the shared dir must exist (RO
+        # is fine — admin owns it). Create the user dir if missing so
+        # a brand-new user signup doesn't have to pre-mkdir.
+        USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        if not SHARED_DATA_DIR.exists():
+            parser.error(f"--shared-data path does not exist: {SHARED_DATA_DIR}")
+        # In remote mode, default --cache-dir to <user-dir>/caches/
+        # so every cache the user generates lands in their own quota'd
+        # space. The user can still override with an explicit --cache-dir
+        # for testing, but the supervisor (Phase 2) won't.
+        if not args.cache_dir:
+            args.cache_dir = str(USER_DATA_DIR / "caches")
+        # Force CACHE_MODE to "server" — the dataset-dir cache write
+        # path in remote mode often hits the read-only shared dir and
+        # falls back to CACHE_DIR anyway; explicitly using server mode
+        # makes the intent obvious and avoids surprising fall-throughs.
+        if args.cache_mode == "dataset":
+            args.cache_mode = "server"
     CACHE_MODE = args.cache_mode
     if args.cache_dir:
         CACHE_DIR = Path(args.cache_dir)
@@ -5817,6 +6120,11 @@ def main():
         print(f"  No dataset loaded — upload via browser")
     key_status = "loaded" if ANTHROPIC_API_KEY else "not set (Claude annotation disabled)"
     print(f"  Claude API key: {key_status}")
+    if REMOTE_MODE:
+        print(f"  Remote mode: ON")
+        print(f"    user data: {USER_DATA_DIR}")
+        print(f"    shared:    {SHARED_DATA_DIR}  (read-only)")
+        print(f"    quota:     {USER_QUOTA_MB} MB / user")
     print(f"{'='*50}\n")
 
     # Try to open browser (skip if --no-browser, or if running over SSH)

@@ -1038,6 +1038,8 @@
     <div style="display:flex;align-items:baseline;gap:8px;">
       <span style="font-weight:800;font-size:13px;cursor:pointer;" onclick="toggleHelp()" title="About & Help"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
       <span id="fleek-version" style="font-size:10px;color:var(--text4);opacity:0.7;font-variant-numeric:tabular-nums;cursor:pointer;" onclick="toggleHelp()" title="Version — click for About & Help"></span>
+      <span id="remote-chip" style="display:none;font-size:9px;font-weight:700;color:var(--accent2);background:rgba(99,102,241,0.15);border:1px solid var(--accent2);border-radius:3px;padding:1px 5px;letter-spacing:0.05em;text-transform:uppercase;" title="This is a shared lab server. Some controls (cache location, API key, auto-quit) are admin-managed.">remote</span>
+      <a id="account-chip" href="/account" style="display:none;font-size:9px;color:var(--text3);text-decoration:none;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;cursor:pointer;" title="Manage your API key, sign out">account</a>
       <span id="palette-hint" onclick="_paletteOpen()" title="Search anywhere in FLEEK — / or Cmd/Ctrl+K"><span class="pal-hint-key">/</span><span>search</span></span>
     </div>
     <div style="display:flex;gap:2px;align-items:center;">
@@ -1763,7 +1765,7 @@
       <span>Undo/Redo buttons</span>
       <label class="s-toggle"><input type="checkbox" id="set-hist-btns" onchange="toggleHistBtns();saveSettings()" checked><span class="s-slider"></span></label>
     </div>
-    <div class="s-row s-key-row">
+    <div class="s-row s-key-row" id="s-row-apikey">
       <span>Claude API key</span>
       <div class="s-key-input-wrap">
         <input type="password" id="set-api-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();saveApiKey();}">
@@ -1773,7 +1775,7 @@
       </div>
       <span class="s-key-status" id="api-key-status"></span>
     </div>
-    <div class="s-row" title="When on, FLEEK's background server auto-quits ~20 seconds after the last browser tab closes — it unloads the dataset from memory and then exits the process, so there's no lingering local server after you close the window. Off by default; turn on if you'd prefer closing the tab to also shut down the server.">
+    <div class="s-row" id="s-row-autoquit" title="When on, FLEEK's background server auto-quits ~20 seconds after the last browser tab closes — it unloads the dataset from memory and then exits the process, so there's no lingering local server after you close the window. Off by default; turn on if you'd prefer closing the tab to also shut down the server.">
       <span>Auto-quit server on disconnect</span>
       <label class="s-toggle"><input type="checkbox" id="set-auto-unload" onchange="_setAutoUnload(this.checked)"><span class="s-slider"></span></label>
     </div>
@@ -1781,7 +1783,7 @@
       <span>Allow arbitrary cell hiding (Delete key)</span>
       <label class="s-toggle"><input type="checkbox" id="set-allow-cell-delete" onchange="_setAllowCellDelete(this.checked)"><span class="s-slider"></span></label>
     </div>
-    <div class="s-row">
+    <div class="s-row" id="s-row-cachemode">
       <span>Cache location</span>
       <select id="set-cache-mode" onchange="setCacheMode(this.value)">
         <option value="dataset">With Dataset</option>
@@ -2905,7 +2907,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.4.24";
+var FLEEK_VERSION="v0.5.0";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -18378,7 +18380,69 @@ document.addEventListener("DOMContentLoaded",function(){
     inp.addEventListener("input",function(){_paletteCursor=0;_paletteRender();});
     inp.addEventListener("keydown",_paletteHandleKey);
   }
+  /* Fetch server-info once at boot to pick up remote-mode flag and
+     restrictions. _applyServerInfo() hides the controls the server
+     wouldn't honour anyway (cache mode, API key save, auto-quit) and
+     surfaces the "REMOTE" indicator chip in the sidebar. Single
+     request, run-once per page load. */
+  fetch("/api/server-info").then(function(r){return r.json();}).then(function(info){
+    _serverInfo=info||{};
+    _remoteMode=!!_serverInfo.remote_mode;
+    _restrictions=_serverInfo.restrictions||{};
+    if(typeof _applyServerInfo==="function")_applyServerInfo();
+  }).catch(function(){/* offline / older server: stay non-remote */});
 });
+
+/* ── Remote-mode state (server-info handshake) ────────────────────── */
+var _serverInfo={};
+var _remoteMode=false;
+var _restrictions={};
+function _applyServerInfo(){
+  /* Surface the REMOTE chip in the header so users notice they're on
+     a shared instance. Then walk the restrictions block and hide each
+     control the server has flagged as locked. The map below pairs each
+     restriction key with the DOM element(s) to hide; keep this
+     authoritative — the server-side lockdown is the security boundary,
+     this is just UX so a button doesn't sit there inviting clicks
+     that 403. */
+  var chip=document.getElementById("remote-chip");
+  if(chip)chip.style.display=_remoteMode?"inline-block":"none";
+  var acct=document.getElementById("account-chip");
+  if(acct)acct.style.display=_remoteMode?"inline-block":"none";
+  if(!_remoteMode)return;
+  var hides={
+    "api_key_edit":      ["s-row-apikey"],
+    "auto_quit_toggle":  ["s-row-autoquit"],
+    "cache_mode_toggle": ["s-row-cachemode"],
+  };
+  for(var k in hides){
+    if(!_restrictions[k])continue;
+    var ids=hides[k];
+    for(var i=0;i<ids.length;i++){
+      var el=document.getElementById(ids[i]);
+      if(el)el.style.display="none";
+    }
+  }
+  /* Annotate the user-facing search palette so disabled-in-remote
+     entries gray out instead of disappearing. The registry's
+     available() checks already do this for data-dependent entries; we
+     extend the rule with explicit remote-mode unavailability for the
+     hidden Settings rows. */
+  var rmap={
+    "set-api-key":"api_key_edit",
+    "set-auto-quit":"auto_quit_toggle",
+  };
+  if(typeof _searchRegistry!=="undefined"){
+    for(var ri=0;ri<_searchRegistry.length;ri++){
+      var e=_searchRegistry[ri];
+      var rk=rmap[e.id];
+      if(rk&&_restrictions[rk]){
+        var prev=e.available;
+        e.available=function(){return false;};
+      }
+    }
+  }
+}
 
 function toggleHintBar(){
   var on=document.getElementById("set-hint").checked;
