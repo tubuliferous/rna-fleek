@@ -2253,21 +2253,52 @@ def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0):
     skipped = {}
     kwargs = {}
 
+    # Helper to size a single h5ad component in GB — a sparse Group's
+    # cost is data + indices + indptr; a dense Dataset is shape × dtype.
+    # Used both for reporting in-progress reads and for deciding whether
+    # to skip a dense layer.
+    def _component_gb(elem):
+        if isinstance(elem, h5py.Dataset):
+            return (int(np.prod(elem.shape)) * elem.dtype.itemsize) / 1e9
+        if isinstance(elem, h5py.Group):
+            etype = elem.attrs.get("encoding-type", "")
+            if etype in ("csr_matrix", "csc_matrix"):
+                total = 0
+                for sub in ("data", "indices", "indptr"):
+                    if sub in elem:
+                        total += elem[sub].size * elem[sub].dtype.itemsize
+                return total / 1e9
+        return 0.0
+
     with h5py.File(path, "r") as f:
         # Lightweight components — every reasonable h5ad has these well
         # below the cost of the heavy layer. Read them first so a
         # failure here is easy to diagnose vs a layer-read failure.
+        # Each iteration also calls _check_abort so the user can cancel
+        # mid-read if a particular component is taking forever (cloud
+        # disk being slow, sparse arrays of GB-scale to deserialize),
+        # and emits a _progress update so the loading UI shows what's
+        # actually happening rather than a static "Loading h5ad file..."
+        # for minutes at a time.
         for key in ("X", "obs", "var", "obsm", "obsp", "varm", "varp", "uns", "raw"):
-            if key in f:
-                try:
-                    kwargs[key] = read_elem(f[key])
-                except Exception as e:
-                    print(f"  Warn: couldn't read /{key}: {e}")
+            if key not in f:
+                continue
+            _check_abort()
+            cost_gb = _component_gb(f[key])
+            cost_str = f", ~{cost_gb:.1f} GB" if cost_gb >= 0.5 else ""
+            _progress(f"Reading /{key}{cost_str}...", 5)
+            try:
+                kwargs[key] = read_elem(f[key])
+            except Exception as e:
+                print(f"  Warn: couldn't read /{key}: {e}")
 
         # Layers — selectively skip dense ones above the threshold.
+        # Same abort-check + progress-update pattern so a slow sparse
+        # layer (e.g. raw_counts at 17 GB) doesn't look like a hang.
         if "layers" in f:
             layers_dict = {}
             for layer_name in f["layers"]:
+                _check_abort()
                 layer = f["layers"][layer_name]
                 if isinstance(layer, h5py.Dataset):
                     nbytes_gb = (int(np.prod(layer.shape)) * layer.dtype.itemsize) / 1e9
@@ -2285,6 +2316,9 @@ def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0):
                         )
                         continue
                 # Sparse Group, or small dense Dataset — load normally.
+                cost_gb = _component_gb(layer)
+                cost_str = f", ~{cost_gb:.1f} GB" if cost_gb >= 0.5 else ""
+                _progress(f"Reading /layers/{layer_name}{cost_str}...", 6)
                 try:
                     layers_dict[layer_name] = read_elem(layer)
                 except Exception as e:
@@ -2292,6 +2326,8 @@ def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0):
             if layers_dict:
                 kwargs["layers"] = layers_dict
 
+    _check_abort()
+    _progress("Constructing AnnData object...", 8)
     import anndata as _ad
     adata = _ad.AnnData(**kwargs)
     return adata, skipped
@@ -4955,6 +4991,15 @@ class FleekHandler(SimpleHTTPRequestHandler):
             DEG_SETTINGS["max_cells"] = int(req.get("fast_deg_n", 50000))
             PACMAP_SETTINGS["fast"] = req.get("fast_pacmap", True)
 
+            # Defensive reset: clear any leftover abort/error/aborted state
+            # from a previous run BEFORE the background thread starts. Without
+            # this, if a user aborted a prior load and then clicked Load
+            # again quickly, the new load could either (a) inherit the
+            # ABORT_REQUESTED=True flag and self-cancel before it begins, or
+            # (b) the polling client could see the stale "aborted" or
+            # "error" PROGRESS state and surface a confusing message.
+            global ABORT_REQUESTED
+            ABORT_REQUESTED = False
             _progress("Loading from local path...", 1)
             def _bg():
                 try:
@@ -6126,6 +6171,11 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                         break
                     f.write(chunk)
                     received += len(chunk)
+            # See the matching reset in _serve_load — same rationale: clear
+            # any leftover abort/error state from a prior run so the new
+            # load isn't pre-cancelled or surfacing stale UI text.
+            global ABORT_REQUESTED
+            ABORT_REQUESTED = False
             _progress("Upload saved, starting processing...", 3)
             fast = self.headers.get("X-Fast-UMAP", "0") == "1"
             fast_sub = int(self.headers.get("X-Fast-UMAP-N", "50000"))
