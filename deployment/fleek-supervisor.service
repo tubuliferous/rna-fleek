@@ -38,7 +38,12 @@ ExecStart=/usr/local/bin/fleek-supervisor \
     --shared-data /data/shared \
     --user-quota-mb 100 \
     --port-range 19000-19999 \
-    --idle-timeout-s 1800
+    --idle-timeout-s 1800 \
+    --lab-credential "lab:CHANGEME"
+# --lab-credential is the shared lab gate — every request must pass
+# this HTTP Basic Auth before any route (including /signup) is
+# reachable. Edit "CHANGEME" to a real password before enabling the
+# unit. Drop the flag entirely if your nginx layer already gates auth.
 
 # Send SIGTERM on stop — supervisor's atexit handler walks the
 # subprocess registry and terminates each fleek child, then waits up

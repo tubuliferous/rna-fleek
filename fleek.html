@@ -1038,8 +1038,6 @@
     <div style="display:flex;align-items:baseline;gap:8px;">
       <span style="font-weight:800;font-size:13px;cursor:pointer;" onclick="toggleHelp()" title="About & Help"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
       <span id="fleek-version" style="font-size:10px;color:var(--text4);opacity:0.7;font-variant-numeric:tabular-nums;cursor:pointer;" onclick="toggleHelp()" title="Version — click for About & Help"></span>
-      <span id="remote-chip" style="display:none;font-size:9px;font-weight:700;color:var(--accent2);background:rgba(99,102,241,0.15);border:1px solid var(--accent2);border-radius:3px;padding:1px 5px;letter-spacing:0.05em;text-transform:uppercase;" title="This is a shared lab server. Some controls (cache location, API key, auto-quit) are admin-managed.">remote</span>
-      <a id="account-chip" href="/account" style="display:none;font-size:9px;color:var(--text3);text-decoration:none;background:var(--bg3);border:1px solid var(--border);border-radius:3px;padding:1px 5px;cursor:pointer;" title="Manage your API key, sign out">account</a>
       <span id="palette-hint" onclick="_paletteOpen()" title="Search anywhere in FLEEK — / or Cmd/Ctrl+K"><span class="pal-hint-key">/</span><span>search</span></span>
     </div>
     <div style="display:flex;gap:2px;align-items:center;">
@@ -1067,7 +1065,13 @@
           <button class="btn" id="browse-back" onclick="browseBack()" title="Step Back" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--accent2);">&#8634;</button>
           <button class="btn" id="browse-fwd" onclick="browseFwd()" title="Step Forward" style="padding:2px 4px;font-size:13px;line-height:1;color:var(--accent2);">&#8635;</button>
           <button class="btn" onclick="browseTo('..')" title="Parent directory" style="padding:2px 4px;font-size:13px;line-height:1;">&#8593;</button>
-          <button class="btn" onclick="browseTo('~')" title="Home directory" style="padding:2px 4px;font-size:12px;line-height:1;"><svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:middle;fill:currentColor;"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg></button>
+          <button class="btn browse-home-btn" onclick="browseTo('~')" title="Home directory" style="padding:2px 4px;font-size:12px;line-height:1;"><svg viewBox="0 0 24 24" width="13" height="13" style="vertical-align:middle;fill:currentColor;"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg></button>
+          <!-- Remote-mode root switchers — hidden by default; shown when the
+               server reports remote_mode=true. Server endpoints accept the
+               literal sentinels "my" and "shared" and resolve to the user's
+               own dir / the shared dataset dir respectively. -->
+          <button class="btn browse-my-btn" onclick="browseTo('my')" title="My data" style="display:none;padding:2px 6px;font-size:10px;line-height:1.4;">My</button>
+          <button class="btn browse-shared-btn" onclick="browseTo('shared')" title="Shared data (read-only)" style="display:none;padding:2px 6px;font-size:10px;line-height:1.4;">Shared</button>
         </div>
         <div style="flex:1;position:relative;">
           <input type="text" id="browse-path" style="width:100%;font-size:10px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font-family:'SF Mono',Monaco,Consolas,monospace;outline:none;text-overflow:ellipsis;cursor:text;" placeholder="Type a path or paste..."
@@ -1789,6 +1793,18 @@
         <option value="dataset">With Dataset</option>
         <option value="server">Server Directory</option>
       </select>
+    </div>
+    <!-- Sign out (visible only in remote mode). Posts to the
+         supervisor's /auth/logout, which clears the session cookie
+         and terminates this user's fleek subprocess so the next
+         visit starts cold. Sits at the bottom of the Settings panel
+         where users will already be looking when they want to
+         deliberately end a session. -->
+    <div class="s-row" id="s-row-signout" style="display:none;">
+      <span>Lab account</span>
+      <form method="POST" action="/auth/logout" style="margin:0;">
+        <button type="submit" class="s-key-save" style="background:#8a3a3a;color:#fff;" title="Clear your session cookie and end your supervisor process. You'll need to sign in again next time.">Sign out</button>
+      </form>
     </div>
   </div>
   <div id="debug-popup">
@@ -2907,7 +2923,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.0";
+var FLEEK_VERSION="v0.5.1";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -9725,7 +9741,28 @@ function _browseGoTo(path){
     path="";
   }
   _fetchBrowseColumn(path, function(data){
-    /* Build ancestor columns from the resolved path */
+    /* Build ancestor columns from the resolved path. In remote mode
+       the chroot blocks every ancestor above the user-data / shared
+       roots, so walking up would 500 each fetch and the column-build
+       breaks (visible symptom: empty browser). Skip the walk: render
+       a single column for the target dir. The user navigates between
+       roots via the [My] / [Shared] toolbar buttons instead. */
+    if(_remoteMode){
+      _browseColumns=[{path:data.path, entries:data.entries, selectedIdx:-1}];
+      _browseCurPath=data.path;
+      var pi=document.getElementById("browse-path");
+      if(pi)pi.value=data.path;
+      _renderAllColumns();
+      _browseSmoothScrollToEnd();
+      if(!_browseNavigation){
+        _browseHistory=_browseHistory.slice(0,_browseHistIdx+1);
+        _browseHistory.push(data.path);
+        _browseHistIdx=_browseHistory.length-1;
+      }
+      _browseNavigation=false;
+      _updateBrowseNav();
+      return;
+    }
     var resolved=data.path;
     var parts=resolved.split("/").filter(Boolean);
     var ancestorPaths=[];
@@ -18405,10 +18442,20 @@ function _applyServerInfo(){
      authoritative — the server-side lockdown is the security boundary,
      this is just UX so a button doesn't sit there inviting clicks
      that 403. */
-  var chip=document.getElementById("remote-chip");
-  if(chip)chip.style.display=_remoteMode?"inline-block":"none";
-  var acct=document.getElementById("account-chip");
-  if(acct)acct.style.display=_remoteMode?"inline-block":"none";
+  /* File-browser root switchers: the [My] and [Shared] buttons let
+     the user jump between USER_DATA_DIR and SHARED_DATA_DIR (the two
+     valid roots in remote mode). The home-dir button (~) is hidden
+     because the server reroutes ~ to USER_DATA_DIR anyway and the
+     home-icon is misleading inside a chroot. */
+  var myBtn=document.querySelector(".browse-my-btn");
+  var sharedBtn=document.querySelector(".browse-shared-btn");
+  var homeBtn=document.querySelector(".browse-home-btn");
+  if(myBtn)myBtn.style.display=_remoteMode?"inline-flex":"none";
+  if(sharedBtn)sharedBtn.style.display=_remoteMode?"inline-flex":"none";
+  if(homeBtn)homeBtn.style.display=_remoteMode?"none":"inline-flex";
+  /* Sign-out row in Settings — only meaningful in remote mode. */
+  var signoutRow=document.getElementById("s-row-signout");
+  if(signoutRow)signoutRow.style.display=_remoteMode?"flex":"none";
   if(!_remoteMode)return;
   var hides={
     "api_key_edit":      ["s-row-apikey"],

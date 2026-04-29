@@ -61,7 +61,34 @@ sudo chown -R "$USER":"$USER" /data/shared
 sudo chmod -R 755 /data/shared
 ```
 
-### 3. Drop in the systemd unit
+### 3. Decide where the lab-level gate lives
+
+You have two places to put the shared lab credential — they stack
+defensively if you do both:
+
+- **Supervisor `--lab-credential USER:PASS`**. Every request to the
+  supervisor must satisfy HTTP Basic Auth before ANY route (including
+  `/signup`) is reachable. Browser shows its native auth dialog. Works
+  whether or not nginx is in front; the credential lives in your
+  systemd unit.
+- **nginx `auth_basic`** (in [nginx.conf.example](nginx.conf.example)).
+  Same idea, one layer earlier. Useful when you want operations
+  (rotating the lab password, adding multiple lab credentials via
+  htpasswd) handled by sysadmins rather than the supervisor.
+
+For a typical lab deployment, **supervisor-side `--lab-credential` is
+the simpler path** — one line in the systemd unit, no extra moving
+parts. The unit file's `ExecStart` example already includes it:
+
+```
+--lab-credential "lab:CHANGEME"
+```
+
+Edit that to a real password before installing. If you want different
+lab passwords per cohort or rotation, drop the supervisor flag and use
+nginx's `auth_basic` + an htpasswd file instead.
+
+### 4. Drop in the systemd unit
 
 ```bash
 sudo cp deployment/fleek-supervisor.service /etc/systemd/system/
@@ -75,7 +102,7 @@ sudo journalctl -u fleek-supervisor -f
 The supervisor binds 127.0.0.1:8080. It's not yet reachable from the
 outside.
 
-### 4. Drop in the nginx config
+### 5. Drop in the nginx config
 
 ```bash
 sudo apt install nginx apache2-utils
@@ -101,7 +128,7 @@ sudo nginx -t && sudo systemctl reload nginx
 Open ports 80 and 443 in the OpenStack security group for whatever
 network range your lab uses.
 
-### 5. First-time check
+### 6. First-time check
 
 Browse to `https://<your-host>/`. You should see:
 

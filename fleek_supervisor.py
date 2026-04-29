@@ -58,9 +58,24 @@ DB_PATH = None           # Path to SQLite users.db
 COOKIE_SECRET = None     # bytes: HMAC-signing key for session cookies
 PORT_RANGE = (19000, 19999)
 IDLE_TIMEOUT_S = 30 * 60         # Reap subprocesses idle longer than this
-SESSION_LIFETIME_S = 24 * 3600   # Cookie validity
+# Cookie validity. Sliding window — every authenticated proxied
+# request refreshes the cookie's exp by another SESSION_LIFETIME_S,
+# so an active user stays signed in indefinitely while idle sessions
+# expire after this long of no activity. Set via --session-lifetime-h
+# at boot. Default 24h matches the "log in once a day" lab pattern.
+SESSION_LIFETIME_S = 24 * 3600
 FLEEK_PYTHON = sys.executable
 FLEEK_SERVER_MODULE = "rna_fleek.server"  # python -m <this>
+
+# Lab-level shared credential. When LAB_USER + LAB_PASS are non-None,
+# every request must pass HTTP Basic Auth with this exact pair before
+# any route (including /login and /signup) is reachable. The intent
+# is "you must be in the lab at all to even see the signup page".
+# Per-user accounts are managed inside the supervisor on top of this
+# gate. Set via --lab-credential or unset to leave the supervisor
+# open (typical when nginx already provides the gate).
+LAB_USER = None
+LAB_PASS = None
 
 # Subprocess registry — username → {"process": Popen, "port": int,
 # "last_activity": float}. Mutated under REGISTRY_LOCK; the reaper
@@ -151,17 +166,6 @@ def db_create_user(username, pw_hash, api_key=None):
 def db_record_login(username):
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute("UPDATE users SET last_login = ? WHERE username = ?", (time.time(), username))
-    conn.commit()
-    conn.close()
-
-
-def db_update_api_key(username, api_key):
-    """Set or clear (api_key=None) the user's stored Anthropic key.
-    Caller is responsible for terminating the user's running fleek
-    subprocess afterward so it respawns with the new ANTHROPIC_API_KEY
-    in env."""
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute("UPDATE users SET api_key = ? WHERE username = ?", (api_key, username))
     conn.commit()
     conn.close()
 
@@ -379,7 +383,46 @@ class SupervisorHandler(BaseHTTPRequestHandler):
     def do_PUT(self):    self._dispatch()
     def do_DELETE(self): self._dispatch()
 
+    def _check_lab_auth(self):
+        """If --lab-credential is configured, gate every request behind
+        HTTP Basic Auth with that exact USER:PASS. Returns True when
+        the request may proceed; sends a 401 + WWW-Authenticate and
+        returns False otherwise. Browser handles the prompt natively
+        and remembers the credential across requests in the same tab,
+        so the user only sees the dialog once per session.
+
+        Returning the same realm string each time matters: browsers key
+        their cached creds on (origin, realm), so changing the realm
+        forces a re-prompt. We keep "RNA-FLEEK · lab access" stable so
+        a tab refresh doesn't re-challenge."""
+        if LAB_USER is None:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Basic "):
+            import base64
+            try:
+                decoded = base64.b64decode(auth[6:].strip()).decode("utf-8")
+                user, _, pw = decoded.partition(":")
+                if (hmac.compare_digest(user, LAB_USER) and
+                        hmac.compare_digest(pw, LAB_PASS)):
+                    return True
+            except Exception:
+                pass
+        body = b"Lab credential required.\n"
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="RNA-FLEEK lab access"')
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+        return False
+
     def _dispatch(self):
+        # Lab-level gate is the very first check — even /login and
+        # /signup are gated, which is the whole point ("you must be in
+        # the lab at all to even see the signup page").
+        if not self._check_lab_auth():
+            return
         path = self.path.split("?", 1)[0]
         try:
             if path == "/login":
@@ -392,10 +435,6 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 return self._handle_signup()
             if path == "/auth/logout":
                 return self._handle_logout()
-            if path == "/account":
-                return self._render_account(error=None, notice=None)
-            if path == "/account/api-key":
-                return self._handle_account_key()
             # Authenticated routes — proxy to user's fleek
             username = self._get_authenticated_user()
             if not username:
@@ -483,77 +522,6 @@ class SupervisorHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def _render_account(self, error=None, notice=None):
-        """Account page: shows the username + lets the user update or
-        clear their Anthropic API key + has a logout button. Auth
-        required; unauthenticated requests redirect to /login."""
-        username = self._get_authenticated_user()
-        if not username:
-            self.send_response(303)
-            self.send_header("Location", "/login")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-        user = db_get_user(username)
-        has_key = bool(user and user.get("api_key"))
-        html = ACCOUNT_HTML
-        html = html.replace("{{USERNAME}}", _html_escape(username))
-        html = html.replace("{{KEY_STATUS}}",
-            "Key on file (last 4: …" + _html_escape(user["api_key"][-4:]) + ")"
-            if has_key else "No key on file.")
-        if error:
-            html = html.replace("{{ERROR}}", f'<div class="err">{_html_escape(error)}</div>')
-            html = html.replace("{{NOTICE}}", "")
-        elif notice:
-            html = html.replace("{{NOTICE}}", f'<div class="ok">{_html_escape(notice)}</div>')
-            html = html.replace("{{ERROR}}", "")
-        else:
-            html = html.replace("{{ERROR}}", "").replace("{{NOTICE}}", "")
-        body = html.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _handle_account_key(self):
-        """POST /account/api-key — update or clear the user's Anthropic
-        API key. Action is one of 'set' or 'clear'. After updating, the
-        user's running fleek subprocess (if any) is terminated so the
-        next request respawns with the new key in env. The user is
-        redirected back to /account with a notice."""
-        username = self._get_authenticated_user()
-        if not username:
-            self.send_response(303)
-            self.send_header("Location", "/login")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-        form = self._read_form_body()
-        action = (form.get("action", [""])[0] or "").strip()
-        if action == "clear":
-            db_update_api_key(username, None)
-            notice = "API key cleared."
-        else:  # 'set'
-            new_key = (form.get("api_key", [""])[0] or "").strip()
-            if not new_key:
-                return self._render_account(error="Key is empty (use Clear to remove).")
-            if not new_key.startswith("sk-ant-"):
-                return self._render_account(error="Anthropic keys start with sk-ant-…")
-            db_update_api_key(username, new_key)
-            notice = "API key updated."
-        # Kick the user's current fleek subprocess so next request
-        # respawns with the new key in ANTHROPIC_API_KEY env.
-        with REGISTRY_LOCK:
-            entry = PROCESS_REGISTRY.pop(username, None)
-        if entry:
-            try:
-                entry["process"].terminate()
-            except Exception:
-                pass
-        self._render_account(notice=notice)
-
     def _handle_logout(self):
         # Also tear down the user's fleek subprocess so the next login
         # gets a fresh state (matches user expectation of "log out =
@@ -612,6 +580,17 @@ class SupervisorHandler(BaseHTTPRequestHandler):
                 if h.lower() in HOP_HEADERS:
                     continue
                 self.send_header(h, v)
+            # Sliding-session refresh: every authenticated proxied
+            # request resets the cookie's exp to now+SESSION_LIFETIME_S.
+            # Cheap (one HMAC + small Set-Cookie header), keeps active
+            # users logged in indefinitely while idle sessions still
+            # time out after the configured window. Cookie name + path
+            # match the original so the browser overwrites in place.
+            refreshed = make_session_cookie(username)
+            self.send_header(
+                "Set-Cookie",
+                f"fleek_session={refreshed}; Path=/; HttpOnly; SameSite=Lax; Max-Age={SESSION_LIFETIME_S}",
+            )
             self.end_headers()
             while True:
                 chunk = resp.read(65536)
@@ -708,43 +687,6 @@ LOGIN_HTML = """<!doctype html>
 <div class="alt">No account yet? <a href="/signup">Create one</a>.</div>
 </div></body></html>"""
 
-ACCOUNT_HTML = """<!doctype html>
-<html><head><meta charset="utf-8"><title>RNA-FLEEK · account</title>
-<style>""" + _BASE_CSS + """
-  .ok{background:rgba(80,180,120,0.15);border:1px solid rgba(80,180,120,0.4);
-      border-radius:4px;padding:8px 10px;font-size:11px;color:#90d4a8;margin-bottom:14px;}
-  .row{display:flex;gap:8px;align-items:center;margin-top:18px;}
-  .row form{flex:1;margin:0;}
-  .row button{margin-top:0;}
-  .btn-secondary{background:#2a2e3a;color:#dcdee5;}
-  .btn-danger{background:#8a3a3a;color:#fff;}
-  .stat{font-size:11px;color:#7a7e8c;background:#10131c;border:1px solid #2a2e3a;
-        border-radius:4px;padding:6px 10px;margin-top:6px;}
-  a.back{color:#a5b4fc;font-size:11px;text-decoration:none;}
-  a.back:hover{text-decoration:underline;}
-</style></head>
-<body><div class="card">
-<h1><span style="color:#7a7e8c;">RNA</span><span class="accent">-FLEEK</span></h1>
-<div class="sub">Logged in as <strong style="color:#dcdee5;">{{USERNAME}}</strong></div>
-{{NOTICE}}{{ERROR}}
-<label>Anthropic API key</label>
-<div class="stat">{{KEY_STATUS}}</div>
-<form method="POST" action="/account/api-key">
-  <input type="hidden" name="action" value="set">
-  <input name="api_key" type="password" placeholder="sk-ant-..." autocomplete="off" style="margin-top:8px;">
-  <div class="hint">Updating restarts your FLEEK session so the new key takes effect.</div>
-  <button type="submit">Update key</button>
-</form>
-<form method="POST" action="/account/api-key" style="margin-top:6px;">
-  <input type="hidden" name="action" value="clear">
-  <button type="submit" class="btn-secondary">Clear key</button>
-</form>
-<form method="POST" action="/auth/logout" style="margin-top:24px;">
-  <button type="submit" class="btn-danger">Sign out</button>
-</form>
-<div class="alt"><a href="/" class="back">← Back to FLEEK</a></div>
-</div></body></html>"""
-
 SIGNUP_HTML = """<!doctype html>
 <html><head><meta charset="utf-8"><title>RNA-FLEEK · sign up</title>
 <style>""" + _BASE_CSS + """</style></head>
@@ -792,16 +734,31 @@ def main():
                         help="Port range for spawned fleek subprocesses (e.g. 19000-19999).")
     parser.add_argument("--idle-timeout-s", type=int, default=30 * 60,
                         help="Reap subprocesses idle longer than this (seconds). Default 1800.")
+    parser.add_argument("--session-lifetime-h", type=int, default=24,
+                        help="Sliding session lifetime in hours. Every authenticated request "
+                             "refreshes the cookie's exp by this long, so active users stay "
+                             "signed in indefinitely while idle sessions time out. Default 24.")
     parser.add_argument("--fleek-python", type=str, default=None,
                         help="Python interpreter to run fleek subprocesses with (default: same as supervisor).")
+    # Lab-level gate: a single shared USER:PASS credential that every
+    # request must pass before reaching ANY supervisor route (including
+    # /signup). Browser handles the prompt via HTTP Basic Auth. Skip
+    # this flag for an open instance; pair with nginx-side auth in
+    # production for defence-in-depth.
+    parser.add_argument("--lab-credential", type=str, default=None,
+                        help="Optional shared lab credential as USER:PASS. When set, every request "
+                             "must pass HTTP Basic Auth before any supervisor route (including "
+                             "/signup) is reachable. Browser shows its native auth dialog.")
     args = parser.parse_args()
 
     global USER_BASE, SHARED_DATA, USER_QUOTA_MB, DB_PATH, COOKIE_SECRET
-    global PORT_RANGE, IDLE_TIMEOUT_S, FLEEK_PYTHON
+    global PORT_RANGE, IDLE_TIMEOUT_S, FLEEK_PYTHON, LAB_USER, LAB_PASS
+    global SESSION_LIFETIME_S
     USER_BASE = Path(args.user_base).expanduser().resolve()
     SHARED_DATA = Path(args.shared_data).expanduser().resolve()
     USER_QUOTA_MB = max(1, int(args.user_quota_mb))
     IDLE_TIMEOUT_S = max(60, int(args.idle_timeout_s))
+    SESSION_LIFETIME_S = max(1, int(args.session_lifetime_h)) * 3600
     if args.fleek_python:
         FLEEK_PYTHON = args.fleek_python
 
@@ -825,6 +782,19 @@ def main():
     init_db()
     COOKIE_SECRET = _load_cookie_secret()
 
+    # Parse --lab-credential into the (USER, PASS) global pair the
+    # _check_lab_auth handler reads. Format must be USER:PASS with at
+    # least one char on each side; everything after the first colon is
+    # the password (so passwords with colons work).
+    if args.lab_credential:
+        if ":" not in args.lab_credential:
+            parser.error("--lab-credential must be in the form USER:PASS")
+        u, _, p = args.lab_credential.partition(":")
+        if not u or not p:
+            parser.error("--lab-credential USER and PASS must both be non-empty")
+        LAB_USER = u
+        LAB_PASS = p
+
     # Background reaper
     threading.Thread(target=reap_idle_processes, daemon=True).start()
 
@@ -840,6 +810,11 @@ def main():
     print(f"    quota:     {USER_QUOTA_MB} MB / user")
     print(f"    ports:     {PORT_RANGE[0]}–{PORT_RANGE[1]}")
     print(f"    idle:      reap after {IDLE_TIMEOUT_S}s")
+    print(f"    session:   {SESSION_LIFETIME_S // 3600}h sliding")
+    if LAB_USER:
+        print(f"    lab gate:  ON (user '{LAB_USER}', basic-auth)")
+    else:
+        print(f"    lab gate:  OFF (open signup — gate via nginx if exposed)")
     print("=" * 50)
     try:
         server.serve_forever()
