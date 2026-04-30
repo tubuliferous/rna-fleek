@@ -3090,27 +3090,49 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     else:
         PCA_2D = None
         PCA_3D = None
-        print(f"  PCA not available (will compute in background)")
-        # Compute in background to avoid blocking load
-        def _bg_pca():
-            global PCA_2D, PCA_3D
-            try:
-                import scanpy as sc
-                sc.tl.pca(adata, n_comps=min(50, adata.n_vars - 1))
-                pca_arr = adata.obsm["X_pca"].astype(np.float32)
-                PCA_2D = pca_arr[:, :2].copy()
-                PCA_3D = pca_arr[:, :3].copy()
-                cached["pca_2d"] = PCA_2D
-                cached["pca_3d"] = PCA_3D
-                cached["pca_full"] = pca_arr.copy()
+        # Only fire the background PCA when we have NO other latent to fall
+        # back on. Pre-v0.5.28 the QuickMap path always computed PCA as a
+        # side-effect of its normalize+HVG+scale+PCA prep, which left
+        # adata.obsm["X_pca"] populated and made PCA "free." Now that
+        # QuickMap skips that prep when X_scVI / X_scANVI / X_totalVI is
+        # available, the PCA-extraction block falls into this branch and
+        # would otherwise trigger sc.tl.pca on the full sparse matrix in a
+        # daemon thread — non-blocking in name only, since on a memory-tight
+        # cloud VM it competes with PaCMAP + CSC build + the OS page cache
+        # and cascades into 30-60-minute load times. Skipping it restores
+        # the old fast-load behaviour for scVI'd files; PCA viewer mode just
+        # won't be available unless the user computes it on demand.
+        _has_non_pca_latent = False
+        try:
+            _lk, _ = _pick_latent_rep(adata)
+            if _lk and _lk != "X_pca":
+                _has_non_pca_latent = True
+        except Exception:
+            pass
+        if _has_non_pca_latent:
+            print(f"  PCA skipped (file has {_lk} latent — UMAP/PaCMAP use that directly)")
+        else:
+            print(f"  PCA not available (will compute in background)")
+            # Compute in background to avoid blocking load
+            def _bg_pca():
+                global PCA_2D, PCA_3D
                 try:
-                    _safe_savez(".fleek_cache.npz", **cached)
-                except Exception:
-                    pass
-                print(f"  PCA computed in background ({pca_arr.shape[1]} components)")
-            except Exception as e:
-                print(f"  Background PCA failed: {e}")
-        threading.Thread(target=_bg_pca, daemon=True).start()
+                    import scanpy as sc
+                    sc.tl.pca(adata, n_comps=min(50, adata.n_vars - 1))
+                    pca_arr = adata.obsm["X_pca"].astype(np.float32)
+                    PCA_2D = pca_arr[:, :2].copy()
+                    PCA_3D = pca_arr[:, :3].copy()
+                    cached["pca_2d"] = PCA_2D
+                    cached["pca_3d"] = PCA_3D
+                    cached["pca_full"] = pca_arr.copy()
+                    try:
+                        _safe_savez(".fleek_cache.npz", **cached)
+                    except Exception:
+                        pass
+                    print(f"  PCA computed in background ({pca_arr.shape[1]} components)")
+                except Exception as e:
+                    print(f"  Background PCA failed: {e}")
+            threading.Thread(target=_bg_pca, daemon=True).start()
 
     # ── PaCMAP embedding (background subprocess to avoid numba/threading issues) ──
     # Same cross-suffix fallback pattern as UMAP — a cache from full mode
