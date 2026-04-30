@@ -173,20 +173,20 @@
      overscroll-behavior:contain stops that chain at this boundary. */
   #glist,#hvg-scroll,#leg-scroll,#path-results,#go-results,#lineage-tree,#plot-gene-results,#fb-body,#help-body,.sb-trap,.fleek-dropdown,.gv-dd-list{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;margin-top:4px;}
-  /* Section padding is intentionally asymmetric (10px top, 0 bottom).
-     The reason: buttons, selects, and sliders all carry 3-6px of
-     intrinsic padding+border below their visible glyphs (between
-     the rendered text/track and the control's outer border). That
-     buffer lives INSIDE the control's bounding box, so any positive
-     section padding-bottom stacks ON TOP of it visually — a 10px
-     symmetric padding leaves the bottom looking ~6px taller than
-     the top. Zeroing padding-bottom lets the control's own
-     intrinsic spacing serve as the gap; the title at the top has
-     no such intrinsic above-text space, so the section's 10px
-     padding-top is doing all the work there. Net visual: top and
-     bottom gaps read as roughly equal regardless of last-child
-     control type. */
-  .sec{padding:10px 14px 0;border-bottom:1px solid var(--border);}
+  /* Section padding — default is symmetric 10/10. Panels whose primary
+     terminal control is a button (Plots' Render, Pathways' Run, etc.)
+     opt in to .sec-btn-bottom, which collapses padding-bottom to 0
+     because the button already carries 3-6px of intrinsic vertical
+     padding inside its bounding box. Without the collapse the bottom
+     reads ~6px taller than the top.
+     We use an explicit class instead of :has(button:last-child) heuristics
+     because several button-ending panels have a trailing empty status
+     div or hidden results wrap as their DOM-last-child — visually the
+     button IS the bottom, structurally it isn't, and the heuristic
+     fights both ways (false negatives on Plots/Pathways/DEG, false
+     positives on Slice's footer-with-button-among-siblings). */
+  .sec{padding:10px 14px;border-bottom:1px solid var(--border);}
+  .sec.sec-btn-bottom{padding-bottom:0;}
   /* Zero out the bottom margin of whatever element happens to be the
      last child inside a panel body — many controls (rows, labels,
      button groups) have their own margin-bottom for spacing between
@@ -1497,7 +1497,7 @@
     </div>
   </div>
   <!-- Plots: raincloud and future plot types (hidden until a dataset is loaded) -->
-  <div class="sec" id="plots-sec" data-col="plots" style="display:none;">
+  <div class="sec sec-btn-bottom" id="plots-sec" data-col="plots" style="display:none;">
     <div class="col-hdr" onclick="toggleSec('plots')">
       <span class="lbl" style="margin-bottom:0;">Plots</span>
       <span class="col-chev">&#9660;</span>
@@ -1600,7 +1600,7 @@
     </div>
   </div>
   <!-- Pathways: ORA / GSEA panel -->
-  <div class="sec" id="pathway-sec" data-col="pathway" style="display:none;">
+  <div class="sec sec-btn-bottom" id="pathway-sec" data-col="pathway" style="display:none;">
     <div class="col-hdr" onclick="toggleSec('pathway')">
       <span class="lbl" style="margin-bottom:0;">Pathways</span>
       <span id="pathway-status-badge" style="font-size:10px;color:var(--text4);margin-left:auto;margin-right:8px;"></span>
@@ -3027,7 +3027,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.25";
+var FLEEK_VERSION="v0.5.30";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -6391,6 +6391,17 @@ function animate(){
       }
     }
     renderer.setScissorTest(true);
+    /* In 3-up split mode quad 3 (bottom-right) is never rendered, so the
+       per-quad loop's scissored clears don't touch it — the pixels there
+       hold whatever was last drawn (a stale dark clear color from before
+       the user switched to light theme, or content from a previous 4-up
+       layout). Pre-clear the full canvas with the current theme's bg so
+       every untouched region picks up the right background. */
+    if(_N<4){
+      renderer.setViewport(0,0,canvasW,canvasH);
+      renderer.setScissor(0,0,canvasW,canvasH);
+      renderer.clear();
+    }
     /* Hide boundary shell during split render — it's shared geometry */
     var _bsVis=boundaryShell?boundaryShell.visible:false;
     if(boundaryShell)boundaryShell.visible=false;
@@ -7215,11 +7226,32 @@ function setupCtrl(){
     }
     /* d = toggle 2D/3D */
     if(e.key==="d"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){setView(viewIs3d?"2d":"3d");_flashAction(viewIs3d?"3D View":"2D View","D");}
-    /* e = cycle embeddings */
+    /* e = cycle embeddings. Skip disabled options (e.g. "PaCMAP (computing…)"
+       before the bg compute lands, or PCA before the user computes it on
+       demand) AND skip embeddings whose data isn't actually loaded — a
+       blind cycle through every dropdown option would otherwise let the
+       flash chip claim "PCA" while setEmbMethod silently bailed out and
+       left the viewer on the previous embedding. */
     if(e.key==="e"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
-      var methods=[];var sel=document.getElementById("emb-select");
-      if(sel){for(var oi=0;oi<sel.options.length;oi++)methods.push(sel.options[oi].value);}
-      if(methods.length>1){var ci=methods.indexOf(embMethod);var next=methods[(ci+1)%methods.length];setEmbMethod(next);_flashAction(next.toUpperCase(),"E");}
+      var methods=[];
+      var sel=document.getElementById("emb-select");
+      if(sel&&D&&D.embeddings){
+        for(var oi=0;oi<sel.options.length;oi++){
+          var ov=sel.options[oi].value;
+          if(sel.options[oi].disabled)continue;
+          if(!D.embeddings[ov])continue;  /* coords not loaded yet */
+          methods.push(ov);
+        }
+      }
+      if(methods.length>1){
+        var ci=methods.indexOf(embMethod);
+        if(ci<0)ci=0;
+        var next=methods[(ci+1)%methods.length];
+        if(next!==embMethod){
+          setEmbMethod(next);
+          _flashAction(next.toUpperCase(),"E");
+        }
+      }
     }
     /* Shift+V = select all visible cells */
     if(e.key==="V"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){selAllVisible();_flashAction("Select All Visible","Shift+V");}

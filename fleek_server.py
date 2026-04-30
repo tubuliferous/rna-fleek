@@ -38,7 +38,7 @@ import numpy as np
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
 # Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
-FLEEK_VERSION = "0.4.16"
+FLEEK_VERSION = "0.5.30"
 
 # Globals set at startup
 ADATA = None
@@ -686,9 +686,24 @@ def _classify_all_matrices():
         candidates.append((f"layers[{name!r}]", f"adata.layers['{name}']", ADATA.layers[name]))
 
     for path, label, mat in candidates:
+        _cls_t0 = time.time()
+        _cls_phase_t = [time.time()]
+        def _cls_step(name):
+            now = time.time()
+            elapsed = now - _cls_phase_t[0]
+            _cls_phase_t[0] = now
+            print(f"    [classify {path}] {name}: {elapsed:.2f}s")
         try:
             shape = tuple(mat.shape)
             dtype_s = str(getattr(mat, "dtype", ""))
+            n_cells = shape[0]
+            n_genes = shape[1]
+            mat_is_sparse = sp.issparse(mat)
+            mat_format = mat.format if mat_is_sparse else ""
+            print(f"  [classify {path}] start: shape={shape} sparse={mat_is_sparse} format={mat_format}")
+
+            # Small contiguous sample for any_neg / max / is_int / min_nz —
+            # cheap on every layout (top-left corner, sequential reads).
             sample = mat[:500, :500]
             if sp.issparse(sample):
                 sample = sample.toarray()
@@ -700,34 +715,151 @@ def _classify_all_matrices():
             min_nz = float(sample[sample > 0].min()) if (sample > 0).any() else 0.0
             # Integer check on sample
             is_int = bool(np.allclose(sample[sample >= 0], np.round(sample[sample >= 0])))
-            # Median per-cell total across first 200 rows
-            row_sums = np.array(mat[:200, :].sum(axis=1)).flatten()
-            median_total = float(np.median(row_sums)) if row_sums.size else 0.0
+            _cls_step("500x500 sample + scalar stats")
 
-            # Fano on moderately-expressed genes, on a small subsample of cells.
+            # Median per-cell total. We DELAY this until after the format-aware
+            # subsample below, then derive it cheaply from the same sub-matrix
+            # we already need for Fano. `mat[:200, :]` looks fast in theory but
+            # on a CSC the row-cutoff scan reads the entire 800-MB indices
+            # array from mmap; one slice was 15-22 s on the user's file. By
+            # reusing the column subsample (CSC) or row subsample (CSR), we
+            # pay the read cost ONCE per matrix instead of twice.
+            row_sums = None
+            median_total = 0.0  # filled in below from sub_csc
+
+            # Fano on moderately-expressed genes. Same CSC-row-slice trap as
+            # above: the old subsampled-rows path forces .tocsr() on big
+            # mmap'd CSC matrices. For sparse, switch to a COLUMN subsample
+            # — slicing 500 random columns out of a CSC is O(nnz_in_those_cols)
+            # and stays mmap-friendly. For dense, keep the row subsample.
             fano_median = None
             try:
-                n_cells = mat.shape[0]
-                n_sub = min(3000, n_cells)
-                if n_sub > 0:
-                    stride = max(1, n_cells // n_sub)
-                    row_idx = np.arange(0, n_cells, stride)[:n_sub]
-                    sub = mat[row_idx, :]
-                    if sp.issparse(sub):
-                        mean_arr = np.asarray(sub.mean(axis=0)).ravel()
-                        sq_mean = np.asarray(sub.multiply(sub).mean(axis=0)).ravel()
-                        gene_sum = np.asarray(sub.sum(axis=0)).ravel()
+                if mat_is_sparse:
+                    # Format-aware subsample. CSC matrices like a column slice
+                    # (cheap: copy out per-column data ranges). CSR matrices
+                    # like a row slice (cheap: copy out per-row data ranges).
+                    # Pick the cheap axis for the matrix's actual format,
+                    # then convert the small subset to CSC for the per-column
+                    # stats reduceat trick.
+                    sub_csc = None
+                    _do_fano = False
+                    _denom = 1
+                    if mat_format == "csc":
+                        n_sub_genes = min(500, n_genes)
+                        if n_sub_genes > 0 and n_cells > 0:
+                            stride = max(1, n_genes // n_sub_genes)
+                            gene_idx = np.arange(0, n_genes, stride)[:n_sub_genes]
+                            sub = mat[:, gene_idx]
+                            _cls_step(f"CSC column subsample ({n_sub_genes} cols)")
+                            sub_csc = sub if sub.format == "csc" else sub.tocsc()
+                            _do_fano = True
+                            _denom = n_cells
+                    elif mat_format == "csr":
+                        n_sub_rows = min(3000, n_cells)
+                        if n_sub_rows > 0 and n_genes > 0:
+                            stride = max(1, n_cells // n_sub_rows)
+                            row_idx = np.arange(0, n_cells, stride)[:n_sub_rows]
+                            sub = mat[row_idx, :]
+                            _cls_step(f"CSR row subsample ({n_sub_rows} rows)")
+                            sub_csc = sub.tocsc()
+                            _cls_step("convert sub to CSC")
+                            _do_fano = True
+                            _denom = sub.shape[0]
                     else:
+                        # Other sparse format (e.g. COO) — fall back to small
+                        # contiguous block.
+                        sub = mat[:3000, :]
+                        sub_csc = sub.tocsc() if sp.issparse(sub) else sp.csc_matrix(sub)
+                        _do_fano = True
+                        _denom = sub.shape[0]
+                        _cls_step("fallback contiguous block")
+
+                    if _do_fano:
+                        # Per-column stats from the data array via indptr
+                        # boundaries — vectorised, no loops, no temp matrices.
+                        indptr = sub_csc.indptr
+                        data = np.asarray(sub_csc.data, dtype=np.float64)
+                        n_cols_sub = sub_csc.shape[1]
+                        col_nnz = np.diff(indptr).astype(np.float64)
+                        if data.size > 0:
+                            seg_starts = indptr[:-1]
+                            col_sum = np.add.reduceat(data, seg_starts)
+                            col_sumsq = np.add.reduceat(data * data, seg_starts)
+                            empty_mask = col_nnz == 0
+                            if empty_mask.any():
+                                col_sum[empty_mask] = 0.0
+                                col_sumsq[empty_mask] = 0.0
+                        else:
+                            col_sum = np.zeros(n_cols_sub, dtype=np.float64)
+                            col_sumsq = np.zeros(n_cols_sub, dtype=np.float64)
+                        mean_arr = col_sum / _denom
+                        sq_mean = col_sumsq / _denom
+                        var_arr = sq_mean - mean_arr ** 2
+                        # Inclusion threshold: gene must be at least modestly
+                        # expressed (mean > ~0.017, equivalent to "≥50 nonzero
+                        # in a 3000-cell sample" — the original heuristic).
+                        # The OLD code used `gene_sum > 50`, which was the same
+                        # threshold under a fixed 3000-cell denom but breaks on
+                        # the full-cells column-subsample path: across 664k cells,
+                        # `sum > 50` only filters out genes with <50 nonzero
+                        # cells total, so essentially every gene passes — and
+                        # sparse genes (~99% zeros) show var/mean ≈ 1 (Poisson
+                        # floor), pulling median Fano down to ~1.0 and making
+                        # real raw-count matrices look like denoised counts.
+                        # Using a mean-rate threshold makes the gate denominator-
+                        # invariant.
+                        moderate = (mean_arr > 0) & (var_arr > 0) & (mean_arr > 50.0 / 3000.0)
+                        if moderate.sum() >= 50:
+                            fano_median = float(
+                                np.median(var_arr[moderate] / mean_arr[moderate])
+                            )
+                        _cls_step("Fano via reduceat")
+                        # Derive median_total from the same sub-matrix.
+                        # CSC sub_csc.indices stores the row index of each
+                        # nonzero; np.add.at scatters the data into per-row
+                        # bins. Then scale by (n_genes / n_cols_sub) to convert
+                        # the partial-genes row sum into an estimate of the
+                        # full per-cell total. Median over a stride of ~200
+                        # cells matches the original semantic.
+                        sub_row_sums = np.zeros(n_cells, dtype=np.float64)
+                        if data.size > 0:
+                            np.add.at(sub_row_sums, sub_csc.indices, data)
+                        scale_total = float(n_genes) / float(max(1, n_cols_sub))
+                        sub_row_sums *= scale_total
+                        if sub_row_sums.size > 200:
+                            _stride_r = max(1, sub_row_sums.size // 200)
+                            row_sums = sub_row_sums[::_stride_r][:200]
+                        else:
+                            row_sums = sub_row_sums
+                        median_total = float(np.median(row_sums)) if row_sums.size else 0.0
+                        _cls_step("median_total (from sub_csc, scaled)")
+                else:
+                    n_sub = min(3000, n_cells)
+                    if n_sub > 0:
+                        stride = max(1, n_cells // n_sub)
+                        row_idx = np.arange(0, n_cells, stride)[:n_sub]
+                        sub = mat[row_idx, :]
                         sub_d = np.asarray(sub, dtype=np.float64)
                         mean_arr = sub_d.mean(axis=0)
                         sq_mean = (sub_d ** 2).mean(axis=0)
                         gene_sum = sub_d.sum(axis=0)
-                    var_arr = sq_mean - mean_arr ** 2
-                    moderate = (mean_arr > 0) & (var_arr > 0) & (gene_sum > 50)
-                    if moderate.sum() >= 50:
-                        fano_median = float(np.median(var_arr[moderate] / mean_arr[moderate]))
-            except Exception:
+                        var_arr = sq_mean - mean_arr ** 2
+                        # Same mean-rate threshold as the sparse path so the
+                        # classification stays consistent across formats.
+                        moderate = (mean_arr > 0) & (var_arr > 0) & (mean_arr > 50.0 / 3000.0)
+                        if moderate.sum() >= 50:
+                            fano_median = float(
+                                np.median(var_arr[moderate] / mean_arr[moderate])
+                            )
+                        _cls_step("dense Fano (row subsample)")
+                        # Dense median_total: row sums on the same subsample.
+                        row_sums = sub_d.sum(axis=1)
+                        median_total = float(np.median(row_sums)) if row_sums.size else 0.0
+            except Exception as _fano_e:
+                print(f"    [classify {path}] Fano failed: {_fano_e}")
                 pass
+            _fano_str = f"{fano_median:.3f}" if fano_median is not None else "n/a"
+            print(f"  [classify {path}] total: {time.time()-_cls_t0:.2f}s  fano={_fano_str}  median_total={median_total:.0f}")
 
             # Classify
             kind = "unknown"
@@ -1066,8 +1198,17 @@ def detect_counts():
     import scipy.sparse as sp
 
     # Full classification + task routing in one pass.
+    _dc_t0 = time.time()
+    _dc_phase_t = [time.time()]
+    def _dc_step(name):
+        now = time.time()
+        elapsed = now - _dc_phase_t[0]
+        _dc_phase_t[0] = now
+        print(f"    [detect_counts] {name}: {elapsed:.2f}s")
     _classify_all_matrices()
+    _dc_step("_classify_all_matrices")
     _build_matrix_routing()
+    _dc_step("_build_matrix_routing")
 
     # Prefer matrices classified as "raw_counts"; among those, lean on layer-name
     # hints (counts / raw_counts / umi / spliced) and then the highest Fano.
@@ -1098,46 +1239,110 @@ def detect_counts():
                 best = (entry["path"], _get_matrix_by_path(entry["path"]))
                 break
 
+    _dc_step(f"raw_candidates pick (best={best[0] if best else None})")
+    # Look up the Fano + median-total + max we already computed during
+    # _classify_all_matrices for the chosen matrix. We used to recompute
+    # them here from scratch (gene_sums_all = COUNTS_MATRIX.sum(axis=0)
+    # which reads the whole nnz data array — ~15-20 s on a 200M-nnz mmap'd
+    # CSC), but that's exactly the same statistic the classifier already
+    # produced. Skipping the recompute saves the entire second pass.
+    _best_entry = None
+    if best:
+        for _e in MATRIX_REGISTRY:
+            if _e["path"] == best[0]:
+                _best_entry = _e
+                break
     if best:
         COUNTS_LABEL, COUNTS_MATRIX = best
-        # Quick stats
-        row_sums = np.array(COUNTS_MATRIX[:1000, :].sum(axis=1)).flatten()
+        # Quick stats. `mat[:1000, :]` triggers a tocsr() on CSC mmaps which
+        # we cannot afford. Use the same trick as classify: read row-totals
+        # by scattering the column-subsample's data into per-row bins.
+        if sp.issparse(COUNTS_MATRIX):
+            fmt0 = COUNTS_MATRIX.format
+            if fmt0 == "csc":
+                # Sample 500 stride-spaced columns (cheap on CSC), scatter-add
+                # into per-row sums, scale by (n_genes/n_sub_genes).
+                _ng_total = COUNTS_MATRIX.shape[1]
+                _n_sub_g = min(500, _ng_total)
+                _stride_g = max(1, _ng_total // _n_sub_g)
+                _gene_idx0 = np.arange(0, _ng_total, _stride_g)[:_n_sub_g]
+                _sub0 = COUNTS_MATRIX[:, _gene_idx0]
+                _sub0c = _sub0 if _sub0.format == "csc" else _sub0.tocsc()
+                _row_sums_partial = np.zeros(COUNTS_MATRIX.shape[0], dtype=np.float64)
+                if _sub0c.data.size > 0:
+                    np.add.at(_row_sums_partial, _sub0c.indices,
+                              np.asarray(_sub0c.data, dtype=np.float64))
+                _scale0 = float(_ng_total) / float(max(1, _n_sub_g))
+                _row_sums_partial *= _scale0
+                if _row_sums_partial.size > 1000:
+                    _str = max(1, _row_sums_partial.size // 1000)
+                    _row_sums_partial = _row_sums_partial[::_str][:1000]
+                row_sums = _row_sums_partial
+            else:
+                # CSR (or other): top-1000-row slice is fast.
+                sub_top = COUNTS_MATRIX[:1000, :]
+                row_sums = np.asarray(sub_top.sum(axis=1)).ravel()
+        else:
+            sub_top = COUNTS_MATRIX[:1000, :]
+            row_sums = np.array(sub_top.sum(axis=1)).flatten()
         median_total = float(np.median(row_sums))
+        _dc_step("median_total + max sample")
         max_sample = COUNTS_MATRIX[:500, :500]
         max_val = float(np.asarray(max_sample.toarray() if hasattr(max_sample, 'toarray') else max_sample).max())
+        _dc_step("max value sample")
 
         # Fano-factor check to detect smoothed/denoised integer counts.
-        # Sample up to 10k cells × 500 well-expressed genes, compute var/mean per gene.
+        # Reuse the per-matrix Fano that _classify_all_matrices already
+        # computed — same statistic, no need to re-read the entire CSC
+        # mmap data array (which was costing 15-20 s here on a 200M-nnz
+        # matrix). Falls back to a lightweight recompute only if the
+        # registry didn't manage to compute Fano for the chosen matrix
+        # (e.g. exception during classify).
         fano_median = None
         looks_smoothed = False
-        try:
-            n_cells_full = COUNTS_MATRIX.shape[0]
-            n_sample = min(10000, n_cells_full)
-            # deterministic stride-based sample (no RNG dependency)
-            stride = max(1, n_cells_full // n_sample)
-            row_idx = np.arange(0, n_cells_full, stride)[:n_sample]
-            sub = COUNTS_MATRIX[row_idx, :]
-            gene_sums = np.asarray(sub.sum(axis=0)).flatten()
-            good = np.where(gene_sums > 50)[0]
-            if len(good) >= 50:
-                # limit to 500 genes to bound cost
-                if len(good) > 500:
-                    g_stride = max(1, len(good) // 500)
-                    good = good[::g_stride][:500]
-                block = sub[:, good]
-                if sp.issparse(block):
-                    block = block.toarray()
-                block = np.asarray(block, dtype=np.float64)
-                means = block.mean(axis=0)
-                vars_ = block.var(axis=0)
-                fano = vars_ / np.maximum(means, 1e-9)
-                fano_median = float(np.median(fano))
-                # Empirical threshold: real UMI scRNA-seq data has median Fano
-                # well above 1.5 because of biological overdispersion + cell
-                # type mixing. Poisson-sampled outputs sit near 1.0.
-                looks_smoothed = fano_median < 1.5
-        except Exception as e:
-            print(f"    (Fano check skipped: {e})")
+        if _best_entry is not None and _best_entry.get("fano_median") is not None:
+            fano_median = float(_best_entry["fano_median"])
+            looks_smoothed = fano_median < 1.5
+        else:
+            # Fallback: same column-subsample recompute, but only when
+            # classify failed. Should be rare.
+            try:
+                n_cells_full = COUNTS_MATRIX.shape[0]
+                if sp.issparse(COUNTS_MATRIX):
+                    fmt = COUNTS_MATRIX.format
+                    if fmt == "csc":
+                        n_genes_total = COUNTS_MATRIX.shape[1]
+                        n_sub = min(500, n_genes_total)
+                        gstride = max(1, n_genes_total // n_sub)
+                        gene_idx = np.arange(0, n_genes_total, gstride)[:n_sub]
+                        sub_csc = COUNTS_MATRIX[:, gene_idx]
+                        if sub_csc.format != "csc":
+                            sub_csc = sub_csc.tocsc()
+                        _denom_fb = n_cells_full
+                    else:
+                        n_sample = min(3000, n_cells_full)
+                        stride = max(1, n_cells_full // n_sample)
+                        row_idx = np.arange(0, n_cells_full, stride)[:n_sample]
+                        sub = COUNTS_MATRIX[row_idx, :]
+                        sub_csc = sub.tocsc()
+                        _denom_fb = sub.shape[0]
+                    indptr = sub_csc.indptr
+                    data = np.asarray(sub_csc.data, dtype=np.float64)
+                    if data.size > 0:
+                        seg_starts = indptr[:-1]
+                        col_sum = np.add.reduceat(data, seg_starts)
+                        col_sumsq = np.add.reduceat(data * data, seg_starts)
+                        means = col_sum / _denom_fb
+                        sqmean = col_sumsq / _denom_fb
+                        vars_ = np.maximum(sqmean - means ** 2, 0.0)
+                        moderate = (means > 0) & (vars_ > 0) & (means > 50.0 / 3000.0)
+                        if moderate.sum() >= 50:
+                            fano = vars_[moderate] / np.maximum(means[moderate], 1e-9)
+                            fano_median = float(np.median(fano))
+                            looks_smoothed = fano_median < 1.5
+            except Exception as e:
+                print(f"    (Fano check fallback skipped: {e})")
+        _dc_step("counts Fano check (from registry)")
 
         pb_ok = not looks_smoothed
         reason = ""
@@ -2507,6 +2712,18 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     LOADED_PATH = str(h5ad_path)
     t0 = time.time()
 
+    # Lightweight phase timer — prints "[+Xs]" before each labelled checkpoint
+    # so the wall-clock distribution across load steps is visible without
+    # needing to rerun under a profiler. Cheap, zero overhead when called
+    # ~10 times per load.
+    _lp_t0 = [time.time()]
+    def _phase(label):
+        now = time.time()
+        elapsed = now - _lp_t0[0]
+        cum = now - t0
+        _lp_t0[0] = now
+        print(f"  [+{elapsed:5.2f}s | total {cum:5.1f}s] {label}")
+
     # Decide backed mode
     file_size_gb = os.path.getsize(h5ad_path) / 1e9
     avail_ram_gb = _get_available_ram_gb()
@@ -2630,6 +2847,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             )
     _progress(f"Loaded {adata.n_obs:,} cells x {adata.n_vars:,} genes"
               f" ({'backed' if BACKED else 'in-memory'}, {time.time()-t0:.0f}s)", 10)
+    _phase("h5ad load done")
 
     # Subsample
     if max_cells > 0 and adata.n_obs > max_cells:
@@ -2697,6 +2915,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             )
         except Exception:
             pass
+    _phase(f"cache load (.fleek_cache.npz, {len(cached)} keys)")
 
     need_save = False
     neighbors_built = False
@@ -2782,10 +3001,13 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         return _palette_hex(i)
     CLUSTER_COLORS = [_resolve_color(i, n) for i, n in enumerate(CLUSTER_NAMES)]
 
+    _phase("cluster IDs + colors")
+
     # Detect slice-able obs metadata columns
     OBS_COLS = _detect_obs_cols(adata, clustering_col=_cluster_col_used)
     if OBS_COLS:
         print(f"  Obs slice columns: {', '.join(OBS_COLS.keys())}")
+    _phase(f"_detect_obs_cols ({len(OBS_COLS)} columns)")
 
     # Gene names (use var index, or feature_name if available)
     if "feature_name" in adata.var.columns:
@@ -2796,6 +3018,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         adata.var.index = adata.var.index.astype(str)
         adata.var_names_make_unique()
         GENE_NAMES_LIST = adata.var_names.tolist()
+    _phase("gene names")
 
     # Compute UMAP(s) — with caching to avoid recomputation
 
@@ -3053,6 +3276,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         _safe_savez(".fleek_cache.npz", **cached)
 
     ADATA = adata
+    _phase("UMAP load/compute")
 
     # ── Extract PCA coordinates ──
     # Priority: obsm['X_pca'] in the h5ad → cache (fallback for FLEEK-computed
@@ -3133,6 +3357,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 except Exception as e:
                     print(f"  Background PCA failed: {e}")
             threading.Thread(target=_bg_pca, daemon=True).start()
+    _phase("PCA extract / bg-PCA setup")
 
     # ── PaCMAP embedding (background subprocess to avoid numba/threading issues) ──
     # Same cross-suffix fallback pattern as UMAP — a cache from full mode
@@ -3345,6 +3570,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
         PACMAP_2D = None
         PACMAP_3D = None
         PACMAP_COMPUTING = False
+    _phase("PaCMAP load/setup")
 
     # Build fast lookup structures
     GENE_INDEX = {g: i for i, g in enumerate(ADATA.var_names)}
@@ -3700,6 +3926,7 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
     else:
         X_CSC = None
         CSC_BUILDING = False
+    _phase("HVG + CSC build started (background thread)")
 
     # Record load settings for the client
     load_elapsed = time.time() - t0
@@ -3731,13 +3958,17 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
 
     # Load marker database for cell type annotation
     load_marker_db()
+    _phase("load_marker_db")
     load_go_db()
+    _phase("load_go_db (+ pathway DBs)")
     detect_counts()
+    _phase("detect_counts (matrix classify + routing + Fano)")
 
     PROGRESS["status"] = "done"
     PROGRESS["pct"] = 100
     PROGRESS["message"] = f"Ready: {N_CELLS:,} cells, {len(CLUSTER_NAMES)} types, {len(GENE_NAMES_LIST):,} genes"
     print(f"  Ready: {N_CELLS:,} cells, {len(CLUSTER_NAMES)} types, {len(GENE_NAMES_LIST):,} genes")
+    _phase("READY (load_and_prepare returning)")
 
 
 def _stratified_subsample(cluster_ids, n_target, rng):
