@@ -99,7 +99,14 @@
   #app{display:flex;width:100vw;height:100vh;}
   #sidebar{width:260px;min-width:260px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;transition:margin-left 0.25s ease,opacity 0.25s ease;}
   #sidebar.hidden{margin-left:-260px;opacity:0;pointer-events:none;}
-  #sidebar-toggle{position:absolute;top:10px;left:10px;z-index:10;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--accent2);cursor:pointer;font-size:20px;line-height:1;padding:6px 9px;opacity:0;transition:opacity 0.2s;pointer-events:none;}
+  /* Sidebar-toggle button (the « / » that re-opens the sidebar after
+     the user collapses it via "\\"). Positioned far enough below the
+     top of the canvas to clear the split-view-label boxes that sit at
+     top:8px in split modes — without that gap, the button covered the
+     "Split 1" label in the top-left quadrant when the sidebar was
+     hidden. 40px puts the button visibly below a typical label
+     (top:8px + ~17px height + breathing room). */
+  #sidebar-toggle{position:absolute;top:40px;left:10px;z-index:10;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--accent2);cursor:pointer;font-size:20px;line-height:1;padding:6px 9px;opacity:0;transition:opacity 0.2s;pointer-events:none;}
   #sidebar-toggle.show{opacity:0.7;pointer-events:auto;}
   #sidebar-toggle.show:hover{opacity:1;}
   /* The sidebar columns draw their OWN custom overlay thumb (see
@@ -261,7 +268,13 @@
   #c:active{cursor:grabbing;}
   #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
-  #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:11px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;z-index:15;}
+  /* Hint bar: shows briefly on user activity (mouse move, scroll,
+     keystroke) then fades out, instead of being permanently visible.
+     This avoids the bar permanently overlapping the bottom-right HUD
+     in split modes where the centred bar runs into the bottom-right
+     quadrant's info toggle. opacity is the animator; display only
+     flips when the Settings toggle disables the bar entirely. */
+  #hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:var(--bg2);padding:5px 10px;border-radius:5px;border:1px solid var(--border);font-size:11px;color:var(--text4);pointer-events:none;box-sizing:border-box;white-space:nowrap;z-index:15;opacity:0;transition:opacity 0.4s ease;}
   /* HUDs (Info overlays). The default HUD (#hud, quad 0) sits bottom-left
      in single-view; in 2-up split it stays bottom-left. In 3/4-up the
      quadrant index drives placement via cw class — see the .split-N rules
@@ -1332,7 +1345,16 @@
         <button onclick="selAllVisible()" title="Select all visible cells into active group (Shift+V)">SelVis</button>
         <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)" title="Clear visible cells from active group (Esc)">Clear</button>
         <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (Shift+H)">HideAll</button>
-        <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis — requires at least 2 selection groups with cells (use SelVis or shift-click to populate groups, then re-enable)" disabled>DEG</button>
+        <!-- Wrapper span so the tooltip is reachable while the inner
+             button is disabled. Browsers (notably Firefox, sometimes
+             Safari) don't fire pointer events on a disabled <button>,
+             so a `title` set on the button itself never surfaces while
+             greyed out — exactly the case the user needs the
+             explanation. The wrapper takes pointer events; the
+             button stays disabled but its title is mirrored on the
+             span (kept in sync by the same code that flips the
+             button's disabled state). -->
+        <span id="deg-open-wrap" title="Differential expression analysis — requires at least 2 selection groups with cells (use SelVis or shift-click to populate groups, then re-enable)" style="display:inline-flex;"><button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button></span>
       </div>
     </div>
   </div>
@@ -2956,7 +2978,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.19";
+var FLEEK_VERSION="v0.5.20";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -5070,19 +5092,27 @@ function renderSelPanel(){
   for(var ii=0;ii<selGroups.length;ii++){if(groupVisible[selGroups[ii].id]!==false){anyVis=true;break;}}
   var btn=document.getElementById("sel-vis-btn");
   if(btn)btn.textContent=anyVis?"HideAll":"ShowAll";
-  /* Enable DEG button when 2+ groups have cells. Update the tooltip
-     so the user sees the unmet precondition while disabled rather
-     than just a generic "Differential expression analysis" — main
-     question users asked was "why is this button greyed out?" */
+  /* Enable DEG button when 2+ groups have cells. Update both the
+     button's title AND the wrapper span's title so the explanation
+     shows up regardless of whether the browser fires hover events on
+     the disabled button (Firefox + some Safari versions don't, so a
+     title on the button alone is invisible exactly when the user
+     needs to know "why is this greyed out?"). The span wrapper
+     captures hover when the button can't. */
   var degBtn=document.getElementById("deg-open-btn");
+  var degWrap=document.getElementById("deg-open-wrap");
   if(degBtn){
     var nWithCells=0;
     for(var ii=0;ii<selGroups.length;ii++){if(selGroups[ii].cells.size>0)nWithCells++;}
     degBtn.disabled=nWithCells<2;
+    var disabledTitle="DEG needs at least 2 selection groups with cells. Currently "+nWithCells+" populated. Use SelVis (Shift+V) or Shift+click cells to fill groups, then this button enables.";
+    var enabledTitle="Differential expression analysis between two selection groups";
     if(degBtn.disabled){
-      degBtn.title="DEG needs at least 2 selection groups with cells. Currently "+nWithCells+" populated. Use SelVis (Shift+V) or Shift+click cells to fill groups, then this button enables.";
+      degBtn.title=disabledTitle;
+      if(degWrap)degWrap.title=disabledTitle;
     }else{
-      degBtn.title="Differential expression analysis between two selection groups";
+      degBtn.title=enabledTitle;
+      if(degWrap)degWrap.title=enabledTitle;
     }
   }
   markDEGStale();
@@ -7114,22 +7144,23 @@ function setupCtrl(){
     }
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
-    /* Opt+/ (Alt+/) = expand all sidebar panels, or restore the
-       previous per-panel collapse pattern if we're already in the
-       expanded state. Note: on macOS, Option+/ produces "÷" as the
-       e.key value, while e.code is reliably "Slash" — check both so
-       Mac and Linux/Windows behave identically. */
-    if(e.altKey&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&(e.key==="/"||e.code==="Slash")){
-      e.preventDefault();
-      toggleAllPanels("expand");
-    }
-    /* Opt+\ (Alt+\) = symmetric counterpart: collapse all sidebar
-       panels, or restore previous pattern when already collapsed.
-       macOS quirk: Option+\ renders "«" as e.key but e.code stays
-       "Backslash" — check both. */
-    if(e.altKey&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&(e.key==="\\"||e.code==="Backslash")){
-      e.preventDefault();
-      toggleAllPanels("collapse");
+    /* Opt+\ (Alt+\)        = expand all sidebar panels, or restore the
+                                previous pattern if already expanded.
+       Ctrl+Opt+\ (Ctrl+Alt+\) = collapse all sidebar panels, or restore
+                                the previous pattern if already collapsed.
+       The two shortcuts share the panel-state snapshot machinery (see
+       toggleAllPanels) so a third press of either restores the layout.
+       macOS quirk: Option+\ renders "«" as e.key, Option+/ renders
+       "÷", but e.code stays "Backslash" / "Slash" — check both forms
+       so the bindings behave the same on Mac and Linux/Windows. */
+    if(e.altKey&&!e.metaKey&&!e.shiftKey&&(e.key==="\\"||e.code==="Backslash")){
+      if(e.ctrlKey){
+        e.preventDefault();
+        toggleAllPanels("collapse");
+      }else{
+        e.preventDefault();
+        toggleAllPanels("expand");
+      }
     }
     /* s = cycle split count: 1 → 2 → 4 → 1 (skips 3 in the cycle; users
        who want 3 can pick it from the pip selector in Split Views).
@@ -18634,8 +18665,8 @@ function _buildSearchRegistry(){
     {id:"view-embedding",label:"Cycle embedding (UMAP / PCA / PaCMAP)",secondary:"View",keywords:"projection coordinates",shortcut:"E",available:_hasData,action:_cycleEmbedding},
     {id:"view-theme",label:"Toggle dark / light theme",secondary:"View",shortcut:"T",action:_setTheme},
     {id:"view-sidebar",label:"Toggle sidebar",secondary:"View",shortcut:"\\",action:function(){if(typeof toggleSidebar==="function")toggleSidebar();}},
-    {id:"view-expand-all",label:"Expand all panels (or restore previous)",secondary:"View",keywords:"collapse panels open everything",shortcut:"⌥ /",action:function(){if(typeof toggleAllPanels==="function")toggleAllPanels("expand");}},
-    {id:"view-collapse-all",label:"Collapse all panels (or restore previous)",secondary:"View",keywords:"close panels minimize everything",shortcut:"⌥ \\",action:function(){if(typeof toggleAllPanels==="function")toggleAllPanels("collapse");}},
+    {id:"view-expand-all",label:"Expand all panels (or restore previous)",secondary:"View",keywords:"collapse panels open everything",shortcut:"⌥ \\",action:function(){if(typeof toggleAllPanels==="function")toggleAllPanels("expand");}},
+    {id:"view-collapse-all",label:"Collapse all panels (or restore previous)",secondary:"View",keywords:"close panels minimize everything",shortcut:"^ ⌥ \\",action:function(){if(typeof toggleAllPanels==="function")toggleAllPanels("collapse");}},
     {id:"view-hud",label:"Toggle info HUD",secondary:"View",keywords:"overlay counts",shortcut:"I",action:function(){if(typeof _hudToggleAll==="function")_hudToggleAll();}},
     {id:"view-rotate",label:"Toggle auto-rotate",secondary:"View",keywords:"spin",action:_click("b-auto")},
     {id:"view-reset",label:"Reset camera",secondary:"View",keywords:"recenter zoom",shortcut:"R",available:_hasData,action:function(){if(typeof resetView==="function")resetView();}},
@@ -18840,10 +18871,50 @@ function _applyServerInfo(){
   }
 }
 
+/* Hint bar visibility model (since v0.5.20):
+   - The Settings toggle ("Hint bar") chooses whether the bar exists
+     in the layout at all (display:block vs display:none).
+   - When the toggle is on, the bar is in the DOM but at opacity:0
+     by default. _hintBump() pulses it to opacity:1 on user activity
+     (mousemove, scroll, keystroke), then a setTimeout fades it back
+     to 0 after _HINT_FADE_MS of idle. This keeps the bar out of the
+     way of the bottom-right HUD in split modes when the user isn't
+     actively interacting. */
+var _hintFadeTimer=null;
+var _HINT_FADE_MS=1800;
+function _hintBump(){
+  var setHint=document.getElementById("set-hint");
+  if(!setHint||!setHint.checked)return;
+  var hint=document.getElementById("hint");
+  if(!hint)return;
+  hint.style.opacity="1";
+  clearTimeout(_hintFadeTimer);
+  _hintFadeTimer=setTimeout(function(){hint.style.opacity="0";},_HINT_FADE_MS);
+}
 function toggleHintBar(){
   var on=document.getElementById("set-hint").checked;
-  document.getElementById("hint").style.display=on?"block":"none";
+  var hint=document.getElementById("hint");
+  if(!hint)return;
+  hint.style.display=on?"block":"none";
+  if(!on){
+    hint.style.opacity="0";
+    clearTimeout(_hintFadeTimer);
+  }else{
+    /* Toggle just turned on — bump immediately so the user sees the
+       bar without waiting for the next mouse move. The fade timer
+       will hide it after _HINT_FADE_MS as usual. */
+    _hintBump();
+  }
 }
+/* Bind motion events globally. mousemove + wheel + keydown cover the
+   typical "I'm doing something" signals; passive listeners so we
+   don't slow scrolling. Only attached once at boot. */
+(function _bindHintMotion(){
+  var opts={passive:true};
+  document.addEventListener("mousemove",_hintBump,opts);
+  document.addEventListener("wheel",_hintBump,opts);
+  document.addEventListener("keydown",_hintBump,opts);
+})();
 function toggleHistBtns(){
   var on=document.getElementById("set-hist-btns").checked;
   document.getElementById("hist-btns").style.display=on?"flex":"none";
