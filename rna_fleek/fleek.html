@@ -1316,7 +1316,7 @@
         <button onclick="selAllVisible()" title="Select all visible cells into active group (Shift+V)">SelVis</button>
         <button id="sel-clear-btn" onclick="clearActiveGroup(event.altKey)" onmouseenter="_updateClearBtn(event)" onmouseleave="_updateClearBtn(event)" title="Clear visible cells from active group (Esc)">Clear</button>
         <button id="sel-vis-btn" onclick="toggleSelVis()" title="Toggle all selection visibility (Shift+H)">HideAll</button>
-        <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button>
+        <button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis — requires at least 2 selection groups with cells (use SelVis or shift-click to populate groups, then re-enable)" disabled>DEG</button>
       </div>
     </div>
   </div>
@@ -2936,7 +2936,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.14";
+var FLEEK_VERSION="v0.5.15";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -4953,12 +4953,20 @@ function renderSelPanel(){
   for(var ii=0;ii<selGroups.length;ii++){if(groupVisible[selGroups[ii].id]!==false){anyVis=true;break;}}
   var btn=document.getElementById("sel-vis-btn");
   if(btn)btn.textContent=anyVis?"HideAll":"ShowAll";
-  /* Enable DEG button when 2+ groups have cells */
+  /* Enable DEG button when 2+ groups have cells. Update the tooltip
+     so the user sees the unmet precondition while disabled rather
+     than just a generic "Differential expression analysis" — main
+     question users asked was "why is this button greyed out?" */
   var degBtn=document.getElementById("deg-open-btn");
   if(degBtn){
     var nWithCells=0;
     for(var ii=0;ii<selGroups.length;ii++){if(selGroups[ii].cells.size>0)nWithCells++;}
     degBtn.disabled=nWithCells<2;
+    if(degBtn.disabled){
+      degBtn.title="DEG needs at least 2 selection groups with cells. Currently "+nWithCells+" populated. Use SelVis (Shift+V) or Shift+click cells to fill groups, then this button enables.";
+    }else{
+      degBtn.title="Differential expression analysis between two selection groups";
+    }
   }
   markDEGStale();
 }
@@ -18333,6 +18341,21 @@ function _paletteSpotlight(el){
   _spotlightTimer=setTimeout(function(){
     bd.classList.remove("active");
     el.classList.remove("fleek-spotlight-target");
+    /* Defensive: zero out the inline strip positioning so no
+       leftover position:fixed/top/etc. coordinates linger past the
+       animation. The strips have a 0.25s background transition back
+       to transparent, so we wait that out before clearing geometry —
+       otherwise the "fade out" snaps to a different position. */
+    setTimeout(function(){
+      var top=bd.querySelector(".sp-top");
+      var bot=bd.querySelector(".sp-bot");
+      var lft=bd.querySelector(".sp-left");
+      var rgt=bd.querySelector(".sp-right");
+      if(top)top.style.cssText="";
+      if(bot)bot.style.cssText="";
+      if(lft)lft.style.cssText="";
+      if(rgt)rgt.style.cssText="";
+    },280);
   },1700);
 }
 
@@ -18365,6 +18388,29 @@ function _buildSearchRegistry(){
   function _toggle(id){return function(){var el=document.getElementById(id);if(el){el.checked=!el.checked;el.dispatchEvent(new Event("change"));}};}
   function _hasData(){return typeof D!=="undefined"&&D!==null;}
   function _isColoc(){return _hasData()&&_geneMode==="coloc";}
+  /* DEG availability: needs a dataset AND at least 2 selection
+     groups with cells. The DEG button itself enforces the same gate
+     (deg-open-btn.disabled toggled in the selection-groups UI), so
+     palette entries that lead to DEG should match — otherwise the
+     palette claims the feature is reachable when clicking it would
+     just do nothing or open a panel that can't run anything. */
+  function _canRunDEG(){
+    if(!_hasData())return false;
+    if(typeof selGroups==="undefined"||!selGroups)return false;
+    var n=0;
+    for(var i=0;i<selGroups.length;i++){
+      if(selGroups[i]&&selGroups[i].cells&&selGroups[i].cells.size>0)n++;
+      if(n>=2)return true;
+    }
+    return false;
+  }
+  /* Lineage availability: a tree has been computed already. Used to
+     branch the lineage palette entry between "Build…" (when not yet
+     computed) and "Toggle lineage view" (when it exists) so the
+     entry's label matches what the action will do. */
+  function _hasLineage(){
+    return _hasData()&&typeof lineageTree!=="undefined"&&lineageTree!=null;
+  }
   /* Helper: cycle through whatever embeddings the embedding selector
      currently shows (matches the "E" key handler at the global level). */
   function _cycleEmbedding(){
@@ -18400,7 +18446,15 @@ function _buildSearchRegistry(){
     {id:"panel-views",label:"View Splits panel",secondary:"Panel",keywords:"split compare camera",panel:"split-sec",action:function(){var s=document.getElementById("split-sec");if(s)s.classList.remove("collapsed");}},
     {id:"panel-plots",label:"Plots panel",secondary:"Panel",keywords:"raincloud violin dotplot distribution",panel:"plots-sec",action:function(){var s=document.getElementById("plots-sec");if(s)s.classList.remove("collapsed");}},
     {id:"panel-pathway",label:"Pathways panel",secondary:"Panel",keywords:"ora gsea enrichment go reactome hallmark",panel:"pathway-sec",action:function(){var s=document.getElementById("pathway-sec");if(s)s.classList.remove("collapsed");}},
-    {id:"panel-deg",label:"DEG panel",secondary:"Panel",keywords:"differential expression cohen volcano",target:"deg-panel",action:function(){if(typeof showDEGPanel==="function")showDEGPanel();else{var d=document.getElementById("deg-panel");if(d)d.style.display="block";}}},
+    /* DEG panel: open via openDEG() but DO NOT spotlight the whole
+       panel. The panel is huge (bottom half of viewport) and dynamically
+       sized; the spotlight would dim most of the screen, the pulse
+       animation's position:relative would conflict with the panel's
+       own positioning, and the strips would mis-align after the panel
+       finished settling. The user-visible symptom was a "two-tone"
+       half-shaded panel that read as broken. The panel's own
+       appearance is the destination cue here; no spotlight needed. */
+    {id:"panel-deg",label:"DEG panel",secondary:"Panel",keywords:"differential expression cohen volcano",available:_canRunDEG,action:function(){if(typeof openDEG==="function")openDEG();}},
     {id:"open-help",label:"Help & About",secondary:"Action",keywords:"docs documentation reference",action:function(){if(typeof toggleHelp==="function")toggleHelp();}},
     {id:"open-settings",label:"Settings",secondary:"Action",keywords:"preferences api key theme",action:function(){if(typeof toggleSettings==="function")toggleSettings();else{var s=document.getElementById("settings-popup");if(s)s.style.display="block";}}},
     /* Color modes */
@@ -18431,10 +18485,14 @@ function _buildSearchRegistry(){
     {id:"plot-raincloud",label:"Switch to raincloud plot",secondary:"Plots",keywords:"density distribution dots",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="raincloud";s.dispatchEvent(new Event("change"));}}},
     {id:"plot-violin",label:"Switch to violin plot",secondary:"Plots",keywords:"density seaborn",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="violin";s.dispatchEvent(new Event("change"));}}},
     {id:"plot-dotplot",label:"Switch to dot plot",secondary:"Plots",keywords:"marker panel cellxgene",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="dotplot";s.dispatchEvent(new Event("change"));}}},
-    /* DEG */
-    {id:"deg-run",label:"Run DEG analysis",secondary:"DEG",keywords:"differential expression compare groups",available:_hasData,target:"deg-run-btn",action:function(){if(typeof showDEGPanel==="function")showDEGPanel();var b=document.getElementById("deg-run-btn");if(b)setTimeout(function(){b.click();},80);}},
-    {id:"deg-singlecell",label:"DEG mode: single-cell",secondary:"DEG",keywords:"wilcoxon t-test cohen",available:_hasData,target:"deg-mode-sc",action:function(){if(typeof showDEGPanel==="function")showDEGPanel();var b=document.getElementById("deg-mode-sc");if(b)setTimeout(function(){b.click();},80);}},
-    {id:"deg-pseudobulk",label:"DEG mode: pseudo-bulk",secondary:"DEG",keywords:"deseq2 replicate",available:_hasData,target:"deg-mode-pb",action:function(){if(typeof showDEGPanel==="function")showDEGPanel();var b=document.getElementById("deg-mode-pb");if(b)setTimeout(function(){b.click();},80);}},
+    /* DEG — gated on _canRunDEG (data + 2+ filled selection groups).
+       The actual button itself enforces the same gate, so palette
+       entries claiming "Run DEG" without 2 groups would just open a
+       panel that can't run anything; better to grey them out in the
+       palette so the user knows what's missing. */
+    {id:"deg-run",label:"Run DEG analysis",secondary:"DEG",keywords:"differential expression compare groups",available:_canRunDEG,target:"deg-run-btn",action:function(){if(typeof openDEG==="function")openDEG();var b=document.getElementById("deg-run-btn");if(b)setTimeout(function(){b.click();},80);}},
+    {id:"deg-singlecell",label:"DEG mode: single-cell",secondary:"DEG",keywords:"wilcoxon t-test cohen",available:_canRunDEG,target:"deg-mode-sc",action:function(){if(typeof openDEG==="function")openDEG();var b=document.getElementById("deg-mode-sc");if(b)setTimeout(function(){b.click();},80);}},
+    {id:"deg-pseudobulk",label:"DEG mode: pseudo-bulk",secondary:"DEG",keywords:"deseq2 replicate",available:_canRunDEG,target:"deg-mode-pb",action:function(){if(typeof openDEG==="function")openDEG();var b=document.getElementById("deg-mode-pb");if(b)setTimeout(function(){b.click();},80);}},
     /* Pathways */
     {id:"pathway-run",label:"Run pathway analysis (ORA)",secondary:"Pathways",keywords:"enrichment hypergeometric",available:_hasData,target:"path-run-btn",panel:"pathway-sec",action:_click("path-run-btn")},
     {id:"pathway-source-deg",label:"Pathway source: current DEG result",secondary:"Pathways",available:_hasData,target:"path-source",panel:"pathway-sec",action:function(){var s=document.getElementById("path-source");if(s){s.value="deg";s.dispatchEvent(new Event("change"));}}},
@@ -18457,7 +18515,15 @@ function _buildSearchRegistry(){
     /* Annotations (cell types panel) */
     {id:"annot-markers",label:"Annotate cell types from marker DB",secondary:"Cell Types",keywords:"annotation panglao automatic",available:_hasData,target:"annotate-btn",panel:"ct-sec",action:_click("annotate-btn")},
     {id:"annot-claude",label:"Annotate cell types with Claude",secondary:"Cell Types",keywords:"llm ai anthropic annotation",available:_hasData,target:"annotate-llm-btn",panel:"ct-sec",action:_click("annotate-llm-btn")},
-    {id:"annot-lineage",label:"Build developmental lineage tree",secondary:"Cell Types",keywords:"lineage hierarchy tree development claude",available:_hasData,target:"lineage-toggle",panel:"ct-sec",action:function(){if(typeof toggleLineageView==="function")toggleLineageView();}},
+    /* Lineage entry adapts to whether a tree has already been
+       computed. Two distinct user intents: "build the tree (calls
+       Claude API, takes time)" vs "switch the cell-types view to/from
+       the existing tree". Showing a single "Build…" entry after the
+       tree is already built misled users into thinking they had to
+       rebuild to see it. We expose two entries; their `available`
+       checks make exactly one of them surface at any time. */
+    {id:"annot-lineage-build",label:"Build developmental lineage tree (Claude)",secondary:"Cell Types",keywords:"lineage hierarchy tree development claude infer",available:function(){return _hasData()&&!_hasLineage();},target:"lineage-toggle",panel:"ct-sec",action:function(){if(typeof toggleLineageView==="function")toggleLineageView();}},
+    {id:"annot-lineage-toggle",label:"Toggle lineage tree view (flat ↔ tree)",secondary:"Cell Types",keywords:"lineage hierarchy tree show switch view",available:_hasLineage,target:"lineage-toggle",panel:"ct-sec",action:function(){if(typeof toggleLineageView==="function")toggleLineageView();}},
     {id:"ct-sort-toggle",label:"Sort cell types (cycle alphabetical / count)",secondary:"Cell Types",keywords:"name sort order",available:_hasData,target:"type-sort-btn",panel:"ct-sec",action:function(){if(typeof toggleTypeSort==="function")toggleTypeSort();}},
     /* File browser + data */
     {id:"open-browser",label:"Open file browser",secondary:"Data",keywords:"files h5ad load explore",target:"browse-btn",panel:"data-sec",action:function(){if(typeof openBrowser==="function")openBrowser();}},
