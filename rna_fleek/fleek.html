@@ -173,17 +173,20 @@
      overscroll-behavior:contain stops that chain at this boundary. */
   #glist,#hvg-scroll,#leg-scroll,#path-results,#go-results,#lineage-tree,#plot-gene-results,#fb-body,#help-body,.sb-trap,.fleek-dropdown,.gv-dd-list{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;margin-top:4px;}
-  /* Section padding is asymmetric (10px top, 2px bottom) so the
-     visual gap between the section's border and the last visible
-     control reads as roughly equal to the gap above the title text.
-     Buttons / selects / sliders all carry 3-6px of intrinsic
-     padding+border ABOVE their visible content (above the text or
-     the slider track), so the section's padding-bottom + the
-     control's intrinsic padding stack to create a perceived gap
-     larger than the symmetric padding-top would suggest. Padding-
-     bottom of 2px tends to read as ~10px of total visual gap below
-     a typical control — close to the 10px above the title. */
-  .sec{padding:10px 14px 2px;border-bottom:1px solid var(--border);}
+  /* Section padding is intentionally asymmetric (10px top, 0 bottom).
+     The reason: buttons, selects, and sliders all carry 3-6px of
+     intrinsic padding+border below their visible glyphs (between
+     the rendered text/track and the control's outer border). That
+     buffer lives INSIDE the control's bounding box, so any positive
+     section padding-bottom stacks ON TOP of it visually — a 10px
+     symmetric padding leaves the bottom looking ~6px taller than
+     the top. Zeroing padding-bottom lets the control's own
+     intrinsic spacing serve as the gap; the title at the top has
+     no such intrinsic above-text space, so the section's 10px
+     padding-top is doing all the work there. Net visual: top and
+     bottom gaps read as roughly equal regardless of last-child
+     control type. */
+  .sec{padding:10px 14px 0;border-bottom:1px solid var(--border);}
   /* Zero out the bottom margin of whatever element happens to be the
      last child inside a panel body — many controls (rows, labels,
      button groups) have their own margin-bottom for spacing between
@@ -3007,7 +3010,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.23";
+var FLEEK_VERSION="v0.5.24";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
