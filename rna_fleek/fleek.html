@@ -2936,7 +2936,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.15";
+var FLEEK_VERSION="v0.5.16";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2979,6 +2979,45 @@ var _boundaryOpacity=0; /* current animated opacity */
 var cloudBounds={center:new THREE.Vector3(),radius:50}; /* bounding sphere of point cloud */
 var autoRotate=false, viewIs3d=true;
 var embMethod="umap"; /* "umap", "pca", etc. */
+
+/* ── Info-line text + embedding suffix ────────────────────────────
+   The Data panel info line (`#info`) is written by several different
+   code paths: initial connection, dataset load, restore-from-session,
+   "no dataset" idle. We want to also surface the current embedding
+   (UMAP / PCA / PaCMAP / …) at the end and have it update when the
+   user switches embeddings. _setInfoHTML stashes the "base" text so
+   _renderInfoLine can re-emit it with the current suffix; setEmbMethod
+   (and the embedding-cycle hotkey) calls _renderInfoLine to refresh.
+   Pretty-prints the embedding name from a small map so "pacmap" shows
+   as "PaCMAP" rather than the lowercase id. */
+var _embPrettyLabels={"umap":"UMAP","pca":"PCA","pacmap":"PaCMAP","trimap":"TriMap"};
+function _embSuffixHTML(){
+  if(typeof D==="undefined"||!D)return "";
+  if(typeof embMethod==="undefined"||!embMethod)return "";
+  var label=_embPrettyLabels[embMethod]||embMethod.toUpperCase();
+  return ' · <span style="color:var(--text3);" title="Current embedding (press E to cycle)">'+label+'</span>';
+}
+function _setInfoHTML(html){
+  var info=document.getElementById("info");
+  if(!info)return;
+  info.dataset.base=html;
+  info.innerHTML=html+_embSuffixHTML();
+}
+function _setInfoText(text){
+  /* For raw-text writes (replaces .textContent = ...). Treats input
+     as plain text and escapes minimally — only "<" / "&" — since
+     all current callers either pass server-validated strings (saved
+     session text) or static literals ("No dataset loaded"). */
+  var safe=String(text||"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  _setInfoHTML(safe);
+}
+function _renderInfoLine(){
+  var info=document.getElementById("info");
+  if(!info)return;
+  var base=info.dataset.base;
+  if(base===undefined)return;
+  info.innerHTML=base+_embSuffixHTML();
+}
 var introAnim=null; /* {startTime, startTheta, endTheta, startRadius, endRadius, duration} or null */
 var _introTimer=null; /* pending intro-animation setTimeout ID, so we can cancel it if a saved camera arrives first */
 var _introTargetCam=null; /* {sph,tgt3,pan2,zoom2} — when set, intro orbits INTO this saved pose rather than to a default home */
@@ -7108,6 +7147,9 @@ function setEmbMethod(m){
   var ml=document.getElementById("emb-mini-label");
   var labels={"umap":"","pca":"PCA","pacmap":"PaCMAP","trimap":"TriMap"};
   if(ml){ml.textContent=labels[m]||m.toUpperCase();ml.style.display=m==="umap"?"none":"inline";}
+  /* Refresh the info-line embedding suffix so the Data panel reads
+     the current method without waiting for a load to complete. */
+  if(typeof _renderInfoLine==="function")_renderInfoLine();
   /* Check what dims are available for this method */
   var emb=D.embeddings[m];
   var has2=!!emb[2], has3=!!emb[3];
@@ -10462,7 +10504,7 @@ function unloadDataset(){
     /* Reset UI elements */
     document.getElementById("loaded-file").style.display="none";
     document.getElementById("unload-btn").style.display="none";
-    document.getElementById("info").textContent="No dataset loaded";
+    _setInfoText("No dataset loaded");
     document.getElementById("load-badges").style.display="none";
     document.getElementById("load-badges").innerHTML="";
     var _miWrap=document.getElementById("matrix-info-wrap");
@@ -18278,23 +18320,40 @@ function _paletteExecuteIndex(idx){
   if(typeof e.action==="function"){
     try{e.action();}catch(err){console.error("Palette action failed:",err);}
   }
+  /* If the spotlight target lives inside the sidebar but the user
+     has the sidebar collapsed (toggle = "\\"), reveal it first so
+     the spotlight has something to highlight — without this, the
+     getBoundingClientRect of a hidden sidebar child returns a zero-
+     or off-screen rect and the spotlight either misses or covers
+     random pixels. After toggleSidebar starts the 0.25s margin-left
+     transition, we wait it out before measuring + spotlighting. */
+  function _revealSidebarIfNeeded(elGetter, after){
+    var el=elGetter();
+    var sb=document.getElementById("sidebar");
+    var sr=document.getElementById("sidebar-right");
+    var inSidebar=el && sb && (sb.contains(el) || (sr && sr.contains(el)));
+    var hidden=sb && sb.classList.contains("hidden");
+    if(inSidebar && hidden && typeof toggleSidebar==="function"){
+      toggleSidebar();
+      setTimeout(function(){after(elGetter());},280);
+    }else{
+      after(el);
+    }
+  }
+  function _scrollAndSpotlight(el){
+    if(!el)return;
+    if(typeof el.scrollIntoView==="function")el.scrollIntoView({block:"center",behavior:"smooth"});
+    _paletteSpotlight(el);
+  }
   if(e.target){
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){
-        var el=document.getElementById(e.target);
-        if(el){
-          if(typeof el.scrollIntoView==="function")el.scrollIntoView({block:"center",behavior:"smooth"});
-          _paletteSpotlight(el);
-        }
+        _revealSidebarIfNeeded(function(){return document.getElementById(e.target);}, _scrollAndSpotlight);
       });
     });
   }else if(e.panel){
     requestAnimationFrame(function(){
-      var el=document.getElementById(e.panel);
-      if(el){
-        if(typeof el.scrollIntoView==="function")el.scrollIntoView({block:"center",behavior:"smooth"});
-        _paletteSpotlight(el);
-      }
+      _revealSidebarIfNeeded(function(){return document.getElementById(e.panel);}, _scrollAndSpotlight);
     });
   }
 }
@@ -20014,7 +20073,7 @@ document.addEventListener("DOMContentLoaded",function(){
           if(j.no_data){
             /* No dataset loaded — show empty state */
             hideL();
-            document.getElementById("info").innerHTML='No dataset loaded<br><span style="font-size:10px;color:var(--text4);">Upload an .h5ad file to get started</span>';
+            _setInfoHTML('No dataset loaded<br><span style="font-size:10px;color:var(--text4);">Upload an .h5ad file to get started</span>');
             document.getElementById("data-sec").classList.add("no-data");
             return null;
           }
@@ -20061,12 +20120,12 @@ document.addEventListener("DOMContentLoaded",function(){
         var _infoText=data.header.n_cells.toLocaleString()+" cells \u00b7 "+data.header.n_clusters+" types \u00b7 "+(data.header.total_genes||"?").toLocaleString()+" genes";
         if(_loadT0>0){
           var _loadElapsed=((Date.now()-_loadT0)/1000);
-          document.getElementById("info").innerHTML=_infoText+_orgHtml+" \u00b7 "+_loadElapsed.toFixed(1)+"s";
+          _setInfoHTML(_infoText+_orgHtml+" \u00b7 "+_loadElapsed.toFixed(1)+"s");
           try{sessionStorage.setItem("fleek_infoText",_infoText+" \u00b7 "+_org+" (inferred) \u00b7 "+_loadElapsed.toFixed(1)+"s");}catch(e){}
         }else{
           var _saved=null;try{_saved=sessionStorage.getItem("fleek_infoText");}catch(e){}
-          if(_saved){document.getElementById("info").textContent=_saved;}
-          else{document.getElementById("info").innerHTML=_infoText+_orgHtml;}
+          if(_saved){_setInfoText(_saved);}
+          else{_setInfoHTML(_infoText+_orgHtml);}
         }
         /* Show loaded file name and top Claude annotations if available */
         var lfEl=document.getElementById("loaded-file");
