@@ -2936,7 +2936,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.13";
+var FLEEK_VERSION="v0.5.14";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -18305,7 +18305,13 @@ function _paletteSpotlight(el){
      the pre-scroll position; the glow on the target follows it. */
   function place(){
     var r=el.getBoundingClientRect();
-    var pad=8;
+    /* pad chosen to match the pulse animation's peak outline width
+       (4px in the box-shadow at the 15% keyframe). With pad=8 the
+       dim strips left a visible 4px gap of un-outlined background
+       between the element's pulse and the dim edge — read as "the
+       darkened area doesn't quite hug the textbox." pad=4 makes the
+       hole exactly the size of the pulse-outlined element at peak. */
+    var pad=4;
     var x=Math.max(0,r.left-pad), y=Math.max(0,r.top-pad);
     var w=r.width+pad*2, h=r.height+pad*2;
     var W=window.innerWidth, H=window.innerHeight;
@@ -18844,11 +18850,21 @@ function loadSettings(){
      the tab and the server keeps running" footgun. If the user disabled it
      in a prior session, the block above already flipped _autoUnload off. */
   if(_autoUnload)_startHeartbeat();
-  /* Close settings on outside click */
+  /* Close settings on outside click. The custom-dropdown popup
+     (.fleek-dropdown) is appended to document.body, OUTSIDE
+     #settings-popup, so a click on a dropdown option would otherwise
+     read as "user clicked outside Settings" and the popup would
+     close mid-selection. Exempt clicks inside any open .fleek-dropdown
+     so the user can select an option (Claude model, theme, etc.)
+     without losing the Settings panel. */
   document.addEventListener("click",function(e){
     var popup=document.getElementById("settings-popup");
     var btn=document.getElementById("settings-btn");
-    if(popup.style.display==="block"&&!popup.contains(e.target)&&!btn.contains(e.target)){
+    var dd=document.querySelector(".fleek-dropdown");
+    if(popup.style.display==="block"
+       && !popup.contains(e.target)
+       && !btn.contains(e.target)
+       && !(dd && dd.contains(e.target))){
       popup.style.display="none";
     }
   });
