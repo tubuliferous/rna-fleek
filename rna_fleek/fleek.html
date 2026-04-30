@@ -1375,8 +1375,15 @@
   <!-- Gene search -->
   <div class="sec" id="gene-sec" data-col="gene">
     <div class="col-hdr" onclick="toggleSec('gene')">
-      <span class="lbl" style="margin-bottom:0;">Gene <span id="gene-loading" style="color:#6366f1;display:none;">loading...</span></span>
-      <span id="gene-collapsed-name" style="font-size:10px;color:#22c55e;margin-left:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;display:none;"></span>
+      <!-- Wrap title + collapsed-name indicator in a flex group so they
+           sit close together (with a small gap), and the chev gets
+           pushed to the right by the parent's space-between. Same
+           structure used by the Slice panel for the "#/#" indicator,
+           which keeps the visual idiom consistent across panels. -->
+      <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+        <span class="lbl" style="margin-bottom:0;flex-shrink:0;">Gene <span id="gene-loading" style="color:#6366f1;display:none;">loading...</span></span>
+        <span id="gene-collapsed-name" style="font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;display:none;"></span>
+      </div>
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
@@ -3010,7 +3017,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.24";
+var FLEEK_VERSION="v0.5.25";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -3596,6 +3603,11 @@ function _colocFetchGene(g){
     });
 }
 function _colocRefreshUI(){
+  /* Also refresh the collapsed-gene-name chip in the gene panel header,
+     since coloc-channel changes alter what the chip should display
+     (both gene names with their channel colors, or merged color when
+     same gene is in both slots). */
+  if(typeof _updateGeneCollapsedName==="function")_updateGeneCollapsedName();
   var colors=_colocChannelColors();
   var dotR=document.getElementById("coloc-dot-R"),dotG=document.getElementById("coloc-dot-G");
   var nmR=document.getElementById("coloc-name-R"),nmG=document.getElementById("coloc-name-G");
@@ -7901,9 +7913,25 @@ function _gvHighlightStyle(g){
   if(!g)return null;
   if(_geneMode==="coloc"){
     var colors=_colocChannelColors();
+    /* Three highlight cases in coloc mode:
+         (a) gene is in BOTH slots (R === G) — paint the row in the
+             composited "coloc" color so the table shows that the
+             user has picked this gene as both channels. Without
+             this, the row would only get the R highlight (first
+             branch) and look indistinguishable from a normal R-only
+             pick. The composite is derived from _colocCompose(1,1,...)
+             so it matches the legend's coloc-point color exactly.
+         (b) gene is in R slot only — channel R color (magenta or red).
+         (c) gene is in G slot only — channel G color (green). */
     var c=null;
-    if(g===_colocR)c=colors.R;
-    else if(g===_colocG)c=colors.G;
+    if(g===_colocR&&g===_colocG){
+      var isLight=document.body.classList.contains("light");
+      c=_colocCompose(1,1,colors,isLight);
+    }else if(g===_colocR){
+      c=colors.R;
+    }else if(g===_colocG){
+      c=colors.G;
+    }
     if(!c)return null;
     var r=c[0]*255|0, gr=c[1]*255|0, b=c[2]*255|0;
     return "background:rgba("+r+","+gr+","+b+",0.18);color:rgb("+r+","+gr+","+b+");";
@@ -8676,14 +8704,49 @@ function pickGene(g){
   saveState();
 }
 function _updateGeneCollapsedName(){
+  /* Surface the currently-active gene(s) in the gene panel header
+     when the panel is collapsed, so the user can still see what's
+     being rendered without expanding it.
+       single mode: just the green-tinted gene name (existing).
+       coloc  mode: BOTH channel genes, each tinted in its channel
+                    color (magenta/red for R, green for G), separated
+                    by " · ". When R === G (same gene picked for both
+                    slots), the chip uses the composited "coloc" color
+                    so the user can see at a glance that they've
+                    doubled-down on one gene rather than thinking the
+                    second slot is unset. */
   var el=document.getElementById("gene-collapsed-name");
   var sec=document.getElementById("gene-sec");
-  if(selGene&&sec.classList.contains("collapsed")){
-    el.textContent=selGene;
-    el.style.display="inline";
-  }else{
+  if(!el||!sec)return;
+  if(!sec.classList.contains("collapsed")){
     el.style.display="none";
+    el.innerHTML="";
+    return;
   }
+  if(_geneMode==="coloc"&&(_colocR||_colocG)){
+    var colors=_colocChannelColors();
+    var sameGene=_colocR&&_colocG&&(_colocR===_colocG);
+    var rgb2css=function(c){return "rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+")";};
+    var parts=[];
+    if(sameGene){
+      var isLight=document.body.classList.contains("light");
+      var coloc=_colocCompose(1,1,colors,isLight);
+      parts.push('<span style="color:'+rgb2css(coloc)+';">'+_colocR+'</span>');
+    }else{
+      if(_colocR)parts.push('<span style="color:'+rgb2css(colors.R)+';">'+_colocR+'</span>');
+      if(_colocG)parts.push('<span style="color:'+rgb2css(colors.G)+';">'+_colocG+'</span>');
+    }
+    el.innerHTML=parts.join('<span style="color:var(--text4);"> · </span>');
+    el.style.display="inline";
+    return;
+  }
+  if(selGene){
+    el.innerHTML='<span style="color:#22c55e;">'+selGene+'</span>';
+    el.style.display="inline";
+    return;
+  }
+  el.style.display="none";
+  el.innerHTML="";
 }
 function setPtSz(v,noSave){
   if(!pts)return;
