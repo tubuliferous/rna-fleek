@@ -1354,7 +1354,7 @@
              button stays disabled but its title is mirrored on the
              span (kept in sync by the same code that flips the
              button's disabled state). -->
-        <span id="deg-open-wrap" title="Differential expression analysis — requires at least 2 selection groups with cells (use SelVis or shift-click to populate groups, then re-enable)" style="display:inline-flex;"><button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button></span>
+        <span id="deg-open-wrap" title="DEG needs at least 2 selection groups with cells." style="display:inline-flex;"><button class="deg-run" id="deg-open-btn" onclick="openDEG()" title="Differential expression analysis" disabled>DEG</button></span>
       </div>
     </div>
   </div>
@@ -2978,7 +2978,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.20";
+var FLEEK_VERSION="v0.5.21";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -5105,7 +5105,7 @@ function renderSelPanel(){
     var nWithCells=0;
     for(var ii=0;ii<selGroups.length;ii++){if(selGroups[ii].cells.size>0)nWithCells++;}
     degBtn.disabled=nWithCells<2;
-    var disabledTitle="DEG needs at least 2 selection groups with cells. Currently "+nWithCells+" populated. Use SelVis (Shift+V) or Shift+click cells to fill groups, then this button enables.";
+    var disabledTitle="DEG needs at least 2 selection groups with cells.";
     var enabledTitle="Differential expression analysis between two selection groups";
     if(degBtn.disabled){
       degBtn.title=disabledTitle;
