@@ -2936,7 +2936,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.12";
+var FLEEK_VERSION="v0.5.13";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -9037,7 +9037,17 @@ function _doFetchLineage(){
     _lineageAbort=null;
     if(data.error){
       _setLinBtn(null,"flat");
-      alert("Lineage error: "+data.error);
+      /* Same no-key handling as runAnnotationLLM: a missing API key
+         triggers the spotlight on the Settings → API key field rather
+         than a jarring browser alert(). The earlier annotation step
+         (when llmAnnotations was missing) already had this check; this
+         one — for the lineage call itself — was missing it, so users
+         with cached annotations would hit a generic alert instead. */
+      if(data.error.indexOf("API key")>=0||data.error.indexOf("ANTHROPIC")>=0){
+        _showNoKeyBanner();
+      }else{
+        alert("Lineage error: "+data.error);
+      }
       return;
     }
     lineageTree=data.tree;
@@ -18438,6 +18448,36 @@ function _buildSearchRegistry(){
     {id:"set-api-key",label:"Settings: Claude API key",secondary:"Settings",keywords:"anthropic claude",target:"set-api-key",action:function(){if(typeof toggleSettings==="function")toggleSettings();var i=document.getElementById("set-api-key");if(i)setTimeout(function(){i.focus();},50);}},
     {id:"set-auto-quit",label:"Settings: Auto-quit on disconnect",secondary:"Settings",keywords:"unload server kill",target:"set-auto-unload",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
     {id:"set-flash",label:"Settings: Shortcut flash",secondary:"Settings",keywords:"overlay action key",target:"set-flash",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    /* Annotations (cell types panel) */
+    {id:"annot-markers",label:"Annotate cell types from marker DB",secondary:"Cell Types",keywords:"annotation panglao automatic",available:_hasData,target:"annotate-btn",panel:"ct-sec",action:_click("annotate-btn")},
+    {id:"annot-claude",label:"Annotate cell types with Claude",secondary:"Cell Types",keywords:"llm ai anthropic annotation",available:_hasData,target:"annotate-llm-btn",panel:"ct-sec",action:_click("annotate-llm-btn")},
+    {id:"annot-lineage",label:"Build developmental lineage tree",secondary:"Cell Types",keywords:"lineage hierarchy tree development claude",available:_hasData,target:"lineage-toggle",panel:"ct-sec",action:function(){if(typeof toggleLineageView==="function")toggleLineageView();}},
+    {id:"ct-sort-toggle",label:"Sort cell types (cycle alphabetical / count)",secondary:"Cell Types",keywords:"name sort order",available:_hasData,target:"type-sort-btn",panel:"ct-sec",action:function(){if(typeof toggleTypeSort==="function")toggleTypeSort();}},
+    /* File browser + data */
+    {id:"open-browser",label:"Open file browser",secondary:"Data",keywords:"files h5ad load explore",target:"browse-btn",panel:"data-sec",action:function(){if(typeof openBrowser==="function")openBrowser();}},
+    {id:"data-upload",label:"Upload .h5ad file",secondary:"Data",keywords:"open import drop",target:"upload-btn",panel:"data-sec",action:function(){var b=document.getElementById("upload-btn");if(b)b.click();}},
+    {id:"data-unload",label:"Unload current dataset",secondary:"Data",keywords:"close clear free memory",available:_hasData,target:"unload-btn",panel:"data-sec",action:function(){if(typeof unloadDataset==="function")unloadDataset();}},
+    /* Plot downloads — every plot has an export button per CLAUDE.md */
+    {id:"plot-download",label:"Download current plot (SVG)",secondary:"Plots",keywords:"export save image",available:_hasData,panel:"plots-sec",action:function(){if(typeof _plotSave==="function")_plotSave();}},
+    {id:"volcano-download",label:"Download volcano plot (PNG)",secondary:"DEG",keywords:"export save image",available:_hasData,action:function(){if(typeof downloadVolcanoPNG==="function")downloadVolcanoPNG();}},
+    /* Settings rows */
+    {id:"set-claude-model",label:"Settings: Claude model",secondary:"Settings",keywords:"opus sonnet haiku anthropic cost",target:"set-claude-model",action:function(){if(typeof toggleSettings==="function")toggleSettings();var i=document.getElementById("set-claude-model");if(i)setTimeout(function(){i.focus();},50);}},
+    {id:"set-cache-mode",label:"Settings: Cache location",secondary:"Settings",keywords:"dataset server directory",target:"set-cache-mode",available:function(){return !_remoteMode;},action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-theme",label:"Settings: Theme",secondary:"Settings",keywords:"dark light",target:"set-theme",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-ui-scale",label:"Settings: UI scale",secondary:"Settings",keywords:"zoom font size",target:"set-ui-scale",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-hint",label:"Settings: Hint bar",secondary:"Settings",keywords:"bottom keyboard help",target:"set-hint",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-highlight",label:"Settings: Highlight mode",secondary:"Settings",keywords:"selection halo color",target:"set-highlight",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-allow-delete",label:"Settings: Allow cell delete (Delete key)",secondary:"Settings",keywords:"hide remove cells",target:"set-allow-cell-delete",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-fps",label:"Settings: Show FPS counter",secondary:"Settings",keywords:"performance frame rate",target:"set-fps",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-zoom-mode",label:"Settings: Zoom mode",secondary:"Settings",keywords:"camera scroll trackpad",target:"set-zoom-mode",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    {id:"set-hist-btns",label:"Settings: Undo/Redo buttons",secondary:"Settings",keywords:"history",target:"set-hist-btns",action:function(){if(typeof toggleSettings==="function")toggleSettings();}},
+    /* View splits */
+    {id:"split-tether",label:"Tether / untether cameras across splits",secondary:"View Splits",keywords:"link sync camera",available:function(){return _hasData()&&typeof _splitViewIds!=="undefined"&&(_splitViewIds||[]).length>1;},action:function(){if(typeof _toggleTether==="function")_toggleTether(0);}},
+    /* Color (light/dark explicit) */
+    {id:"theme-dark",label:"Use dark theme",secondary:"View",keywords:"night",action:function(){if(typeof applyTheme==="function")applyTheme("dark");var s=document.getElementById("set-theme");if(s){s.value="dark";s.dispatchEvent(new Event("change"));}}},
+    {id:"theme-light",label:"Use light theme",secondary:"View",keywords:"day bright",action:function(){if(typeof applyTheme==="function")applyTheme("light");var s=document.getElementById("set-theme");if(s){s.value="light";s.dispatchEvent(new Event("change"));}}},
+    /* Sign out (remote mode) */
+    {id:"sign-out",label:"Sign out",secondary:"Account",keywords:"logout exit",available:function(){return _remoteMode;},action:function(){var f=document.createElement("form");f.method="POST";f.action="/auth/logout";document.body.appendChild(f);f.submit();}},
     /* Feedback */
     {id:"feedback-open",label:"Send feedback",secondary:"Action",keywords:"bug report issue github email",action:function(){if(typeof _feedbackOpen==="function")_feedbackOpen();}}
   ];
