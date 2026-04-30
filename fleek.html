@@ -2956,7 +2956,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.17";
+var FLEEK_VERSION="v0.5.18";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -4353,6 +4353,11 @@ var P=[[.91,.30,.24],[.20,.60,.86],[.15,.68,.38],[.95,.61,.16],[.56,.27,.68],[.9
 
 /* ── Collapsible sections ── */
 var _colState={};
+/* When the user expands every panel via Opt+/, remember the pattern
+   they had BEFORE so a second Opt+/ can restore it. null means we're
+   not currently in "everything expanded" mode and a press should
+   capture+expand. Once restoration happens, we drop back to null. */
+var _panelExpandSaved=null;
 function initCollapsible(){
   try{var s=sessionStorage.getItem("fleek_col");if(s)_colState=JSON.parse(s);}catch(e){}
   var secs=document.querySelectorAll("[data-col]");
@@ -4384,11 +4389,58 @@ function initDragScroll(el){
     if(ds.active){ds.active=false;el.style.cursor="";}
   });
 }
+function toggleAllPanels(){
+  /* Two-state toggle bound to Opt+/:
+       (a) any panel currently collapsed → snapshot the per-panel
+           collapse state into _panelExpandSaved, expand everything.
+       (b) all panels already expanded AND we have a snapshot → restore
+           the saved per-panel state and clear the snapshot.
+     The snapshot lets a single keystroke "open everything to look
+     around" while a second keystroke puts the sidebar back exactly
+     how the user had it. _colState + sessionStorage stay in sync so
+     the state survives reload. */
+  var secs=document.querySelectorAll(".sec[data-col]");
+  if(!secs.length)return;
+  var anyCollapsed=false;
+  for(var i=0;i<secs.length;i++){
+    if(secs[i].classList.contains("collapsed")){anyCollapsed=true;break;}
+  }
+  if(_panelExpandSaved&&!anyCollapsed){
+    /* Restore */
+    for(var i=0;i<secs.length;i++){
+      var key=secs[i].dataset.col;
+      var was=_panelExpandSaved[key];
+      if(was){secs[i].classList.add("collapsed");_colState[key]=1;}
+      else   {secs[i].classList.remove("collapsed");_colState[key]=0;}
+    }
+    _panelExpandSaved=null;
+    if(typeof _flashAction==="function")_flashAction("Restored Panels","⌥ /");
+  }else{
+    /* Snapshot + expand all */
+    _panelExpandSaved={};
+    for(var i=0;i<secs.length;i++){
+      var key=secs[i].dataset.col;
+      _panelExpandSaved[key]=secs[i].classList.contains("collapsed")?1:0;
+      secs[i].classList.remove("collapsed");
+      _colState[key]=0;
+    }
+    if(typeof _flashAction==="function")_flashAction("Expanded All Panels","⌥ /");
+  }
+  try{sessionStorage.setItem("fleek_col",JSON.stringify(_colState));}catch(e){}
+  if(typeof _scheduleSizeCellTypesList==="function")_scheduleSizeCellTypesList();
+  if(typeof _relayoutBadges==="function")_relayoutBadges();
+}
 function toggleSec(key){
   var el=document.querySelector("[data-col='"+key+"']");
   if(!el)return;
   el.classList.toggle("collapsed");
   _colState[key]=el.classList.contains("collapsed")?1:0;
+  /* Manual collapse/expand invalidates the snapshot used by Opt+/'s
+     restore step — once the user starts editing the layout by hand,
+     the snapshot from a previous "expand all" no longer matches what
+     "previous pattern" should mean. Drop it so the next Opt+/ does a
+     fresh snapshot rather than restoring a stale one. */
+  _panelExpandSaved=null;
   try{sessionStorage.setItem("fleek_col",JSON.stringify(_colState));}catch(e){}
   if(key==="gene"){
     _updateGeneCollapsedName();
@@ -7038,6 +7090,15 @@ function setupCtrl(){
     }
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
+    /* Opt+/ (Alt+/) = expand all sidebar panels, or restore the
+       previous per-panel collapse pattern if we're already in the
+       expanded state. Note: on macOS, Option+/ produces "÷" as the
+       e.key value, while e.code is reliably "Slash" — check both so
+       Mac and Linux/Windows behave identically. */
+    if(e.altKey&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&(e.key==="/"||e.code==="Slash")){
+      e.preventDefault();
+      toggleAllPanels();
+    }
     /* s = cycle split count: 1 → 2 → 4 → 1 (skips 3 in the cycle; users
        who want 3 can pick it from the pip selector in Split Views).
        Requires ≥2 saved view splits; otherwise flashes a hint. */
@@ -18541,6 +18602,7 @@ function _buildSearchRegistry(){
     {id:"view-embedding",label:"Cycle embedding (UMAP / PCA / PaCMAP)",secondary:"View",keywords:"projection coordinates",shortcut:"E",available:_hasData,action:_cycleEmbedding},
     {id:"view-theme",label:"Toggle dark / light theme",secondary:"View",shortcut:"T",action:_setTheme},
     {id:"view-sidebar",label:"Toggle sidebar",secondary:"View",shortcut:"\\",action:function(){if(typeof toggleSidebar==="function")toggleSidebar();}},
+    {id:"view-expand-all",label:"Expand all panels (or restore previous)",secondary:"View",keywords:"collapse panels open close everything",shortcut:"⌥ /",action:function(){if(typeof toggleAllPanels==="function")toggleAllPanels();}},
     {id:"view-hud",label:"Toggle info HUD",secondary:"View",keywords:"overlay counts",shortcut:"I",action:function(){if(typeof _hudToggleAll==="function")_hudToggleAll();}},
     {id:"view-rotate",label:"Toggle auto-rotate",secondary:"View",keywords:"spin",action:_click("b-auto")},
     {id:"view-reset",label:"Reset camera",secondary:"View",keywords:"recenter zoom",shortcut:"R",available:_hasData,action:function(){if(typeof resetView==="function")resetView();}},
