@@ -2936,7 +2936,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.10";
+var FLEEK_VERSION="v0.5.11";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -18618,19 +18618,36 @@ function testApiKey(){
   /* Send the currently-saved key (or the one in the input if pasted but not
      saved yet) to the server, which makes a minimal Anthropic call. Surfaces
      the verbatim API response body on failure so the user can see 401 / 403 /
-     rate-limit / network issues directly. */
+     rate-limit / network issues directly.
+
+     Two behaviours that changed in v0.5.11 vs the older flow:
+     1. The model used for the test ping matches the user's current
+        Settings → Claude model dropdown selection. Anthropic API
+        permissions are model-scoped (some keys are enabled for
+        Sonnet/Haiku but not Opus), so testing the cheap model and
+        getting a 200 doesn't guarantee the expensive one works on the
+        same key. Better to verify what you'll actually use.
+     2. Success status no longer auto-clears after 5s — it persists
+        until the user takes another action (saves a new key, tests
+        again, clears the key). Several users found the auto-clear
+        too brief; the green "Key OK" message vanished before they'd
+        looked at it. */
   var status=document.getElementById("api-key-status");
   var inpKey=(document.getElementById("set-api-key").value||"").trim();
-  status.textContent="Testing…";status.style.color="var(--text4)";
+  var modelKey=(typeof getClaudeModelKey==="function"?getClaudeModelKey():"");
+  status.textContent="Testing ("+modelKey+")…";status.style.color="var(--text4)";
+  var bodyObj={model:modelKey};
+  if(inpKey)bodyObj.key=inpKey;
   fetch("/api/test-key",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(inpKey?{key:inpKey}:{})
+    body:JSON.stringify(bodyObj)
   }).then(function(r){return r.json();}).then(function(d){
     if(d.ok){
       status.textContent="Key OK · "+(d.model||"claude");
       status.style.color="#4ade80";
-      setTimeout(function(){status.textContent="";},5000);
+      /* Persist — no setTimeout to clear. Status sticks until the
+         user takes another action. */
     }else{
       var msg=d.error||"Test failed.";
       status.textContent=msg.length>160?msg.slice(0,160)+"…":msg;

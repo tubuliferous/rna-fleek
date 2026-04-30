@@ -5583,8 +5583,12 @@ class FleekHandler(SimpleHTTPRequestHandler):
         """Verify an Anthropic API key by making a minimal /v1/messages call.
         If `key` is provided in the body, test that specific value without
         persisting. Otherwise test the key currently loaded in memory.
-        Returns the raw API response body on failure so users can see the
-        actual reason (401, 429, 403 workspace-scoped, DNS, proxy, etc.)."""
+        The model is taken from req["model"] (resolved via _resolve_claude_model)
+        so the user can confirm their key works for the model they actually
+        plan to use — testing the cheap one and getting a 200 doesn't
+        guarantee the expensive one is enabled on the same key (Anthropic
+        permissions are model-scoped). Falls back to Haiku when no model
+        is sent."""
         import urllib.request, urllib.error
         try:
             candidate = (req.get("key") or "").strip() if isinstance(req, dict) else ""
@@ -5593,8 +5597,16 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 raise ValueError("No key to test. Paste a key into the field, or save one first.")
             if not key.startswith("sk-ant-"):
                 raise ValueError("Key doesn't look like an Anthropic key (expected sk-ant-...).")
+            # Pick the model the user wants to verify. Default Haiku
+            # only when nothing was sent — preserves backwards-compat
+            # for any pre-v0.5.11 client that doesn't include `model`.
+            test_model_id = (
+                _resolve_claude_model(req)
+                if isinstance(req, dict) and req.get("model")
+                else "claude-haiku-4-5-20251001"
+            )
             body = json.dumps({
-                "model": "claude-haiku-4-5-20251001",
+                "model": test_model_id,
                 "max_tokens": 8,
                 "messages": [{"role": "user", "content": "ping"}],
             }).encode("utf-8")
