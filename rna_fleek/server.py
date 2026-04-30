@@ -1940,12 +1940,67 @@ def _get_shared_deg(top_n=50, test="wilcoxon"):
         return result, small_clusters
 
 
-def annotate_clusters_llm(top_n=30, test="wilcoxon", tissue_hint=""):
+# ── Claude model catalogue ──────────────────────────────────────────
+# The set of models the FLEEK Settings UI offers users for the Claude-
+# backed annotation + lineage features. Cost figures are approximate
+# per-1M-token Anthropic list prices (input/output) as of late 2025;
+# the dropdown shows a "$ per typical run" estimate derived from these
+# plus the typical token-count of an annotation pass (~8k input + ~3k
+# output for 50 clusters × 30 marker genes). Users see this BEFORE
+# clicking Annotate so a $5 run isn't surprising.
+#
+# IDs map to Anthropic's `model` field; the API will accept the short
+# alias (e.g. "claude-opus-4-7") and return the dated model in the
+# response's `model` field, which fleek then displays in the tooltip.
+CLAUDE_MODELS = {
+    "haiku": {
+        "id": "claude-haiku-4-5-20251001",
+        "label": "Haiku 4.5",
+        "cost_hint": "fast, cheap (~$0.01/run)",
+    },
+    "sonnet": {
+        "id": "claude-sonnet-4-6",
+        "label": "Sonnet 4.6",
+        "cost_hint": "balanced (~$0.10/run, default)",
+    },
+    "opus": {
+        "id": "claude-opus-4-7",
+        "label": "Opus 4.7",
+        "cost_hint": "most capable, expensive (~$0.50–1/run)",
+    },
+}
+CLAUDE_DEFAULT_MODEL_KEY = "sonnet"
+
+
+def _resolve_claude_model(req_dict_or_value):
+    """Pick a Claude model ID from a request payload or a bare value.
+
+    Accepts either the short key ('haiku' / 'sonnet' / 'opus') or a
+    full model ID ('claude-sonnet-4-6'). Unknown values fall back to
+    the default. The two-form input is a small ergonomic concession
+    so the frontend can send a short key while CLI / scripts can
+    pass a literal model ID."""
+    if isinstance(req_dict_or_value, dict):
+        v = (req_dict_or_value.get("model") or "").strip()
+    else:
+        v = (req_dict_or_value or "").strip() if isinstance(req_dict_or_value, str) else ""
+    if v in CLAUDE_MODELS:
+        return CLAUDE_MODELS[v]["id"]
+    if v.startswith("claude-"):
+        return v
+    return CLAUDE_MODELS[CLAUDE_DEFAULT_MODEL_KEY]["id"]
+
+
+def annotate_clusters_llm(top_n=30, test="wilcoxon", tissue_hint="", model=None):
     """Use Claude API to infer cell types from top marker genes per cluster.
     Batches clusters into groups to avoid token limits.
 
+    `model` (optional): Claude model ID to use (e.g. 'claude-sonnet-4-6'
+    or short key 'sonnet' / 'opus' / 'haiku'). Defaults to Sonnet 4.6.
+
     Returns same format as annotate_clusters for UI compatibility.
     """
+    model_id = _resolve_claude_model(model)
     import urllib.request
     import urllib.error
 
@@ -2034,7 +2089,7 @@ Respond with ONLY the JSON array. No markdown fences. No other text."""
         ANNOT_STATUS["pct"] = pct
         print(f"  LLM annotation: batch {batch_idx+1}/{n_batches} ({len(batch)} clusters)...")
         request_body = json.dumps({
-            "model": "claude-sonnet-4-20250514",
+            "model": model_id,
             "max_tokens": 8192,
             "messages": [{"role": "user", "content": prompt}]
         }).encode("utf-8")
@@ -5235,7 +5290,12 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 raise ValueError("No API key configured. Set ANTHROPIC_API_KEY env var or add it to ~/.fleek.env.")
             top_n = req.get("top_n", 30)
             tissue = req.get("tissue", "")
-            result = annotate_clusters_llm(top_n=top_n, tissue_hint=tissue)
+            # `model` may be a short key ('sonnet') or a full model ID;
+            # _resolve_claude_model handles both. Defaults to Sonnet 4.6
+            # when absent or unrecognized — see CLAUDE_MODELS for the
+            # supported set + cost guidance the UI shows.
+            model = req.get("model")
+            result = annotate_clusters_llm(top_n=top_n, tissue_hint=tissue, model=model)
             data = json.dumps(_json_safe(result)).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -5401,6 +5461,16 @@ class FleekHandler(SimpleHTTPRequestHandler):
         info = {
             "remote_mode": REMOTE_MODE,
             "fleek_version": FLEEK_VERSION,
+            # Catalogue of Claude models the user can pick from in the
+            # Settings → Claude model dropdown. The frontend reads this
+            # so adding a model server-side automatically appears in
+            # the UI; cost_hint is shown inline as a per-option suffix
+            # so the user can pick with eyes-open.
+            "claude_models": [
+                {"key": k, "id": m["id"], "label": m["label"], "cost_hint": m["cost_hint"]}
+                for k, m in CLAUDE_MODELS.items()
+            ],
+            "claude_default_model": CLAUDE_DEFAULT_MODEL_KEY,
         }
         if REMOTE_MODE:
             info["user_quota_mb"] = USER_QUOTA_MB
@@ -5891,6 +5961,10 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 raise ValueError("No API key configured. Set ANTHROPIC_API_KEY env var or add it to ~/.fleek.env.")
             if ADATA is None or CLUSTER_NAMES is None:
                 raise ValueError("No dataset loaded")
+            # Same model-resolution pattern as the annotation endpoint —
+            # short key ('sonnet') or full model ID, default to Sonnet
+            # 4.6 if absent / unrecognized.
+            lineage_model_id = _resolve_claude_model(req)
 
             # Check cache (with parent stem fallback for subsets)
             _parent_stem = ADATA.uns.get("fleek_parent_stem") if ADATA is not None else None
@@ -6015,7 +6089,7 @@ Every non-empty cluster_id listed above must appear exactly once in the tree. Em
             print(f"  Requesting lineage tree from Claude ({n_in_lineage} cell types, {len(llm_preds)} with inferred names)...")
             import urllib.request, urllib.error
             request_body = json.dumps({
-                "model": "claude-sonnet-4-20250514",
+                "model": lineage_model_id,
                 "max_tokens": 16384,
                 "messages": [{"role": "user", "content": prompt}]
             }).encode("utf-8")

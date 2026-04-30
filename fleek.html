@@ -1771,6 +1771,17 @@
       <span>Undo/Redo buttons</span>
       <label class="s-toggle"><input type="checkbox" id="set-hist-btns" onchange="toggleHistBtns();saveSettings()" checked><span class="s-slider"></span></label>
     </div>
+    <!-- Claude model selector. Options + cost hints come from the server's
+         /api/server-info response (CLAUDE_MODELS catalogue), so adding a
+         model server-side automatically shows up here. The selection is
+         persisted via saveState — sent on each /api/annotate-llm and
+         /api/lineage request as the `model` field. -->
+    <div class="s-row" id="s-row-claude-model" title="Which Claude model to use for cell-type annotation and developmental lineage. Cost is per typical run (50 clusters × 30 marker genes for annotation; one call for lineage). Each user pays for their own API key.">
+      <span>Claude model</span>
+      <select id="set-claude-model" onchange="saveSettings()" style="font-size:10px;max-width:200px;">
+        <!-- Options injected at runtime by _populateClaudeModels() -->
+      </select>
+    </div>
     <div class="s-row s-key-row" id="s-row-apikey">
       <span>Claude API key</span>
       <div class="s-key-input-wrap">
@@ -2925,7 +2936,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.9";
+var FLEEK_VERSION="v0.5.10";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -8857,7 +8868,7 @@ function runAnnotationLLM(){
   fetch("/api/annotate-llm",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({top_n:30}),
+    body:JSON.stringify({top_n:30, model:getClaudeModelKey()}),
     signal:_llmAbort.signal
   })
   .then(function(r){return r.json();})
@@ -8968,7 +8979,7 @@ function _fetchLineage(){
     fetch("/api/annotate-llm",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({}),
+      body:JSON.stringify({model:getClaudeModelKey()}),
       signal:_lineageAbort.signal
     })
     .then(function(r){if(!r.ok)return r.json().then(function(d){throw new Error(d.error||"Server error "+r.status);});return r.json();})
@@ -9018,7 +9029,7 @@ function _doFetchLineage(){
   fetch("/api/lineage",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({llm_predictions:_llmForLineage}),
+    body:JSON.stringify({llm_predictions:_llmForLineage, model:getClaudeModelKey()}),
     signal:_lineageAbort.signal
   })
   .then(function(r){return r.json();})
@@ -18428,6 +18439,9 @@ document.addEventListener("DOMContentLoaded",function(){
     _serverInfo=info||{};
     _remoteMode=!!_serverInfo.remote_mode;
     _restrictions=_serverInfo.restrictions||{};
+    _claudeModels=_serverInfo.claude_models||[];
+    if(_serverInfo.claude_default_model)_claudeModelKey=_serverInfo.claude_default_model;
+    if(typeof _populateClaudeModels==="function")_populateClaudeModels();
     if(typeof _applyServerInfo==="function")_applyServerInfo();
   }).catch(function(){/* offline / older server: stay non-remote */});
 });
@@ -18436,6 +18450,39 @@ document.addEventListener("DOMContentLoaded",function(){
 var _serverInfo={};
 var _remoteMode=false;
 var _restrictions={};
+var _claudeModels=[];      /* [{key,id,label,cost_hint}] from server-info */
+var _claudeModelKey="sonnet"; /* current user choice (short key) */
+function _populateClaudeModels(){
+  /* Fill the Settings → Claude model dropdown from the server's
+     CLAUDE_MODELS catalogue. The current selection is stored as the
+     short key ("sonnet" / "opus" / "haiku") in _claudeModelKey, which
+     /api/annotate-llm and /api/lineage receive as the `model` field
+     and resolve via _resolve_claude_model on the server side. */
+  var sel=document.getElementById("set-claude-model");
+  if(!sel||!_claudeModels||!_claudeModels.length)return;
+  var prev=sel.value||_claudeModelKey;
+  sel.innerHTML="";
+  for(var i=0;i<_claudeModels.length;i++){
+    var m=_claudeModels[i];
+    var o=document.createElement("option");
+    o.value=m.key;
+    o.textContent=m.label+(m.cost_hint?" — "+m.cost_hint:"");
+    sel.appendChild(o);
+  }
+  /* Restore selection if it's still in the list, else use server's default. */
+  var keys=_claudeModels.map(function(m){return m.key;});
+  sel.value=keys.indexOf(prev)>=0?prev:(_serverInfo.claude_default_model||"sonnet");
+  _claudeModelKey=sel.value;
+}
+function getClaudeModelKey(){
+  /* Read current dropdown selection (or fall back to default).
+     Called by every fetch() that hits a Claude-backed endpoint so
+     the `model` field on the request matches what the user just
+     picked, with no separate "apply" button. */
+  var sel=document.getElementById("set-claude-model");
+  if(sel&&sel.value)return sel.value;
+  return _claudeModelKey||(_serverInfo.claude_default_model||"sonnet");
+}
 function _applyServerInfo(){
   /* Surface the REMOTE chip in the header so users notice they're on
      a shared instance. Then walk the restrictions block and hide each
@@ -18629,7 +18676,14 @@ function saveSettings(){
   var showHistBtns=document.getElementById("set-hist-btns").checked;
   var showFlash=document.getElementById("set-flash").checked;
   applyTheme(theme);
-  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns,showFlash:showFlash,autoUnload:_autoUnload,autoUnloadTimeout:_autoUnloadTimeout,allowCellDelete:_allowCellDelete}));}catch(e){}
+  /* Capture the Claude-model dropdown selection so it persists across
+     page reloads. _claudeModelKey is also kept in sync for the lifetime
+     of this tab; the next /api/annotate-llm or /api/lineage call
+     reads via getClaudeModelKey(). */
+  var cmEl=document.getElementById("set-claude-model");
+  var claudeModelKey=cmEl?cmEl.value:_claudeModelKey;
+  if(claudeModelKey)_claudeModelKey=claudeModelKey;
+  try{sessionStorage.setItem("fleek_settings",JSON.stringify({zoomMode:zoomMode,theme:theme,uiScale:uiScale,showFps:showFps,highlightMode:hlMode,showHint:showHint,showHistBtns:showHistBtns,showFlash:showFlash,autoUnload:_autoUnload,autoUnloadTimeout:_autoUnloadTimeout,allowCellDelete:_allowCellDelete,claudeModelKey:claudeModelKey}));}catch(e){}
 }
 function applyUIScale(v){
   var s=parseFloat(v);
@@ -18678,6 +18732,16 @@ function loadSettings(){
       }
       if(o.showFlash===false){
         document.getElementById("set-flash").checked=false;
+      }
+      /* Restore Claude model selection. Stored as the short key
+         (sonnet/opus/haiku); the actual <option> may not exist yet
+         until _populateClaudeModels() runs after /api/server-info,
+         so we stash the key in _claudeModelKey and let
+         _populateClaudeModels pick it up via the prev= local. */
+      if(o.claudeModelKey){
+        _claudeModelKey=o.claudeModelKey;
+        var _cmEl=document.getElementById("set-claude-model");
+        if(_cmEl){_cmEl.value=o.claudeModelKey;}
       }
       /* Auto-quit: default is OFF. Only enable if the user explicitly opted in
          and persisted {autoUnload:true} previously. */
