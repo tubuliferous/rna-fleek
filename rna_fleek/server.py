@@ -1607,20 +1607,50 @@ def _detect_obs_cols(adata, clustering_col=None):
 # ── LLM-based cell type annotation ──
 
 def _load_api_key():
-    """Load Anthropic API key from env var or ~/.fleek.env file.
-    Env var takes priority. ~/.fleek.env should be chmod 600."""
+    """Load Anthropic API key from the most user-specific source available.
+
+    Order of preference (first match wins):
+      1. <data-dir>/api_key — only in remote mode, with USER_DATA_DIR set.
+         This is where /api/set-key writes for an authenticated per-user
+         setting; takes priority over the env var so a key the user
+         updated via the UI overrides whatever the supervisor passed at
+         spawn time (which came from the supervisor DB at signup).
+      2. ANTHROPIC_API_KEY env var — set by the supervisor at spawn for
+         remote mode, or by the user's shell for single-user mode.
+      3. ~/.fleek.env — single-user fallback only; ignored in remote
+         mode since the home-dir file is shared across all per-user
+         fleek subprocesses on the same VM.
+
+    Called once at module import (with no globals set, so just env +
+    ~/.fleek.env are checked) and again inside main() after CLI args
+    are parsed and USER_DATA_DIR is known — the latter is what picks
+    up the data-dir/api_key file in remote mode.
+    """
+    # 1. Per-user file (remote mode, after main() has set USER_DATA_DIR)
+    if REMOTE_MODE and USER_DATA_DIR is not None:
+        kf = USER_DATA_DIR / "api_key"
+        if kf.exists():
+            try:
+                key = kf.read_text().strip()
+                if key:
+                    return key
+            except Exception:
+                pass
+    # 2. Env var
     key = os.environ.get("ANTHROPIC_API_KEY", "")
     if key:
         return key
-    env_path = Path.home() / ".fleek.env"
-    if env_path.exists():
-        try:
-            for line in env_path.read_text().splitlines():
-                line = line.strip()
-                if line.startswith("ANTHROPIC_API_KEY=") and not line.startswith("#"):
-                    return line.split("=", 1)[1].strip().strip('"').strip("'")
-        except Exception:
-            pass
+    # 3. ~/.fleek.env (single-user mode only)
+    if not REMOTE_MODE:
+        env_path = Path.home() / ".fleek.env"
+        if env_path.exists():
+            try:
+                for line in env_path.read_text().splitlines():
+                    line = line.strip()
+                    if line.startswith("ANTHROPIC_API_KEY=") and not line.startswith("#"):
+                        return line.split("=", 1)[1].strip().strip('"').strip("'")
+            except Exception:
+                pass
     return ""
 
 ANTHROPIC_API_KEY = _load_api_key()
@@ -2213,6 +2243,27 @@ def _reset_all():
 SKIPPED_LAYERS = {}
 
 
+def _layer_display_csc_cache_path(layer_name):
+    """Resolve the on-disk display-CSC cache file for a given layer name,
+    or return None if no such cache exists. Mirrors the suffix-sanitisation
+    in the existing display-CSC build path so cached files written by
+    earlier runs (suffix derived from `layers['<name>']`) are recognised.
+    Used to short-circuit sparse-layer reads at load time when an
+    equivalent cache is already on disk."""
+    _dpath = f"layers['{layer_name}']"
+    _safe = (_dpath
+             .replace("/", "_")
+             .replace("[", "_")
+             .replace("]", "_")
+             .replace("'", "")
+             .replace('"', ""))
+    suffix = f".display_csc_{_safe}.npz"
+    cp, _ = _cache_read_path(suffix)
+    if cp is not None and cp.exists():
+        return cp
+    return None
+
+
 def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0, skip_X=False):
     """Read an h5ad while omitting any DENSE layer above `dense_skip_gb`.
 
@@ -2303,6 +2354,14 @@ def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0, skip_X=False):
         # Layers — selectively skip dense ones above the threshold.
         # Same abort-check + progress-update pattern so a slow sparse
         # layer (e.g. raw_counts at 17 GB) doesn't look like a hang.
+        # Sparse-layer short-circuit: if a display-CSC cache file
+        # already exists alongside the dataset for a given layer,
+        # mmap it instead of re-reading the layer from h5ad. The
+        # cache file IS the same data (just CSC instead of CSR), so
+        # the AnnData ends up with the same .layers[name] content as
+        # if we'd read it normally — but with no disk read for the
+        # layer itself. For the user's adata_final.h5ad this turns
+        # the 14 GB denoised_norm read into a near-instant mmap.
         if "layers" in f:
             layers_dict = {}
             for layer_name in f["layers"]:
@@ -2323,6 +2382,28 @@ def _read_h5ad_skip_dense_layers(path, dense_skip_gb=5.0, skip_X=False):
                             f"(if present) still serves gene queries from this layer."
                         )
                         continue
+                # Display-CSC short-circuit (sparse layers only): same
+                # short-circuit pattern as the X-CSC one in v0.5.7. If
+                # a cached CSC for this layer is on disk, mmap it and
+                # use that as the layer value.
+                if isinstance(layer, h5py.Group):
+                    _disp_cache_path = _layer_display_csc_cache_path(layer_name)
+                    if _disp_cache_path is not None:
+                        cost_gb = _component_gb(layer)
+                        try:
+                            import scipy.sparse as _sp_local
+                            _disp_mat = _load_csc_mmap(_disp_cache_path)
+                            if _disp_mat is None:
+                                _disp_mat = _sp_local.load_npz(str(_disp_cache_path))
+                            _progress(
+                                f"Skipping /layers/{layer_name} read (~{cost_gb:.1f} GB) — using cached display CSC",
+                                6,
+                            )
+                            layers_dict[layer_name] = _disp_mat
+                            continue
+                        except Exception as _e:
+                            # Cache load failed; fall through to a normal read.
+                            print(f"  Display CSC mmap for /layers/{layer_name} failed ({_e}); reading layer from h5ad")
                 # Sparse Group, or small dense Dataset — load normally.
                 cost_gb = _component_gb(layer)
                 cost_str = f", ~{cost_gb:.1f} GB" if cost_gb >= 0.5 else ""
@@ -5326,7 +5407,10 @@ class FleekHandler(SimpleHTTPRequestHandler):
             info["restrictions"] = {
                 "cache_mode_toggle": True,    # hide Settings → cache-mode
                 "cache_dir_edit":    True,    # hide Settings → cache-dir
-                "api_key_edit":      True,    # hide Settings → API key save/clear
+                # api_key_edit: NOT in restrictions any more. In remote mode
+                # /api/set-key writes a per-user <data-dir>/api_key file
+                # (not the server-level ~/.fleek.env), so it's safe + useful
+                # to expose the Settings → API key UI to users.
                 "auto_quit_toggle":  True,    # admin-controlled
                 "browse_everywhere": True,    # only show My data / Shared roots
                 "delete_shared_caches": True, # × on shared cache badges hidden
@@ -5339,36 +5423,48 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(result)
 
     def _serve_set_key(self, req):
-        """Save a new Anthropic API key to ~/.fleek.env and reload it in memory."""
+        """Save a new Anthropic API key.
+
+        In single-user mode: writes to ~/.fleek.env (preserves other vars).
+        In remote mode:      writes to <data-dir>/api_key — a per-user
+                             file, mode 600. The supervisor reads this
+                             file at next subprocess spawn (preferred over
+                             its DB column), so the new key survives
+                             idle-reap + respawn.
+
+        Either way the in-memory ANTHROPIC_API_KEY global is updated so
+        the change takes effect immediately for in-flight Claude calls.
+        """
         global ANTHROPIC_API_KEY
         try:
-            # Remote mode: the API key is admin-managed (set by env var
-            # at supervisor startup, or — in Phase 2 — supplied per-user
-            # via the supervisor's UI). Saving to ~/.fleek.env is a
-            # server-level write that would clobber the admin's setting,
-            # so refuse it. The /api/test-key endpoint stays open for
-            # diagnostics; only set/clear are gated.
-            if REMOTE_MODE:
-                raise PermissionError(
-                    "API key is admin-managed in remote mode."
-                )
             key = req.get("key", "").strip()
             if not key:
                 raise ValueError("Key is empty.")
             if not key.startswith("sk-ant-"):
                 raise ValueError("Key doesn't look like an Anthropic key (expected sk-ant-...).")
-            env_path = Path.home() / ".fleek.env"
-            # Preserve any other lines in the file
-            lines = []
-            if env_path.exists():
-                for line in env_path.read_text().splitlines():
-                    if not line.strip().startswith("ANTHROPIC_API_KEY="):
-                        lines.append(line)
-            lines.append(f"ANTHROPIC_API_KEY={key}")
-            env_path.write_text("\n".join(lines) + "\n")
-            env_path.chmod(0o600)
+            if REMOTE_MODE:
+                if USER_DATA_DIR is None:
+                    raise RuntimeError("Remote mode without USER_DATA_DIR — refusing to write key")
+                kf = USER_DATA_DIR / "api_key"
+                kf.write_text(key)
+                try:
+                    kf.chmod(0o600)
+                except OSError:
+                    pass
+                print(f"  Claude API key updated via settings UI (per-user → {kf}).")
+            else:
+                env_path = Path.home() / ".fleek.env"
+                # Preserve any other lines in the file
+                lines = []
+                if env_path.exists():
+                    for line in env_path.read_text().splitlines():
+                        if not line.strip().startswith("ANTHROPIC_API_KEY="):
+                            lines.append(line)
+                lines.append(f"ANTHROPIC_API_KEY={key}")
+                env_path.write_text("\n".join(lines) + "\n")
+                env_path.chmod(0o600)
+                print("  Claude API key updated via settings UI (~/.fleek.env).")
             ANTHROPIC_API_KEY = key
-            print("  Claude API key updated via settings UI.")
             result = json.dumps({"ok": True}).encode("utf-8")
         except Exception as e:
             result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
@@ -5379,23 +5475,31 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.wfile.write(result)
 
     def _serve_clear_key(self):
-        """Remove the Anthropic API key from memory and ~/.fleek.env."""
+        """Remove the Anthropic API key from memory and disk.
+        Single-user mode: edits ~/.fleek.env; remote mode: deletes
+        <data-dir>/api_key. ANTHROPIC_API_KEY is cleared in either case."""
         global ANTHROPIC_API_KEY
         try:
-            if REMOTE_MODE:
-                raise PermissionError(
-                    "API key is admin-managed in remote mode."
-                )
             ANTHROPIC_API_KEY = ""
-            env_path = Path.home() / ".fleek.env"
-            if env_path.exists():
-                lines = [l for l in env_path.read_text().splitlines()
-                         if not l.strip().startswith("ANTHROPIC_API_KEY=")]
-                if lines:
-                    env_path.write_text("\n".join(lines) + "\n")
-                else:
-                    env_path.unlink()
-            print("  Claude API key cleared.")
+            if REMOTE_MODE:
+                if USER_DATA_DIR is not None:
+                    kf = USER_DATA_DIR / "api_key"
+                    if kf.exists():
+                        try:
+                            kf.unlink()
+                        except OSError:
+                            pass
+                print("  Claude API key cleared (per-user file removed).")
+            else:
+                env_path = Path.home() / ".fleek.env"
+                if env_path.exists():
+                    lines = [l for l in env_path.read_text().splitlines()
+                             if not l.strip().startswith("ANTHROPIC_API_KEY=")]
+                    if lines:
+                        env_path.write_text("\n".join(lines) + "\n")
+                    else:
+                        env_path.unlink()
+                print("  Claude API key cleared (~/.fleek.env).")
             result = json.dumps({"ok": True}).encode("utf-8")
         except Exception as e:
             result = json.dumps({"ok": False, "error": str(e)}).encode("utf-8")
@@ -6393,6 +6497,14 @@ def main():
     if args.cache_dir:
         CACHE_DIR = Path(args.cache_dir)
     _init_cache_dir()
+
+    # Re-load the Anthropic API key now that USER_DATA_DIR + REMOTE_MODE
+    # globals are set. The first _load_api_key() call at module import
+    # only saw the env + ~/.fleek.env paths; this second call also
+    # picks up <data-dir>/api_key for remote-mode personal keys (set
+    # by the user via /api/set-key from the FLEEK Settings UI).
+    global ANTHROPIC_API_KEY
+    ANTHROPIC_API_KEY = _load_api_key()
 
     dims = [int(d) for d in args.dims.split(",")]
 

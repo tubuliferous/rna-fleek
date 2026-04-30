@@ -2925,7 +2925,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.8";
+var FLEEK_VERSION="v0.5.9";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -18500,23 +18500,35 @@ function toggleHistBtns(){
   document.getElementById("hist-btns").style.display=on?"flex":"none";
 }
 function openSettingsToKey(){
-  document.getElementById("no-key-banner").style.display="none";
+  /* Open the Settings popup, focus + select the API-key input, and
+     pulse the search-palette spotlight on it so the user's eye is
+     drawn to the right place. The spotlight (4 dim strips + a glow
+     pulse on the target) is the same look used by the / search
+     palette when jumping to a feature, so this UX is consistent
+     across "we want you to see this" cues in fleek. Auto-clears
+     after the pulse — see _paletteSpotlight. */
+  var banner=document.getElementById("no-key-banner");
+  if(banner)banner.style.display="none";
   var popup=document.getElementById("settings-popup");
-  popup.style.display="block";
+  if(popup)popup.style.display="block";
   setTimeout(function(){
     var inp=document.getElementById("set-api-key");
+    if(!inp)return;
     inp.focus();
     inp.select();
-    inp.style.animation="btn-pulse 1.5s ease-in-out infinite";
-    inp.addEventListener("input",function _stop(){inp.style.animation="";inp.removeEventListener("input",_stop);},{once:true});
+    if(typeof _paletteSpotlight==="function")_paletteSpotlight(inp);
   },50);
 }
 function _showNoKeyBanner(){
-  /* Open settings directly to the API key field */
+  /* Called when a Claude feature was invoked with no API key on file.
+     Opens Settings, spotlights the API-key input, and updates the
+     small status line beside it so the user knows why. */
   openSettingsToKey();
   var status=document.getElementById("api-key-status");
-  status.textContent="API key required for Claude features.";
-  status.style.color="#f87171";
+  if(status){
+    status.textContent="API key required for Claude features.";
+    status.style.color="#f87171";
+  }
 }
 function saveApiKey(){
   var key=document.getElementById("set-api-key").value.trim();

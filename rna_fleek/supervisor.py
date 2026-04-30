@@ -259,8 +259,26 @@ def ensure_user_process(username):
         except OSError:
             pass
         env = os.environ.copy()
-        if user["api_key"]:
-            env["ANTHROPIC_API_KEY"] = user["api_key"]
+        # Per-user API key: prefer the per-user file at <user_dir>/api_key
+        # over the supervisor's DB column. Users update their key via
+        # FLEEK's Settings UI (which writes to that file via
+        # /api/set-key); the supervisor's DB column is just the initial
+        # value from signup. Reading the file at spawn means an updated
+        # key survives idle-reap + respawn without the supervisor needing
+        # an "update" endpoint.
+        _key_file = user_dir / "api_key"
+        _key_value = None
+        if _key_file.exists():
+            try:
+                _v = _key_file.read_text().strip()
+                if _v:
+                    _key_value = _v
+            except OSError:
+                pass
+        if _key_value is None and user["api_key"]:
+            _key_value = user["api_key"]
+        if _key_value:
+            env["ANTHROPIC_API_KEY"] = _key_value
         else:
             # Don't inherit a server-level key when the user hasn't set
             # their own — they should see "no key" in their fleek UI,
