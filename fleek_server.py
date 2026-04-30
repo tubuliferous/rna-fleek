@@ -47,6 +47,11 @@ UMAP_3D = None
 # Per-embedding provenance: {"umap_2d": "obsm" | "cache_quick" | "cache_full" |
 # "computed" | "derived_from_3d" | "unavailable", ...}.
 EMBEDDING_SOURCES = {}
+# Per-embedding INPUT feature space (which obsm key fed UMAP/PaCMAP), e.g.
+# {"umap_3d": "X_scVI", "pacmap_3d": "X_pca"}. Empty for embeddings loaded
+# straight from obsm (we don't know what *they* were built on) or from
+# legacy caches that didn't record the input.
+EMBEDDING_INPUTS = {}
 PCA_2D = None
 PCA_3D = None
 PACMAP_2D = None
@@ -2259,8 +2264,9 @@ def _reset_all():
     UMAP_2D = None; UMAP_3D = None
     PCA_2D = None; PCA_3D = None
     PACMAP_2D = None; PACMAP_3D = None
-    global EMBEDDING_SOURCES
+    global EMBEDDING_SOURCES, EMBEDDING_INPUTS
     EMBEDDING_SOURCES = {}
+    EMBEDDING_INPUTS = {}
     PACMAP_COMPUTING = False
     CLUSTER_IDS = None; CLUSTER_NAMES = None; CLUSTER_COL = None; CLUSTER_COLORS = []
     OBS_COLS.clear()
@@ -2662,7 +2668,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             _cr_writable = True
     cached = {}
     _cache_time = 0.0  # accumulate time spent loading caches
-    _CACHE_SKIP_VALIDATE = {"leiden_names"}  # byte arrays, not cell-indexed
+    _CACHE_SKIP_VALIDATE = {"leiden_names", "embedding_inputs"}  # byte arrays, not cell-indexed
     if cache_read and cache_read.exists():
         _progress("Checking cache...", 20)
         _ct0 = time.time()
@@ -2680,6 +2686,17 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             _progress(f"Cache load failed, recomputing", 20)
             cached = {}
         _cache_time += time.time() - _ct0
+
+    # If a previous load persisted the input-feature attribution for
+    # cached UMAP/PaCMAP coords, restore it now so the UI shows the
+    # correct provenance (e.g. "UMAP · scVI") on cold loads too.
+    if "embedding_inputs" in cached:
+        try:
+            EMBEDDING_INPUTS.update(
+                json.loads(cached["embedding_inputs"].tobytes().decode("utf-8"))
+            )
+        except Exception:
+            pass
 
     need_save = False
     neighbors_built = False
@@ -2847,7 +2864,13 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         dims_needed = [3]  # compute only 3D; 2D will be derived after
 
     if dims_needed and use_fast:
-        # ── Shared setup: subsample + PCA (done ONCE for all dims) ──
+        # ── Shared setup: subsample + feature space (done ONCE for all dims) ──
+        # Priority: scVI-family latent (already batch-corrected, full coverage)
+        # > X_pca (already in obsm) > compute PCA on subsample + project rest.
+        # Picking up an existing latent skips the entire normalize+log+HVG+scale+PCA
+        # prep block, which saves minutes on large files and (more importantly)
+        # keeps the QuickMap input coherent with the 2D X_umap that scVI'd
+        # files already ship with.
         import umap as umap_lib
         import scipy.sparse as sp
 
@@ -2855,37 +2878,50 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
         rng = np.random.default_rng(42)
         sub_idx = _stratified_subsample(CLUSTER_IDS, fast_umap_subsample, rng)
 
-        sub_adata = adata[sub_idx]
-        if BACKED:
-            try:
-                sub_adata = sub_adata.to_memory()
-            except AttributeError:
-                sub_adata = sub_adata.copy()
+        _qm_latent_key, _qm_latent_dims = _pick_latent_rep(adata)
+        if _qm_latent_key:
+            # File already has a usable latent — slice to ≤50 dims and reuse.
+            _progress(
+                f"QuickMap: reusing {_qm_latent_key} ({_qm_latent_dims}D latent) — no PCA recompute",
+                32,
+            )
+            _qm_n_use = min(_qm_latent_dims, 50)
+            X_all = np.asarray(adata.obsm[_qm_latent_key][:, :_qm_n_use], dtype=np.float32)
+            X_sub = X_all[sub_idx].copy()
+            _qm_input_name = _qm_latent_key
         else:
-            sub_adata = sub_adata.copy()
+            # No latent at all — fall back to the historical "compute PCA on
+            # the subsample, project the rest" pipeline.
+            sub_adata = adata[sub_idx]
+            if BACKED:
+                try:
+                    sub_adata = sub_adata.to_memory()
+                except AttributeError:
+                    sub_adata = sub_adata.copy()
+            else:
+                sub_adata = sub_adata.copy()
 
-        _progress(f"QuickMap: PCA on {len(sub_idx):,}-cell subsample...", 30)
-        sc.pp.normalize_total(sub_adata, target_sum=1e4)
-        sc.pp.log1p(sub_adata)
-        sc.pp.highly_variable_genes(sub_adata, n_top_genes=2000)
-        sub_adata = sub_adata[:, sub_adata.var.highly_variable].copy()
+            _progress(f"QuickMap: PCA on {len(sub_idx):,}-cell subsample...", 30)
+            sc.pp.normalize_total(sub_adata, target_sum=1e4)
+            sc.pp.log1p(sub_adata)
+            sc.pp.highly_variable_genes(sub_adata, n_top_genes=2000)
+            sub_adata = sub_adata[:, sub_adata.var.highly_variable].copy()
 
-        # Capture scaling params for batch projection
-        X_pre = sub_adata.X.toarray() if sp.issparse(sub_adata.X) else np.asarray(sub_adata.X)
-        gene_mean = X_pre.mean(axis=0).astype(np.float64)
-        gene_std = X_pre.std(axis=0).astype(np.float64)
-        gene_std[gene_std == 0] = 1.0
-        hvg_names = sub_adata.var_names.tolist()
-        del X_pre
+            # Capture scaling params for batch projection
+            X_pre = sub_adata.X.toarray() if sp.issparse(sub_adata.X) else np.asarray(sub_adata.X)
+            gene_mean = X_pre.mean(axis=0).astype(np.float64)
+            gene_std = X_pre.std(axis=0).astype(np.float64)
+            gene_std[gene_std == 0] = 1.0
+            hvg_names = sub_adata.var_names.tolist()
+            del X_pre
 
-        sc.pp.scale(sub_adata, max_value=10)
-        sc.tl.pca(sub_adata, n_comps=30)
-        pca_comp = sub_adata.varm["PCs"][:, :30].copy()
-        X_sub = sub_adata.obsm["X_pca"][:, :30].copy()
-        del sub_adata  # free subsample
+            sc.pp.scale(sub_adata, max_value=10)
+            sc.tl.pca(sub_adata, n_comps=30)
+            pca_comp = sub_adata.varm["PCs"][:, :30].copy()
+            X_sub = sub_adata.obsm["X_pca"][:, :30].copy()
+            del sub_adata  # free subsample
 
-        # ── Batch PCA projection for all cells (done ONCE) ──
-        if "X_pca" not in adata.obsm:
+            # ── Batch PCA projection for all cells (done ONCE) ──
             _progress(f"QuickMap: projecting {N_CELLS:,} cells to PCA space...", 35)
             hvg_set = set(hvg_names)
             hvg_idx = [i for i, g in enumerate(adata.var_names) if g in hvg_set]
@@ -2917,8 +2953,9 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
 
             adata.obsm["X_pca"] = all_pca
             del all_pca, pca_comp, gene_mean, gene_std
+            X_all = adata.obsm["X_pca"][:, :30]
+            _qm_input_name = "X_pca"
 
-        X_all = adata.obsm["X_pca"][:, :30]
         sub_set = set(sub_idx.tolist())
         rest_idx = np.array([i for i in range(N_CELLS) if i not in sub_set])
 
@@ -2959,10 +2996,16 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             cached[f"umap_{nd}d_quick"] = full_emb
             need_save = True
             EMBEDDING_SOURCES[f"umap_{nd}d"] = "computed_quick"
+            EMBEDDING_INPUTS[f"umap_{nd}d"] = _qm_input_name
 
     elif dims_needed:
         # ── Standard full UMAP ──
         neighbors_built = False
+        # Capture which feature space _ensure_neighbors will use so the UI
+        # can label the resulting embedding correctly. Picked once here
+        # because subsequent dims share the neighbor graph.
+        _full_latent_key, _ = _pick_latent_rep(adata)
+        _full_input_name = _full_latent_key if _full_latent_key else "computed_pca"
         for di, nd in enumerate(dims_needed):
             base_pct = 30 + di * 30
             if not neighbors_built:
@@ -2983,6 +3026,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             cached[f"umap_{nd}d_full"] = umap_arr
             need_save = True
             EMBEDDING_SOURCES[f"umap_{nd}d"] = "computed_full"
+            EMBEDDING_INPUTS[f"umap_{nd}d"] = _full_input_name
 
     # Derive 2D from 3D if not native and 2D wasn't loaded/computed
     if UMAP_2D is None and UMAP_3D is not None:
@@ -2997,6 +3041,14 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             cached["pca_2d"] = pca_arr[:, :2].copy()
             cached["pca_3d"] = pca_arr[:, :3].copy()
             cached["pca_full"] = pca_arr.copy()
+        # Persist the input-feature name(s) so the HUD/Matrix-info panel can
+        # still tell the user "this UMAP was built on scVI" after a reload
+        # that hits the cache. Stored as a uint8-encoded JSON blob to play
+        # nicely with .npz, just like leiden_names elsewhere in the file.
+        if EMBEDDING_INPUTS:
+            cached["embedding_inputs"] = np.frombuffer(
+                json.dumps(EMBEDDING_INPUTS).encode("utf-8"), dtype=np.uint8
+            )
         _progress("Saving UMAP cache...", 95)
         _safe_savez(".fleek_cache.npz", **cached)
 
@@ -3127,7 +3179,8 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                 EMBEDDING_SOURCES["pacmap_3d"] = "obsm" if _obsm_pm.shape[1] >= 3 else "padded_from_2d"
         need_save = True
         print(f"  PaCMAP loaded from obsm (pre-existing)")
-    elif "X_pca" in adata.obsm:
+    elif _pick_latent_rep(adata)[0]:
+        _bg_pm_latent_key, _bg_pm_latent_dims = _pick_latent_rep(adata)
         def _bg_pacmap_subprocess():
             global PACMAP_2D, PACMAP_3D, PACMAP_COMPUTING
             import tempfile, subprocess
@@ -3143,7 +3196,12 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
                     PACMAP_COMPUTING = False
                     return
 
-                pca_input = adata.obsm["X_pca"][:, :30].astype(np.float32)
+                # Use scVI / scANVI / totalVI / PCA latent — whichever is highest priority
+                _bg_pm_n_use = min(_bg_pm_latent_dims, 50)
+                pca_input = np.asarray(
+                    adata.obsm[_bg_pm_latent_key][:, :_bg_pm_n_use], dtype=np.float32
+                )
+                print(f"  PaCMAP input: {_bg_pm_latent_key} ({_bg_pm_n_use}D)")
                 n_total = pca_input.shape[0]
                 PACMAP_SUBSAMPLE = PACMAP_SETTINGS.get("max_cells", 50000) if PACMAP_SETTINGS.get("fast", True) else 0
 
@@ -3239,10 +3297,18 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                     src = "computed_quick" if _pm_suffix == "_quick" else "computed_full"
                     EMBEDDING_SOURCES["pacmap_2d"] = src
                     EMBEDDING_SOURCES["pacmap_3d"] = src
+                    EMBEDDING_INPUTS["pacmap_2d"] = _bg_pm_latent_key
+                    EMBEDDING_INPUTS["pacmap_3d"] = _bg_pm_latent_key
 
                 # Save to cache with method-specific keys
                 cached[f"pacmap_2d{_pm_suffix}"] = PACMAP_2D
                 cached[f"pacmap_3d{_pm_suffix}"] = PACMAP_3D
+                # Persist input-feature attribution alongside coords so a
+                # cold reload can restore the "PaCMAP · scVI" label.
+                if EMBEDDING_INPUTS:
+                    cached["embedding_inputs"] = np.frombuffer(
+                        json.dumps(EMBEDDING_INPUTS).encode("utf-8"), dtype=np.uint8
+                    )
                 try:
                     _safe_savez(".fleek_cache.npz", **cached)
                     print(f"  PaCMAP cached")
@@ -3675,8 +3741,44 @@ def _stratified_subsample(cluster_ids, n_target, rng):
     return result
 
 
+_LATENT_PRIORITY = (
+    "X_scVI", "X_scANVI", "X_totalVI",      # scvi-tools convention (capitalised)
+    "scvi", "scANVI", "totalVI",            # legacy / lower-case variants
+    "X_harmony", "X_scvi_emb",              # other batch-correction outputs occasionally seen
+    "X_pca",                                # classical PCA — used as last resort
+)
+
+
+def _pick_latent_rep(adata):
+    """Return (key, n_components) for the best obsm representation to feed
+    into UMAP / PaCMAP / nearest-neighbor graphs. Priority: any scVI-family
+    latent (typically batch-corrected, biologically cleaner) > PCA. Returns
+    (None, 0) if no usable rep exists.
+
+    We scan a fixed priority list rather than auto-detecting "looks like a
+    latent" arrays — picking up an arbitrary obsm matrix could surprise the
+    user. The caller is responsible for tracking which key was chosen so
+    the UI can surface it."""
+    if not hasattr(adata, "obsm"):
+        return None, 0
+    n_obs = adata.n_obs
+    for key in _LATENT_PRIORITY:
+        rep = adata.obsm.get(key)
+        if rep is None:
+            continue
+        try:
+            shape = rep.shape
+        except Exception:
+            continue
+        if len(shape) != 2 or shape[0] != n_obs or shape[1] < 2:
+            continue
+        return key, int(shape[1])
+    return None, 0
+
+
 def _ensure_neighbors(adata):
-    """Build neighbor graph if missing."""
+    """Build neighbor graph if missing. Prefers scVI-family latents over
+    PCA (matches the priority used for UMAP / PaCMAP input selection)."""
     import scanpy as sc
 
     has_conn = "connectivities" in adata.obsp
@@ -3692,18 +3794,24 @@ def _ensure_neighbors(adata):
         print("    Synthesized missing neighbors metadata from existing connectivities")
         return
 
-    if "scvi" in adata.obsm:
-        emb = adata.obsm["scvi"]
-        nan_mask = np.isnan(emb).any(axis=1)
-        if nan_mask.sum() > 0:
-            print(f"    Removing {nan_mask.sum()} NaN embedding cells")
-            # Can't easily remove in place, just zero them
-            emb[nan_mask] = 0
-        print("    Building neighbors from scVI embedding...")
-        sc.pp.neighbors(adata, use_rep="scvi", n_neighbors=15)
-    elif "X_pca" in adata.obsm:
+    latent_key, latent_dims = _pick_latent_rep(adata)
+    if latent_key and latent_key != "X_pca":
+        emb = np.asarray(adata.obsm[latent_key])
+        # NaNs in latents (rare, but seen in some batch-corrected outputs)
+        # break sc.pp.neighbors silently — zero them in place so we don't
+        # propagate the failure into UMAP coordinates.
+        try:
+            nan_mask = np.isnan(emb).any(axis=1)
+            if nan_mask.sum() > 0:
+                print(f"    Removing {nan_mask.sum()} NaN embedding cells in {latent_key}")
+                emb[nan_mask] = 0
+        except Exception:
+            pass
+        print(f"    Building neighbors from {latent_key} ({latent_dims}D latent)...")
+        sc.pp.neighbors(adata, use_rep=latent_key, n_neighbors=15)
+    elif latent_key == "X_pca":
         print("    Building neighbors from existing PCA...")
-        sc.pp.neighbors(adata, n_pcs=50, n_neighbors=15)
+        sc.pp.neighbors(adata, n_pcs=min(50, latent_dims), n_neighbors=15)
     else:
         print("    Running PCA + neighbors from scratch...")
         tmp = adata.copy()
@@ -3874,6 +3982,7 @@ def build_init_payload():
         "matrix_registry": MATRIX_REGISTRY,
         "matrix_routing": MATRIX_ROUTING,
         "embedding_sources": EMBEDDING_SOURCES,
+        "embedding_inputs": EMBEDDING_INPUTS,
     }
 
     # Include cached annotations if available
@@ -6218,10 +6327,14 @@ Every non-empty cluster_id listed above must appear exactly once in the tree. Em
                     self.wfile.write(data)
                     return
 
-                pca_input = ADATA.obsm.get("X_pca")
-                if pca_input is None:
-                    raise ValueError("No PCA coordinates available")
-                pca_input = pca_input[:, :30].astype(np.float32)
+                _pm_latent_key, _pm_latent_dims = _pick_latent_rep(ADATA)
+                if not _pm_latent_key:
+                    raise ValueError("No latent rep (X_scVI / X_pca / etc.) available for PaCMAP")
+                _pm_n_use = min(_pm_latent_dims, 50)
+                pca_input = np.asarray(
+                    ADATA.obsm[_pm_latent_key][:, :_pm_n_use], dtype=np.float32
+                )
+                print(f"  PaCMAP input: {_pm_latent_key} ({_pm_n_use}D)")
                 n_total = pca_input.shape[0]
                 PACMAP_SUB = PACMAP_SETTINGS.get("max_cells", 50000) if PACMAP_SETTINGS.get("fast", True) else 0
 
@@ -6298,6 +6411,11 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                     PACMAP_3D = np.load(out3_path)
                     elapsed = round(time.time() - t0, 1)
                     print(f"  PaCMAP total: {elapsed}s")
+                    _pm_src = "computed_quick" if PACMAP_SETTINGS.get("fast", True) else "computed_full"
+                    EMBEDDING_SOURCES["pacmap_2d"] = _pm_src
+                    EMBEDDING_SOURCES["pacmap_3d"] = _pm_src
+                    EMBEDDING_INPUTS["pacmap_2d"] = _pm_latent_key
+                    EMBEDDING_INPUTS["pacmap_3d"] = _pm_latent_key
 
                 # Save to cache with method-specific keys
                 if LOADED_PATH:
@@ -6308,6 +6426,10 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                             cached = dict(np.load(cache_read, allow_pickle=False))
                             cached[f"pacmap_2d{_pm_sfx}"] = PACMAP_2D
                             cached[f"pacmap_3d{_pm_sfx}"] = PACMAP_3D
+                            if EMBEDDING_INPUTS:
+                                cached["embedding_inputs"] = np.frombuffer(
+                                    json.dumps(EMBEDDING_INPUTS).encode("utf-8"), dtype=np.uint8
+                                )
                             _safe_savez(".fleek_cache.npz", **cached)
                             print(f"  PaCMAP cached ({_pm_sfx.strip('_')})")
                         except Exception:

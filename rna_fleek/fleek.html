@@ -2123,6 +2123,7 @@
         <p><strong>Important UMAP caveat:</strong> UMAP's cluster sizes, shapes, and inter-cluster distances are all unreliable. A large cluster in UMAP may be smaller than a tiny one. Two adjacent clusters may be unrelated. Two distant clusters may be almost identical. UMAP only reliably tells you that cells within a cluster are similar — nothing about the relationships between clusters.</p>
         <p>All embeddings are available in both 2D and 3D. UMAP and PCA are computed during initial data loading only if needed. PaCMAP computes in the background after loading — the dropdown shows "PaCMAP (computing&hellip;)" until it's ready. FLEEK-computed embeddings are cached to disk for instant reload on subsequent sessions.</p>
         <p><strong>Where embeddings come from.</strong> For each embedding, FLEEK uses this priority: <strong>(1)</strong> <code>adata.obsm["X_umap"]</code> / <code>X_pca</code> / <code>X_pacmap</code> if present and matching the cell count — always preferred, the file is the authoritative source. <strong>(2)</strong> A cached copy in <code>.fleek_cache.npz</code> — fallback when the file has no embedding of its own (usually the result of a previous FLEEK-computed session). <strong>(3)</strong> Compute from scratch via scanpy (UMAP) / PCA / a PaCMAP subprocess, using the matrix chosen by the <em>Data matrices &amp; routing</em> logic (log-normalized preferred, raw counts + normalize+log1p as fallback). The Data panel's "Embeddings" line shows exactly where each one came from this session ("from obsm (author-provided)", "from cache (full)", "computed by FLEEK", etc.), so you never have to guess.</p>
+        <p><strong>Input feature space (for FLEEK-computed embeddings).</strong> When FLEEK computes a UMAP or PaCMAP itself, it picks the highest-priority obsm rep available as input: <strong>X_scVI</strong> &rarr; <strong>X_scANVI</strong> &rarr; <strong>X_totalVI</strong> &rarr; <strong>X_pca</strong>, falling back to a freshly-computed PCA only when none of those exist. This matters because scVI-family files typically ship a 2D <code>X_umap</code> that was built on the scVI latent — picking that same latent for the 3D pass keeps both dimensions in the same coordinate system rather than forcing the 3D into PCA-of-X geometry. The HUD label in the canvas overlay shows the input alongside the embedding name (e.g. "UMAP &middot; scVI" vs "UMAP &middot; PCA"), and the Data panel's Embeddings section spells it out per dimension.</p>
         <p><strong>Native 2D embeddings:</strong> By default, FLEEK computes only the 3D embedding and derives 2D by slicing the first two coordinates — halving computation time. Enable <strong>Native 2D embeddings</strong> in the load options to compute 2D independently, which produces tighter cluster separation in 2D views at the cost of longer load times. If a native 2D cache exists from a previous load, it is automatically preferred regardless of the current setting.</p>
         <p><strong>Keyboard shortcuts:</strong> Press <span class="help-key">D</span> to toggle between 2D and 3D views. Press <span class="help-key">E</span> to cycle through available embeddings (UMAP &rarr; PCA &rarr; PaCMAP &rarr; &hellip;).</p>
       </div>
@@ -5757,14 +5758,48 @@ function _setHudColorCell(el,snap){
      recolor path. */
   el.textContent=_colorModeLabel(snap);
 }
+/* Pretty-name an obsm rep key for HUD/info display. Strips the conventional
+   "X_" prefix scvi-tools uses and returns shorter labels for the most common
+   keys; falls back to the raw key for anything unrecognised. */
+function _embInputPretty(rawKey){
+  if(!rawKey)return "";
+  var map={
+    "X_scVI":"scVI", "scvi":"scVI",
+    "X_scANVI":"scANVI", "scANVI":"scANVI",
+    "X_totalVI":"totalVI", "totalVI":"totalVI",
+    "X_harmony":"Harmony",
+    "X_scvi_emb":"scVI",
+    "X_pca":"PCA",
+    "computed_pca":"PCA (computed)"
+  };
+  if(map[rawKey])return map[rawKey];
+  /* Strip leading X_ if present so e.g. X_foo → foo */
+  return rawKey.replace(/^X_/,"");
+}
+
+/* Look up the input-feature label for the currently-rendered embedding
+   (e.g. UMAP-3D was built on X_scVI → returns "scVI"). Returns "" when
+   we have no attribution (loaded from obsm directly, or legacy cache). */
+function _embInputLabel(){
+  if(typeof D==="undefined"||!D||!D.header||!D.header.embedding_inputs)return "";
+  if(typeof embMethod==="undefined"||!embMethod)return "";
+  var key=embMethod+"_"+(viewIs3d?"3d":"2d");
+  return _embInputPretty(D.header.embedding_inputs[key]||"");
+}
+
 function _updateHudEmbedding(){
   /* Per-quadrant Embedding row. embMethod is currently a global, not
      per-view, so every visible quadrant shows the same value (same
      embedding renders into both halves). When per-view embeddings
-     ship later, this becomes a snapshot read like _updateHudColor. */
+     ship later, this becomes a snapshot read like _updateHudColor.
+     The "· <input>" suffix surfaces the feature space the embedding
+     was built on (scVI / PCA / etc.) so the user can tell at a glance
+     whether this is the same coordinate system as the file's 2D UMAP. */
   var label="—";
   if(typeof D!=="undefined"&&D&&typeof embMethod!=="undefined"&&embMethod){
     label=_embPrettyLabels[embMethod]||embMethod.toUpperCase();
+    var inp=_embInputLabel();
+    if(inp)label+=" · "+inp;
   }
   for(var q=0;q<4;q++){
     var el=document.getElementById(_hudFieldId(q,"embedding"));
@@ -11026,8 +11061,13 @@ function _renderMatrixInfo(){
     html+='<\/div>';
     if(r.caveat)html+='<div style="margin:0 0 2px 10px;color:#fbbf24;font-size:10px;line-height:1.4;">&#9888; '+esc(r.caveat)+'<\/div>';
   }
-  /* Embeddings — show what actually happened (from obsm vs cache vs computed). */
+  /* Embeddings — show what actually happened (from obsm vs cache vs computed)
+     plus, for FLEEK-computed embeddings, which obsm rep was used as input
+     (e.g. "input: scVI" vs "input: PCA"). The input attribution lets the
+     user see whether 2D and 3D share a coordinate system — important when
+     a file ships X_umap from scVI but FLEEK has to compute 3D from PCA. */
   var embSrc=D.header.embedding_sources||{};
+  var embIn=D.header.embedding_inputs||{};
   var embOrder=[["umap","UMAP"],["pca","PCA"],["pacmap","PaCMAP"]];
   var srcWord={obsm:"from obsm (author-provided)",cache_full:"from cache (full)",cache_quick:"from cache (quick)",cache_legacy:"from cache (legacy)",computed_full:"computed by FLEEK (full)",computed_quick:"computed by FLEEK (quick)",derived_from_3d:"derived from 3D (slice)",padded_from_2d:"padded from 2D"};
   /* Only embeddings COMPUTED fresh by FLEEK carry the fallback-matrix caveat;
@@ -11051,6 +11091,21 @@ function _renderMatrixInfo(){
       if(s2&&s3)html+='<span style="color:var(--text4);">, <\/span>';
       if(s3)html+='3D '+esc(srcWord[s3]||s3);
       html+='<\/div>';
+    }
+    /* Input-feature attribution (scVI / PCA / …). Show one row when 2D and
+       3D share an input, two when they diverge. Not all entries have an
+       input recorded (e.g. obsm-loaded UMAP). */
+    var i2=embIn[ekey+"_2d"]||"", i3=embIn[ekey+"_3d"]||"";
+    var p2=_embInputPretty(i2), p3=_embInputPretty(i3);
+    if(p2||p3){
+      if(p2&&p2===p3){
+        html+='<div style="margin:0 0 2px 10px;color:var(--text4);font-size:10px;">input: '+esc(p2)+'<\/div>';
+      }else{
+        var bits=[];
+        if(p2)bits.push("2D "+p2);
+        if(p3)bits.push("3D "+p3);
+        html+='<div style="margin:0 0 2px 10px;color:var(--text4);font-size:10px;">input: '+esc(bits.join(", "))+'<\/div>';
+      }
     }
     /* Show the fallback caveat only if at least one dimension was computed fresh
        and a caveat is non-empty. */
