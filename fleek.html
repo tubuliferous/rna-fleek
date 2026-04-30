@@ -173,7 +173,18 @@
      overscroll-behavior:contain stops that chain at this boundary. */
   #glist,#hvg-scroll,#leg-scroll,#path-results,#go-results,#lineage-tree,#plot-gene-results,#fb-body,#help-body,.sb-trap,.fleek-dropdown,.gv-dd-list{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;margin-top:4px;}
-  .sec{padding:10px 14px;border-bottom:1px solid var(--border);}
+  /* Section padding is asymmetric (10px top, 5px bottom) so the
+     visual gap between the section's border and the last visible
+     control matches the gap above the title text. The asymmetry is
+     because most last-child controls (buttons, selects, sliders)
+     have their own intrinsic 3-5px of internal padding/border above
+     their text content, while the title at the top sits flush
+     against the section padding with no such buffer. v0.5.17's
+     last-child margin-bottom: 0 rule already removed the worst
+     offender (margin-bottom on row-wrapper divs); this padding tweak
+     corrects the residual button-padding asymmetry the user kept
+     reading as "too much room at the bottom." */
+  .sec{padding:10px 14px 5px;border-bottom:1px solid var(--border);}
   /* Zero out the bottom margin of whatever element happens to be the
      last child inside a panel body — many controls (rows, labels,
      button groups) have their own margin-bottom for spacing between
@@ -2978,7 +2989,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.21";
+var FLEEK_VERSION="v0.5.22";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
