@@ -173,18 +173,17 @@
      overscroll-behavior:contain stops that chain at this boundary. */
   #glist,#hvg-scroll,#leg-scroll,#path-results,#go-results,#lineage-tree,#plot-gene-results,#fb-body,#help-body,.sb-trap,.fleek-dropdown,.gv-dd-list{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;margin-top:4px;}
-  /* Section padding is asymmetric (10px top, 5px bottom) so the
+  /* Section padding is asymmetric (10px top, 2px bottom) so the
      visual gap between the section's border and the last visible
-     control matches the gap above the title text. The asymmetry is
-     because most last-child controls (buttons, selects, sliders)
-     have their own intrinsic 3-5px of internal padding/border above
-     their text content, while the title at the top sits flush
-     against the section padding with no such buffer. v0.5.17's
-     last-child margin-bottom: 0 rule already removed the worst
-     offender (margin-bottom on row-wrapper divs); this padding tweak
-     corrects the residual button-padding asymmetry the user kept
-     reading as "too much room at the bottom." */
-  .sec{padding:10px 14px 5px;border-bottom:1px solid var(--border);}
+     control reads as roughly equal to the gap above the title text.
+     Buttons / selects / sliders all carry 3-6px of intrinsic
+     padding+border ABOVE their visible content (above the text or
+     the slider track), so the section's padding-bottom + the
+     control's intrinsic padding stack to create a perceived gap
+     larger than the symmetric padding-top would suggest. Padding-
+     bottom of 2px tends to read as ~10px of total visual gap below
+     a typical control — close to the 10px above the title. */
+  .sec{padding:10px 14px 2px;border-bottom:1px solid var(--border);}
   /* Zero out the bottom margin of whatever element happens to be the
      last child inside a panel body — many controls (rows, labels,
      button groups) have their own margin-bottom for spacing between
@@ -2061,6 +2060,7 @@
         <p><strong>Shortcut flash</strong> — when you press a keyboard shortcut, a brief overlay flashes on screen showing the action name and key combination. This helps learn shortcuts and confirms the action was received. Toggle it off in Settings if you prefer a quieter interface.</p>
         <p>The 2D/3D toggle and Reset button are always accessible in the View panel header, even when the panel is collapsed.</p>
         <p><strong>Sidebar:</strong> press <span class="help-key">\</span> or click the <strong>«</strong> button to hide the sidebar and give the visualization full width. Press <span class="help-key">\</span> again or click <strong>»</strong> to restore it.</p>
+        <p><strong>Panel layout shortcuts:</strong> press <span class="help-key">⌥ Opt</span>+<span class="help-key">\</span> to expand all sidebar panels at once (a snapshot of the current per-panel collapse pattern is saved). Press it again — when everything is already expanded — to restore the previous pattern. <span class="help-key">⌃ Ctrl</span>+<span class="help-key">⌥ Opt</span>+<span class="help-key">\</span> is the symmetric counterpart that collapses all panels (or restores previous when already collapsed). The two share a snapshot, so you can bounce expand ↔ collapse and still recover your original layout with one keystroke. Manual click-toggle on any panel header invalidates the snapshot — once you start hand-editing the layout, "previous pattern" stops meaning anything coherent.</p>
         <table class="help-table">
           <tr><th>Action</th><th>3D</th><th>2D</th></tr>
           <tr><td>Rotate</td><td>Left-drag</td><td>—</td></tr>
@@ -2985,11 +2985,29 @@ function _spinHTML(size,marginPx,side){
 var _isMac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent);
 var _MOD=_isMac?"⌘":"Ctrl"; /* primary modifier label */
 var _ALT=_isMac?"⌥":"Alt"; /* alt/option label */
+/* Convert a shortcut hint string written with Mac symbols (⌘ ⌥ ⌃ ⇧)
+   to whatever the running OS prefers. Used by the search palette
+   renderer and any tooltip / mouseover that wants OS-aware labels.
+   Authors can keep the source-of-truth in palatable Mac symbols and
+   trust that Linux/Windows users see "Ctrl" / "Alt" / "Shift". The
+   "^" caret form (used in some old code) is also normalised here. */
+function _osShortcutLabel(s){
+  if(!s)return s||"";
+  if(_isMac)return s;  /* Mac users see the Mac symbols as-is. */
+  return String(s)
+    .replace(/⌘/g,"Ctrl")
+    .replace(/⌃/g,"Ctrl")
+    .replace(/\^/g,"Ctrl")
+    .replace(/⌥/g,"Alt")
+    .replace(/⇧/g,"Shift")
+    .replace(/Cmd/g,"Ctrl")
+    .replace(/Option/g,"Alt");
+}
 var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.22";
+var FLEEK_VERSION="v0.5.23";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -18446,7 +18464,7 @@ function _paletteRender(){
     var cls="pal-row"+(i===_paletteCursor?" active":"")+(disabled?" disabled":"");
     var lbl=q.trim()?_paletteHighlight(e.label,f.indices):_paletteEsc(e.label);
     var sec=e.secondary?'<span class="pal-secondary">'+_paletteEsc(e.secondary)+'<\/span>':'';
-    var sc=e.shortcut?'<span class="pal-shortcut">'+_paletteEsc(e.shortcut)+'<\/span>':'';
+    var sc=e.shortcut?'<span class="pal-shortcut">'+_paletteEsc(_osShortcutLabel(e.shortcut))+'<\/span>':'';
     html+='<div class="'+cls+'" data-i="'+i+'" onclick="_paletteExecuteIndex('+i+')"><span class="pal-label">'+lbl+'<\/span>'+sec+sc+'<\/div>';
   }
   host.innerHTML=html;

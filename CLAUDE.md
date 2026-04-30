@@ -78,6 +78,23 @@ RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool
 - If the feature is novel, add a new `<div class="help-sec" id="help-…">` block **and** add a matching `<a href="#" onclick="event.preventDefault();helpJump('help-…')">…</a>` entry to the TOC in `#help-body` so it's navigable.
 - Help sections use `<p>`, `<ul>`, `<table class="help-table">`, `<code>`, `<strong>`, `<em>` — keep the tone consistent with existing sections: matter-of-fact, explain the *why* where it's non-obvious, and include worked examples for compound interactions.
 
+### Keyboard-shortcut symbols must be OS-aware everywhere
+Whenever a shortcut hint is shown to the user — Help panel, search palette `shortcut` field, button `title` tooltips, mid-action `_flashAction` toasts, tooltips on disabled controls — the displayed text MUST resolve to the OS-correct modifier name. Mac users see `⌘` / `⌥` / `⌃` / `⇧`; Linux/Windows users see `Ctrl` / `Alt` / `Shift`. **Mixing them — e.g. showing `⌥` on a Linux box because the source string was hard-coded with the Mac glyph — is a bug, not a stylistic choice.**
+
+**The mechanisms:**
+- **Static help text inside `#help-body`** is rewritten at boot by `_patchOS()` (the function does the `⌘ → Ctrl`, `⌥ → Alt`, etc. swaps when `_isMac` is false). Authors can write the source HTML with Mac glyphs and trust the runtime swap; just keep the source readable.
+- **Static button / element `title` tooltips set in HTML** are also caught by `_patchOS()` for elements explicitly listed there. When adding a new button whose tooltip mentions a modifier, either use the `_MOD` / `_ALT` globals from JS, or add the element to the `_patchOS()` patch list, or write the tooltip with `Ctrl`/`Alt` (which both Mac and Linux users can read).
+- **Search-palette `shortcut` field** in entries (`_searchRegistry`) is rendered through `_osShortcutLabel(s)` (helper near `_isMac`), which converts Mac glyphs to OS-correct text at render time. **Author entries with Mac glyphs as the source-of-truth** (`shortcut: "⌥ \\"`) and let the renderer translate.
+- **Mid-action toasts via `_flashAction(label, key)`** — the `key` arg is the small chip shown next to the action name. Use the OS-aware globals (`_MOD`, `_ALT`) for any modifier portion, or write `Ctrl`/`Alt`. Don't hard-code `⌘`/`⌥` here unless `_flashAction` itself does the conversion (it doesn't today).
+- **Dynamically-built `title` strings in JS** (e.g. the DEG button's "needs 2 groups…" tooltip) — same rule. Use `_MOD` / `_ALT` or use OS-neutral words.
+
+**Self-check after adding a shortcut:**
+1. Does the user see the shortcut anywhere? (Help text, palette, button title, flash chip, error message, etc.)
+2. Does each of those surfaces use either an OS-aware mechanism (`_patchOS`, `_osShortcutLabel`) or write plain `Ctrl`/`Alt` text?
+3. If you wrote `⌘`/`⌥` literally, does the surrounding code path run through one of the converters?
+
+If any answer is "no", you'll have Linux/Windows users seeing Mac glyphs they don't recognize. The fix is one of: route through a converter, swap to `Ctrl`/`Alt` literals, or use `_MOD`/`_ALT`.
+
 ### SVG in `<script>` blocks
 **ALL closing HTML tags inside `<script>` must be escaped.** The HTML parser sees `</` followed by a letter as a potential end tag, which prematurely terminates the script block — silently breaking all JS that follows (Three.js controls, rendering, highlights, everything).
 
