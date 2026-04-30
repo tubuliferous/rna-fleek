@@ -167,6 +167,22 @@
   #glist,#hvg-scroll,#leg-scroll,#path-results,#go-results,#lineage-tree,#plot-gene-results,#fb-body,#help-body,.sb-trap,.fleek-dropdown,.gv-dd-list{overscroll-behavior:contain;}
   #type-search{width:100%;padding:5px 8px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;margin-top:4px;}
   .sec{padding:10px 14px;border-bottom:1px solid var(--border);}
+  /* Zero out the bottom margin of whatever element happens to be the
+     last child inside a panel body — many controls (rows, labels,
+     button groups) have their own margin-bottom for spacing between
+     siblings, but on the LAST item that margin double-counts with
+     the section's padding-bottom and the resulting gap looks larger
+     than the symmetric padding-top before the title. Without this
+     rule, panels visually had ~14-18px of empty space below the
+     last control vs ~10px above the title. */
+  .sec > .col-body > *:last-child{margin-bottom:0;}
+  /* Sidebar header (the RNA-FLEEK / version / search row) sits above
+     the first data panel. The default 10px+10px+border+10px stack
+     left a noticeable gap between the title and the Data panel
+     header. Trim the header's bottom padding so the visual chunk
+     between the brand and the first panel header reads as a single
+     section divide rather than two. */
+  .sec.sec-header{padding-top:8px;padding-bottom:6px;}
   .col-hdr{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;}
   .col-hdr:hover .lbl{color:var(--text2);}
   .col-body{margin-top:6px;}
@@ -1034,7 +1050,7 @@
 <div id="sidebar">
   <div id="sidebar-upper">
   <!-- Header: always visible -->
-  <div class="sec" style="display:flex;align-items:center;justify-content:space-between;">
+  <div class="sec sec-header" style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:baseline;gap:8px;">
       <span style="font-weight:800;font-size:13px;cursor:pointer;" onclick="toggleHelp()" title="About & Help"><span style="color:var(--text3);font-weight:600;">RNA</span><span style="color:var(--accent2);letter-spacing:-0.5px;">-FLEEK</span></span>
       <span id="fleek-version" style="font-size:10px;color:var(--text4);opacity:0.7;font-variant-numeric:tabular-nums;cursor:pointer;" onclick="toggleHelp()" title="Version — click for About & Help"></span>
@@ -1697,6 +1713,7 @@
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-visible">—</span></div>
       <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-total">—</span></div>
+      <div class="hud-row" id="hud-embedding-row"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-embedding" title="Current embedding (press E to cycle)">—</span></div>
       <div class="hud-row" id="hud-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-color">—</span></div>
       <div class="hud-row" id="hud-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-group">—</span></div>
     </div>
@@ -1707,6 +1724,7 @@
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-1-visible">—</span></div>
       <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-1-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-1-total">—</span></div>
+      <div class="hud-row" id="hud-1-embedding-row"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-1-embedding" title="Current embedding (press E to cycle)">—</span></div>
       <div class="hud-row" id="hud-1-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-1-color">—</span></div>
       <div class="hud-row" id="hud-1-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-1-group">—</span></div>
     </div>
@@ -1717,6 +1735,7 @@
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-2-visible">—</span></div>
       <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-2-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-2-total">—</span></div>
+      <div class="hud-row" id="hud-2-embedding-row"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-2-embedding" title="Current embedding (press E to cycle)">—</span></div>
       <div class="hud-row" id="hud-2-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-2-color">—</span></div>
       <div class="hud-row" id="hud-2-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-2-group">—</span></div>
     </div>
@@ -1727,6 +1746,7 @@
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-3-visible">—</span></div>
       <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-3-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-3-total">—</span></div>
+      <div class="hud-row" id="hud-3-embedding-row"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-3-embedding" title="Current embedding (press E to cycle)">—</span></div>
       <div class="hud-row" id="hud-3-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-3-color">—</span></div>
       <div class="hud-row" id="hud-3-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-3-group">—</span></div>
     </div>
@@ -2936,7 +2956,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.16";
+var FLEEK_VERSION="v0.5.17";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -2980,43 +3000,25 @@ var cloudBounds={center:new THREE.Vector3(),radius:50}; /* bounding sphere of po
 var autoRotate=false, viewIs3d=true;
 var embMethod="umap"; /* "umap", "pca", etc. */
 
-/* ── Info-line text + embedding suffix ────────────────────────────
+/* ── Info-line text helpers ────────────────────────────────────────
    The Data panel info line (`#info`) is written by several different
    code paths: initial connection, dataset load, restore-from-session,
-   "no dataset" idle. We want to also surface the current embedding
-   (UMAP / PCA / PaCMAP / …) at the end and have it update when the
-   user switches embeddings. _setInfoHTML stashes the "base" text so
-   _renderInfoLine can re-emit it with the current suffix; setEmbMethod
-   (and the embedding-cycle hotkey) calls _renderInfoLine to refresh.
-   Pretty-prints the embedding name from a small map so "pacmap" shows
-   as "PaCMAP" rather than the lowercase id. */
+   "no dataset" idle. Centralised here to keep the panel content
+   consistent and to give one place to reach when the line needs to
+   change shape (e.g. version-bump-time additions). The current
+   embedding (UMAP / PCA / PaCMAP / …) lives in the canvas HUD overlay
+   instead — see _updateHudEmbedding — so it can stay close to the
+   viewer it describes rather than buried in the sidebar. */
 var _embPrettyLabels={"umap":"UMAP","pca":"PCA","pacmap":"PaCMAP","trimap":"TriMap"};
-function _embSuffixHTML(){
-  if(typeof D==="undefined"||!D)return "";
-  if(typeof embMethod==="undefined"||!embMethod)return "";
-  var label=_embPrettyLabels[embMethod]||embMethod.toUpperCase();
-  return ' · <span style="color:var(--text3);" title="Current embedding (press E to cycle)">'+label+'</span>';
-}
 function _setInfoHTML(html){
   var info=document.getElementById("info");
   if(!info)return;
-  info.dataset.base=html;
-  info.innerHTML=html+_embSuffixHTML();
+  info.innerHTML=html;
 }
 function _setInfoText(text){
-  /* For raw-text writes (replaces .textContent = ...). Treats input
-     as plain text and escapes minimally — only "<" / "&" — since
-     all current callers either pass server-validated strings (saved
-     session text) or static literals ("No dataset loaded"). */
-  var safe=String(text||"").replace(/&/g,"&amp;").replace(/</g,"&lt;");
-  _setInfoHTML(safe);
-}
-function _renderInfoLine(){
   var info=document.getElementById("info");
   if(!info)return;
-  var base=info.dataset.base;
-  if(base===undefined)return;
-  info.innerHTML=base+_embSuffixHTML();
+  info.textContent=text;
 }
 var introAnim=null; /* {startTime, startTheta, endTheta, startRadius, endRadius, duration} or null */
 var _introTimer=null; /* pending intro-animation setTimeout ID, so we can cancel it if a saved camera arrives first */
@@ -4537,13 +4539,13 @@ function setActiveGroup(id){
   if(activeGroupId===id)return; /* already active — preserve DOM for dblclick */
   activeGroupId=id;
   renderSelPanel();
-  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
 }
 
 function renameGroup(id,newName){
   var g=selGroups.find(function(g){return g.id===id;});
   if(g)g.name=newName;
-  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
   saveState();
 }
 
@@ -5600,6 +5602,20 @@ function _setHudColorCell(el,snap){
      recolor path. */
   el.textContent=_colorModeLabel(snap);
 }
+function _updateHudEmbedding(){
+  /* Per-quadrant Embedding row. embMethod is currently a global, not
+     per-view, so every visible quadrant shows the same value (same
+     embedding renders into both halves). When per-view embeddings
+     ship later, this becomes a snapshot read like _updateHudColor. */
+  var label="—";
+  if(typeof D!=="undefined"&&D&&typeof embMethod!=="undefined"&&embMethod){
+    label=_embPrettyLabels[embMethod]||embMethod.toUpperCase();
+  }
+  for(var q=0;q<4;q++){
+    var el=document.getElementById(_hudFieldId(q,"embedding"));
+    if(el)el.textContent=label;
+  }
+}
 function _updateHudColor(){
   /* Per-quadrant Color row: in split mode each HUD reads from its own
      view's snapshot (NOT globals — globals are scratch state during the
@@ -5703,7 +5719,7 @@ function recolor(){
     /* Restore globals to the active split's state */
     var _activeSnap=_views.find(function(v){return v.id===_activeViewId;});
     if(_activeSnap)_restoreSplitViewState(_activeSnap);
-    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
     _scheduleVisStats();
     if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
     if(typeof _plotPopulate==="function")_plotPopulate();
@@ -5887,7 +5903,7 @@ function recolor(){
     if(_hudVc)_hudVc.textContent=(n-_nHidden).toLocaleString();
     if(_hudHc)_hudHc.textContent=_nHidden>0?_nHidden.toLocaleString():"0";
     if(_hudTc)_hudTc.textContent=n.toLocaleString();
-    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
     _scheduleVisStats();
     if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
     if(typeof _plotPopulate==="function")_plotPopulate();
@@ -6028,7 +6044,7 @@ function recolor(){
   if(_hudV){_hudV.textContent=(n-_nHidden).toLocaleString();}
   if(_hudH){_hudH.textContent=_nHidden>0?_nHidden.toLocaleString():"0";}
   if(_hudT){_hudT.textContent=n.toLocaleString();}
-  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
   _scheduleVisStats();
   if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
   if(typeof _plotPopulate==="function")_plotPopulate();
@@ -6902,7 +6918,7 @@ function setupCtrl(){
       if(_gMissing.length>0){_sortGroupsByName();renderSelPanel();}
       var _gObj=selGroups.find(function(g){return g.name==="Group "+_gn;});
       if(_gObj)setActiveGroup(_gObj.id);
-      _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+      _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
       var _gActive="Group "+_gn;
       var _gLabel=_gActive;
       if(_gMissing.length===1)_gLabel=_gActive+" · created";
@@ -7147,9 +7163,9 @@ function setEmbMethod(m){
   var ml=document.getElementById("emb-mini-label");
   var labels={"umap":"","pca":"PCA","pacmap":"PaCMAP","trimap":"TriMap"};
   if(ml){ml.textContent=labels[m]||m.toUpperCase();ml.style.display=m==="umap"?"none":"inline";}
-  /* Refresh the info-line embedding suffix so the Data panel reads
-     the current method without waiting for a load to complete. */
-  if(typeof _renderInfoLine==="function")_renderInfoLine();
+  /* Refresh the canvas HUD's Embedding row so the on-canvas info
+     overlay reads the current method without waiting for a load. */
+  if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
   /* Check what dims are available for this method */
   var emb=D.embeddings[m];
   var has2=!!emb[2], has3=!!emb[3];
@@ -12218,7 +12234,7 @@ function _viewSwitch(id){
     if(lineageView)_renderLineageTree();
     _splitUpdateLabels();
     _viewUpdateUI();
-    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+    _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
     return;
   }
   /* Determine tether state of source + target BEFORE mutating _activeViewId —
@@ -12239,7 +12255,7 @@ function _viewSwitch(id){
   renderLeg();renderSelPanel();recolor();
   if(lineageView)_renderLineageTree();
   _viewUpdateUI();
-  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
   syncCanvasSize();
 }
 function _viewDeleteById(id){
@@ -12259,7 +12275,7 @@ function _viewDeleteById(id){
   renderLeg();renderSelPanel();recolor();
   if(lineageView)_renderLineageTree();
   _viewUpdateUI();
-  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();
+  _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
   syncCanvasSize();
 }
 function _viewRename(){
