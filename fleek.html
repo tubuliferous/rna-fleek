@@ -1338,14 +1338,14 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
-      <div id="split-list"></div>
+      <div id="split-list" class="sb-trap" style="max-height:260px;overflow-y:auto;overflow-x:hidden;"></div>
       <div style="display:flex;align-items:center;gap:4px;margin-top:4px;">
         <button id="view-add-btn" onclick="_viewAdd()" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;" title="Create a new view split (or press 1-9)" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">+</button>
         <button id="view-compare-btn" onclick="_viewCompare()" style="display:none;background:none;border:1px solid var(--border2);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:12px;font-family:inherit;padding:1px 5px;transition:all 0.1s;" title="Toggle split-screen comparison (S — requires ≥2 splits)" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border2)'">⧉</button>
         <!-- Split-count selector: 1 / 2 / 3 / 4. Visible whenever there
              are ≥2 saved view splits. Each pip is a button that calls
              _splitSetCount(N). Active pip is highlighted via .on. -->
-        <span id="split-count-row" style="display:none;align-items:center;gap:1px;border:1px solid var(--border2);border-radius:3px;overflow:hidden;font-size:10px;margin-left:auto;" title="Number of split views shown side-by-side (1 = single view; 3-4 use a 2x2 grid)">
+        <span id="split-count-row" style="display:none;align-items:stretch;gap:0;border:1px solid var(--border2);border-radius:3px;overflow:hidden;font-size:10px;margin-left:auto;" title="Number of split views shown side-by-side (1 = single view; 3-4 use a 2x2 grid)">
           <button class="split-count-pip" data-count="1" onclick="_splitSetCount(1)" style="background:transparent;border:none;color:var(--text3);cursor:pointer;padding:1px 6px;font-family:inherit;font-size:10px;">1</button>
           <button class="split-count-pip" data-count="2" onclick="_splitSetCount(2)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;padding:1px 6px;font-family:inherit;font-size:10px;">2</button>
           <button class="split-count-pip" data-count="3" onclick="_splitSetCount(3)" style="background:transparent;border:none;border-left:1px solid var(--border2);color:var(--text3);cursor:pointer;padding:1px 6px;font-family:inherit;font-size:10px;">3</button>
@@ -1361,7 +1361,7 @@
       <span class="col-chev">&#9660;</span>
     </div>
     <div class="col-body">
-      <div id="sel-groups"></div>
+      <div id="sel-groups" class="sb-trap" style="max-height:260px;overflow-y:auto;overflow-x:hidden;"></div>
       <button onclick="addSelGroup()" title="Add selection group (or press Shift+1-9)" style="background:none;border:1px dashed var(--border);border-radius:3px;color:var(--accent2);cursor:pointer;font-size:11px;line-height:1;width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0;transition:all 0.1s;margin:4px 0;" onmouseenter="this.style.borderColor='var(--accent)'" onmouseleave="this.style.borderColor='var(--border)'">+</button>
       <div class="sg-toolbar">
         <button onclick="selAllVisible()" title="Select all visible cells into active group (Shift+V)">SelVis</button>
@@ -3028,7 +3028,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.31";
+var FLEEK_VERSION="v0.5.32";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -19745,6 +19745,22 @@ function _setupResizableLists(){
      the section-level resizers so it doesn't drift when the data
      section is itself short. */
   _addElementBottomResizer("browse-columns",{min:120,max:BIG});
+  /* Split Views panel — resizes the #split-list scroll container.
+     Default max-height fits ~10 splits; user can drag down to see more
+     without scrolling. */
+  _addSectionResizer({
+    sectionId:"split-sec", targets:["split-list"],
+    resolveTarget:function(){return document.getElementById("split-list");},
+    min:60, max:BIG
+  });
+  /* Selection Groups panel — resizes the #sel-groups scroll container.
+     Same 10-item default; the toolbar (SelVis / Clear / HideAll / DEG)
+     stays fixed below the scrolled list. */
+  _addSectionResizer({
+    sectionId:"sel-sec", targets:["sel-groups"],
+    resolveTarget:function(){return document.getElementById("sel-groups");},
+    min:60, max:BIG
+  });
 }
 
 function setupCustomScrollbars(){
