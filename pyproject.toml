@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rna-fleek"
-version = "0.5.32"
+version = "0.5.33"
 description = "Fast Lightweight Expression Exploration Kit — browser-based scRNA-seq visualization"
 license = "MIT"
 requires-python = ">=3.9"

@@ -187,6 +187,12 @@
      positives on Slice's footer-with-button-among-siblings). */
   .sec{padding:10px 14px;border-bottom:1px solid var(--border);}
   .sec.sec-btn-bottom{padding-bottom:0;}
+  /* When collapsed, the body is display:none so the button-at-bottom
+     justification doesn't apply — only the title row is visible. Restore
+     the symmetric 10px bottom padding so the title sits in equal
+     vertical space (same as every other collapsed .sec). Without this,
+     Plots / Pathways collapsed-titles look top-heavy vs siblings. */
+  .sec.sec-btn-bottom.collapsed{padding-bottom:10px;}
   /* Zero out the bottom margin of whatever element happens to be the
      last child inside a panel body — many controls (rows, labels,
      button groups) have their own margin-bottom for spacing between
@@ -1004,10 +1010,26 @@
   #settings-btn:hover{color:var(--text2);border-color:var(--border2);}
   #settings-btn svg{width:14px;height:14px;fill:currentColor;}
   #settings-popup{display:none;position:absolute;bottom:42px;right:12px;z-index:55;background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:12px 16px;min-width:220px;backdrop-filter:blur(8px);}
-  #debug-popup{display:none;position:absolute;top:12px;right:12px;z-index:55;background:var(--bg2);border:1px solid var(--danger);border-radius:var(--rad-xl);padding:var(--sp-5) var(--sp-6);min-width:200px;backdrop-filter:blur(8px);}
+  #debug-popup{display:none;position:absolute;top:12px;right:12px;z-index:55;background:var(--bg2);border:1px solid var(--danger);border-radius:var(--rad-xl);padding:var(--sp-5) var(--sp-6);min-width:280px;max-height:calc(100vh - 40px);overflow-y:auto;backdrop-filter:blur(8px);}
   #debug-popup .s-title{font-size:var(--fs-sm);color:var(--danger);font-weight:var(--fw-bold);margin-bottom:var(--sp-4);}
   #debug-popup .s-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:11px;color:var(--text2);}
   #debug-popup .dbg-info{font-size:9px;color:var(--text4);font-family:monospace;padding:4px 0;border-top:1px solid var(--border);margin-top:4px;white-space:pre-wrap;word-break:break-all;}
+  /* Compact slider rows for tunable ghost-style params. Label on the left,
+     range slider in the middle, numeric value on the right. */
+  #debug-popup .dbg-sub-title{font-size:9px;color:var(--text4);text-transform:uppercase;letter-spacing:0.05em;margin:8px 0 2px;border-top:1px dashed var(--border);padding-top:6px;}
+  #debug-popup .dbg-slider-row{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:10px;color:var(--text3);}
+  #debug-popup .dbg-slider-row label{flex:0 0 96px;color:var(--text3);}
+  #debug-popup .dbg-slider-row input[type=range]{flex:1;min-width:60px;}
+  #debug-popup .dbg-slider-row input[type=color]{flex:0 0 36px;height:18px;padding:0;border:1px solid var(--border);background:transparent;cursor:pointer;}
+  #debug-popup .dbg-slider-row .dbg-val{font-variant-numeric:tabular-nums;color:var(--text2);min-width:36px;text-align:right;}
+  /* Collapsible groups inside the Debug popup. The chevron rotates -90deg
+     when collapsed, and the body element is hidden via display:none. */
+  #debug-popup .dbg-collapsible{margin-top:8px;}
+  #debug-popup .dbg-collapsible-hdr{display:flex;align-items:center;gap:6px;padding:6px 0 4px;cursor:pointer;user-select:none;font-size:10px;color:var(--text2);font-weight:600;border-top:1px dashed var(--border);text-transform:uppercase;letter-spacing:0.05em;}
+  #debug-popup .dbg-collapsible-hdr:hover{color:var(--text);}
+  #debug-popup .dbg-collapsible-chev{transition:transform var(--dur-fast);display:inline-block;font-size:9px;color:var(--text4);}
+  #debug-popup .dbg-collapsible.collapsed .dbg-collapsible-chev{transform:rotate(-90deg);}
+  #debug-popup .dbg-collapsible.collapsed .dbg-collapsible-body{display:none;}
   #settings-popup .s-title{font-size:11px;color:var(--text2);font-weight:700;margin-bottom:8px;}
   #settings-popup .s-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;font-size:11px;color:var(--text2);}
   #settings-popup .s-row select{padding:4px 8px;}
@@ -1297,7 +1319,7 @@
       <div class="lbl" style="margin-top:6px;">Point Size</div>
       <input type="range" id="pt-size" min="1" max="100" step="1" value="50" oninput="setPtSz(this.value,true)" onchange="setPtSz(this.value);this.blur()">
       <div class="lbl" style="margin-top:6px;">Opacity</div>
-      <input type="range" id="pt-opacity" min="0.05" max="1" step="0.05" value="0.7" oninput="setPtOpacity(this.value,true)" onchange="setPtOpacity(this.value);this.blur()">
+      <input type="range" id="pt-opacity" min="0.05" max="1" step="0.05" value="1.0" oninput="setPtOpacity(this.value,true)" onchange="setPtOpacity(this.value);this.blur()">
       <div class="lbl" style="margin-top:6px;">Unselected Brightness</div>
       <input type="range" id="bg-dim" min="0" max="100" step="5" value="100" oninput="setBgDim(100-this.value,true)" onchange="setBgDim(100-this.value);this.blur()" title="How bright non-selected cells appear. Slide left to fade, right for full brightness.">
       <div class="lbl" style="margin-top:6px;">Color</div>
@@ -1935,6 +1957,132 @@
       <select id="dbg-bg-scheme" onchange="_bgScheme=this.value;recolor();">
         <option value="background01">background01</option>
       </select>
+    </div>
+    <!-- ─── Universal dot-rendering controls ───────────────────────────
+         Two parallel sections (ghost + expressing). Each has the SAME
+         8 controls; combined with the per-cell-type "preset" dropdown
+         they can reproduce every previous dot style and a wide
+         continuum in between. Picking a preset writes its values into
+         the sliders; moving any slider thereafter just edits the live
+         uniforms. Universal globals (two-pass ghost rendering, sparse
+         density N) live below. -->
+    <div class="dbg-collapsible collapsed" id="dbg-ghost-section">
+    <div class="dbg-collapsible-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dbg-collapsible-chev">▾</span>
+      <span>Ghost dots (non-expressing in gene mode)</span>
+    </div>
+    <div class="dbg-collapsible-body">
+    <div class="s-row" title="Pick a named preset to populate the sliders below. Moving a slider afterwards edits the live state — the preset name stays as a label.">
+      <span>Preset</span>
+      <select id="dbg-ghost-style" onchange="setGhostStyle(this.value);">
+        <option value="subtle" selected>Subtle (default — opaque gray)</option>
+        <option value="translucent">Translucent (v0.5.0)</option>
+        <option value="translucent_bright">Translucent — brighter</option>
+        <option value="translucent_nodepth">Translucent — no depth-write</option>
+        <option value="ring">Ring (outline)</option>
+        <option value="hairline">Hairline ring (thin)</option>
+        <option value="opaque">Opaque (solid dot)</option>
+        <option value="square">Square</option>
+        <option value="diamond">Diamond outline</option>
+        <option value="cross">Cross (+ mark)</option>
+        <option value="splat">Soft splat (gaussian)</option>
+        <option value="splat_nodepth">Soft splat — no depth-write</option>
+        <option value="stippled">Stippled (checkerboard discard)</option>
+        <option value="speckled">Speckled (random discard)</option>
+        <option value="sparse">Sparse (low density)</option>
+      </select>
+    </div>
+    <div class="dbg-slider-row" title="Shape primitive. Disk = circular, Square = chebyshev, Diamond = manhattan, Cross = plus mark."><label>Shape</label><select id="dbg-g-shape" style="flex:1;"><option value="0">Disk</option><option value="1">Square</option><option value="2">Diamond</option><option value="3">Cross</option></select><span class="dbg-val">&nbsp;</span></div>
+    <div class="dbg-slider-row" title="Multiplier on the per-cell sprite size."><label>Size mult</label><input type="range" id="dbg-g-size" min="0.1" max="4.0" step="0.05" value="1.00"><span class="dbg-val" id="dbg-g-size-val">1.00</span></div>
+    <div class="dbg-slider-row" title="Inner radius — distance from center where the fill begins. 0 = solid disk; →1 = thin outline. (Cross: bar half-width.)"><label>Inner R</label><input type="range" id="dbg-g-inner" min="0" max="0.95" step="0.01" value="0.00"><span class="dbg-val" id="dbg-g-inner-val">0.00</span></div>
+    <div class="dbg-slider-row" title="Outer radius — extent of the dot. (Cross: arm half-length.)"><label>Outer R</label><input type="range" id="dbg-g-outer" min="0.05" max="1" step="0.01" value="1.00"><span class="dbg-val" id="dbg-g-outer-val">1.00</span></div>
+    <div class="dbg-slider-row" title="0 = hard edge, 1 = full gaussian falloff. Crosses softness."><label>Softness</label><input type="range" id="dbg-g-soft" min="0" max="1" step="0.02" value="0.00"><span class="dbg-val" id="dbg-g-soft-val">0.00</span></div>
+    <div class="dbg-slider-row" title="Final opacity multiplier."><label>Alpha</label><input type="range" id="dbg-g-alpha" min="0.05" max="1.0" step="0.01" value="0.45"><span class="dbg-val" id="dbg-g-alpha-val">0.45</span></div>
+    <div class="dbg-slider-row" title="Faux 3D shading on disk shape — limb darkening + soft top-left highlight makes dots read as lit spheres. 0 = flat, 1 = strong."><label>3D shade</label><input type="range" id="dbg-g-3d" min="0" max="1" step="0.02" value="0.40"><span class="dbg-val" id="dbg-g-3d-val">0.40</span></div>
+    <div class="dbg-slider-row" title="Rim darkening intensity — gives each dot a defined edge. 0 = none, 1 = strong dark band at the outer edge."><label>Rim</label><input type="range" id="dbg-g-rim" min="0" max="1" step="0.02" value="0.30"><span class="dbg-val" id="dbg-g-rim-val">0.30</span></div>
+    <div class="dbg-slider-row" title="Rim band width as fraction of dot radius. 0.05 = thin rim, 0.30 = wide rim that reaches further toward the center."><label>Rim width</label><input type="range" id="dbg-g-rimw" min="0" max="0.5" step="0.01" value="0.16"><span class="dbg-val" id="dbg-g-rimw-val">0.16</span></div>
+    <div class="dbg-slider-row" title="Color override. Take effect when 'use override' is checked."><label>Color</label><input type="color" id="dbg-g-color" value="#2e313f"><span class="dbg-val">&nbsp;</span></div>
+    <div class="s-row" title="When checked, every dot renders with the Color picker's value. When unchecked, dots use their per-cell color (cluster palette / expression gradient)."><span>Use color override</span><label class="s-toggle"><input type="checkbox" id="dbg-g-usecolor"><span class="s-slider"></span></label></div>
+    <div class="dbg-slider-row" title="Per-fragment discard pattern: none, screen-pixel-checker, or random hash."><label>Discard</label><select id="dbg-g-discard" style="flex:1;"><option value="0">None</option><option value="1">Checker (50%)</option><option value="2">Random hash</option></select><span class="dbg-val">&nbsp;</span></div>
+    <div class="s-row" title="Material's depthWrite flag. Off = transparent fragments don't write z (eliminates the 'first-drawn ghost wins' artifact for the translucent preset, but expressing cells stop occluding each other in 3D too)."><span>Depth write</span><label class="s-toggle"><input type="checkbox" id="dbg-g-depth"><span class="s-slider"></span></label></div>
+    </div>
+    </div>
+
+    <div class="dbg-collapsible collapsed" id="dbg-expr-section">
+    <div class="dbg-collapsible-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dbg-collapsible-chev">▾</span>
+      <span>Expressing dots (everywhere)</span>
+    </div>
+    <div class="dbg-collapsible-body">
+    <div class="s-row" title="Same preset list as ghosts, but applied to expressing cells. Default reproduces the v0.5.x filled-disk look.">
+      <span>Preset</span>
+      <select id="dbg-expr-style" onchange="setExprStyle(this.value);">
+        <option value="default" selected>Default (filled disk)</option>
+        <option value="ring">Ring (outline)</option>
+        <option value="hairline">Hairline ring (thin)</option>
+        <option value="square">Square</option>
+        <option value="diamond">Diamond outline</option>
+        <option value="cross">Cross (+ mark)</option>
+        <option value="splat">Soft splat (gaussian)</option>
+        <option value="stippled">Stippled (checkerboard discard)</option>
+        <option value="speckled">Speckled (random discard)</option>
+      </select>
+    </div>
+    <div class="dbg-slider-row"><label>Shape</label><select id="dbg-e-shape" style="flex:1;"><option value="0">Disk</option><option value="1">Square</option><option value="2">Diamond</option><option value="3">Cross</option></select><span class="dbg-val">&nbsp;</span></div>
+    <div class="dbg-slider-row"><label>Size mult</label><input type="range" id="dbg-e-size" min="0.1" max="4.0" step="0.05" value="1.00"><span class="dbg-val" id="dbg-e-size-val">1.00</span></div>
+    <div class="dbg-slider-row"><label>Inner R</label><input type="range" id="dbg-e-inner" min="0" max="0.95" step="0.01" value="0.00"><span class="dbg-val" id="dbg-e-inner-val">0.00</span></div>
+    <div class="dbg-slider-row"><label>Outer R</label><input type="range" id="dbg-e-outer" min="0.05" max="1" step="0.01" value="1.00"><span class="dbg-val" id="dbg-e-outer-val">1.00</span></div>
+    <div class="dbg-slider-row"><label>Softness</label><input type="range" id="dbg-e-soft" min="0" max="1" step="0.02" value="0.00"><span class="dbg-val" id="dbg-e-soft-val">0.00</span></div>
+    <div class="dbg-slider-row"><label>Alpha</label><input type="range" id="dbg-e-alpha" min="0.05" max="1.0" step="0.01" value="1.00"><span class="dbg-val" id="dbg-e-alpha-val">1.00</span></div>
+    <div class="dbg-slider-row" title="Faux 3D shading on disk shape — limb darkening + soft top-left highlight gives the lit-sphere look. 0 = flat, 1 = strong."><label>3D shade</label><input type="range" id="dbg-e-3d" min="0" max="1" step="0.02" value="0.35"><span class="dbg-val" id="dbg-e-3d-val">0.35</span></div>
+    <div class="dbg-slider-row" title="Rim darkening intensity — gives each dot a defined edge."><label>Rim</label><input type="range" id="dbg-e-rim" min="0" max="1" step="0.02" value="0.25"><span class="dbg-val" id="dbg-e-rim-val">0.25</span></div>
+    <div class="dbg-slider-row" title="Rim band width as fraction of dot radius."><label>Rim width</label><input type="range" id="dbg-e-rimw" min="0" max="0.5" step="0.01" value="0.14"><span class="dbg-val" id="dbg-e-rimw-val">0.14</span></div>
+    <div class="dbg-slider-row"><label>Color</label><input type="color" id="dbg-e-color" value="#ffffff"><span class="dbg-val">&nbsp;</span></div>
+    <div class="s-row"><span>Use color override</span><label class="s-toggle"><input type="checkbox" id="dbg-e-usecolor"><span class="s-slider"></span></label></div>
+    <div class="dbg-slider-row"><label>Discard</label><select id="dbg-e-discard" style="flex:1;"><option value="0">None</option><option value="1">Checker (50%)</option><option value="2">Random hash</option></select><span class="dbg-val">&nbsp;</span></div>
+    </div>
+    </div>
+
+    <div class="dbg-collapsible collapsed" id="dbg-glow-section">
+    <div class="dbg-collapsible-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dbg-collapsible-chev">▾</span>
+      <span>Glow &amp; pulse (gene mode halos)</span>
+    </div>
+    <div class="dbg-collapsible-body">
+      <div style="font-size:10px;color:var(--text3);padding:0 0 4px 2px;">Halo layer appearance</div>
+      <div class="dbg-slider-row" title="Overall halo brightness multiplier. 0 = invisible, 1 = default, 3 = very bright."><label>Intensity</label><input type="range" id="dbg-glow-int" min="0" max="3" step="0.05" value="1.00"><span class="dbg-val" id="dbg-glow-int-val">1.00</span></div>
+      <div class="dbg-slider-row" title="Halo point-size multiplier. Larger = halo extends further from the cell."><label>Size</label><input type="range" id="dbg-glow-size" min="0.3" max="3" step="0.05" value="1.00"><span class="dbg-val" id="dbg-glow-size-val">1.00</span></div>
+      <div class="dbg-slider-row" title="Halo gradient inner edge. Smaller = halo stays bright nearer the center."><label>Falloff in</label><input type="range" id="dbg-glow-fin" min="0" max="0.95" step="0.01" value="0.15"><span class="dbg-val" id="dbg-glow-fin-val">0.15</span></div>
+      <div class="dbg-slider-row" title="Halo gradient outer edge. Larger = halo reaches further out before fading. Should be greater than 'falloff in'."><label>Falloff out</label><input type="range" id="dbg-glow-fout" min="0.05" max="1" step="0.01" value="0.85"><span class="dbg-val" id="dbg-glow-fout-val">0.85</span></div>
+      <div class="dbg-slider-row" title="Color the halo tints toward at peak pulse (dark mode only). Default is the background-scheme bloom color."><label>Halo color</label><input type="color" id="dbg-glow-color" value="#ffffff"><span class="dbg-val">&nbsp;</span></div>
+      <div style="font-size:10px;color:var(--text3);padding:6px 0 4px 2px;">Pulse animation</div>
+      <div class="dbg-slider-row" title="Pulse rate multiplier. 0.5 = half speed (slower throb), 2 = double, etc."><label>Speed</label><input type="range" id="dbg-pulse-speed" min="0.1" max="5" step="0.05" value="1.00"><span class="dbg-val" id="dbg-pulse-speed-val">1.00</span></div>
+      <div class="dbg-slider-row" title="Maximum value of the pulse (peak brightness). Higher = brighter peaks."><label>Pulse max</label><input type="range" id="dbg-pulse-high" min="1" max="4" step="0.05" value="2.50"><span class="dbg-val" id="dbg-pulse-high-val">2.50</span></div>
+      <div class="dbg-slider-row" title="Minimum value of the pulse (trough). 1.0 = halo stays at base brightness during dim phase. Below 1 = halo fades during dim phase (set close to 0 for full fade-out)."><label>Pulse min</label><input type="range" id="dbg-pulse-low" min="0" max="1.5" step="0.05" value="1.00"><span class="dbg-val" id="dbg-pulse-low-val">1.00</span></div>
+      <div style="font-size:10px;color:var(--text3);padding:6px 0 4px 2px;">Cell appearance with halo on</div>
+      <div class="dbg-slider-row" title="Cell core bloom — how much expressing cells brighten/tint toward the cell pulse color during peak pulse. 0 = no bloom, 1 = full saturation toward target."><label>Cell bloom</label><input type="range" id="dbg-cell-bloom" min="0" max="1" step="0.02" value="0.35"><span class="dbg-val" id="dbg-cell-bloom-val">0.35</span></div>
+      <div class="dbg-slider-row" title="Color expressing cells tint toward at peak pulse. Default is the theme bg-scheme cell pulse target."><label>Cell color</label><input type="color" id="dbg-cell-color" value="#ffffff"><span class="dbg-val">&nbsp;</span></div>
+      <div class="dbg-slider-row" title="Disk radius for the expressing cell when halo is active. Smaller = the cell core shrinks (the halo around it stays the same). 0.82 = default."><label>Halo radius</label><input type="range" id="dbg-halo-radius" min="0.30" max="1.00" step="0.01" value="0.82"><span class="dbg-val" id="dbg-halo-radius-val">0.82</span></div>
+      <div class="dbg-slider-row" title="Multiplier on the rim-darkening intensity when halo is active. 0 = no rim, 1 = same as base, 2 = stronger."><label>Halo rim ×</label><input type="range" id="dbg-halo-rim" min="0" max="3" step="0.05" value="1.00"><span class="dbg-val" id="dbg-halo-rim-val">1.00</span></div>
+      <div class="dbg-slider-row" title="Multiplier on the 3D shade intensity when halo is active. 0 = flat disk inside halo, 1 = same as base, 2 = exaggerated lit-sphere."><label>Halo 3D ×</label><input type="range" id="dbg-halo-3d" min="0" max="3" step="0.05" value="1.00"><span class="dbg-val" id="dbg-halo-3d-val">1.00</span></div>
+      <div class="dbg-slider-row" title="Cell core contrast boost when halo is active. Dark theme: mixes toward white (cells brighten). Light theme: mixes toward dark navy (cells darken). Either way, 0 keeps the cluster color pure; 1 fully blends to the theme-appropriate target."><label>Halo lum</label><input type="range" id="dbg-halo-lum" min="0" max="1" step="0.02" value="0.00"><span class="dbg-val" id="dbg-halo-lum-val">0.00</span></div>
+    </div>
+    </div>
+
+    <div class="dbg-collapsible collapsed" id="dbg-universal-section">
+    <div class="dbg-collapsible-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+      <span class="dbg-collapsible-chev">▾</span>
+      <span>Universal (both cell types)</span>
+    </div>
+    <div class="dbg-collapsible-body">
+    <div class="s-row" title="Render ghost cells in a separate pass with depthWrite off. Eliminates the 'translucent ghost arbitrarily occludes whatever's behind it' artifact: expressing cells render first with depthWrite on (occluding each other correctly in 3D), then ghosts render after with depthWrite off (blending through to whatever's behind without writing z, but still depth-tested so a ghost behind an expressing cell stays hidden). Works with any style choice.">
+      <span>Two-pass (ghosts in separate layer)</span>
+      <label class="s-toggle"><input type="checkbox" id="dbg-ghost-twopass" onchange="setGhostTwoPass(this.checked)"><span class="s-slider"></span></label>
+    </div>
+    <div class="dbg-slider-row" title="Sparse mode (when 'sparse' preset is active or the JS-side subsample is otherwise enabled): keep 1 in N ghost cells. 1 = all, 4 = quarter, 8 = eighth."><label>Sparse N</label><input type="range" id="dbg-sparse-n" min="1" max="20" step="1" value="4"><span class="dbg-val" id="dbg-sparse-n-val">4</span></div>
+    <div class="s-row" title="Download the current ghost + expressing dot rendering parameters as a plain-text file. Useful for capturing a look you like and sharing the values back."><span>Export dot settings (.txt)</span><button class="btn-icon download" onclick="_dotSettingsExport()" title="Export dot settings to .txt"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div>
+    <div class="s-row" title="Load a previously-exported dot settings .txt file and apply every value (ghost, expressing, glow, pulse, halo, universal). Unrecognised keys are silently ignored, so partial files work too."><span>Import dot settings (.txt)</span><button class="btn-icon accent" onclick="_dotSettingsImportPick()" title="Import dot settings from .txt"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button><input type="file" id="dbg-dot-import-file" accept=".txt,text/plain" style="display:none;" onchange="_dotSettingsImportHandle(event)"></div>
+    </div>
     </div>
     <div class="s-row">
       <span>Unload timeout (s)</span>
@@ -3028,14 +3176,443 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.32";
+var FLEEK_VERSION="v0.5.33";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
+/* Ghost (non-expressing) cell render style — picked from the Debug menu so
+   different approaches can be compared side-by-side without code changes.
+     "translucent" — original: half-alpha filled disk, dim ghost color.
+                     Cheap CPU-side, but with depthWrite:true on transparent
+                     fragments, the first ghost drawn at a pixel writes z
+                     and arbitrarily occludes whatever's behind it (the
+                     "blocks some cells but not others" artifact).
+     "ring"        — hollow outline at brighter ghost color, opaque ring
+                     band. Discarded interior doesn't write z, so cells
+                     behind a ghost stay visible. Ring band itself is too
+                     thin to cause visible occlusion.
+     "opaque"      — small opaque filled disk at full alpha. Eliminates
+                     the depth artifact entirely (everything writes z
+                     consistently); ghosts read as a quiet backdrop of
+                     small dim dots. */
+/* ── Ghost & expressing dot rendering: universal model ─────────────────
+   Both cell types (ghost = non-expressing in gene mode, expr = expressing)
+   are rendered through a single fragment shader with an 8-parameter
+   uniform set per cell type. Every existing visual style — translucent
+   disk, ring, hairline, opaque, cross, square, diamond, splat, stippled,
+   speckled, sparse — is just a different bundle of those 8 values.
+
+   The 8 universal parameters per cell type:
+     1. shape       — 0=disk, 1=square, 2=diamond, 3=cross
+     2. innerR      — 0=filled, →1=thin outline (cross: bar half-width)
+     3. outerR      — outer extent in [0,1] sprite coords (cross: arm length)
+     4. softness    — 0=hard edge, →1=full gaussian falloff
+     5. alpha       — opacity multiplier
+     6. useColor    — 0=use per-cell vColor, 1=use color override
+     7. color       — RGB override (active when useColor==1)
+     8. discard     — 0=none, 1=checker, 2=random-hash
+   Plus per-cell-type sizeMult (multiplies the per-cell aSize attribute).
+   Plus universal globals: depthWrite (per material), sparse density N
+   (JS-side subsample), two-pass ghost rendering (separate pass).
+
+   Presets are JS objects with these 9 fields. Selecting a preset writes
+   its values into the live uniforms AND into the slider UI; moving any
+   slider thereafter just edits the live uniforms (the preset selection
+   stays as a label but no longer "sticks" — the sliders are the truth). */
+
+var _ghostStyle="subtle";     /* new default — small opaque gray dot, theme-aware color, no transparency artifacts */
+var _exprStyle="default";      /* expressing default — solid filled disk */
+
+/* Preset bundles. Each entry is {sizeMult, shape, innerR, outerR,
+   softness, alpha, useColor, color:[r,g,b], discard, depthWrite}.
+   The OPTIONAL `color_dark` / `color_light` fields override `color` per
+   theme — used by the "subtle" preset (and any other intentionally
+   theme-aware design) so light/dark mode each get a hand-picked dim
+   gray that reads against the background without dominating. */
+var _ghostPresets={
+  subtle:             {sizeMult:0.55,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:1.00,useColor:1,color:[.32,.34,.42],color_dark:[.32,.34,.42],color_light:[.77,.80,.85],discard:0,depthWrite:1,shade3D:0.40,rim:0.30,rimW:0.16},
+  translucent:        {sizeMult:1.00,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:0.45,useColor:0,color:[.18,.19,.26],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  translucent_bright: {sizeMult:1.00,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:0.70,useColor:1,color:[.55,.58,.68],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  translucent_nodepth:{sizeMult:1.00,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:0.45,useColor:0,color:[.18,.19,.26],discard:0,depthWrite:0,shade3D:0.00,rim:0.00,rimW:0.15},
+  ring:               {sizeMult:2.00,shape:0,innerR:0.55,outerR:0.95,softness:0.10,alpha:1.00,useColor:1,color:[.55,.58,.68],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  hairline:           {sizeMult:2.00,shape:0,innerR:0.78,outerR:0.95,softness:0.04,alpha:1.00,useColor:1,color:[.55,.58,.68],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  opaque:             {sizeMult:1.20,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:1.00,useColor:1,color:[.45,.48,.58],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  cross:              {sizeMult:2.20,shape:3,innerR:0.12,outerR:0.40,softness:0.00,alpha:1.00,useColor:1,color:[.45,.48,.58],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  square:             {sizeMult:1.20,shape:1,innerR:0.00,outerR:0.85,softness:0.00,alpha:1.00,useColor:1,color:[.45,.48,.58],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  diamond:            {sizeMult:2.20,shape:2,innerR:0.55,outerR:0.95,softness:0.10,alpha:1.00,useColor:1,color:[.45,.48,.58],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  splat:              {sizeMult:2.20,shape:0,innerR:0.00,outerR:1.00,softness:1.00,alpha:1.00,useColor:0,color:[.45,.48,.58],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  splat_nodepth:      {sizeMult:2.20,shape:0,innerR:0.00,outerR:1.00,softness:1.00,alpha:1.00,useColor:0,color:[.45,.48,.58],discard:0,depthWrite:0,shade3D:0.00,rim:0.00,rimW:0.15},
+  stippled:           {sizeMult:1.60,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:1.00,useColor:1,color:[.45,.48,.58],discard:1,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  speckled:           {sizeMult:1.60,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:1.00,useColor:1,color:[.45,.48,.58],discard:2,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15},
+  sparse:             {sizeMult:1.80,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:1.00,useColor:1,color:[.45,.48,.58],discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.15}
+};
+var _exprPresets={
+  default:            {sizeMult:1.00,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:1.00,useColor:0,color:[1,1,1],   discard:0,depthWrite:1,shade3D:0.35,rim:0.25,rimW:0.14},
+  ring:               {sizeMult:1.00,shape:0,innerR:0.55,outerR:0.95,softness:0.10,alpha:1.00,useColor:0,color:[1,1,1],   discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.12},
+  hairline:           {sizeMult:1.00,shape:0,innerR:0.78,outerR:0.95,softness:0.04,alpha:1.00,useColor:0,color:[1,1,1],   discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.12},
+  square:             {sizeMult:1.00,shape:1,innerR:0.00,outerR:0.85,softness:0.00,alpha:1.00,useColor:0,color:[1,1,1],   discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.12},
+  diamond:            {sizeMult:1.00,shape:2,innerR:0.55,outerR:0.95,softness:0.10,alpha:1.00,useColor:0,color:[1,1,1],   discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.12},
+  splat:              {sizeMult:1.20,shape:0,innerR:0.00,outerR:1.00,softness:1.00,alpha:1.00,useColor:0,color:[1,1,1],   discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.12},
+  cross:              {sizeMult:1.50,shape:3,innerR:0.12,outerR:0.40,softness:0.00,alpha:1.00,useColor:0,color:[1,1,1],   discard:0,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.12},
+  stippled:           {sizeMult:1.00,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:1.00,useColor:0,color:[1,1,1],   discard:1,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.12},
+  speckled:           {sizeMult:1.00,shape:0,innerR:0.00,outerR:1.00,softness:0.00,alpha:1.00,useColor:0,color:[1,1,1],   discard:2,depthWrite:1,shade3D:0.00,rim:0.00,rimW:0.12}
+};
+
+/* Live state — initialised from the chosen preset on boot. Sliders read +
+   write these and the corresponding uniforms. _ghostState is the source
+   of truth for ghost rendering; _exprState for expressing. */
+var _ghostState=Object.assign({},_ghostPresets[_ghostStyle]);
+var _exprState=Object.assign({},_exprPresets[_exprStyle]);
+var _sparseN=4;       /* JS-side: keep 1 in N ghost cells */
+
+/* Glow / halo / pulse settings — all live, all driven by sliders in the
+   Debug → Glow & pulse section. The halo layer (separate haloPts mesh)
+   uses uGlowMul/Size/FallIn/Out; the main shader's halo-active branch
+   uses uHaloRadius/RimMult/3DMult/Lum; and the pulse animation reads
+   pulseSpeed/High/Low here when computing the per-frame uPulse value.
+   Cell + halo pulse colors live in the existing uCellPulse / uHaloPulse
+   uniforms (background scheme provides the theme defaults; the color
+   pickers can override). */
+var _glowState={
+  /* halo layer appearance */
+  intensity:1.0,    /* uGlowMul — overall halo brightness */
+  sizeMult:1.0,     /* uGlowSize — halo point size multiplier */
+  fallIn:0.15,      /* uGlowFallIn — inner edge of halo gradient */
+  fallOut:0.85,     /* uGlowFallOut — outer edge of halo gradient */
+  /* pulse animation */
+  pulseSpeed:1.0,   /* multiplier on the 0.002 rad/ms base rate */
+  pulseHigh:2.5,    /* max value of uPulse during pulse */
+  pulseLow:1.0,     /* min value of uPulse during pulse (1.0 = no fade) */
+  /* halo'd-cell appearance (main shader) */
+  cellPulseMax:0.35,/* max mix toward uCellPulse during pulse */
+  haloRadius:0.82,  /* uHaloRadius — disk radius for cells when halo active */
+  haloRimMult:1.0,  /* uHaloRimMult — rim multiplier when halo active */
+  halo3DMult:1.0,   /* uHalo3DMult — 3D shade multiplier when halo active */
+  haloLum:0.0,      /* uHaloLum — brightness boost (mix toward white) when halo active */
+  /* Optional overrides — null falls back to the theme bg-scheme. If a user
+     picks a color in the debug menu, the rgb array goes here so recolor()
+     stops clobbering it back to the theme default. */
+  haloColor:null,   /* uHaloPulse override (halo layer's pulse target) */
+  cellColor:null    /* uCellPulse override (cell core's pulse target) */
+};
+function _pushGlowStateToShaders(){
+  _setMatUniform("uCellPulseMax",_glowState.cellPulseMax);
+  _setMatUniform("uHaloRadius",_glowState.haloRadius);
+  _setMatUniform("uHaloRimMult",_glowState.haloRimMult);
+  _setMatUniform("uHalo3DMult",_glowState.halo3DMult);
+  _setMatUniform("uHaloLum",_glowState.haloLum);
+  /* Halo material has its own uniform set — push directly. */
+  function _haloU(name,val){
+    function _ap(m){if(m&&m.uniforms&&m.uniforms[name])m.uniforms[name].value=val;}
+    if(typeof haloPts!=="undefined"&&haloPts)_ap(haloPts.material);
+    if(typeof _liveViews!=="undefined"&&_liveViews){
+      for(var i=0;i<_liveViews.length;i++){if(_liveViews[i]&&_liveViews[i].haloPts)_ap(_liveViews[i].haloPts.material);}
+    }
+  }
+  _haloU("uGlowMul",_glowState.intensity);
+  _haloU("uGlowSize",_glowState.sizeMult);
+  _haloU("uGlowFallIn",_glowState.fallIn);
+  _haloU("uGlowFallOut",_glowState.fallOut);
+}
+
+function _setMatUniform(name,val){
+  function _apply(mat){if(mat&&mat.uniforms&&mat.uniforms[name])mat.uniforms[name].value=val;}
+  if(typeof pts!=="undefined"&&pts)_apply(pts.material);
+  if(typeof ghostPtsLayer!=="undefined"&&ghostPtsLayer)_apply(ghostPtsLayer.material);
+  if(typeof _liveViews!=="undefined"&&_liveViews){
+    for(var i=0;i<_liveViews.length;i++){
+      if(_liveViews[i]&&_liveViews[i].pts)_apply(_liveViews[i].pts.material);
+      if(_liveViews[i]&&_liveViews[i].ghostPtsLayer)_apply(_liveViews[i].ghostPtsLayer.material);
+    }
+  }
+}
+function _setMatVec3(name,rgb){
+  function _apply(mat){
+    if(!mat||!mat.uniforms||!mat.uniforms[name])return;
+    var v=mat.uniforms[name].value;
+    if(v&&v.set)v.set(rgb[0],rgb[1],rgb[2]);
+    else mat.uniforms[name].value=new THREE.Vector3(rgb[0],rgb[1],rgb[2]);
+  }
+  if(typeof pts!=="undefined"&&pts)_apply(pts.material);
+  if(typeof ghostPtsLayer!=="undefined"&&ghostPtsLayer)_apply(ghostPtsLayer.material);
+  if(typeof _liveViews!=="undefined"&&_liveViews){
+    for(var i=0;i<_liveViews.length;i++){
+      if(_liveViews[i]&&_liveViews[i].pts)_apply(_liveViews[i].pts.material);
+      if(_liveViews[i]&&_liveViews[i].ghostPtsLayer)_apply(_liveViews[i].ghostPtsLayer.material);
+    }
+  }
+}
+function _setMatDepthWrite(on){
+  function _apply(mat){if(mat)mat.depthWrite=!!on;}
+  if(typeof pts!=="undefined"&&pts)_apply(pts.material);
+  if(typeof _liveViews!=="undefined"&&_liveViews){
+    for(var i=0;i<_liveViews.length;i++){if(_liveViews[i]&&_liveViews[i].pts)_apply(_liveViews[i].pts.material);}
+  }
+}
+
+/* Push the live state into the shader uniforms for one cell type. */
+function _pushGhostStateToShader(){
+  _setMatUniform("uGShape",_ghostState.shape);
+  _setMatUniform("uGInnerR",_ghostState.innerR);
+  _setMatUniform("uGOuterR",_ghostState.outerR);
+  _setMatUniform("uGSoftness",_ghostState.softness);
+  _setMatUniform("uGAlpha",_ghostState.alpha);
+  _setMatUniform("uGUseColor",_ghostState.useColor);
+  _setMatVec3 ("uGColor",_ghostState.color);
+  _setMatUniform("uGDiscard",_ghostState.discard);
+  _setMatUniform("uG3D",_ghostState.shade3D||0);
+  _setMatUniform("uGRim",_ghostState.rim||0);
+  _setMatUniform("uGRimW",_ghostState.rimW||0.15);
+  _setMatDepthWrite(_ghostState.depthWrite); /* depthWrite is on the material, shared by both pts + ghostLayer */
+}
+function _pushExprStateToShader(){
+  _setMatUniform("uEShape",_exprState.shape);
+  _setMatUniform("uEInnerR",_exprState.innerR);
+  _setMatUniform("uEOuterR",_exprState.outerR);
+  _setMatUniform("uESoftness",_exprState.softness);
+  _setMatUniform("uEAlpha",_exprState.alpha);
+  _setMatUniform("uEUseColor",_exprState.useColor);
+  _setMatVec3 ("uEColor",_exprState.color);
+  _setMatUniform("uEDiscard",_exprState.discard);
+  _setMatUniform("uE3D",_exprState.shade3D||0);
+  _setMatUniform("uERim",_exprState.rim||0);
+  _setMatUniform("uERimW",_exprState.rimW||0.12);
+}
+
+/* Apply a preset's bundle to the live state + shader + UI sliders.
+   When a preset declares per-theme color_dark / color_light, the active
+   theme picks which one becomes the live color. Strip the meta fields
+   before assigning into _ghostState so the state stays a flat shape. */
+function _resolvePreset(p){
+  var isLight=document.body.classList.contains("light");
+  var out=Object.assign({},p);
+  if(p.color_dark||p.color_light){
+    out.color=isLight?(p.color_light||p.color):(p.color_dark||p.color);
+  }
+  delete out.color_dark; delete out.color_light;
+  return out;
+}
+function setGhostStyle(name){
+  var p=_ghostPresets[name]||_ghostPresets.subtle;
+  _ghostStyle=name;
+  Object.assign(_ghostState,_resolvePreset(p));
+  _pushGhostStateToShader();
+  _refreshGhostSlidersUI();
+  if(typeof recolor==="function")recolor();
+}
+function setExprStyle(name){
+  var p=_exprPresets[name]||_exprPresets["default"];
+  _exprStyle=name;
+  Object.assign(_exprState,_resolvePreset(p));
+  _pushExprStateToShader();
+  _refreshExprSlidersUI();
+  if(typeof recolor==="function")recolor();
+}
+/* Called by applyTheme(): re-resolves the current presets so any theme-
+   aware colors swap to the new theme's value. Doesn't touch slider-
+   modified state — only updates the color when a preset declared a
+   theme-specific override. */
+function _refreshDotStylesForTheme(){
+  var pg=_ghostPresets[_ghostStyle];
+  if(pg&&(pg.color_dark||pg.color_light)){
+    var isLight=document.body.classList.contains("light");
+    _ghostState.color=isLight?(pg.color_light||pg.color):(pg.color_dark||pg.color);
+    _setMatVec3("uGColor",_ghostState.color);
+    _refreshGhostSlidersUI();
+    if(typeof recolor==="function")recolor();
+  }
+  var pe=_exprPresets[_exprStyle];
+  if(pe&&(pe.color_dark||pe.color_light)){
+    var isLight2=document.body.classList.contains("light");
+    _exprState.color=isLight2?(pe.color_light||pe.color):(pe.color_dark||pe.color);
+    _setMatVec3("uEColor",_exprState.color);
+    _refreshExprSlidersUI();
+  }
+}
+
+/* Two-pass ghost rendering — orthogonal flag. */
+function setGhostTwoPass(on){
+  _ghostTwoPass=!!on;
+  if(typeof pts!=="undefined"&&pts&&pts.material&&pts.material.uniforms&&pts.material.uniforms.uExprOnly){
+    pts.material.uniforms.uExprOnly.value=on?1:0;
+  }
+  if(typeof ghostPtsLayer!=="undefined"&&ghostPtsLayer)ghostPtsLayer.visible=on;
+  if(typeof _liveViews!=="undefined"&&_liveViews){
+    for(var i=0;i<_liveViews.length;i++){
+      var v=_liveViews[i];
+      if(v&&v.pts&&v.pts.material&&v.pts.material.uniforms&&v.pts.material.uniforms.uExprOnly){
+        v.pts.material.uniforms.uExprOnly.value=on?1:0;
+      }
+      if(v&&v.ghostPtsLayer)v.ghostPtsLayer.visible=on;
+    }
+  }
+}
+
+/* Helpers for recolor() — these replace _currentGhostSize/Color/Alpha. */
+function _currentGhostSize(){return 0.5*_ghostState.sizeMult;} /* base × sizeMult; base 0.5 was the v0.5.x ghost size for several styles, sizeMult lets sliders rescale */
+function _currentGhostAlpha(){return 0.5;} /* fixed sentinel <1.0 — actual rendered alpha is uGAlpha. The vAlpha attribute is just a "this is a ghost" flag for the shader's vAlpha<1.0 branch. */
+function _currentGhostColor(){return _ghostState.color.slice();} /* per-cell color baked at recolor; the shader's useColor uniform decides whether to use this or the override */
+
+/* Hex <-> [r,g,b] helpers for the color pickers. */
+function _hex2rgb(hex){var h=hex.replace("#","");return[parseInt(h.substr(0,2),16)/255,parseInt(h.substr(2,2),16)/255,parseInt(h.substr(4,2),16)/255];}
+function _rgb2hex(rgb){function _h(n){var s=Math.round(n*255).toString(16);return s.length<2?"0"+s:s;}return"#"+_h(rgb[0])+_h(rgb[1])+_h(rgb[2]);}
+
+/* Sync the slider/picker values to the current state. Called when a
+   preset is picked so the UI shows the new state. */
+function _refreshGhostSlidersUI(){
+  var ids=[["dbg-g-shape",_ghostState.shape,"sel"],
+           ["dbg-g-size",_ghostState.sizeMult,"r"],
+           ["dbg-g-inner",_ghostState.innerR,"r"],
+           ["dbg-g-outer",_ghostState.outerR,"r"],
+           ["dbg-g-soft",_ghostState.softness,"r"],
+           ["dbg-g-alpha",_ghostState.alpha,"r"],
+           ["dbg-g-3d",_ghostState.shade3D||0,"r"],
+           ["dbg-g-rim",_ghostState.rim||0,"r"],
+           ["dbg-g-rimw",_ghostState.rimW||0.15,"r"],
+           ["dbg-g-color",_rgb2hex(_ghostState.color),"col"],
+           ["dbg-g-usecolor",_ghostState.useColor,"chk"],
+           ["dbg-g-discard",_ghostState.discard,"sel"],
+           ["dbg-g-depth",_ghostState.depthWrite,"chk"]];
+  for(var i=0;i<ids.length;i++){
+    var el=document.getElementById(ids[i][0]);
+    if(!el)continue;
+    var val=ids[i][1],kind=ids[i][2];
+    if(kind==="r"){el.value=val;var lbl=document.getElementById(ids[i][0]+"-val");if(lbl)lbl.textContent=(typeof val==="number"?val.toFixed(2):val);}
+    else if(kind==="sel"){el.value=val;}
+    else if(kind==="chk"){el.checked=!!val;}
+    else if(kind==="col"){el.value=val;}
+  }
+}
+function _refreshExprSlidersUI(){
+  var ids=[["dbg-e-shape",_exprState.shape,"sel"],
+           ["dbg-e-size",_exprState.sizeMult,"r"],
+           ["dbg-e-inner",_exprState.innerR,"r"],
+           ["dbg-e-outer",_exprState.outerR,"r"],
+           ["dbg-e-soft",_exprState.softness,"r"],
+           ["dbg-e-alpha",_exprState.alpha,"r"],
+           ["dbg-e-3d",_exprState.shade3D||0,"r"],
+           ["dbg-e-rim",_exprState.rim||0,"r"],
+           ["dbg-e-rimw",_exprState.rimW||0.12,"r"],
+           ["dbg-e-color",_rgb2hex(_exprState.color),"col"],
+           ["dbg-e-usecolor",_exprState.useColor,"chk"],
+           ["dbg-e-discard",_exprState.discard,"sel"]];
+  for(var i=0;i<ids.length;i++){
+    var el=document.getElementById(ids[i][0]);
+    if(!el)continue;
+    var val=ids[i][1],kind=ids[i][2];
+    if(kind==="r"){el.value=val;var lbl=document.getElementById(ids[i][0]+"-val");if(lbl)lbl.textContent=(typeof val==="number"?val.toFixed(2):val);}
+    else if(kind==="sel"){el.value=val;}
+    else if(kind==="chk"){el.checked=!!val;}
+    else if(kind==="col"){el.value=val;}
+  }
+}
+
+/* Wire up every Debug-menu slider. Called at DOMContentLoaded. */
+function _wireGhostDebugSliders(){
+  function _wireR(id,fixed,onChg){
+    var el=document.getElementById(id),lbl=document.getElementById(id+"-val");
+    if(!el)return;
+    function up(){var v=parseFloat(el.value);if(lbl)lbl.textContent=v.toFixed(fixed);onChg(v);}
+    el.addEventListener("input",up);up();
+  }
+  function _wireSel(id,onChg){
+    var el=document.getElementById(id);if(!el)return;
+    function up(){onChg(parseInt(el.value,10)|0);}
+    el.addEventListener("change",up);up();
+  }
+  function _wireChk(id,onChg){
+    var el=document.getElementById(id);if(!el)return;
+    function up(){onChg(el.checked?1:0);}
+    el.addEventListener("change",up);
+  }
+  function _wireCol(id,onChg){
+    var el=document.getElementById(id);if(!el)return;
+    el.addEventListener("input",function(){onChg(_hex2rgb(el.value));});
+  }
+  /* GHOST */
+  _wireSel ("dbg-g-shape",   function(v){_ghostState.shape=v;_setMatUniform("uGShape",v);});
+  _wireR   ("dbg-g-size",2,  function(v){_ghostState.sizeMult=v;if(typeof recolor==="function")recolor();});
+  _wireR   ("dbg-g-inner",2, function(v){_ghostState.innerR=v;_setMatUniform("uGInnerR",v);});
+  _wireR   ("dbg-g-outer",2, function(v){_ghostState.outerR=v;_setMatUniform("uGOuterR",v);});
+  _wireR   ("dbg-g-soft",2,  function(v){_ghostState.softness=v;_setMatUniform("uGSoftness",v);});
+  _wireR   ("dbg-g-alpha",2, function(v){_ghostState.alpha=v;_setMatUniform("uGAlpha",v);});
+  _wireR   ("dbg-g-3d",2,    function(v){_ghostState.shade3D=v;_setMatUniform("uG3D",v);});
+  _wireR   ("dbg-g-rim",2,   function(v){_ghostState.rim=v;_setMatUniform("uGRim",v);});
+  _wireR   ("dbg-g-rimw",2,  function(v){_ghostState.rimW=v;_setMatUniform("uGRimW",v);});
+  _wireCol ("dbg-g-color",   function(v){_ghostState.color=v;_setMatVec3("uGColor",v);if(typeof recolor==="function")recolor();});
+  _wireChk ("dbg-g-usecolor",function(v){_ghostState.useColor=v;_setMatUniform("uGUseColor",v);});
+  _wireSel ("dbg-g-discard", function(v){_ghostState.discard=v;_setMatUniform("uGDiscard",v);});
+  _wireChk ("dbg-g-depth",   function(v){_ghostState.depthWrite=v;_setMatDepthWrite(v);});
+  /* EXPRESSING */
+  _wireSel ("dbg-e-shape",   function(v){_exprState.shape=v;_setMatUniform("uEShape",v);});
+  _wireR   ("dbg-e-size",2,  function(v){_exprState.sizeMult=v;if(typeof recolor==="function")recolor();});
+  _wireR   ("dbg-e-inner",2, function(v){_exprState.innerR=v;_setMatUniform("uEInnerR",v);});
+  _wireR   ("dbg-e-outer",2, function(v){_exprState.outerR=v;_setMatUniform("uEOuterR",v);});
+  _wireR   ("dbg-e-soft",2,  function(v){_exprState.softness=v;_setMatUniform("uESoftness",v);});
+  _wireR   ("dbg-e-alpha",2, function(v){_exprState.alpha=v;_setMatUniform("uEAlpha",v);});
+  _wireR   ("dbg-e-3d",2,    function(v){_exprState.shade3D=v;_setMatUniform("uE3D",v);});
+  _wireR   ("dbg-e-rim",2,   function(v){_exprState.rim=v;_setMatUniform("uERim",v);});
+  _wireR   ("dbg-e-rimw",2,  function(v){_exprState.rimW=v;_setMatUniform("uERimW",v);});
+  _wireCol ("dbg-e-color",   function(v){_exprState.color=v;_setMatVec3("uEColor",v);});
+  _wireChk ("dbg-e-usecolor",function(v){_exprState.useColor=v;_setMatUniform("uEUseColor",v);});
+  _wireSel ("dbg-e-discard", function(v){_exprState.discard=v;_setMatUniform("uEDiscard",v);});
+  /* Universal */
+  _wireR   ("dbg-sparse-n",0,function(v){_sparseN=Math.max(1,Math.round(v));if(typeof recolor==="function")recolor();});
+  /* GLOW / PULSE — halo layer appearance, pulse animation, halo'd-cell appearance */
+  function _haloU(name,val){
+    function _ap(m){if(m&&m.uniforms&&m.uniforms[name])m.uniforms[name].value=val;}
+    if(typeof haloPts!=="undefined"&&haloPts)_ap(haloPts.material);
+    if(typeof _liveViews!=="undefined"&&_liveViews){
+      for(var i=0;i<_liveViews.length;i++){if(_liveViews[i]&&_liveViews[i].haloPts)_ap(_liveViews[i].haloPts.material);}
+    }
+  }
+  function _haloV3(name,rgb){
+    function _ap(m){if(!m||!m.uniforms||!m.uniforms[name])return;var v=m.uniforms[name].value;if(v&&v.set)v.set(rgb[0],rgb[1],rgb[2]);}
+    if(typeof haloPts!=="undefined"&&haloPts)_ap(haloPts.material);
+    if(typeof _liveViews!=="undefined"&&_liveViews){
+      for(var i=0;i<_liveViews.length;i++){if(_liveViews[i]&&_liveViews[i].haloPts)_ap(_liveViews[i].haloPts.material);}
+    }
+  }
+  _wireR   ("dbg-glow-int",2,    function(v){_glowState.intensity=v;_haloU("uGlowMul",v);});
+  _wireR   ("dbg-glow-size",2,   function(v){_glowState.sizeMult=v;_haloU("uGlowSize",v);});
+  _wireR   ("dbg-glow-fin",2,    function(v){_glowState.fallIn=v;_haloU("uGlowFallIn",v);});
+  _wireR   ("dbg-glow-fout",2,   function(v){_glowState.fallOut=v;_haloU("uGlowFallOut",v);});
+  _wireCol ("dbg-glow-color",    function(v){_glowState.haloColor=v.slice();_haloV3("uHaloPulse",v);});
+  _wireR   ("dbg-pulse-speed",2, function(v){_glowState.pulseSpeed=v;});
+  _wireR   ("dbg-pulse-high",2,  function(v){_glowState.pulseHigh=Math.max(v,_glowState.pulseLow);});
+  _wireR   ("dbg-pulse-low",2,   function(v){_glowState.pulseLow=Math.min(v,_glowState.pulseHigh);});
+  _wireR   ("dbg-cell-bloom",2,  function(v){_glowState.cellPulseMax=v;_setMatUniform("uCellPulseMax",v);});
+  _wireCol ("dbg-cell-color",    function(v){_glowState.cellColor=v.slice();_setMatVec3("uCellPulse",v);});
+  _wireR   ("dbg-halo-radius",2, function(v){_glowState.haloRadius=v;_setMatUniform("uHaloRadius",v);});
+  _wireR   ("dbg-halo-rim",2,    function(v){_glowState.haloRimMult=v;_setMatUniform("uHaloRimMult",v);});
+  _wireR   ("dbg-halo-3d",2,     function(v){_glowState.halo3DMult=v;_setMatUniform("uHalo3DMult",v);});
+  _wireR   ("dbg-halo-lum",2,    function(v){_glowState.haloLum=v;_setMatUniform("uHaloLum",v);});
+}
+/* Sync the glow color pickers with their current uniform vec3s. Called at
+   startup (after renderer is up) and whenever the theme switches, so the
+   pickers reflect actual rendered colors instead of the HTML #ffffff default. */
+function _refreshGlowColorPickers(){
+  function _setPick(id,vec3){
+    var el=document.getElementById(id);if(!el||!vec3)return;
+    if(typeof _rgb2hex!=="function")return;
+    var rgb=(vec3.x!==undefined)?[vec3.x,vec3.y,vec3.z]:vec3;
+    el.value=_rgb2hex(rgb);
+  }
+  if(typeof haloPts!=="undefined"&&haloPts&&haloPts.material&&haloPts.material.uniforms&&haloPts.material.uniforms.uHaloPulse){
+    _setPick("dbg-glow-color",haloPts.material.uniforms.uHaloPulse.value);
+  }
+  if(typeof pts!=="undefined"&&pts&&pts.material&&pts.material.uniforms&&pts.material.uniforms.uCellPulse){
+    _setPick("dbg-cell-color",pts.material.uniforms.uCellPulse.value);
+  }
+}
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
 var showGlow=false; /* show expression halo glow (default off) */
 var pulseGlow=false; /* pulse expression halo on/off */
-/* Background point schemes — each defines ghost color, alpha, size for non-expressing cells,
-   halo colors, and pulse target for both dark and light themes */
+/* Background point schemes — ghost color, alpha, size for non-expressing
+   cells; halo colors; pulse target. Per-theme. These are the v0.5.0
+   defaults: a faint half-transparent filled disk in the ghost color.
+   Most current ghost styles override the size via _currentGhostSize() and
+   the per-cell alpha via _currentGhostAlpha(); the BG-scheme values are
+   the fallback for the default "translucent" style. */
 var _bgSchemes={
   background01:{
     label:"background01",
@@ -5209,6 +5786,8 @@ var circleTexture=null;
 var ringTexture=null;
 var ringPts=null; /* second point cloud for ring highlights */
 var haloPts=null; /* third point cloud for expression halos */
+var ghostPtsLayer=null; /* shares geometry with pts; renders ghosts in a 2nd pass with depthWrite off when _ghostTwoPass is on */
+var _ghostTwoPass=false; /* Debug toggle: split into expressing-pass (depthWrite on) + ghost-pass (depthWrite off) */
 var highlightMode="ring"; /* "fill" or "ring" */
 var bgDimPct=0; /* 0-100: how much non-selected cells are dimmed */
 var _bgDimCluster=0; /* saved dim for cluster mode */
@@ -5509,8 +6088,64 @@ function buildPts(data){
   var _bsInit=_getBgScheme();
   /* Per-vertex size ShaderMaterial — proxies PointsMaterial interface */
   var _pvs='attribute float aSize;\nattribute float aAlpha;\nvarying vec3 vColor;\nvarying float vAlpha;\nuniform float uSize;\nuniform float uVpH;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat sz=uSize*aSize;\nif(uVpH>0.0)sz*=uVpH/(-mv.z);\nvAlpha=aAlpha;\ngl_PointSize=max(sz,0.5);\ngl_Position=projectionMatrix*mv;\n}';
-  var _pfs='uniform sampler2D uMap;\nuniform float uOpa;\nuniform float uAT;\nuniform float uPulse;\nuniform float uHaloOn;\nuniform vec3 uCellPulse;\nvarying vec3 vColor;\nvarying float vAlpha;\nvoid main(){\nvec4 t=texture2D(uMap,gl_PointCoord);\nif(t.a<uAT)discard;\nfloat ta=t.a;\nif(uHaloOn>0.5&&vAlpha>=1.0&&uAT<0.3){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nta=d<0.82?1.0:0.0;\nif(ta<0.5)discard;\n}\nif(vAlpha>=1.0&&uPulse>1.0){\nfloat w=clamp((uPulse-1.0)/1.5,0.0,0.35);\nvec3 pt=uCellPulse;\nvec3 pc=mix(vColor,pt,w);\ngl_FragColor=vec4(pc,vAlpha*uOpa*ta);\n}else{\ngl_FragColor=vec4(vColor,vAlpha*uOpa*ta);\n}\n}';
-  var mat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uMap:{value:circleTexture},uOpa:{value:autoOpacity},uAT:{value:_isLight?0.5:0.05},uPulse:{value:1.0},uHaloOn:{value:0},uCellPulse:{value:new THREE.Vector3(_bsInit.cellPulseTarget[0],_bsInit.cellPulseTarget[1],_bsInit.cellPulseTarget[2])}},vertexShader:_pvs,fragmentShader:_pfs,transparent:true,vertexColors:true,depthWrite:true});
+  /* Unified fragment shader. Both ghost (vAlpha<1.0) and expressing
+     (vAlpha>=1.0) cells flow through the same rendering pipeline,
+     parameterised by an 8-uniform set per cell type:
+       shape    int  0=disk 1=square 2=diamond 3=cross
+       innerR   float 0..1   (cross: bar half-width)
+       outerR   float 0..1   (cross: arm half-length)
+       softness float 0..1   (0=hard edge, →1=gaussian falloff)
+       alpha    float 0..1   opacity multiplier
+       useColor int  0/1     0=use per-cell vColor, 1=use color override
+       color    vec3         override RGB
+       discard  int  0/1/2   0=none, 1=checker, 2=random-hash
+     The two-pass filter (uExprOnly / uGhostOnly) drops ghosts or
+     expressing cells before rendering. Expressing cells additionally
+     get the existing halo + pulse modulation as orthogonal features
+     applied AFTER shape rendering, preserving v0.5.x behavior. */
+  var _pfs='uniform sampler2D uMap;\nuniform float uOpa;\nuniform float uAT;\nuniform float uPulse;\nuniform float uHaloOn;\nuniform vec3 uCellPulse;\nuniform float uCellPulseMax;\nuniform float uHaloRadius;\nuniform float uHaloRimMult;\nuniform float uHalo3DMult;\nuniform float uHaloLum;\nuniform vec3 uHaloLumColor;\nuniform int uExprOnly;\nuniform int uGhostOnly;\nuniform int uGShape;\nuniform float uGInnerR;\nuniform float uGOuterR;\nuniform float uGSoftness;\nuniform float uGAlpha;\nuniform int uGUseColor;\nuniform vec3 uGColor;\nuniform int uGDiscard;\nuniform float uG3D;\nuniform float uGRim;\nuniform float uGRimW;\nuniform int uEShape;\nuniform float uEInnerR;\nuniform float uEOuterR;\nuniform float uESoftness;\nuniform float uEAlpha;\nuniform int uEUseColor;\nuniform vec3 uEColor;\nuniform int uEDiscard;\nuniform float uE3D;\nuniform float uERim;\nuniform float uERimW;\nvarying vec3 vColor;\nvarying float vAlpha;\nvoid main(){\nbool isG=vAlpha<1.0;\nif(uExprOnly==1&&isG)discard;\nif(uGhostOnly==1&&!isG)discard;\nint shape=isG?uGShape:uEShape;\nfloat innerR=isG?uGInnerR:uEInnerR;\nfloat outerR=isG?uGOuterR:uEOuterR;\nfloat softness=isG?uGSoftness:uESoftness;\nfloat alphaScale=isG?uGAlpha:uEAlpha;\nint useC=isG?uGUseColor:uEUseColor;\nvec3 colOv=isG?uGColor:uEColor;\nint discMode=isG?uGDiscard:uEDiscard;\nfloat shade3D=isG?uG3D:uE3D;\nfloat rimI=isG?uGRim:uERim;\nfloat rimW=isG?uGRimW:uERimW;\nbool haloAct=(uHaloOn>0.5&&!isG);\nfloat effEdge=haloAct?uHaloRadius:outerR;\nfloat effRim=rimI*(haloAct?uHaloRimMult:1.0);\nfloat eff3D=shade3D*(haloAct?uHalo3DMult:1.0);\nvec2 ap=abs(gl_PointCoord-vec2(0.5))*2.0;\nfloat dr=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat a;\nif(shape==3){\nif(min(ap.x,ap.y)>innerR)discard;\nif(max(ap.x,ap.y)>outerR)discard;\na=1.0;\n}else{\nfloat d;\nif(shape==0)d=dr;\nelse if(shape==1)d=max(ap.x,ap.y);\nelse d=ap.x+ap.y;\nif(d>outerR+0.05)discard;\nif(softness>0.5){\nfloat tt=(softness-0.5)*2.0;\nfloat gs=exp(-d*d*2.5);\nfloat ew=0.05;\nfloat aIn=innerR>0.001?smoothstep(innerR-ew,innerR,d):1.0;\nfloat aOut=1.0-smoothstep(outerR-ew,outerR,d);\nfloat hard=aIn*aOut;\na=mix(hard,gs,tt);\n}else{\nfloat ew=max(0.001,softness*0.3);\nfloat aIn=innerR>0.001?smoothstep(innerR-ew,innerR,d):1.0;\nfloat aOut=1.0-smoothstep(outerR-ew,outerR,d);\na=aIn*aOut;\n}\n}\nif(a<0.05)discard;\nif(discMode==1){\nvec2 fc=floor(gl_FragCoord.xy);\nif(mod(fc.x+fc.y,2.0)>0.5)discard;\n}else if(discMode==2){\nfloat h=fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453);\nif(h>a)discard;\n}\nbool opaqueMode=(alphaScale>0.95)&&(softness<0.5);\nif(opaqueMode){\nif(a<0.5)discard;\na=1.0;\n}\nvec3 c=(useC==1)?colOv:vColor;\nif(eff3D>0.001&&shape==0){\nfloat limb=mix(1.0,1.0-dr*0.55,eff3D);\nvec2 hp=gl_PointCoord-vec2(0.40,0.35);\nfloat hl=exp(-dot(hp,hp)*18.0)*0.32*eff3D;\nc=c*limb+vec3(hl);\n}\nif(effRim>0.001&&rimW>0.001&&shape==0){\nfloat rimT=smoothstep(effEdge-rimW,effEdge,dr);\nc=mix(c,c*(1.0-0.7*effRim),rimT);\n}\nif(!isG){\nif(haloAct){\nif(dr>uHaloRadius)discard;\na=1.0;\nif(uHaloLum>0.001)c=mix(c,uHaloLumColor,uHaloLum);\n}\nif(uPulse>1.0){\nfloat w=clamp((uPulse-1.0)/1.5,0.0,uCellPulseMax);\nc=mix(c,uCellPulse,w);\n}\n}\ngl_FragColor=vec4(c,a*alphaScale*uOpa);\n}';
+  var mat=new THREE.ShaderMaterial({uniforms:{
+    uSize:{value:1},
+    uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},
+    uMap:{value:circleTexture},
+    uOpa:{value:autoOpacity},
+    uAT:{value:_isLight?0.5:0.05},
+    uPulse:{value:1.0},
+    uHaloOn:{value:0},
+    uCellPulse:{value:new THREE.Vector3(_bsInit.cellPulseTarget[0],_bsInit.cellPulseTarget[1],_bsInit.cellPulseTarget[2])},
+    uCellPulseMax:{value:0.35},
+    uHaloRadius:{value:0.82},
+    uHaloRimMult:{value:1.0},
+    uHalo3DMult:{value:1.0},
+    uHaloLum:{value:0.0},
+    uHaloLumColor:{value:_isLight?new THREE.Vector3(0.02,0.05,0.18):new THREE.Vector3(1.0,1.0,1.0)},
+    /* Two-pass filter — set by setGhostTwoPass(). */
+    uExprOnly:{value:0}, uGhostOnly:{value:0},
+    /* Universal ghost params — initialised from _ghostState. */
+    uGShape:{value:_ghostState.shape},
+    uGInnerR:{value:_ghostState.innerR},
+    uGOuterR:{value:_ghostState.outerR},
+    uGSoftness:{value:_ghostState.softness},
+    uGAlpha:{value:_ghostState.alpha},
+    uGUseColor:{value:_ghostState.useColor},
+    uGColor:{value:new THREE.Vector3(_ghostState.color[0],_ghostState.color[1],_ghostState.color[2])},
+    uGDiscard:{value:_ghostState.discard},
+    uG3D:{value:_ghostState.shade3D||0},
+    uGRim:{value:_ghostState.rim||0},
+    uGRimW:{value:_ghostState.rimW||0.15},
+    /* Universal expressing params — initialised from _exprState. */
+    uEShape:{value:_exprState.shape},
+    uEInnerR:{value:_exprState.innerR},
+    uEOuterR:{value:_exprState.outerR},
+    uESoftness:{value:_exprState.softness},
+    uEAlpha:{value:_exprState.alpha},
+    uEUseColor:{value:_exprState.useColor},
+    uEColor:{value:new THREE.Vector3(_exprState.color[0],_exprState.color[1],_exprState.color[2])},
+    uEDiscard:{value:_exprState.discard},
+    uE3D:{value:_exprState.shade3D||0},
+    uERim:{value:_exprState.rim||0},
+    uERimW:{value:_exprState.rimW||0.12}
+  },vertexShader:_pvs,fragmentShader:_pfs,transparent:true,vertexColors:true,depthWrite:_ghostState.depthWrite!==0});
   Object.defineProperty(mat,'size',{get:function(){return mat.uniforms.uSize.value;},set:function(v){mat.uniforms.uSize.value=v;}});
   Object.defineProperty(mat,'opacity',{get:function(){return mat.uniforms.uOpa.value;},set:function(v){mat.uniforms.uOpa.value=v;}});
   Object.defineProperty(mat,'alphaTest',{get:function(){return mat.uniforms.uAT.value;},set:function(v){mat.uniforms.uAT.value=v;}});
@@ -5519,6 +6154,44 @@ function buildPts(data){
   Object.defineProperty(mat,'needsUpdate',{get:function(){return false;},set:function(v){}});
   pts=new THREE.Points(geo,mat);
   scene.add(pts);
+  /* Sibling ghost-only points layer for the two-pass mode. Shares the
+     SAME geometry buffers as `pts` (no memory cost) but uses its own
+     material with depthWrite:false so ghost cells render after the main
+     pass and never write z. depthTest stays on so ghosts behind already-
+     drawn expressing cells are correctly culled. Initially visible:false
+     and uGhostOnly=0 — the toggle in the Debug menu (_ghostTwoPass) flips
+     both. renderOrder=2 so the depth-write expressing pass goes first. */
+  var ghostMat=new THREE.ShaderMaterial({uniforms:{
+    uSize:mat.uniforms.uSize,
+    uVpH:mat.uniforms.uVpH,
+    uMap:mat.uniforms.uMap,
+    uOpa:mat.uniforms.uOpa,
+    uAT:mat.uniforms.uAT,
+    uPulse:{value:1.0}, uHaloOn:{value:0},
+    uCellPulse:mat.uniforms.uCellPulse,
+    uCellPulseMax:mat.uniforms.uCellPulseMax,
+    uHaloRadius:mat.uniforms.uHaloRadius,
+    uHaloRimMult:mat.uniforms.uHaloRimMult,
+    uHalo3DMult:mat.uniforms.uHalo3DMult,
+    uHaloLum:mat.uniforms.uHaloLum,
+    uHaloLumColor:mat.uniforms.uHaloLumColor,
+    /* Share the universal-uniform refs with the main pts material so a
+       slider change updates both passes simultaneously. */
+    uGShape:mat.uniforms.uGShape, uGInnerR:mat.uniforms.uGInnerR, uGOuterR:mat.uniforms.uGOuterR,
+    uGSoftness:mat.uniforms.uGSoftness, uGAlpha:mat.uniforms.uGAlpha,
+    uGUseColor:mat.uniforms.uGUseColor, uGColor:mat.uniforms.uGColor, uGDiscard:mat.uniforms.uGDiscard,
+    uG3D:mat.uniforms.uG3D, uGRim:mat.uniforms.uGRim, uGRimW:mat.uniforms.uGRimW,
+    uEShape:mat.uniforms.uEShape, uEInnerR:mat.uniforms.uEInnerR, uEOuterR:mat.uniforms.uEOuterR,
+    uESoftness:mat.uniforms.uESoftness, uEAlpha:mat.uniforms.uEAlpha,
+    uEUseColor:mat.uniforms.uEUseColor, uEColor:mat.uniforms.uEColor, uEDiscard:mat.uniforms.uEDiscard,
+    uE3D:mat.uniforms.uE3D, uERim:mat.uniforms.uERim, uERimW:mat.uniforms.uERimW,
+    /* THIS pass only renders ghost cells (= cells with vAlpha<1.0). */
+    uExprOnly:{value:0}, uGhostOnly:{value:1}
+  },vertexShader:_pvs,fragmentShader:_pfs,transparent:true,vertexColors:true,depthWrite:false,depthTest:true});
+  ghostPtsLayer=new THREE.Points(geo,ghostMat);
+  ghostPtsLayer.renderOrder=2;
+  ghostPtsLayer.visible=false;
+  scene.add(ghostPtsLayer);
   /* Ring highlight layer — same number of points, initially hidden */
   if(!ringTexture)ringTexture=makeRingTexture();
   var ringPos=new Float32Array(n*3);
@@ -5546,7 +6219,7 @@ function buildPts(data){
   haloGeo.setAttribute('color',geo.getAttribute('color'));
   haloGeo.setAttribute('aSize',geo.getAttribute('aSize'));
   haloGeo.setAttribute('aAlpha',geo.getAttribute('aAlpha'));
-  var _hvs='attribute float aSize;\nattribute float aAlpha;\nvarying vec3 vColor;\nvarying float vHF;\nuniform float uSize;\nuniform float uVpH;\nuniform float uPulse;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat sz=uSize*aSize;\nif(uVpH>0.0)sz*=uVpH/(-mv.z);\nbool expr=aAlpha>=1.0&&aSize>0.15;\nfloat hfSz=max(1.0-smoothstep(5.0,30.0,sz),0.2);\nfloat hBase=mix(2.5,8.0,hfSz);\nfloat pf=smoothstep(0.0,1.5,uPulse-1.0);\nfloat hm=expr?hBase*1.5:0.0;\nfloat tsz=sz*hm;\ngl_PointSize=expr?max(tsz,0.5):0.0;\nvHF=expr?max(1.0-smoothstep(15.0,30.0,sz),0.2)/max(hm,1.0):0.0;\ngl_Position=expr?projectionMatrix*mv:vec4(0.0,0.0,-2.0,1.0);\n}';
+  var _hvs='attribute float aSize;\nattribute float aAlpha;\nvarying vec3 vColor;\nvarying float vHF;\nuniform float uSize;\nuniform float uVpH;\nuniform float uPulse;\nuniform float uGlowSize;\nvoid main(){\nvColor=color;\nvec4 mv=modelViewMatrix*vec4(position,1.0);\nfloat sz=uSize*aSize;\nif(uVpH>0.0)sz*=uVpH/(-mv.z);\nbool expr=aAlpha>=1.0&&aSize>0.15;\nfloat hfSz=max(1.0-smoothstep(5.0,30.0,sz),0.2);\nfloat hBase=mix(2.5,8.0,hfSz);\nfloat pf=smoothstep(0.0,1.5,uPulse-1.0);\nfloat hm=expr?hBase*1.5*uGlowSize:0.0;\nfloat tsz=sz*hm;\ngl_PointSize=expr?max(tsz,0.5):0.0;\nvHF=expr?max(1.0-smoothstep(15.0,30.0,sz),0.2)/max(hm,1.0):0.0;\ngl_Position=expr?projectionMatrix*mv:vec4(0.0,0.0,-2.0,1.0);\n}';
   /* Halo fragment shader. Light mode: emit vColor directly and let
      alpha blending handle the fade against the white background — a
      red cell's halo blends to a clearly red tint, blue to blue, etc.
@@ -5554,8 +6227,8 @@ function buildPts(data){
      halos because (dark*alpha + white*(1-alpha)) compresses the hue
      ratio between channels. Dark mode still uses additive blending:
      vColor mixed toward uHaloPulse (white-ish) for a bloom effect. */
-  var _hfs='varying vec3 vColor;\nvarying float vHF;\nuniform float uLight;\nuniform float uPulse;\nuniform vec3 uHaloBase;\nuniform vec3 uHaloPulse;\nvoid main(){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat ha=(1.0-smoothstep(0.15,0.85,d))*0.9*vHF*uPulse;\nif(ha<0.01)discard;\nfloat pw=clamp((uPulse-1.0)/1.5,0.0,0.6);\nif(uLight>0.5){\ngl_FragColor=vec4(vColor,ha);\n}else{\nvec3 hc=mix(vColor,uHaloPulse,pw);\ngl_FragColor=vec4(hc*ha,0.0);\n}\n}';
-  var haloMat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uLight:{value:_isLight?1.0:0.0},uPulse:{value:1.0},uHaloBase:{value:new THREE.Vector3(_bsInit.haloBase[0]||0,_bsInit.haloBase[1]||0,_bsInit.haloBase[2]||0)},uHaloPulse:{value:new THREE.Vector3(_bsInit.haloPulseTarget[0],_bsInit.haloPulseTarget[1],_bsInit.haloPulseTarget[2])}},vertexShader:_hvs,fragmentShader:_hfs,transparent:true,vertexColors:true,depthWrite:false,depthTest:true,blending:THREE.CustomBlending,blendSrc:_isLight?THREE.SrcAlphaFactor:THREE.OneFactor,blendDst:_isLight?THREE.OneMinusSrcAlphaFactor:THREE.OneFactor});
+  var _hfs='varying vec3 vColor;\nvarying float vHF;\nuniform float uLight;\nuniform float uPulse;\nuniform vec3 uHaloBase;\nuniform vec3 uHaloPulse;\nuniform float uGlowMul;\nuniform float uGlowFallIn;\nuniform float uGlowFallOut;\nvoid main(){\nfloat d=length(gl_PointCoord-vec2(0.5))*2.0;\nfloat ha=(1.0-smoothstep(uGlowFallIn,uGlowFallOut,d))*0.9*vHF*uPulse*uGlowMul;\nif(ha<0.01)discard;\nfloat pw=clamp((uPulse-1.0)/1.5,0.0,0.6);\nif(uLight>0.5){\ngl_FragColor=vec4(vColor,ha);\n}else{\nvec3 hc=mix(vColor,uHaloPulse,pw);\ngl_FragColor=vec4(hc*ha,0.0);\n}\n}';
+  var haloMat=new THREE.ShaderMaterial({uniforms:{uSize:{value:1},uVpH:{value:canvasH*Math.min(window.devicePixelRatio,2)*0.5},uLight:{value:_isLight?1.0:0.0},uPulse:{value:1.0},uHaloBase:{value:new THREE.Vector3(_bsInit.haloBase[0]||0,_bsInit.haloBase[1]||0,_bsInit.haloBase[2]||0)},uHaloPulse:{value:new THREE.Vector3(_bsInit.haloPulseTarget[0],_bsInit.haloPulseTarget[1],_bsInit.haloPulseTarget[2])},uGlowMul:{value:1.0},uGlowSize:{value:1.0},uGlowFallIn:{value:0.15},uGlowFallOut:{value:0.85}},vertexShader:_hvs,fragmentShader:_hfs,transparent:true,vertexColors:true,depthWrite:false,depthTest:true,blending:THREE.CustomBlending,blendSrc:_isLight?THREE.SrcAlphaFactor:THREE.OneFactor,blendDst:_isLight?THREE.OneMinusSrcAlphaFactor:THREE.OneFactor});
   haloPts=new THREE.Points(haloGeo,haloMat);
   haloPts.renderOrder=1;
   haloPts.visible=false;
@@ -5982,11 +6655,15 @@ function recolor(){
   if(pts.material.uniforms&&pts.material.uniforms.uHaloOn)pts.material.uniforms.uHaloOn.value=_haloActive?1.0:0.0;
   /* Update scheme uniforms */
   var _bsu=_getBgScheme();
-  if(pts.material.uniforms&&pts.material.uniforms.uCellPulse)pts.material.uniforms.uCellPulse.value.set(_bsu.cellPulseTarget[0],_bsu.cellPulseTarget[1],_bsu.cellPulseTarget[2]);
+  /* Cell + halo pulse colors: prefer the user override from _glowState
+     when set, otherwise use the theme bg-scheme. */
+  var _cpC=(_glowState&&_glowState.cellColor)?_glowState.cellColor:_bsu.cellPulseTarget;
+  var _hpC=(_glowState&&_glowState.haloColor)?_glowState.haloColor:_bsu.haloPulseTarget;
+  if(pts.material.uniforms&&pts.material.uniforms.uCellPulse)pts.material.uniforms.uCellPulse.value.set(_cpC[0],_cpC[1],_cpC[2]);
   if(haloPts&&haloPts.material.uniforms){
     var _hu=haloPts.material.uniforms;
     _hu.uHaloBase.value.set(_bsu.haloBase[0]||0,_bsu.haloBase[1]||0,_bsu.haloBase[2]||0);
-    _hu.uHaloPulse.value.set(_bsu.haloPulseTarget[0],_bsu.haloPulseTarget[1],_bsu.haloPulseTarget[2]);
+    _hu.uHaloPulse.value.set(_hpC[0],_hpC[1],_hpC[2]);
   }
 
   var _nHidden=0;
@@ -5994,9 +6671,18 @@ function recolor(){
      _getBgScheme() and ec() each called document.body.classList.contains("light")
      on every iteration — ~2.4M DOM lookups on a 600k-cell dataset per gene
      switch. Precompute once here. */
-  var _ghostColor=_bsu.ghostColor;
-  var _ghostSize=_bsu.ghostSize;
-  var _ghostAlpha=_bsu.ghostAlpha;
+  /* Style-specific ghost color / size / alpha — ring + bright variants need
+     more contrast; opaque variants don't use the per-cell alpha; cross /
+     stippled use the bright color too (small surface area). All resolved
+     through helpers so style switches don't require touching this loop. */
+  var _ghostColor=(typeof _currentGhostColor==="function")?_currentGhostColor(_bsu):_bsu.ghostColor;
+  var _ghostSize=(typeof _currentGhostSize==="function")?_currentGhostSize():_bsu.ghostSize;
+  var _ghostAlpha=(typeof _currentGhostAlpha==="function")?_currentGhostAlpha(_bsu):_bsu.ghostAlpha;
+  /* Sparse mode: keep only every 4th ghost cell. Stable selection by
+     bitmask so the same cells are kept across recolors (no flicker on
+     gene switches). Cells not kept get exiled the same way the
+     "Show non-expressing OFF" toggle does. */
+  var _sparseGhost=(_ghostStyle==="sparse");
   /* Expression colour LUT — 256 bins × 3 floats. Hot loop reads three
      Float32Array entries per expressing cell, avoiding millions of
      per-cell [r,g,b] allocations. The active gradient is resolved via
@@ -6154,7 +6840,7 @@ function recolor(){
     if(useColoc){
       var vR=exR?exR[i]:0, vG=exG?exG[i]:0;
       var isDim=(vR<0.01)&&(vG<0.01);
-      if(isDim&&!showNonExpressing){
+      if(isDim&&(!showNonExpressing||(_sparseGhost&&(i%_sparseN)!==0))){
         _nHidden++;
         col[i3]=BG[0];col[i3+1]=BG[1];col[i3+2]=BG[2];
         pos[i3]=EXILE;pos[i3+1]=EXILE;pos[i3+2]=EXILE;
@@ -6174,7 +6860,7 @@ function recolor(){
       }
     }else if(useGene){
       var isZero=_exi2<0.01;
-      if(isZero&&!showNonExpressing){
+      if(isZero&&(!showNonExpressing||(_sparseGhost&&(i%_sparseN)!==0))){
         _nHidden++;
         col[i3]=BG[0];col[i3+1]=BG[1];col[i3+2]=BG[2];
         pos[i3]=EXILE;pos[i3+1]=EXILE;pos[i3+2]=EXILE;
@@ -6444,7 +7130,11 @@ function animate(){
     var worldSz=basePtSz/100*maxWorldSz;
     var _vpH=viewIs3d?(canvasH*Math.min(window.devicePixelRatio,2)*0.5):0;
     var _pulseScalar=(mode==="gene"&&selGene&&geneExprCache[selGene])||(mode==="pathway"&&_pathwayColorId&&_pathwayScoreCache[_pathwayColorId]);
-    var _pulse=(pulseGlow&&_pulseScalar)?1.0+1.5*(0.5+0.5*Math.sin(performance.now()*0.002)):1.0;
+    var _pulse;
+    if(pulseGlow&&_pulseScalar){
+      var _pSn=0.5+0.5*Math.sin(performance.now()*0.002*_glowState.pulseSpeed);
+      _pulse=_glowState.pulseLow+(_glowState.pulseHigh-_glowState.pulseLow)*_pSn;
+    }else _pulse=1.0;
     function _applyPtSize(tPts,tRing,tHalo,z2){
       if(viewIs3d){
         tPts.material.size=worldSz;
@@ -9938,48 +10628,55 @@ function hideL(){document.getElementById("loading").style.display="none";}
 /* Pick threshold: convert ~5 screen pixels to world units */
 /* ── 2D pixel-space point picking (bypasses raycaster entirely) ── */
 function _pick2DScreen(ndc,targetPts){
-  /* Pure pixel-space 2D picking. Projects every non-exiled point to CSS pixel
-     coordinates, computes its visual disk radius, returns front-most hit.
+  /* Pure pixel-space 2D picking — cursor must be on a cell's actual
+     visible disk. Among qualifying cells, expressing cells (aAlpha≥1)
+     beat ghosts: even if a ghost is drawn on top, the expressing cell
+     under the cursor wins. Within each tier (expressing or any),
+     last-wins picks the topmost in GPU draw order.
+     Cluster mode: every cell has aAlpha=1, so the expressing tier
+     always wins → simple topmost-pixel pick.
+     Gene mode:
+       cursor on an expressing cell → that expressing cell selected.
+       cursor on only a ghost cell → that ghost cell selected.
      Returns {index,object} or null. */
   if(!D||!targetPts)return null;
   var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
   cam.updateMatrixWorld();
   var posArr=targetPts.geometry.attributes.position.array;
   var szArr=targetPts.geometry.attributes.aSize?targetPts.geometry.attributes.aSize.array:null;
+  var alArr=targetPts.geometry.attributes.aAlpha?targetPts.geometry.attributes.aAlpha.array:null;
   var n=D.header.n_cells;
   var baseWSz=0;
   if(cloudBounds&&cloudBounds.radius>0)baseWSz=basePtSz/100*_maxPtWorldSize();
-  /* animate() sets material.size = worldSz * canvasH*zoom2/(2*frustum2) * 0.5
-     gl_PointSize = uSize * aSize (in framebuffer pixels, NOT CSS pixels)
-     Visual CSS-pixel radius = gl_PointSize / 2 / DPR */
   var dpr=Math.min(window.devicePixelRatio||1,2);
   var _z2=_splitActive&&_liveViews.length>_hoveredViewIdx?_liveViews[_hoveredViewIdx].zoom2:zoom2;
-  /* In 2x2 splits the per-quadrant height is half the canvas — use it so
-     pxDiamBase matches the rendered point size in that quadrant. */
   var _qrCanvasH=canvasH;
   if(_splitActive&&_liveViews.length>=3){
     var _qrPxH=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,canvasW,canvasH);
     _qrCanvasH=_qrPxH.h;
   }
   var pxDiamBase=baseWSz*(_qrCanvasH*_z2/(2*frustum2))*0.5; /* material.size (fb pixels) */
-  /* Zoom-dependent pick bonus: when zoomed out, points are tiny so add a
-     minimum clickable radius. Scales as 1/sqrt(zoom) so it fades as you zoom in. */
-  var _zFit=zoom2Fit?zoom2Fit():1;
-  var _zRatio=_zFit/Math.max(_z2,0.01); /* >1 when zoomed out, <1 when zoomed in */
-  var _pickBonus=Math.max(0,15*Math.sqrt(Math.max(0,_zRatio-1))); /* 0 at fit, grows when zoomed out */
-  /* In split mode both NDCs (mouse via canvasNDC and points via project(_splitCam))
-     span [-1,+1] across the hovered QUADRANT, so we must scale by the
-     quadrant's width/height — not full canvas — to get real CSS pixels. */
   var _vpW=canvasW,_vpH=canvasH;
   if(_splitActive&&_liveViews.length>=2){
     var _qrPick=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,canvasW,canvasH);
     _vpW=_qrPick.w;_vpH=_qrPick.h;
   }
-  /* Mouse in CSS pixels relative to the hovered viewport */
   var mPx=(ndc.x+1)*0.5*_vpW;
   var mPy=(1-ndc.y)*0.5*_vpH;
   var _pv=new THREE.Vector3();
-  var bestIdx=-1;
+  var glFloorR=0.25/dpr;
+  var aaTol=1.5;
+  /* Two-tier topmost pick. Among cells whose disk contains the cursor:
+       1. Expressing tier (aAlpha≥1): pick the visibly-topmost expressing
+          cell (smaller NDC z; equal-z ties go to highest index).
+       2. Any-cell tier: pick the visibly-topmost cell of any kind.
+     Final = expressing-tier hit if any, else any-tier hit. So an
+     expressing cell under the cursor wins even if a ghost is drawn on
+     top of it; if no expressing cell is under the cursor, ghosts are
+     still selectable. All cursor-on-pixels and foreground-vs-
+     background rules within each tier remain intact. */
+  var bestExprIdx=-1, bestExprZ=Infinity;
+  var bestAnyIdx=-1,  bestAnyZ=Infinity;
   for(var i=0;i<n;i++){
     if(posArr[i*3]>=EXILE-1)continue;
     _pv.set(posArr[i*3],posArr[i*3+1],posArr[i*3+2]);
@@ -9989,14 +10686,14 @@ function _pick2DScreen(ndc,targetPts){
     var dx=px-mPx,dy=py-mPy;
     var d2=dx*dx+dy*dy;
     var as=szArr?szArr[i]:1.0;
-    /* CSS pixel radius = (material.size * aSize) / 2 / dpr + zoom-out bonus */
-    var r=pxDiamBase*as*0.5/dpr+_pickBonus;
-    /* Floor: always allow ~8px clickable radius so individual points stay pickable
-       at any zoom. No-op when points are already larger than the floor. */
-    if(r<8)r=8;
-    /* Last (highest index) overlapping point wins — matches GPU draw order */
-    if(d2<=r*r)bestIdx=i;
+    var actualR=pxDiamBase*as*0.5/dpr;
+    var r=Math.max(actualR,glFloorR)+aaTol;
+    if(d2<=r*r){
+      if(_pv.z<=bestAnyZ){bestAnyZ=_pv.z;bestAnyIdx=i;}
+      if((!alArr||alArr[i]>=1.0)&&_pv.z<=bestExprZ){bestExprZ=_pv.z;bestExprIdx=i;}
+    }
   }
+  var bestIdx=bestExprIdx>=0?bestExprIdx:bestAnyIdx;
   if(bestIdx<0)return null;
   return {index:bestIdx,object:targetPts};
 }
@@ -10010,15 +10707,44 @@ function pickThreshold(){
   return Math.max(0.01, worldSz*maxASize);
 }
 
-/* Find the best visible hit from raycaster candidates.
-   Uses distanceToRay for 3D (works perfectly with perspective).
-   Not used for 2D — _pick2DScreen handles that. */
+/* Find the best visible hit from raycaster candidates (3D).
+   Screen-space cursor-on-pixels picking — same logic as 2D, just with
+   each candidate's visible radius computed at its depth using the same
+   perspective formula the vertex shader uses (gl_PointSize = uSize *
+   aSize * uVpH / (-mv.z)). Cursor inside the cell's projected disk
+   (+ AA tolerance) makes the cell a candidate; among candidates the
+   cell with minimum camera-distance wins, so a foreground cell always
+   beats one behind it. The raycaster's pickThreshold pre-filters
+   far-from-ray cells so this loop is small. */
 function _bestVisibleHit(hits){
   var _bPts=_splitActive?_splitPts():pts;
   var posArr=_bPts.geometry.attributes.position.array;
+  var szArr=_bPts.geometry.attributes.aSize?_bPts.geometry.attributes.aSize.array:null;
+  var alArr=_bPts.geometry.attributes.aAlpha?_bPts.geometry.attributes.aAlpha.array:null;
   var cam=_splitActive?_splitCam():(viewIs3d?cam3d:cam2d);
+  var _vpW=canvasW,_vpH=canvasH;
+  if(_splitActive&&_liveViews.length>=2){
+    var _qrPick=_splitQuadrantRect(_hoveredViewIdx,_liveViews.length,canvasW,canvasH);
+    _vpW=_qrPick.w;_vpH=_qrPick.h;
+  }
+  var dpr=Math.min(window.devicePixelRatio||1,2);
+  var worldSz=(cloudBounds&&cloudBounds.radius>0)?(basePtSz/100*_maxPtWorldSize()):0.5;
+  /* Shader uses uVpH = canvasH * dpr * 0.5 for ALL views (set in
+     animate's _applyPtSize), regardless of split. Match that here so
+     actualR agrees with what the GPU rendered. */
+  var shaderVpH=canvasH*dpr*0.5;
+  var mPx=(mouseNDC.x+1)*0.5*_vpW;
+  var mPy=(1-mouseNDC.y)*0.5*_vpH;
+  var aaTol=1.5;
+  var glFloorR=0.25/dpr;
+  /* Two-tier topmost pick (mirror of the 2D path). Expressing cells
+     under the cursor preempt ghost cells under the cursor — even if a
+     ghost is drawn on top — so users can still click through ghost
+     cells to the expressing cell behind them. Within each tier, the
+     cell closest to the camera (min hits[i].distance) wins. */
+  var bestExprHit=null,bestExprDepth=Infinity;
+  var bestAnyHit=null, bestAnyDepth=Infinity;
   var _projV=new THREE.Vector3();
-  var bestHit=null,bestDist=Infinity;
   for(var i=0;i<hits.length;i++){
     var ci=hits[i].index;
     if(visibleClusters[D.cluster_ids[ci]]===false)continue;
@@ -10026,10 +10752,21 @@ function _bestVisibleHit(hits){
     _projV.set(posArr[ci*3],posArr[ci*3+1],posArr[ci*3+2]);
     _projV.project(cam);
     if(_projV.z>1.0||_projV.z<-1.0)continue;
-    var dr=hits[i].distanceToRay!==undefined?hits[i].distanceToRay:hits[i].distance;
-    if(dr<bestDist){bestDist=dr;bestHit=hits[i];}
+    var px=(_projV.x+1)*0.5*_vpW;
+    var py=(1-_projV.y)*0.5*_vpH;
+    var dx=px-mPx,dy=py-mPy;
+    var d2=dx*dx+dy*dy;
+    var as=szArr?szArr[ci]:1.0;
+    var camD=hits[i].distance;
+    var glPointSize=worldSz*as*shaderVpH/Math.max(camD,0.001);
+    var actualR=glPointSize*0.5/dpr;
+    var r=Math.max(actualR,glFloorR)+aaTol;
+    if(d2<=r*r){
+      if(camD<bestAnyDepth){bestAnyDepth=camD;bestAnyHit=hits[i];}
+      if((!alArr||alArr[ci]>=1.0)&&camD<bestExprDepth){bestExprDepth=camD;bestExprHit=hits[i];}
+    }
   }
-  return bestHit;
+  return bestExprHit||bestAnyHit;
 }
 
 var _pendingFile=null;
@@ -11442,6 +12179,14 @@ function _createLiveView(idx,name){
   /* Restore non-serializable uniform values */
   mat.uniforms.uMap={value:pts.material.uniforms.uMap.value};
   mat.uniforms.uCellPulse={value:new THREE.Vector3().copy(pts.material.uniforms.uCellPulse.value)};
+  if(pts.material.uniforms.uHaloLumColor)mat.uniforms.uHaloLumColor={value:new THREE.Vector3().copy(pts.material.uniforms.uHaloLumColor.value)};
+  /* Restore Vector3-valued universal-color uniforms — JSON deep-clone
+     above turned these into plain {x,y,z} dicts, which the GLSL uniform
+     uploader doesn't accept. Reset to fresh THREE.Vector3 instances
+     copying the source values, so split views stay live-linked when
+     setGhostStyle / setExprStyle pushes new values. */
+  if(pts.material.uniforms.uGColor)mat.uniforms.uGColor={value:new THREE.Vector3().copy(pts.material.uniforms.uGColor.value)};
+  if(pts.material.uniforms.uEColor)mat.uniforms.uEColor={value:new THREE.Vector3().copy(pts.material.uniforms.uEColor.value)};
   Object.defineProperty(mat,'size',{get:function(){return mat.uniforms.uSize.value;},set:function(v){mat.uniforms.uSize.value=v;}});
   Object.defineProperty(mat,'opacity',{get:function(){return mat.uniforms.uOpa.value;},set:function(v){mat.uniforms.uOpa.value=v;}});
   Object.defineProperty(mat,'alphaTest',{get:function(){return mat.uniforms.uAT.value;},set:function(v){mat.uniforms.uAT.value=v;}});
@@ -11485,6 +12230,26 @@ function _createLiveView(idx,name){
     vHalo.visible=false;
     scene.add(vHalo);
   }
+  /* Ghost-pass twin: shares the cloned vPts geometry, has its own material
+     with depthWrite:false. Initially invisible; setGhostTwoPass shows it
+     on demand. */
+  var vGhostLayer=null;
+  if(ghostPtsLayer){
+    var ghMat=ghostPtsLayer.material.clone();
+    /* Same uniform-sharing approach as the main twin: alias the simple
+       scalar/vec uniforms back to the global material so all sliders
+     reach every view at once. */
+    ghMat.uniforms=JSON.parse(JSON.stringify(ghostPtsLayer.material.uniforms));
+    ghMat.uniforms.uMap={value:ghostPtsLayer.material.uniforms.uMap.value};
+    if(ghostPtsLayer.material.uniforms.uCellPulse)ghMat.uniforms.uCellPulse={value:new THREE.Vector3().copy(ghostPtsLayer.material.uniforms.uCellPulse.value)};
+    if(ghostPtsLayer.material.uniforms.uHaloLumColor)ghMat.uniforms.uHaloLumColor={value:new THREE.Vector3().copy(ghostPtsLayer.material.uniforms.uHaloLumColor.value)};
+    if(ghostPtsLayer.material.uniforms.uGColor)ghMat.uniforms.uGColor={value:new THREE.Vector3().copy(ghostPtsLayer.material.uniforms.uGColor.value)};
+    if(ghostPtsLayer.material.uniforms.uEColor)ghMat.uniforms.uEColor={value:new THREE.Vector3().copy(ghostPtsLayer.material.uniforms.uEColor.value)};
+    vGhostLayer=new THREE.Points(geo,ghMat);
+    vGhostLayer.renderOrder=2;
+    vGhostLayer.visible=_ghostTwoPass;
+    scene.add(vGhostLayer);
+  }
   /* Per-view cameras */
   var vc3=new THREE.PerspectiveCamera(cam3d.fov,cam3d.aspect,cam3d.near,cam3d.far);
   var a=canvasW/canvasH;
@@ -11492,7 +12257,7 @@ function _createLiveView(idx,name){
   vc2.position.z=100;
   return {
     id:idx,name:name||("Split "+(idx+1)),
-    pts:vPts,ringPts:vRing,haloPts:vHalo,
+    pts:vPts,ringPts:vRing,haloPts:vHalo,ghostPtsLayer:vGhostLayer,
     cam3d:vc3,cam2d:vc2,
     sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
     tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
@@ -11649,11 +12414,13 @@ function _recolorView(vIdx){
   if(v.haloPts)v.haloPts.visible=_haloActive;
   if(vPts.material.uniforms&&vPts.material.uniforms.uHaloOn)vPts.material.uniforms.uHaloOn.value=_haloActive?1.0:0.0;
   var _bsu=_getBgScheme();
-  if(vPts.material.uniforms&&vPts.material.uniforms.uCellPulse)vPts.material.uniforms.uCellPulse.value.set(_bsu.cellPulseTarget[0],_bsu.cellPulseTarget[1],_bsu.cellPulseTarget[2]);
+  var _cpC=(_glowState&&_glowState.cellColor)?_glowState.cellColor:_bsu.cellPulseTarget;
+  var _hpC=(_glowState&&_glowState.haloColor)?_glowState.haloColor:_bsu.haloPulseTarget;
+  if(vPts.material.uniforms&&vPts.material.uniforms.uCellPulse)vPts.material.uniforms.uCellPulse.value.set(_cpC[0],_cpC[1],_cpC[2]);
   if(v.haloPts&&v.haloPts.material.uniforms){
     var _hu=v.haloPts.material.uniforms;
     _hu.uHaloBase.value.set(_bsu.haloBase[0]||0,_bsu.haloBase[1]||0,_bsu.haloBase[2]||0);
-    _hu.uHaloPulse.value.set(_bsu.haloPulseTarget[0],_bsu.haloPulseTarget[1],_bsu.haloPulseTarget[2]);
+    _hu.uHaloPulse.value.set(_hpC[0],_hpC[1],_hpC[2]);
   }
   var _nHidden=0;
   for(var i=0;i<n;i++){
@@ -13753,6 +14520,227 @@ function _dlSafe(s){
   return String(s||"").replace(/[^A-Za-z0-9_.-]+/g,"_").replace(/^_+|_+$/g,"");
 }
 
+/* Export the current dot-rendering parameters to a plain-text file.
+   Format is human-readable key:value pairs grouped into [Sections]. The
+   user can paste the file back to convey their preferred look — every
+   slider, dropdown, toggle that affects dot appearance is captured. */
+function _dotSettingsExport(){
+  function _shapeName(s){return ["Disk","Square","Diamond","Cross"][s|0]||"?";}
+  function _discardName(s){return ["None","Checker","RandomHash"][s|0]||"?";}
+  function _f(v){return (typeof v==="number"?v:0).toFixed(3);}
+  function _section(title,state,presetName){
+    var L=["["+title+"]"];
+    L.push("preset: "+presetName);
+    L.push("sizeMult: "+_f(state.sizeMult));
+    L.push("shape: "+(state.shape|0)+" ("+_shapeName(state.shape)+")");
+    L.push("innerR: "+_f(state.innerR));
+    L.push("outerR: "+_f(state.outerR));
+    L.push("softness: "+_f(state.softness));
+    L.push("alpha: "+_f(state.alpha));
+    L.push("shade3D: "+_f(state.shade3D||0));
+    L.push("rim: "+_f(state.rim||0));
+    L.push("rimW: "+_f(state.rimW||0));
+    L.push("color: "+(typeof _rgb2hex==="function"?_rgb2hex(state.color):JSON.stringify(state.color)));
+    L.push("useColor: "+(state.useColor?1:0));
+    L.push("discard: "+(state.discard|0)+" ("+_discardName(state.discard)+")");
+    L.push("depthWrite: "+(state.depthWrite?1:0));
+    return L.join("\n");
+  }
+  var lines=[];
+  lines.push("# RNA-FLEEK dot-rendering settings");
+  lines.push("# exported "+new Date().toISOString());
+  lines.push("# dataset: "+_dlDatasetStem());
+  lines.push("# theme: "+(document.body.classList.contains("light")?"light":"dark"));
+  lines.push("# version: "+(typeof FLEEK_VERSION!=="undefined"?FLEEK_VERSION:"?"));
+  lines.push("");
+  lines.push(_section("Ghost dots",_ghostState,_ghostStyle));
+  lines.push("");
+  lines.push(_section("Expressing dots",_exprState,_exprStyle));
+  lines.push("");
+  lines.push("[Glow & pulse]");
+  lines.push("intensity: "+_f(_glowState.intensity));
+  lines.push("sizeMult: "+_f(_glowState.sizeMult));
+  lines.push("fallIn: "+_f(_glowState.fallIn));
+  lines.push("fallOut: "+_f(_glowState.fallOut));
+  lines.push("haloColor: "+(_glowState.haloColor?(typeof _rgb2hex==="function"?_rgb2hex(_glowState.haloColor):JSON.stringify(_glowState.haloColor)):"theme-default"));
+  lines.push("pulseSpeed: "+_f(_glowState.pulseSpeed));
+  lines.push("pulseHigh: "+_f(_glowState.pulseHigh));
+  lines.push("pulseLow: "+_f(_glowState.pulseLow));
+  lines.push("cellPulseMax: "+_f(_glowState.cellPulseMax));
+  lines.push("cellColor: "+(_glowState.cellColor?(typeof _rgb2hex==="function"?_rgb2hex(_glowState.cellColor):JSON.stringify(_glowState.cellColor)):"theme-default"));
+  lines.push("haloRadius: "+_f(_glowState.haloRadius));
+  lines.push("haloRimMult: "+_f(_glowState.haloRimMult));
+  lines.push("halo3DMult: "+_f(_glowState.halo3DMult));
+  lines.push("haloLum: "+_f(_glowState.haloLum));
+  lines.push("");
+  lines.push("[Universal]");
+  lines.push("twoPassGhost: "+(_ghostTwoPass?1:0));
+  lines.push("sparseN: "+(_sparseN|0));
+  var psl=document.getElementById("pt-size"),pol=document.getElementById("pt-opacity");
+  if(psl)lines.push("ptSizeSlider: "+psl.value);
+  if(pol)lines.push("ptOpacitySlider: "+pol.value);
+  var blob=new Blob([lines.join("\n")+"\n"],{type:"text/plain"});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a");
+  a.href=url; a.download=_dlDatasetStem()+"_dot-settings_"+_dlTimestamp()+".txt";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  if(typeof _flashAction==="function")_flashAction("Settings exported","");
+}
+
+/* Sync ALL Glow & pulse sliders + color pickers to current _glowState.
+   Mirrors _refreshGhostSlidersUI / _refreshExprSlidersUI for the glow
+   section. Called after import to bring the UI into agreement with the
+   freshly-applied state. */
+function _refreshGlowSlidersUI(){
+  var ids=[
+    ["dbg-glow-int",   _glowState.intensity],
+    ["dbg-glow-size",  _glowState.sizeMult],
+    ["dbg-glow-fin",   _glowState.fallIn],
+    ["dbg-glow-fout",  _glowState.fallOut],
+    ["dbg-pulse-speed",_glowState.pulseSpeed],
+    ["dbg-pulse-high", _glowState.pulseHigh],
+    ["dbg-pulse-low",  _glowState.pulseLow],
+    ["dbg-cell-bloom", _glowState.cellPulseMax],
+    ["dbg-halo-radius",_glowState.haloRadius],
+    ["dbg-halo-rim",   _glowState.haloRimMult],
+    ["dbg-halo-3d",    _glowState.halo3DMult],
+    ["dbg-halo-lum",   _glowState.haloLum]
+  ];
+  for(var i=0;i<ids.length;i++){
+    var el=document.getElementById(ids[i][0]);if(!el)continue;
+    var v=ids[i][1];
+    el.value=v;
+    var lbl=document.getElementById(ids[i][0]+"-val");
+    if(lbl)lbl.textContent=(typeof v==="number"?v.toFixed(2):v);
+  }
+  if(typeof _refreshGlowColorPickers==="function")_refreshGlowColorPickers();
+}
+
+/* Parse a previously-exported dot-settings text file and apply every
+   recognized field. Returns the count of fields applied (for telemetry).
+   Robust to: extra whitespace, blank lines, comments (`# ...`), missing
+   sections, unknown keys (silently ignored), and the human annotations
+   like `shape: 0 (Disk)` (parseInt naturally strips the trailing text). */
+function _dotSettingsImport(text){
+  function _hexCol(v){return v.charAt(0)==="#"?_hex2rgb(v):null;}
+  function _appG(k,v){
+    switch(k){
+      case "preset":/* preset name is just a label — sliders are the truth */ break;
+      case "sizeMult": _ghostState.sizeMult=parseFloat(v); break;
+      case "shape":    _ghostState.shape=parseInt(v,10)|0; break;
+      case "innerR":   _ghostState.innerR=parseFloat(v); break;
+      case "outerR":   _ghostState.outerR=parseFloat(v); break;
+      case "softness": _ghostState.softness=parseFloat(v); break;
+      case "alpha":    _ghostState.alpha=parseFloat(v); break;
+      case "shade3D":  _ghostState.shade3D=parseFloat(v); break;
+      case "rim":      _ghostState.rim=parseFloat(v); break;
+      case "rimW":     _ghostState.rimW=parseFloat(v); break;
+      case "color":    var rgb=_hexCol(v); if(rgb)_ghostState.color=rgb; break;
+      case "useColor": _ghostState.useColor=parseInt(v,10)?1:0; break;
+      case "discard":  _ghostState.discard=parseInt(v,10)|0; break;
+      case "depthWrite":_ghostState.depthWrite=parseInt(v,10)?1:0; break;
+    }
+  }
+  function _appE(k,v){
+    switch(k){
+      case "preset":   break;
+      case "sizeMult": _exprState.sizeMult=parseFloat(v); break;
+      case "shape":    _exprState.shape=parseInt(v,10)|0; break;
+      case "innerR":   _exprState.innerR=parseFloat(v); break;
+      case "outerR":   _exprState.outerR=parseFloat(v); break;
+      case "softness": _exprState.softness=parseFloat(v); break;
+      case "alpha":    _exprState.alpha=parseFloat(v); break;
+      case "shade3D":  _exprState.shade3D=parseFloat(v); break;
+      case "rim":      _exprState.rim=parseFloat(v); break;
+      case "rimW":     _exprState.rimW=parseFloat(v); break;
+      case "color":    var rgb=_hexCol(v); if(rgb)_exprState.color=rgb; break;
+      case "useColor": _exprState.useColor=parseInt(v,10)?1:0; break;
+      case "discard":  _exprState.discard=parseInt(v,10)|0; break;
+      case "depthWrite":_exprState.depthWrite=parseInt(v,10)?1:0; break;
+    }
+  }
+  function _appGlow(k,v){
+    switch(k){
+      case "intensity":   _glowState.intensity=parseFloat(v); break;
+      case "sizeMult":    _glowState.sizeMult=parseFloat(v); break;
+      case "fallIn":      _glowState.fallIn=parseFloat(v); break;
+      case "fallOut":     _glowState.fallOut=parseFloat(v); break;
+      case "pulseSpeed":  _glowState.pulseSpeed=parseFloat(v); break;
+      case "pulseHigh":   _glowState.pulseHigh=parseFloat(v); break;
+      case "pulseLow":    _glowState.pulseLow=parseFloat(v); break;
+      case "cellPulseMax":_glowState.cellPulseMax=parseFloat(v); break;
+      case "haloRadius":  _glowState.haloRadius=parseFloat(v); break;
+      case "haloRimMult": _glowState.haloRimMult=parseFloat(v); break;
+      case "halo3DMult":  _glowState.halo3DMult=parseFloat(v); break;
+      case "haloLum":     _glowState.haloLum=parseFloat(v); break;
+      case "haloColor":   _glowState.haloColor=(v==="theme-default")?null:_hexCol(v); break;
+      case "cellColor":   _glowState.cellColor=(v==="theme-default")?null:_hexCol(v); break;
+    }
+  }
+  function _appUniv(k,v){
+    switch(k){
+      case "twoPassGhost":
+        var on=parseInt(v,10)?true:false;
+        var tg=document.getElementById("dbg-ghost-twopass"); if(tg)tg.checked=on;
+        if(typeof setGhostTwoPass==="function")setGhostTwoPass(on);
+        break;
+      case "sparseN":
+        _sparseN=Math.max(1,parseInt(v,10)|0);
+        var sn=document.getElementById("dbg-sparse-n");
+        if(sn){sn.value=_sparseN;var sl=document.getElementById("dbg-sparse-n-val");if(sl)sl.textContent=_sparseN;}
+        break;
+      case "ptSizeSlider":
+        var ps=document.getElementById("pt-size");
+        if(ps){ps.value=parseFloat(v);ps.dispatchEvent(new Event("input"));ps.dispatchEvent(new Event("change"));}
+        break;
+      case "ptOpacitySlider":
+        var po=document.getElementById("pt-opacity");
+        if(po){po.value=parseFloat(v);po.dispatchEvent(new Event("input"));po.dispatchEvent(new Event("change"));}
+        break;
+    }
+  }
+  var setters={"Ghost dots":_appG,"Expressing dots":_appE,"Glow & pulse":_appGlow,"Universal":_appUniv};
+  var section=null,n=0;
+  var lines=String(text||"").split(/\r?\n/);
+  for(var i=0;i<lines.length;i++){
+    var line=lines[i].trim();
+    if(!line||line.charAt(0)==="#")continue;
+    var sec=line.match(/^\[(.+)\]$/);
+    if(sec){section=sec[1].trim();continue;}
+    var kv=line.match(/^([^:]+):\s*(.*)$/);
+    if(!kv||!section)continue;
+    var fn=setters[section];
+    if(fn){try{fn(kv[1].trim(),kv[2].trim());n++;}catch(e){}}
+  }
+  /* Push state → uniforms, sync UI, recolor (which honors any
+     _glowState.haloColor / .cellColor overrides we just imported). */
+  if(typeof _pushGhostStateToShader==="function")_pushGhostStateToShader();
+  if(typeof _pushExprStateToShader==="function")_pushExprStateToShader();
+  if(typeof _pushGlowStateToShaders==="function")_pushGlowStateToShaders();
+  if(typeof _refreshGhostSlidersUI==="function")_refreshGhostSlidersUI();
+  if(typeof _refreshExprSlidersUI==="function")_refreshExprSlidersUI();
+  if(typeof _refreshGlowSlidersUI==="function")_refreshGlowSlidersUI();
+  if(typeof recolor==="function")recolor();
+  if(typeof _flashAction==="function")_flashAction("Settings imported ("+n+" fields)","");
+  return n;
+}
+
+/* Trigger the hidden file picker and apply the chosen file's contents. */
+function _dotSettingsImportPick(){
+  var el=document.getElementById("dbg-dot-import-file");
+  if(el)el.click();
+}
+function _dotSettingsImportHandle(ev){
+  var f=ev&&ev.target&&ev.target.files&&ev.target.files[0];
+  if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(e){_dotSettingsImport(e.target.result||"");};
+  rd.onerror=function(){if(typeof _flashAction==="function")_flashAction("Import failed","");};
+  rd.readAsText(f);
+  ev.target.value=""; /* reset so re-picking the same file fires onchange again */
+}
+
 /* Download the currently displayed plot as a standalone SVG file.
    Faceted plots render as multiple side-by-side <svg> elements inside a
    flex row — we combine them all into a single outer <svg> so the export
@@ -15167,37 +16155,87 @@ function _plotDrawRaincloud(gene, facetCol, data){
            full jitter range. Dense bands pack tight; single-dot bands sit
            in the middle. Two O(n) passes; ~50ms even for 100k-cell clusters. */
         var dotR=0.75;
-        var jitter=W_PER_CLU*0.36;            /* horizontal spread */
+        var jitter=W_PER_CLU*0.36;            /* horizontal spread (column width) */
         var jitterBase=cx-W_PER_CLU*0.13;     /* right edge of dot column (~7px from IQR bar) */
-        var bandH=dotR*2;
         var drops=c.drops;
-        /* Pass 1: count drops per y-band */
-        var bandCount={};
-        for(var dc=0;dc<drops.length;dc++){
-          var dy1=yScale(drops[dc]);
-          var bi1=(dy1/bandH)|0;
-          bandCount[bi1]=(bandCount[bi1]||0)+1;
+        /* Random-rejection beeswarm placement. For each drop:
+           1. Sample a random x uniformly in the column.
+           2. If it doesn't collide with any already-placed drop within 2r
+              screen-distance: accept.
+           3. Otherwise retry with a fresh random x, up to N attempts.
+           4. If still no clear spot (overcrowded y-region): place at a
+              random x NEAR THE COLUMN CENTER (Gaussian-ish, std ≈ 1.5×
+              dot diameter). This makes forced overlaps cluster around
+              center but each one has a different random offset, so we get
+              partial overlaps rather than a perfectly-stacked vertical
+              line of identical-position dots.
+
+           y is NEVER perturbed — every dot sits at its exact expression
+           value. All variation is in x. PRNG is hashed from cluster id +
+           drop index + attempt salt so re-renders are identical
+           (no flicker on theme switch / popup re-open).
+
+           Spatial hash bucketed by y (cell height = 2r) keeps overlap
+           checks O(local density). For ~100k-cell clusters this stays
+           under ~200 ms even in dense regions where most attempts fail. */
+        var minSpacing=2*dotR;
+        var minSpacingSq=minSpacing*minSpacing;
+        var xRight=jitterBase;
+        var xLeft=jitterBase-jitter;
+        var colCenter=(xLeft+xRight)*0.5;
+        var colWidth=xRight-xLeft;
+        var cellH=minSpacing;            /* y-bucket height */
+        var bucket={};                    /* yBucket -> [x0,y0,x1,y1,...] flat list */
+        function _bucketAdd(x,y){
+          var k=Math.floor(y/cellH);
+          if(!bucket[k])bucket[k]=[];
+          bucket[k].push(x,y);
         }
-        /* Pass 2: place each drop in its band. Two tricks to avoid the
-           "vertical stripe" artifact:
-             • center-inset placement (idx+0.5)/total instead of idx/(total-1)
-               — so dots sit inside the band, not pinned to the x=0 and x=1
-               edges where adjacent bands would align into columns.
-             • half-step offset on alternate bands — shifts odd-numbered
-               bands by half a slot so consecutive rows don't line up. */
-        var bandIdx={};
+        function _hasOverlap(x,y){
+          var k=Math.floor(y/cellH);
+          for(var b=k-1;b<=k+1;b++){
+            var arr=bucket[b];
+            if(!arr)continue;
+            for(var p=0;p<arr.length;p+=2){
+              var dx=x-arr[p];
+              if(dx*dx>=minSpacingSq)continue;
+              var dy0=y-arr[p+1];
+              if(dx*dx+dy0*dy0<minSpacingSq)return true;
+            }
+          }
+          return false;
+        }
+        /* Stable PRNG: hash of (cluster, drop, attempt) → [0, 1). */
+        function _rndU(d,salt){
+          var x=Math.sin(d*12.9898+ci*78.233+salt*43.123)*43758.5453;
+          return x-Math.floor(x);
+        }
+        var maxAttempts=48;
         for(var d=0;d<drops.length;d++){
           var dy=yScale(drops[d]);
-          var bi=(dy/bandH)|0;
-          var total=bandCount[bi];
-          var idx=bandIdx[bi]||0;
-          bandIdx[bi]=idx+1;
-          var step=1/total;
-          var bandOffset=(bi&1)?step*0.5:0;
-          var xFrac=(idx+0.5)*step+bandOffset;
-          if(xFrac>1)xFrac-=1; /* wrap the half-step overflow back into the band */
-          var jx=jitterBase-xFrac*jitter;
-          svg+='<circle cx="'+jx.toFixed(1)+'" cy="'+dy.toFixed(1)+'" r="'+dotR+'" fill="'+paintHex+'" fill-opacity="'+raindropAlpha+'"/>';
+          var placedX=null;
+          for(var att=0;att<maxAttempts;att++){
+            var u=_rndU(d,att);
+            var tryX=xLeft+u*colWidth;
+            if(!_hasOverlap(tryX,dy)){
+              placedX=tryX;
+              break;
+            }
+          }
+          if(placedX===null){
+            /* Forced overlap — uniform random across the FULL column
+               (not Gaussian around center). With a Gaussian fallback,
+               every overcrowded drop gets squeezed into a narrow stripe
+               at center, accumulating visible mass on the column's
+               middle vertical. Uniform spreads forced drops across the
+               whole column so dense y-regions just appear as uniformly-
+               filled horizontal bands — no center bias, partial overlaps
+               distributed across the column width. */
+            var uf=_rndU(d,90);
+            placedX=xLeft+uf*colWidth;
+          }
+          _bucketAdd(placedX,dy);
+          svg+='<circle cx="'+placedX.toFixed(1)+'" cy="'+dy.toFixed(1)+'" r="'+dotR+'" fill="'+paintHex+'" fill-opacity="'+raindropAlpha+'"/>';
         }
         /* IQR bar + median tick */
         var y1=yScale(c.q1), y3=yScale(c.q3), ym=yScale(c.med);
@@ -18423,6 +19461,27 @@ function applyTheme(t){
      additive tones; light uses dark ink). Refresh so the dots + legend
      reflect the current theme. */
   if(typeof _colocRefreshUI==="function")_colocRefreshUI();
+  /* Ghost / expressing dot presets that declared color_dark/color_light
+     re-resolve so the new theme uses its hand-picked color. Slider-edited
+     state is preserved (only the color field is touched). */
+  if(typeof _refreshDotStylesForTheme==="function")_refreshDotStylesForTheme();
+  if(typeof _refreshGlowColorPickers==="function")_refreshGlowColorPickers();
+  /* Halo "Luminance" mixes cells toward this color. Dark theme: white
+     (cells brighten toward the bg). Light theme: dark navy (cells darken
+     toward the bg) — same direction-of-contrast in either theme. */
+  (function(){
+    var isL=document.body.classList.contains("light");
+    var target=isL?[0.02,0.05,0.18]:[1.0,1.0,1.0];
+    function _setLum(m){if(m&&m.uniforms&&m.uniforms.uHaloLumColor)m.uniforms.uHaloLumColor.value.set(target[0],target[1],target[2]);}
+    if(typeof pts!=="undefined"&&pts)_setLum(pts.material);
+    if(typeof ghostPtsLayer!=="undefined"&&ghostPtsLayer)_setLum(ghostPtsLayer.material);
+    if(typeof _liveViews!=="undefined"&&_liveViews){
+      for(var i=0;i<_liveViews.length;i++){
+        if(_liveViews[i]&&_liveViews[i].pts)_setLum(_liveViews[i].pts.material);
+        if(_liveViews[i]&&_liveViews[i].ghostPtsLayer)_setLum(_liveViews[i].ghostPtsLayer.material);
+      }
+    }
+  })();
   /* Update pivot cross color */
   if(pivotMarker)pivotMarker.material.color.set(t==="light"?0x333333:0xffffff);
   /* Regenerate circle texture + alphaTest for theme */
@@ -20449,7 +21508,7 @@ document.addEventListener("DOMContentLoaded",function(){
   /* Stamp the version into both the sidebar title pill and the help-overlay header. */
   var _sbv=document.getElementById("fleek-version");if(_sbv)_sbv.textContent=FLEEK_VERSION;
   var _hv=document.getElementById("help-version");if(_hv)_hv.textContent=FLEEK_VERSION;
-  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupPanelScrollbars();setupScrollTraps();setupSliderWheelPassthrough();_patchOS();_setupCustomSelects();_panelsInit();_setupResizableLists();animate();_checkKeyStatus();
+  initCollapsible();initRenderer();setupCtrl();setupVolcanoHover();setupDegResize();setupDragDrop();loadSettings();setupCustomScrollbars();setupPanelScrollbars();setupScrollTraps();setupSliderWheelPassthrough();_patchOS();_setupCustomSelects();_panelsInit();_setupResizableLists();_wireGhostDebugSliders();animate();_checkKeyStatus();
   /* Apply initial theme */
   applyTheme(document.getElementById("set-theme").value||"dark");
   /* Restore the Single / Colocalization toggle from sessionStorage so
