@@ -2716,6 +2716,7 @@
           <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
           <tr><td><span class="help-key">T</span></td><td>Toggle dark/light theme</td></tr>
           <tr><td><span class="help-key">\</span></td><td>Toggle sidebar</td></tr>
+          <tr><td><span class="help-key">⌥</span>+<span class="help-key">,</span></td><td>Open Settings</td></tr>
           <tr><td><span class="help-key">S</span></td><td>Toggle split-screen (side-by-side) — requires ≥2 view splits</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Slice Panel</th></tr>
           <tr><td>Click pill</td><td>Toggle slice value</td></tr>
@@ -3027,7 +3028,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.30";
+var FLEEK_VERSION="v0.5.31";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 var showExprSize=false; /* scale point size with expression level in gene mode (default off) */
@@ -6794,7 +6795,7 @@ function setupCtrl(){
       if(_dragDist>4&&pivotMarker&&!pivotMarker.visible){
         clearTimeout(pivotTimer);pivotMarker.position.copy(_pivotTgt3());pivotMarker.visible=true;
       }
-      if(dragging){_cSph.theta-=dx*.005;_cSph.phi-=dy*.005;_cSph.phi=Math.max(.05,Math.min(Math.PI-.05,_cSph.phi));}
+      if(dragging){_cSph.theta-=dx*.008;_cSph.phi-=dy*.008;_cSph.phi=Math.max(.05,Math.min(Math.PI-.05,_cSph.phi));}
       else if(dollying){
         /* Move orbit center forward/backward along view direction.
            Forward is derived from the target view's spherical coords — not cam3d — because
@@ -6805,8 +6806,8 @@ function setupCtrl(){
         var efactor=Math.exp(-dy*0.006)-1;
         _cTgt3.x+=fwdX*_cSph.radius*efactor;_cTgt3.y+=fwdY*_cSph.radius*efactor;_cTgt3.z+=fwdZ*_cSph.radius*efactor;
       }
-      else if(panning){var ps=_cSph.radius*.001;var _sp=Math.sin(_cSph.phi),_cp=Math.cos(_cSph.phi),_st=Math.sin(_cSph.theta),_ct=Math.cos(_cSph.theta);var cd=new THREE.Vector3(_sp*_ct,_cp,_sp*_st);var up=new THREE.Vector3(0,1,0);var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();_cTgt3.x+=rt.x*(-dx*ps)+cu.x*(dy*ps);_cTgt3.y+=rt.y*(-dx*ps)+cu.y*(dy*ps);_cTgt3.z+=rt.z*(-dx*ps)+cu.z*(dy*ps);}
-    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;var s=(frustum2*2)/(_zRef*canvasW);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");}}}
+      else if(panning){var ps=_cSph.radius*.0015;var _sp=Math.sin(_cSph.phi),_cp=Math.cos(_cSph.phi),_st=Math.sin(_cSph.theta),_ct=Math.cos(_cSph.theta);var cd=new THREE.Vector3(_sp*_ct,_cp,_sp*_st);var up=new THREE.Vector3(0,1,0);var rt=new THREE.Vector3().crossVectors(up,cd).normalize();var cu=new THREE.Vector3().crossVectors(cd,rt).normalize();_cTgt3.x+=rt.x*(-dx*ps)+cu.x*(dy*ps);_cTgt3.y+=rt.y*(-dx*ps)+cu.y*(dy*ps);_cTgt3.z+=rt.z*(-dx*ps)+cu.z*(dy*ps);}
+    }else{if(dragging){var _zRef=_cZoom2Ref?_cZoom2Ref.zoom2:zoom2;/* World-per-pixel: cam2d's visible width is 2*frustum2*aspect/zoom (aspect=W/H), so world-per-pixel-x = 2F*a/(zoom*W) = 2F/(zoom*H). Y is just 2F/(zoom*H). Both denominators are canvasH, not canvasW — the old code used canvasW and on a 16:9 screen pan motion was ~1.78x too slow. The 2.5 gain multiplier amplifies panning beyond 1:1 cursor tracking — a single short drag covers more of the canvas, which on a 100k+ cell embedding is what users expect. */ var s=(frustum2*2*1.5)/(_zRef*canvasH);_cPan2.x-=dx*s;_cPan2.y+=dy*s;if(!viewIs3d&&(dx||dy)){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");}}}
   });
   var pivotTimer=null;
   window.addEventListener("mouseup",function(){
@@ -6865,8 +6866,8 @@ function setupCtrl(){
   cv.addEventListener("touchstart",function(e){e.preventDefault();introAnim=null;_introTargetCam=null;if(e.touches.length===1){dragging=true;prev={x:e.touches[0].clientX,y:e.touches[0].clientY};}else if(e.touches.length===2){dragging=false;ltd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}},{passive:false});
   cv.addEventListener("touchmove",function(e){e.preventDefault();
     if(e.touches.length===1&&dragging){var dx=e.touches[0].clientX-prev.x,dy=e.touches[0].clientY-prev.y;
-      if(viewIs3d){sph.theta-=dx*.005;sph.phi-=dy*.005;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
-      else{var s=(frustum2*2)/(zoom2*canvasW);pan2.x-=dx*s;pan2.y+=dy*s;if(!viewIs3d){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");}}
+      if(viewIs3d){sph.theta-=dx*.008;sph.phi-=dy*.008;sph.phi=Math.max(.05,Math.min(Math.PI-.05,sph.phi));}
+      else{var s=(frustum2*2*2.5)/(zoom2*canvasH);pan2.x-=dx*s;pan2.y+=dy*s;if(!viewIs3d){clearTimeout(crosshairTimer);_posCrosshair();crosshairEl.classList.add("show");}}
       prev={x:e.touches[0].clientX,y:e.touches[0].clientY};
     }else if(e.touches.length===2){var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
       if(ltd>0){if(viewIs3d){var nr=sph.radius*(ltd/d);if(nr>sph.radius&&nr-sph.radius<0.3)nr=sph.radius+0.3;sph.radius=Math.max(0.5,Math.min(5000,nr));}else zoom2=Math.max(zoom2Min(),Math.min(500,zoom2*(d/ltd)));}ltd=d;}
@@ -7264,6 +7265,14 @@ function setupCtrl(){
     }
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
+    /* Opt+, (Alt+,) = toggle Settings popup. Mac quirk: Option+, prints
+       "≤" as e.key on US layouts; e.code stays "Comma" — check both so
+       Mac and Linux/Windows behave the same. */
+    if(e.altKey&&!e.metaKey&&!e.shiftKey&&!e.ctrlKey&&(e.key===","||e.code==="Comma")){
+      e.preventDefault();
+      if(typeof toggleSettings==="function")toggleSettings();
+      _flashAction("Settings",_ALT+"+,");
+    }
     /* Opt+\ (Alt+\)        = expand all sidebar panels, or restore the
                                 previous pattern if already expanded.
        Ctrl+Opt+\ (Ctrl+Alt+\) = collapse all sidebar panels, or restore
@@ -18858,7 +18867,7 @@ function _buildSearchRegistry(){
        appearance is the destination cue here; no spotlight needed. */
     {id:"panel-deg",label:"DEG panel",secondary:"Panel",keywords:"differential expression cohen volcano",available:_canRunDEG,action:function(){if(typeof openDEG==="function")openDEG();}},
     {id:"open-help",label:"Help & About",secondary:"Action",keywords:"docs documentation reference",action:function(){if(typeof toggleHelp==="function")toggleHelp();}},
-    {id:"open-settings",label:"Settings",secondary:"Action",keywords:"preferences api key theme",action:function(){if(typeof toggleSettings==="function")toggleSettings();else{var s=document.getElementById("settings-popup");if(s)s.style.display="block";}}},
+    {id:"open-settings",label:"Settings",secondary:"Action",keywords:"preferences api key theme",shortcut:"⌥ ,",action:function(){if(typeof toggleSettings==="function")toggleSettings();else{var s=document.getElementById("settings-popup");if(s)s.style.display="block";}}},
     /* Color modes */
     {id:"mode-cluster",label:"Color by cell type",secondary:"Mode",keywords:"cluster category palette",shortcut:"C",available:_hasData,action:function(){if(typeof setMode==="function")setMode("cluster");}},
     {id:"mode-gene",label:"Color by gene expression",secondary:"Mode",keywords:"single gene scalar",shortcut:"G",available:_hasData,action:function(){if(typeof _setGeneMode==="function")_setGeneMode("single");if(typeof setMode==="function")setMode("gene");},target:"gsearch"},

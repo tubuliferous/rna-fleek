@@ -38,7 +38,7 @@ import numpy as np
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
 # Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
-FLEEK_VERSION = "0.5.30"
+FLEEK_VERSION = "0.5.31"
 
 # Globals set at startup
 ADATA = None
@@ -671,6 +671,60 @@ Keys are task names; values are:
 """
 
 
+def _registry_matches_adata(reg, adata):
+    """Validate that a cached MATRIX_REGISTRY still matches the current
+    adata. Compares the SET of matrix paths (X / raw.X / each layer) and
+    each entry's shape. We deliberately don't check dtypes — h5py /
+    anndata round-trips can shift `float32` → `<f4` etc., which would
+    spuriously invalidate the cache. Path + shape catches every change
+    that would actually change the classification (matrix added /
+    removed / reshaped).
+
+    Takes `adata` as a LOCAL argument because validation runs at cache-
+    load time, before the global ADATA is assigned — _get_matrix_by_path
+    isn't usable yet."""
+    if not isinstance(reg, list) or not reg:
+        return False
+    # Build the set of paths the current adata actually exposes.
+    expected = {"X"}
+    if hasattr(adata, "raw") and adata.raw is not None:
+        expected.add("raw.X")
+    try:
+        for name in adata.layers:
+            expected.add(f"layers[{name!r}]")
+    except Exception:
+        return False
+    cached_paths = {e.get("path") for e in reg}
+    if cached_paths != expected:
+        return False
+    # Per-entry shape check — resolve via the local adata, not ADATA.
+    def _local_resolve(path):
+        if path == "X":
+            return adata.X
+        if path == "raw.X":
+            return adata.raw.X if adata.raw is not None else None
+        if path.startswith("layers[") and path.endswith("]"):
+            name = path[len("layers["):-1]
+            if (name.startswith("'") and name.endswith("'")) or (name.startswith('"') and name.endswith('"')):
+                name = name[1:-1]
+            if name in adata.layers:
+                return adata.layers[name]
+        return None
+    for entry in reg:
+        path = entry.get("path")
+        try:
+            mat = _local_resolve(path)
+            if mat is None:
+                return False
+            cur_shape = list(mat.shape)
+            cached_shape = list(entry.get("shape") or [])
+            if cur_shape != cached_shape:
+                return False
+        except Exception:
+            return False
+    return True
+
+
 def _classify_all_matrices():
     """Walk .X, .raw.X, and all layers; classify each. Populates MATRIX_REGISTRY."""
     global MATRIX_REGISTRY
@@ -1205,8 +1259,16 @@ def detect_counts():
         elapsed = now - _dc_phase_t[0]
         _dc_phase_t[0] = now
         print(f"    [detect_counts] {name}: {elapsed:.2f}s")
-    _classify_all_matrices()
-    _dc_step("_classify_all_matrices")
+    # If the registry was restored from cache at load time, skip the
+    # entire classify pass — we already have the same fano / median /
+    # kind values that classify would produce. Routing IS recomputed
+    # from the registry (cheap, ~0 ms) so any future changes to the
+    # routing logic take effect on the next reload.
+    if MATRIX_REGISTRY:
+        _dc_step("_classify_all_matrices (skipped — registry from cache)")
+    else:
+        _classify_all_matrices()
+        _dc_step("_classify_all_matrices")
     _build_matrix_routing()
     _dc_step("_build_matrix_routing")
 
@@ -2694,7 +2756,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     
     backed: "auto" (use file size vs RAM), "on" (force backed), "off" (force in-memory)
     """
-    global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D, PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, CLUSTER_COL, CLUSTER_COLORS, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, CSC_CACHED, CSC_TIME, LOADED_PATH, ABORT_REQUESTED
+    global ADATA, UMAP_2D, UMAP_3D, PCA_2D, PCA_3D, PACMAP_2D, PACMAP_3D, PACMAP_COMPUTING, CLUSTER_IDS, CLUSTER_NAMES, CLUSTER_COL, CLUSTER_COLORS, GENE_NAMES_LIST, N_CELLS, BACKED, X_CSC, HVG_NAMES, HVG_VAR, ALL_GENE_VAR, ALL_GENE_VAR_METRIC, GENE_CUTOFF_FLAG, GENE_INDEX, CSC_BUILDING, CSC_CACHED, CSC_TIME, LOADED_PATH, ABORT_REQUESTED, MATRIX_REGISTRY
 
     import scanpy as sc
     import scipy.sparse as sp
@@ -2886,7 +2948,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             _cr_writable = True
     cached = {}
     _cache_time = 0.0  # accumulate time spent loading caches
-    _CACHE_SKIP_VALIDATE = {"leiden_names", "embedding_inputs"}  # byte arrays, not cell-indexed
+    _CACHE_SKIP_VALIDATE = {"leiden_names", "embedding_inputs", "matrix_registry"}  # byte arrays, not cell-indexed
     if cache_read and cache_read.exists():
         _progress("Checking cache...", 20)
         _ct0 = time.time()
@@ -2915,6 +2977,23 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             )
         except Exception:
             pass
+    # Matrix-classification cache. _classify_all_matrices does ~3s of
+    # column-subsample + Fano work per load; the result only changes when
+    # the underlying h5ad's matrices change. Restore the registry from
+    # cache when the path/shape signature still matches the current adata,
+    # so detect_counts can skip the full classify pass.
+    _registry_cache_hit = False
+    if "matrix_registry" in cached:
+        try:
+            _reg_cached = json.loads(cached["matrix_registry"].tobytes().decode("utf-8"))
+            if _registry_matches_adata(_reg_cached, adata):
+                MATRIX_REGISTRY = _reg_cached
+                _registry_cache_hit = True
+                print(f"  Matrix registry loaded from cache ({len(_reg_cached)} matrices)")
+            else:
+                print(f"  Matrix registry cache stale; will recompute")
+        except Exception as _re:
+            print(f"  Matrix registry cache invalid ({_re}); will recompute")
     _phase(f"cache load (.fleek_cache.npz, {len(cached)} keys)")
 
     need_save = False
@@ -3964,6 +4043,22 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
     detect_counts()
     _phase("detect_counts (matrix classify + routing + Fano)")
 
+    # Persist the matrix registry to .fleek_cache.npz so the next load
+    # can skip _classify_all_matrices entirely. Only writes when we
+    # actually computed it fresh — a cache hit at load time is a no-op.
+    # Stored as a uint8 JSON blob (same pattern as embedding_inputs /
+    # leiden_names) so it rides along with the rest of the cache.
+    if MATRIX_REGISTRY and not _registry_cache_hit:
+        try:
+            cached["matrix_registry"] = np.frombuffer(
+                json.dumps(MATRIX_REGISTRY).encode("utf-8"), dtype=np.uint8
+            )
+            _safe_savez(".fleek_cache.npz", **cached)
+            print(f"  Matrix registry persisted to cache ({len(MATRIX_REGISTRY)} matrices)")
+        except Exception as _re:
+            print(f"  Could not persist matrix registry ({_re})")
+    _phase("persist matrix registry")
+
     PROGRESS["status"] = "done"
     PROGRESS["pct"] = 100
     PROGRESS["message"] = f"Ready: {N_CELLS:,} cells, {len(CLUSTER_NAMES)} types, {len(GENE_NAMES_LIST):,} genes"
@@ -4471,16 +4566,114 @@ def export_h5ad_subset(cell_indices, group_name):
 
     Embeddings from the full dataset are sliced and stored in obsm so the
     subset loads instantly without recomputing UMAP / PaCMAP / PCA.
+
+    Fast subset path: ADATA[idx].copy() pays a CSC→CSR→CSC roundtrip per
+    big sparse matrix because scipy's CSC row-fancy-indexing materialises
+    a CSR temporarily and AnnData preserves the original format afterwards.
+    On a 200M-nnz mmap'd CSC that's ~15s per matrix wasted on format
+    bouncing, twice (X + denoised_norm). We build the subset manually
+    instead: convert CSC→CSR ONCE per matrix (one-pass, sequential mmap
+    read), then row-slice the CSR (O(nnz_in_subset), direct), keep the
+    result as CSR for write. No data loss — same numerical values, just a
+    different sparse layout. Anndata reads CSR back fine, and FLEEK builds
+    its own CSC cache for the new file on first load.
     """
     import tempfile
-    sub = ADATA[cell_indices]
+    import time as _time
+    _ex_t0 = _time.time()
+    _ex_phase = [_time.time()]
+    def _ex_step(name):
+        now = _time.time()
+        elapsed = now - _ex_phase[0]
+        _ex_phase[0] = now
+        print(f"    [export] {name}: {elapsed:.2f}s")
+
     if BACKED:
+        # Backed-mode subsets aren't a hot path; keep the simple route.
+        sub = ADATA[cell_indices]
         try:
             sub = sub.to_memory()
         except AttributeError:
             sub = sub.copy()
+        _ex_step("backed-mode subset (to_memory)")
     else:
-        sub = sub.copy()
+        # In-memory dataset: build sub by hand to avoid the CSC roundtrip.
+        idx = np.asarray(cell_indices, dtype=np.int64)
+        _nc = N_CELLS
+        sub_obs = ADATA.obs.iloc[idx].copy()
+        sub_var = ADATA.var.copy()
+        _ex_step("obs / var subset")
+
+        sub_obsm = {}
+        for k, v in (ADATA.obsm.items() if hasattr(ADATA, "obsm") else []):
+            try:
+                arr = np.asarray(v)
+                sub_obsm[k] = arr[idx] if arr.shape[0] == _nc else arr
+            except Exception:
+                pass
+        _ex_step("obsm subset")
+
+        def _fast_row_subset(mat):
+            """CSC → tocsr → row-slice; CSR → row-slice; dense → row-slice.
+            Returns the subset matrix; format may change (CSC inputs come
+            out as CSR), which is fine for h5ad serialisation."""
+            if sp.issparse(mat) and getattr(mat, "shape", (0,))[0] == _nc:
+                if mat.format == "csc":
+                    return mat.tocsr()[idx]
+                return mat[idx]
+            try:
+                if mat.shape[0] == _nc:
+                    return mat[idx]
+            except Exception:
+                pass
+            return mat
+
+        sub_X = _fast_row_subset(ADATA.X)
+        _ex_step(f"X subset ({'sparse '+ADATA.X.format if sp.issparse(ADATA.X) else 'dense'})")
+
+        sub_layers = {}
+        for name in list(ADATA.layers):
+            try:
+                sub_layers[name] = _fast_row_subset(ADATA.layers[name])
+                _ex_step(f"layer '{name}' subset")
+            except Exception as _le:
+                print(f"  Export: failed to subset layer {name!r}: {_le}")
+
+        # Cell-pair (obsp) — small for most datasets, but if present and
+        # sparse we double-subset (rows then cols). Skip if shape doesn't
+        # match — neighbors graphs from a previous load may have wrong dims.
+        sub_obsp = {}
+        for k, v in (ADATA.obsp.items() if hasattr(ADATA, "obsp") else []):
+            try:
+                if sp.issparse(v) and v.shape == (_nc, _nc):
+                    vc = v.tocsr() if v.format == "csc" else v
+                    sub_obsp[k] = vc[idx][:, idx]
+            except Exception:
+                pass
+        _ex_step("obsp subset")
+
+        # Var-axis stuff (varm / varp) — no subsetting, just copy refs.
+        sub_varm = dict(ADATA.varm) if hasattr(ADATA, "varm") else {}
+        sub_varp = dict(ADATA.varp) if hasattr(ADATA, "varp") else {}
+
+        import anndata as _ad
+        sub = _ad.AnnData(
+            X=sub_X, obs=sub_obs, var=sub_var,
+            obsm=sub_obsm, layers=sub_layers,
+            obsp=sub_obsp, varm=sub_varm, varp=sub_varp,
+        )
+        _ex_step("AnnData construct")
+
+        # Copy uns over (small key/value tree). We do this AFTER construct
+        # so user-provided exotic types aren't validated against the
+        # constructor's expectations.
+        if hasattr(ADATA, "uns") and ADATA.uns:
+            for _uk, _uv in list(ADATA.uns.items()):
+                try:
+                    sub.uns[_uk] = _uv
+                except Exception:
+                    pass
+        _ex_step("uns copy")
 
     # ── Embed sliced embeddings so the subset loads without recomputing ──
     # N_CELLS is the size of the currently loaded dataset; all global embedding
@@ -4558,7 +4751,8 @@ def export_h5ad_subset(cell_indices, group_name):
     # case so we don't write a doomed file.
     _quota_check_or_raise(extra_bytes=0)
     sub.write_h5ad(fpath)
-    print(f"  Export: {len(cell_indices)} cells -> {fpath}")
+    _ex_step("write_h5ad")
+    print(f"  Export: {len(cell_indices)} cells -> {fpath} (total {_time.time()-_ex_t0:.1f}s)")
 
     # ── Pre-write cache to server cache dir ──────────────────────────────────
     # The exported h5ad lands wherever the user saves it (unknown to the server),
