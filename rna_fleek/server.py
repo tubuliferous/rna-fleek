@@ -38,7 +38,7 @@ import numpy as np
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
 # Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
-FLEEK_VERSION = "0.5.34"
+FLEEK_VERSION = "0.5.35"
 
 # Globals set at startup
 ADATA = None
@@ -91,7 +91,74 @@ CSC_CACHED = False    # True if CSC was loaded from cache
 CSC_TIME = 0          # seconds taken to build/load CSC index
 LOAD_SETTINGS = {}  # Sent to client so it knows what options were active
 LOADED_PATH = ""    # path to currently loaded h5ad, for annotation caching
-MARKER_DB = None    # {cell_type: [genes]} — loaded from file or built-in
+MARKER_DB = None    # {cell_type: [genes]} — primary db (CellMarker2 by default)
+MARKER_DB_PANGLAO = None  # {cell_type: [genes]} — secondary db, when present, ensembled with the primary
+
+# Genes that dominate top-DEG lists in essentially every cluster (mitochondrial
+# transcripts, ribosomal proteins, classic housekeeping). They drag marker-set
+# scoring toward false matches because plenty of marker DBs list ACTB/GAPDH/
+# RPS-something for many cell types. Filtered out of the cluster's top-N
+# before scoring; signature definitions in MARKER_DB are NOT touched, so a
+# real signature that happens to include one of these will simply not get
+# credit from that gene.
+_HK_PREFIXES = ("MT-", "MT.", "MTRNR", "RPL", "RPS", "MRPL", "MRPS", "HSPA", "HSPB", "HIST")
+_HK_NAMES = frozenset({
+    "ACTB", "ACTG1", "GAPDH", "GAPDHS", "B2M", "HPRT1", "TBP", "GUSB", "PPIA",
+    "TUBA1A", "TUBA1B", "TUBA1C", "TUBB", "TUBB1", "TUBB2A", "TUBB4A", "TUBB4B",
+    "TUBB6", "EEF1A1", "EEF1B2", "EEF2", "RPLP0", "RPLP1", "RPLP2", "PGK1",
+    "LDHA", "LDHB", "MALAT1", "NEAT1", "XIST", "TSIX", "ALB", "FTL", "FTH1",
+    "GLUL", "GNB2L1", "EIF4A1", "EIF1", "ATP5F1A", "ATP5F1B", "ATP5F1C",
+    "UBA52", "UBC", "UBB", "PSMA1", "PSMA2", "PSMA3", "POLR2A",
+})
+
+def _is_housekeeping(g):
+    """g is an uppercase gene symbol. Returns True if it should be excluded
+       from the cluster's top-DEG set when computing marker enrichment."""
+    if not g:
+        return False
+    if g in _HK_NAMES:
+        return True
+    for pfx in _HK_PREFIXES:
+        if g.startswith(pfx):
+            return True
+    return False
+
+
+_EXPR_GENE_COUNT_CACHE = None
+
+
+def _expressed_gene_count():
+    """Count of genes that are usefully expressed in the dataset (mean > 0
+       across cells). Used as the universe size for the hypergeometric test
+       in marker annotation. Cached across calls within a single dataset."""
+    global _EXPR_GENE_COUNT_CACHE
+    if _EXPR_GENE_COUNT_CACHE is not None:
+        return _EXPR_GENE_COUNT_CACHE
+    if ADATA is None:
+        return 0
+    try:
+        # Stay cheap: a tiny random row sample is enough to count which
+        # genes have any expression at all. Big datasets shouldn't pay
+        # the cost of a full mean-per-gene scan.
+        n_cells = ADATA.shape[0]
+        n_sample = min(n_cells, 5000)
+        if n_sample <= 0:
+            return ADATA.shape[1]
+        rng = np.random.default_rng(0)
+        idx = np.sort(rng.choice(n_cells, size=n_sample, replace=False)) if n_sample < n_cells else np.arange(n_cells)
+        X = ADATA.X[idx]
+        # Sparse-friendly nonzero-column count
+        if hasattr(X, "getnnz"):
+            cols_nonzero = (X.getnnz(axis=0) > 0)
+            n = int(cols_nonzero.sum())
+        else:
+            arr = np.asarray(X)
+            n = int(np.sum((arr != 0).any(axis=0)))
+        _EXPR_GENE_COUNT_CACHE = max(n, 1000)  # floor at 1000 to keep p-values sane
+        return _EXPR_GENE_COUNT_CACHE
+    except Exception:
+        # Safe fallback — better to over-count than to wedge the universe at 0
+        return min(ADATA.shape[1], 15000) if ADATA is not None else 10000
 GO_DB = None        # Gene Ontology lookup: {terms, gene_to_terms, synonyms, ...}
 GO_DATASET_GENES = None  # Set of gene names in current dataset (for intersection)
 GO_SYNONYM_MAP = None    # synonym -> canonical gene symbol (for dataset matching)
@@ -382,15 +449,67 @@ _BUILTIN_MARKERS = {
     "Osteoclast": ["ACP5","CTSK","MMP9","OSCAR","DCSTAMP"],
 }
 
+def _select_species_buckets(global_obj, primary_species):
+    """Given a {"Human": {...}, "Mouse": {...}} _global object from a
+    marker JSON and the dataset's primary species, return the merged
+    {cell_type: [genes]} dict that should be used for scoring.
+
+    Strategy: union both buckets, with the primary species taking
+    precedence (its gene list is preserved verbatim; the other species'
+    genes for the same cell-type name are appended). This way a mouse
+    dataset gets:
+      - all Mouse cell types with their mouse-validated markers
+      - plus any Human cell types not seen in the Mouse bucket
+      - plus extra coverage from human orthologs of shared cell types
+    Same upcased gene-symbol space matches both human ALL-CAPS and
+    mouse Title-case symbols at scoring time.
+    """
+    if not isinstance(global_obj, dict):
+        return {}
+    primary = global_obj.get(primary_species, {}) or {}
+    other_species = "Mouse" if primary_species == "Human" else "Human"
+    other = global_obj.get(other_species, {}) or {}
+    out = {}
+    # Start with primary — preserve gene order
+    for ct, genes in primary.items():
+        out[ct] = list(genes)
+    # Union the other species in
+    for ct, genes in other.items():
+        if ct not in out:
+            out[ct] = list(genes)
+        else:
+            seen = set(g.upper() for g in out[ct])
+            for g in genes:
+                if g.upper() not in seen:
+                    out[ct].append(g)
+                    seen.add(g.upper())
+    return out
+
+
 def load_marker_db(marker_path=None):
-    """Load marker database from JSON file or use built-in defaults."""
-    global MARKER_DB
-    
-    # Try loading full CellMarker2 database
+    """Load primary (CellMarker2) and optional secondary (PanglaoDB) marker
+    databases from JSON files. Both databases populate species-specific
+    buckets ('_global.Human' and '_global.Mouse'); we union them with the
+    detected dataset species taking precedence so a mouse dataset still
+    gets the broader Human coverage and vice versa. PanglaoDB is
+    opportunistic — if present, the marker-based annotation ensembles both
+    DBs; if absent, scoring uses CellMarker2 alone."""
+    global MARKER_DB, MARKER_DB_PANGLAO
+
+    # Pick the primary species for this dataset (Human / Mouse). At
+    # marker-load time the gene list is already in GENE_NAMES_LIST (set
+    # during load_and_prepare's header build), so _detect_organism is
+    # safe to call here.
+    try:
+        organism, _reason = _detect_organism()
+    except Exception:
+        organism = "human"
+    primary_species = "Mouse" if organism == "mouse" else "Human"
+
+    # ── Primary: CellMarker2 ──
     paths_to_try = []
     if marker_path:
         paths_to_try.append(marker_path)
-    # Look in bundle dir, next to server script, and in working directory
     script_dir = Path(__file__).parent
     paths_to_try.extend([
         _BUNDLE_DIR / "rna_fleek" / "cell_markers.json",
@@ -400,24 +519,56 @@ def load_marker_db(marker_path=None):
         Path("data") / "cell_markers.json",
         Path("cell_markers.json"),
     ])
-    
+    loaded_primary = False
     for p in paths_to_try:
         if Path(p).exists():
             try:
                 with open(p) as f:
                     data = json.load(f)
-                # Use the global (cross-tissue) human markers
-                if "_global" in data and "Human" in data["_global"]:
-                    MARKER_DB = data["_global"]["Human"]
-                    print(f"  Loaded CellMarker2 database: {len(MARKER_DB)} cell types from {p}")
-                    return
+                if "_global" in data:
+                    MARKER_DB = _select_species_buckets(data["_global"], primary_species)
+                    if MARKER_DB:
+                        n_h = len(data["_global"].get("Human", {}) or {})
+                        n_m = len(data["_global"].get("Mouse", {}) or {})
+                        print(f"  Loaded CellMarker2: {len(MARKER_DB)} cell types "
+                              f"(primary={primary_species}; Human={n_h}, Mouse={n_m}) from {p}")
+                        loaded_primary = True
+                        break
             except Exception as e:
                 print(f"  Warning: Failed to load {p}: {e}")
-    
-    # Fall back to built-in
-    MARKER_DB = dict(_BUILTIN_MARKERS)
-    print(f"  Using built-in marker database: {len(MARKER_DB)} cell types")
-    print(f"  (Run download_markers.py for the full CellMarker2 database)")
+    if not loaded_primary:
+        MARKER_DB = dict(_BUILTIN_MARKERS)
+        print(f"  Using built-in marker database: {len(MARKER_DB)} cell types")
+        print(f"  (Run scripts/download_markers.py for the full CellMarker2 database)")
+
+    # ── Secondary (optional): PanglaoDB ──
+    pang_paths = [
+        _BUNDLE_DIR / "rna_fleek" / "panglao_markers.json",
+        _BUNDLE_DIR / "panglao_markers.json",
+        script_dir / "data" / "panglao_markers.json",
+        script_dir / "panglao_markers.json",
+        Path("data") / "panglao_markers.json",
+        Path("panglao_markers.json"),
+    ]
+    MARKER_DB_PANGLAO = None
+    for p in pang_paths:
+        if Path(p).exists():
+            try:
+                with open(p) as f:
+                    pdata = json.load(f)
+                if "_global" in pdata:
+                    MARKER_DB_PANGLAO = _select_species_buckets(pdata["_global"], primary_species)
+                    if MARKER_DB_PANGLAO:
+                        n_h = len(pdata["_global"].get("Human", {}) or {})
+                        n_m = len(pdata["_global"].get("Mouse", {}) or {})
+                        print(f"  Loaded PanglaoDB: {len(MARKER_DB_PANGLAO)} cell types "
+                              f"(primary={primary_species}; Human={n_h}, Mouse={n_m}) from {p}")
+                        break
+            except Exception as e:
+                print(f"  Warning: Failed to load {p}: {e}")
+    if MARKER_DB_PANGLAO is None:
+        print(f"  PanglaoDB not loaded — scoring uses CellMarker2 only")
+        print(f"  (Run scripts/download_panglao.py to enable two-DB ensemble scoring)")
 
 
 def _fetch_ncbi_gene_summary(entrez_id, timeout=8):
@@ -1708,15 +1859,159 @@ def _remap_cached_annotations(cached):
     return out
 
 
-def annotate_clusters(top_n=50, test="wilcoxon"):
-    """Score clusters against marker database using shared DEG results."""
-    from scipy.stats import fisher_exact
+def _score_cluster_vs_db(top_genes_ranked, marker_db, expr_universe_size):
+    """Score a cluster's top DEG list against a marker database.
 
-    if ADATA is None or MARKER_DB is None:
-        return {"error": "No data or marker database loaded"}
-    
+    top_genes_ranked: list of UPPERCASE gene symbols, ordered by descending
+        DEG strength (index 0 = top), already housekeeping-filtered.
+    marker_db: {cell_type_name: [marker_genes...]}
+    expr_universe_size: number of genes considered for the hypergeometric
+        background — should be the count of expressed/usable genes, NOT
+        the full ~30k symbol space. Smaller universe → less inflated
+        p-values (Fisher's test on 50-vs-30000 produced absurdly tiny
+        p-values that didn't differentiate good from bad matches).
+
+    Returns: list of {cell_type, score, pval, markers_found, markers_total,
+        n_found, weighted}, sorted by p-value then weighted score.
+
+    Score = rank-weighted overlap normalized to [0,1]. Each marker found at
+    rank r contributes 1/log2(r+2) (so rank 0 = 1.0, rank 50 ≈ 0.18, rank
+    200 ≈ 0.13); the per-signature sum is divided by the best-case sum
+    (all markers stacked at the top). This addresses two flaws in the
+    old |overlap|/|markers|: (1) it rewards markers that are strongly
+    upregulated, not just present; (2) the [0,1] range remains
+    interpretable for the UI's percentage display.
+    """
+    from scipy.stats import fisher_exact
+    import math
+
+    n_top = len(top_genes_ranked)
+    if n_top == 0 or not marker_db:
+        return []
+
+    # rank → weight lookup (reused per signature)
+    weights = [1.0 / math.log2(r + 2) for r in range(n_top)]
+    rank_of = {g: r for r, g in enumerate(top_genes_ranked)}
+    top_set = set(top_genes_ranked)
+
+    out = []
+    for cell_type, markers in marker_db.items():
+        marker_set = {m.upper() for m in markers}
+        # Drop housekeeping from the marker set too — a signature that lists
+        # ACTB/GAPDH gets no credit from those genes (they were also filtered
+        # from the cluster's top set, so they wouldn't match anyway, but this
+        # makes the size accounting honest).
+        marker_set_filtered = {g for g in marker_set if not _is_housekeeping(g)}
+        m_size = len(marker_set_filtered)
+        if m_size < 2:
+            continue
+        overlap = marker_set_filtered & top_set
+        if not overlap:
+            continue
+        # Weighted hits
+        WH = sum(weights[rank_of[g]] for g in overlap)
+        # Best case: all signature markers at the top of the cluster
+        best = sum(weights[r] for r in range(min(m_size, n_top)))
+        weighted = WH / best if best > 0 else 0.0  # [0,1]
+        # Hypergeometric / Fisher exact on filtered universe
+        a = len(overlap)
+        b = m_size - a
+        c = n_top - a
+        d = max(1, expr_universe_size - a - b - c)
+        try:
+            _, pval = fisher_exact([[a, b], [c, d]], alternative="greater")
+        except Exception:
+            pval = 1.0
+        out.append({
+            "cell_type": cell_type,
+            "score": round(weighted, 3),
+            "weighted": round(weighted, 3),
+            "pval": float(f"{pval:.2e}"),
+            "markers_found": sorted(overlap),
+            "markers_total": m_size,
+            "n_found": a,
+        })
+    # Primary sort: p-value (proper enrichment); secondary: weighted score.
+    out.sort(key=lambda x: (x["pval"], -x["weighted"]))
+    return out
+
+
+def _ensemble_predictions(preds_a, preds_b, max_out=10):
+    """Combine two prediction lists (one per marker DB) into a single
+    ranked list. Cell types appearing in both DBs get the better-of-two
+    weighted score and the better-of-two p-value (geometric-mean-style:
+    sqrt(p1*p2)). Cell types unique to one DB stay as-is. Returned list
+    is sorted by combined p-value, capped at max_out entries."""
+    import math
+    by_type = {}
+    for p in preds_a:
+        by_type[p["cell_type"]] = {"a": p, "b": None}
+    for p in preds_b:
+        if p["cell_type"] in by_type:
+            by_type[p["cell_type"]]["b"] = p
+        else:
+            by_type[p["cell_type"]] = {"a": None, "b": p}
+    merged = []
+    for ct, ab in by_type.items():
+        a, b = ab["a"], ab["b"]
+        if a and b:
+            # Both DBs agree → strengthen confidence: take the better
+            # (lower) p-value of the two and take the better weighted
+            # score. Mark which DBs supported it.
+            pval = min(a["pval"], b["pval"])
+            weighted = max(a["weighted"], b["weighted"])
+            n_found = max(a["n_found"], b["n_found"])
+            markers_total = max(a["markers_total"], b["markers_total"])
+            # Combined markers found: union (dedup-on-symbol)
+            mfound = sorted(set(a["markers_found"]) | set(b["markers_found"]))
+            sources = "both"
+        elif a:
+            pval = a["pval"]; weighted = a["weighted"]; n_found = a["n_found"]
+            markers_total = a["markers_total"]; mfound = a["markers_found"]
+            sources = "primary"
+        else:
+            pval = b["pval"]; weighted = b["weighted"]; n_found = b["n_found"]
+            markers_total = b["markers_total"]; mfound = b["markers_found"]
+            sources = "secondary"
+        merged.append({
+            "cell_type": ct, "score": round(weighted, 3),
+            "weighted": round(weighted, 3), "pval": float(f"{pval:.2e}"),
+            "markers_found": mfound[:30], "markers_total": markers_total,
+            "n_found": n_found, "sources": sources,
+        })
+    merged.sort(key=lambda x: (x["pval"], -x["weighted"]))
+    return merged[:max_out]
+
+
+def annotate_clusters(top_n=200, test="wilcoxon"):
+    """Score clusters against marker database(s) using shared DEG results.
+
+    Improvements over the original:
+      - Top-N expanded from 50 → 200 (configurable). A cluster's signature
+        is much larger than 50 genes; the old hard cutoff lost real signal.
+      - Housekeeping / mitochondrial / ribosomal genes are filtered from
+        BOTH the cluster's top genes and the marker signatures before
+        overlap is computed. Stops MT-* / RPL* / RPS* genes from
+        producing matches in essentially every cluster.
+      - Rank-weighted scoring: a marker at the top of the cluster's DEGs
+        scores higher than one at rank 200. Was binary set-overlap before.
+      - Hypergeometric universe = "expressed genes in this dataset"
+        (≈ 5-15k) instead of the full gene-symbol space (~30k). The old
+        bigger universe produced absurdly small p-values that didn't
+        differentiate good matches from spurious ones.
+      - PanglaoDB ensemble: when MARKER_DB_PANGLAO is loaded, both
+        databases are scored independently and predictions are merged.
+        Cell types that both DBs agree on get a combined p-value and
+        a "both" source tag so the UI can flag them as more confident.
+    """
+
+    if ADATA is None:
+        return {"error": "No data loaded"}
+
     if not MARKER_DB:
         load_marker_db()
+    if MARKER_DB is None:
+        return {"error": "No marker database loaded"}
     if GO_DB is None:
         load_go_db()
     detect_counts()
@@ -1734,88 +2029,101 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
                 cached_annot = json.load(f)
             _cn = cached_annot.get("cluster_names")
             _valid = (_cn == CLUSTER_NAMES and cached_annot.get("n_cells") == N_CELLS) or (_cn and set(CLUSTER_NAMES).issubset(set(_cn)))
-            if _valid:
+            # Invalidate cache when scoring algorithm version changes — old
+            # cached results used the binary-overlap score and will be
+            # numerically different from the new rank-weighted score.
+            _alg_ok = cached_annot.get("alg_version") == 2
+            if _valid and _alg_ok:
                 cached_annot = _remap_cached_annotations(cached_annot)
                 print(f"  Marker annotation loaded from cache" + (" (remapped for subset)" if cached_annot.get("remapped_from_parent") else ""))
                 cached_annot["cached"] = True
                 return cached_annot
         except Exception as e:
             print(f"  Marker annotation cache load failed: {e}")
-    
+
     t0 = time.time()
     ANNOT_STATUS["active"] = True
     ANNOT_STATUS["method"] = "markers"
 
     # Get shared DEG results (cached if already computed by Claude path)
     cluster_genes, small_clusters = _get_shared_deg(top_n=top_n, test=test)
-    
+
     if not cluster_genes:
         ANNOT_STATUS["active"] = False
         return {"error": "DEG computation failed"}
 
-    # Score against marker database
-    n_universe = len(GENE_NAMES_LIST)
-    ANNOT_STATUS["step"] = f"Scoring {len(CLUSTER_NAMES)} clusters against {len(MARKER_DB)} signatures..."
+    # Universe size for the hypergeometric test = expressed genes. If we
+    # have a count somewhere from preprocessing, use it; else fall back to
+    # something plausible (10k) that's much smaller than len(GENE_NAMES_LIST).
+    expr_universe = _expressed_gene_count() or 10000
+
+    has_panglao = isinstance(MARKER_DB_PANGLAO, dict) and len(MARKER_DB_PANGLAO) > 0
+    db_msg = f"{len(MARKER_DB)} CellMarker2 signatures"
+    if has_panglao:
+        db_msg += f" + {len(MARKER_DB_PANGLAO)} PanglaoDB signatures"
+    ANNOT_STATUS["step"] = f"Scoring {len(CLUSTER_NAMES)} clusters against {db_msg}..."
     ANNOT_STATUS["pct"] = 70
-    
+
     results = []
     for cid, cname in enumerate(CLUSTER_NAMES):
         if cid % 20 == 0:
             pct = 70 + int(25 * cid / max(1, len(CLUSTER_NAMES)))
             ANNOT_STATUS["pct"] = pct
             ANNOT_STATUS["step"] = f"Scoring cluster {cid+1}/{len(CLUSTER_NAMES)}..."
-        
-        top_genes_list = cluster_genes.get(cname, [])
-        top_genes = set(g.upper() for g in top_genes_list)
+
+        top_genes_list_raw = cluster_genes.get(cname, [])
+        # Preserve rank order; uppercase + dedupe + drop housekeeping
+        seen = set()
+        top_genes_ranked = []
+        for g in top_genes_list_raw:
+            G = g.upper()
+            if G in seen or _is_housekeeping(G):
+                continue
+            seen.add(G)
+            top_genes_ranked.append(G)
         n_cells_cluster = int(np.sum(CLUSTER_IDS == cid))
-        
-        if not top_genes:
+
+        if not top_genes_ranked:
             results.append({
                 "cluster_id": cid, "cluster_name": cname,
                 "n_cells": n_cells_cluster, "top_genes": [], "predictions": []
             })
             continue
-        
-        predictions = []
-        for cell_type, markers in MARKER_DB.items():
-            marker_set = set(m.upper() for m in markers)
-            if len(marker_set) < 2:
-                continue
-            overlap = top_genes & marker_set
-            if not overlap:
-                continue
-            score = len(overlap) / len(marker_set)
-            a = len(overlap)
-            b = len(marker_set) - a
-            c = len(top_genes) - a
-            d = n_universe - a - b - c
-            _, pval = fisher_exact([[a, b], [c, d]], alternative="greater")
-            predictions.append({
-                "cell_type": cell_type, "score": round(score, 3),
-                "pval": float(f"{pval:.2e}"), "markers_found": sorted(overlap),
-                "markers_total": len(marker_set), "n_found": len(overlap)
-            })
-        
-        predictions.sort(key=lambda x: (-x["score"], x["pval"]))
+
+        # Score against primary DB (CellMarker2)
+        preds_primary = _score_cluster_vs_db(top_genes_ranked, MARKER_DB, expr_universe)
+        # Score against PanglaoDB if loaded, then ensemble
+        if has_panglao:
+            preds_secondary = _score_cluster_vs_db(top_genes_ranked, MARKER_DB_PANGLAO, expr_universe)
+            preds = _ensemble_predictions(preds_primary, preds_secondary, max_out=10)
+        else:
+            preds = preds_primary[:10]
+
         results.append({
             "cluster_id": cid, "cluster_name": cname,
             "n_cells": n_cells_cluster,
-            "top_genes": sorted(top_genes)[:20],
-            "predictions": predictions[:10]
+            "top_genes": top_genes_ranked[:20],
+            "predictions": preds,
         })
-    
+
     elapsed = round(time.time() - t0, 1)
-    print(f"  Marker annotation complete ({elapsed}s) — {len(results)} clusters scored")
+    print(f"  Marker annotation complete ({elapsed}s) — {len(results)} clusters scored "
+          f"(top_n={top_n}, HK-filtered, rank-weighted, "
+          f"{'CellMarker2+PanglaoDB' if has_panglao else 'CellMarker2'})")
     ANNOT_STATUS["active"] = False
     ANNOT_STATUS["step"] = ""
     ANNOT_STATUS["pct"] = 0
-    
+
     result = {
         "results": results, "elapsed": elapsed,
-        "n_clusters": len(CLUSTER_NAMES), "marker_db_size": len(MARKER_DB),
-        "top_n": top_n, "cluster_names": CLUSTER_NAMES, "n_cells": N_CELLS
+        "n_clusters": len(CLUSTER_NAMES),
+        "marker_db_size": len(MARKER_DB) + (len(MARKER_DB_PANGLAO) if has_panglao else 0),
+        "marker_db_primary_size": len(MARKER_DB),
+        "marker_db_panglao_size": len(MARKER_DB_PANGLAO) if has_panglao else 0,
+        "top_n": top_n, "cluster_names": CLUSTER_NAMES, "n_cells": N_CELLS,
+        "alg_version": 2,  # bump if scoring changes; old caches get invalidated
     }
-    
+
     try:
         wp = _cache_write_path(".annot_markers.json")
         with open(wp, "w") as f:
@@ -1823,7 +2131,7 @@ def annotate_clusters(top_n=50, test="wilcoxon"):
         print(f"  Marker annotation cached to {wp}")
     except Exception as e:
         print(f"  Marker annotation cache save failed: {e}")
-    
+
     return result
 
 
@@ -2531,9 +2839,10 @@ def _reset_all():
     UMAP_2D = None; UMAP_3D = None
     PCA_2D = None; PCA_3D = None
     PACMAP_2D = None; PACMAP_3D = None
-    global EMBEDDING_SOURCES, EMBEDDING_INPUTS
+    global EMBEDDING_SOURCES, EMBEDDING_INPUTS, _EXPR_GENE_COUNT_CACHE
     EMBEDDING_SOURCES = {}
     EMBEDDING_INPUTS = {}
+    _EXPR_GENE_COUNT_CACHE = None
     PACMAP_COMPUTING = False
     CLUSTER_IDS = None; CLUSTER_NAMES = None; CLUSTER_COL = None; CLUSTER_COLORS = []
     OBS_COLS.clear()
@@ -5815,8 +6124,21 @@ class FleekHandler(SimpleHTTPRequestHandler):
     def _serve_annotate(self, req):
         """Run cell type annotation against marker database."""
         try:
-            top_n = req.get("top_n", 50)
+            top_n = req.get("top_n", 200)
             test = req.get("test", "wilcoxon")
+            force = bool(req.get("force", False))
+            if force:
+                # Drop the on-disk cache so annotate_clusters runs fresh.
+                # Both the dataset-side and server-side copies are removed
+                # so the next call doesn't pick up either.
+                for cp in (_dataset_cache_path(".annot_markers.json"),
+                           _server_cache_path(".annot_markers.json")):
+                    try:
+                        if cp and cp.exists():
+                            cp.unlink()
+                            print(f"  Marker cache cleared (force re-run): {cp}")
+                    except Exception as e:
+                        print(f"  Could not delete {cp}: {e}")
             result = annotate_clusters(top_n=top_n, test=test)
             data = json.dumps(_json_safe(result)).encode("utf-8")
             self.send_response(200)

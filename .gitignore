@@ -3,6 +3,10 @@ datasets/
 
 # Downloaded data files (large, regeneratable via scripts/)
 data/go_*.json
+# Marker DBs are produced by scripts/download_markers.py and
+# scripts/download_panglao.py — keep the scripts in git, not the JSONs.
+**/cell_markers.json
+**/panglao_markers.json
 
 # macOS
 .DS_Store

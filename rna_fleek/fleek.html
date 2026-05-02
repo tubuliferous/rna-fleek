@@ -677,16 +677,34 @@
   .gv-dd-group{font-size:10px;color:var(--text4);padding:5px 6px 2px;font-weight:600;cursor:default;}
   /* Lineage tree */
   .lin-node{padding:1px 0;user-select:none;}
-  .lin-row{display:flex;align-items:center;gap:4px;padding:3px 5px;border-radius:3px;font-size:10px;cursor:pointer;}
+  .lin-row{display:flex;align-items:flex-start;gap:2px;padding:3px 3px;border-radius:3px;font-size:10px;cursor:pointer;min-width:0;}
   .lin-row:hover{background:rgba(99,102,241,0.08);}
-  .lin-caret{width:14px;text-align:center;font-size:12px;color:var(--text4);flex-shrink:0;cursor:pointer;padding:2px;}
+  /* Name + Claude prediction stack vertically inside this column so a
+     long original name and a long Claude prediction never compete for
+     the same horizontal space. The cell count stays on the row's right
+     edge and isn't pushed off-screen by the parent's overflow-x:hidden. */
+  .lin-namecol{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;line-height:1.25;}
+  /* AI label (Claude's per-cluster annotation, or lineage label as a
+     fallback). Lavender to distinguish from the file name on L1. */
+  .lin-claude{font-size:10px;color:#c4b5fd;white-space:normal;word-break:break-word;overflow-wrap:break-word;line-height:1.2;}
+  /* All three row leads (caret, dot, first line of namecol) align on a
+     shared 13 px slot — that's the line-height of one .lin-name line at
+     font-size 10 px × line-height 1.3. The caret has its own line-height
+     pinned to that same 13 px so its glyph's vertical center matches the
+     text. The dot is 9 px tall, so a 2 px top margin centers it on that
+     same 13 px line ((13-9)/2 = 2). align-items:flex-start on .lin-row
+     keeps everything aligned to the top, so a wrapped second line in
+     namecol doesn't drag the caret/dot into the middle of the row. */
+  .lin-caret{width:10px;height:13px;text-align:center;font-size:11px;line-height:13px;color:var(--text4);flex-shrink:0;cursor:pointer;padding:0;}
   .lin-caret:hover{color:var(--text2);}
-  /* Placeholder for leaf nodes — keeps caret/dot/name horizontally aligned
-     with siblings that DO have a caret, so a leaf child still sits visually
-     to the right of its parent (and not left of its branch-cousin). Width +
-     padding mirror .lin-caret so the layout slot is identical. */
-  .lin-caret-spacer{width:14px;flex-shrink:0;padding:2px;}
-  .lin-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;cursor:pointer;border:1.5px solid;box-sizing:border-box;padding:0;}
+  .lin-caret-spacer{width:10px;height:13px;flex-shrink:0;padding:0;}
+  /* margin-right pushes the namecol away from the dot uniformly across
+     branch and leaf rows (a negative margin-left would close the gap to
+     the caret/spacer, which makes the dot's apparent X jump between row
+     types because the caret glyph and the empty spacer have different
+     visual mass). 1 px is a "tiny shift" — bump to 2 if it still reads
+     too close, drop to 0 to revert. */
+  .lin-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;cursor:pointer;border:1.5px solid;box-sizing:border-box;padding:0;margin-top:2px;margin-right:1px;}
   .lin-dot:hover{opacity:0.8;}
   .lin-dot.vis-on{border-color:currentColor;background:currentColor;}
   .lin-dot.vis-off{border-color:currentColor;background:transparent;}
@@ -702,7 +720,7 @@
   .lin-name{flex:1;min-width:40px;white-space:normal;word-break:normal;overflow-wrap:break-word;hyphens:auto;line-height:1.3;}
   .lin-name.inferred{opacity:0.45;font-style:italic;}
   .lin-count{font-size:10px;color:var(--text4);flex-shrink:0;font-variant-numeric:tabular-nums;padding-left:2px;}
-  .lin-children{margin-left:9px;border-left:1px solid var(--border);padding-left:2px;}
+  .lin-children{margin-left:5px;border-left:1px solid var(--border);padding-left:1px;}
   #crosshair.show{opacity:1;transition:opacity 0.05s ease-in;}
   .vbtn{display:inline-block;padding:4px 12px;border-radius:4px;border:1px solid var(--border2);cursor:pointer;font-size:12px;background:transparent;color:var(--text2);font-family:inherit;transition:all 0.1s;margin-right:4px;}
   .vbtn:hover{border-color:#6366f1;color:#a5b4fc;}
@@ -2423,14 +2441,14 @@
       <div class="help-sec-body">
         <p>RNA-FLEEK can predict cell type identities for each cluster using two complementary approaches. Both are accessed via buttons in the Cell Types panel header.</p>
 
-        <p><strong>Markers</strong> <span style="color:#34d399;">(green M tag)</span> — scores each cluster's differentially expressed genes against a curated marker gene database. For each cluster, a one-vs-rest Wilcoxon test identifies the top 50 upregulated genes. These are compared against known cell type signatures using two metrics:</p>
+        <p><strong>Markers</strong> <span style="color:#34d399;">(green M tag)</span> — scores each cluster's differentially expressed genes against curated marker gene databases. For each cluster, a one-vs-rest Wilcoxon test produces a ranked list of upregulated genes (top 200 by default). Housekeeping / mitochondrial / ribosomal genes (MT-*, RPL*, RPS*, ACTB, GAPDH, B2M, …) are stripped before scoring — they dominate top-DEG lists in nearly every cluster and otherwise produce spurious matches with cell types that happen to list them as markers. The remaining genes are compared against known cell type signatures using two metrics:</p>
         <table class="help-table">
           <tr><th>Metric</th><th>What it measures</th></tr>
-          <tr><td>Overlap coefficient</td><td>Fraction of a cell type's known markers found in the cluster's top genes. A score of 78% means 78% of that cell type's known markers were among the cluster's most distinguishing genes.</td></tr>
-          <tr><td>Fisher's exact test</td><td>Statistical significance of the overlap — is this many shared genes more than expected by chance given the total gene universe? Low p-values mean the overlap is unlikely to be random.</td></tr>
+          <tr><td>Rank-weighted score (0–1)</td><td>Each marker found at rank <em>r</em> in the cluster's DEG list contributes <code>1/log<sub>2</sub>(r+2)</code> — so a marker at the top counts much more than one at rank 200. The sum is normalized by the best-case (all signature markers stacked at the top), giving a value in [0,1]. Rewards specifically- and strongly-upregulated markers, not just presence in a long list.</td></tr>
+          <tr><td>Fisher's exact test</td><td>Statistical significance of the overlap, with the universe restricted to genes actually expressed in this dataset (≈ 5–15k) rather than the full ~30k gene-symbol space. Predictions are ranked by p-value first, then by weighted score.</td></tr>
         </table>
-        <p>The built-in database covers ~55 common human cell types (T cells, B cells, monocytes, fibroblasts, epithelial, neuronal, etc.). For broader coverage (~800+ cell types across tissues), run <code>python download_markers.py</code> to fetch the CellMarker2 database — the server auto-detects and uses it if present.</p>
-        <p><strong>Why marker-based annotation works:</strong> Cell types are defined by characteristic gene expression programs. A cluster expressing CD3D, CD3E, CD8A, GZMK is almost certainly a CD8+ T cell because those genes are specifically and consistently expressed in CD8+ T cells across many studies. The overlap coefficient quantifies this match.</p>
+        <p>The built-in database covers ~55 common human cell types. For broader coverage, run <code>python scripts/download_markers.py</code> (CellMarker2, ~800 types) and optionally <code>python scripts/download_panglao.py</code> (PanglaoDB, ~250 types). When PanglaoDB is present, the annotator <strong>ensembles both databases</strong>: a cell type that both DBs flag for the same cluster gets a "both" tag and the better-of-two p-value, which is a stronger signal than either DB alone.</p>
+        <p><strong>Why marker-based annotation works:</strong> Cell types are defined by characteristic gene expression programs. A cluster whose top DEGs include CD3D, CD8A, GZMK is almost certainly a CD8+ T cell because those genes are specifically and consistently expressed in CD8+ T cells across many studies. The rank-weighted score quantifies how strongly the cluster's most distinguishing genes match a signature.</p>
         <p><strong>Limitations:</strong> Marker databases are incomplete and biased toward well-studied cell types. Novel or transitional states may not match any known signature. Small clusters (&lt;5 cells) are skipped because they lack statistical power for DEG.</p>
 
         <p><strong>Claude</strong> <span style="color:#c4b5fd;">(purple AI tag)</span> — sends each cluster's top marker genes to Claude (Anthropic's LLM) for interpretation. This provides a different perspective:</p>
@@ -2902,7 +2920,7 @@
         <p><strong>DEG subsampling (QuickDEG):</strong> For large datasets, the annotation DEG is run on a stratified subsample (default 50k cells) rather than the full dataset. Each cluster contributes cells proportionally, with a minimum of 5 per cluster. The top marker genes are virtually identical whether tested on 50k or 600k+ cells — the additional cells only push p-values lower without changing rankings. This is a separate mechanism from the user-facing DEG panel (which always tests the specific selection groups on their actual cells).</p>
         <p><strong>Shared DEG:</strong> Both marker-based and Claude annotation share a single DEG computation. The first to run computes the one-vs-rest rankings, caches them in memory (keyed by cell count, cluster count, test method, and subsample size), and the second method gets the results instantly. Quick DEG (subsampled) and full DEG (all cells) are cached separately — switching between QuickDEG on/off doesn't invalidate the other. A threading lock ensures concurrent requests don't conflict.</p>
         <p><strong>Cohen's d</strong> (effect size) is computed as the difference in means divided by pooled standard deviation, with Bessel correction. Computed directly on the sparse matrix via E[X²]−E[X]² to avoid materializing dense arrays.</p>
-        <p><strong>Marker-based annotation</strong> uses the shared one-vs-rest DEG results (top 50 genes per cluster), then scores each cluster against every cell type signature using: (1) overlap coefficient = fraction of known markers found in the cluster's top genes, and (2) Fisher's exact test for enrichment against the full gene universe. Predictions are ranked by overlap score, then p-value. The built-in database contains ~55 cell types; the full CellMarker2 database (optional download) contains ~800+.</p>
+        <p><strong>Marker-based annotation</strong> uses the shared one-vs-rest DEG results (top 200 genes per cluster after housekeeping/MT/ribosomal filtering), then scores each cluster against every cell type signature using: (1) a <em>rank-weighted</em> overlap score (markers at the top of the cluster's DEG list count more), and (2) Fisher's exact test for enrichment, with the universe restricted to expressed genes in this dataset. Predictions are ranked primarily by p-value. The built-in database contains ~55 cell types; the full CellMarker2 database adds ~800+. When PanglaoDB is also installed (<code>scripts/download_panglao.py</code>), both DBs are ensembled and predictions agreed on by both are flagged with a "both" source tag.</p>
         <p><strong>LLM annotation</strong> uses the same shared DEG results, formatted as a structured prompt to Claude (Anthropic). The top 25 marker genes per cluster are sent in batches of 50 clusters. Claude returns cell type, confidence level, and reasoning. Each batch uses up to 8,192 output tokens. The model evaluates gene combinations holistically rather than matching individual genes against a list.</p>
         <p><strong>Gene variability scoring</strong> — FLEEK ranks all genes by how variable they are relative to their expression level. When a dataset already contains a variability metric (checked in order: <code>dispersions_norm</code>, <code>dispersions</code>, <code>variances_norm</code>, <code>variances</code> in <code>adata.var</code>), that metric is used directly. When no pre-computed metric exists, FLEEK computes its own using the <em>locally standardized trend residual</em> method described below.</p>
         <p><strong>Which matrix feeds the variability calculation:</strong> routed per <em>Data matrices &amp; routing</em>. Ideal is raw counts (Fano interpretation is statistically clean); log-normalized is an acceptable fallback (trend/residual method still works, though Fano as a Poisson-vs-NB diagnostic no longer applies); denoised counts are a last resort (Fano trend collapses to ≈1 because the denoiser fits a Poisson emission, so the rankings end up dominated by numerical noise). The Data panel shows which matrix was used for variability and whether a caveat applies.</p>
@@ -3180,7 +3198,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.34";
+var FLEEK_VERSION="v0.5.35";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 /* Ghost (non-expressing) cell render style — picked from the Debug menu so
@@ -9014,11 +9032,14 @@ function _fetchAllGeneVar(){
 
 /* ── Cluster gene ranking mode handlers ── */
 function _gvClusterLabel(i){
+  /* Prefer the file's cluster name; if Claude inferred a different name,
+     show it in parentheses so the file name still leads. Used for the
+     dropdown button label and for sorting. */
   var names=D&&D.header?D.header.cluster_names:[];
   var raw=names[i]||"Cluster "+i;
   if(llmAnnotations&&llmAnnotations[i]&&llmAnnotations[i].length>0){
     var ai=llmAnnotations[i][0].cell_type;
-    if(ai&&ai!==raw)return ai+" ("+raw+")";
+    if(ai&&ai!==raw)return raw+" ("+ai+")";
   }
   return raw;
 }
@@ -9079,7 +9100,50 @@ function _gvDdToggle(btn){
     var lr=list.getBoundingClientRect();
     if(lr.right>window.innerWidth-4)list.style.left=Math.max(4,window.innerWidth-lr.width-4)+"px";
     if(lr.bottom>window.innerHeight-4)list.style.top=Math.max(4,r.top-lr.height-2)+"px";
+    /* Auto-focus the search input + reset it so each open starts fresh. */
+    var sb=document.getElementById("gv-dd-search");
+    if(sb){sb.value="";_gvDdFilter("");sb.focus();}
   });
+}
+/* Live filter: hide any item whose data-search blob doesn't contain the
+   query. Empty query unhides everything. Case-insensitive. */
+function _gvDdFilter(q){
+  q=(q||"").toLowerCase().trim();
+  var items=document.querySelectorAll("#gv-dd-items .gv-dd-item");
+  for(var i=0;i<items.length;i++){
+    var blob=items[i].getAttribute("data-search")||"";
+    items[i].style.display=(!q||blob.indexOf(q)>=0)?"":"none";
+  }
+  /* Hide section/group separators that no longer have any visible items
+     beneath them in the lineage-sorted view (purely cosmetic; otherwise
+     a "T cells" group header could float over zero results). */
+  var groups=document.querySelectorAll("#gv-dd-items .gv-dd-group");
+  for(var g=0;g<groups.length;g++){
+    var grp=groups[g];
+    var anyVisible=false;
+    for(var sib=grp.nextElementSibling;sib&&!sib.classList.contains("gv-dd-group");sib=sib.nextElementSibling){
+      if(sib.classList.contains("gv-dd-item")&&sib.style.display!=="none"){anyVisible=true;break;}
+    }
+    grp.style.display=anyVisible?"":"none";
+  }
+}
+/* Keyboard inside the search box: Esc closes; Enter picks the first
+   visible match; ↑/↓ could be added later if useful. */
+function _gvDdSearchKey(e){
+  if(e.key==="Escape"){
+    var dd=document.getElementById("gv-cluster-dd");
+    if(dd)dd.classList.remove("open");
+    e.preventDefault();
+    return;
+  }
+  if(e.key==="Enter"){
+    var first=document.querySelector("#gv-dd-items .gv-dd-item:not([style*='display: none'])");
+    if(first){
+      var cid=parseInt(first.getAttribute("data-cid"));
+      if(!isNaN(cid))_gvDdSelect(cid);
+    }
+    e.preventDefault();
+  }
 }
 function _gvDdSelect(cid){
   _gvClusterId=parseInt(cid);
@@ -9088,8 +9152,9 @@ function _gvDdSelect(cid){
   /* Update button label (no dot — the standalone dot is beside the selector) */
   var lbl=document.getElementById("gv-dd-label");
   if(lbl)lbl.textContent=_gvClusterLabel(_gvClusterId);
-  /* Mark active item */
-  var items=document.querySelectorAll("#gv-dd-list .gv-dd-item");
+  /* Mark active item — scope to the items wrapper so we don't try to add
+     a class to the search-input row. */
+  var items=document.querySelectorAll("#gv-dd-items .gv-dd-item");
   for(var i=0;i<items.length;i++)items[i].classList.toggle("active",items[i].getAttribute("data-cid")===""+_gvClusterId);
   _gvClusterChanged(_gvClusterId);
 }
@@ -9099,12 +9164,10 @@ function _gvPopulateClusterDropdown(){
   if(!list||!names||names.length===0)return;
   list.innerHTML="";
   function _addItem(cid,depth){
-    var c=cc(cid);
-    /* Build a two-part label so both names survive on small widths:
-       bold AI-inferred name on top, muted file cluster name beneath. When
-       no AI annotation exists the file name just shows by itself. Wraps at
-       word boundaries instead of ellipsizing so long names stay fully
-       readable. */
+    /* Two-part label: file cluster name on top in normal text, Claude's
+       inferred name underneath in lavender (matches the lineage tree's
+       AI tint). When no AI annotation exists the file name shows alone.
+       Wraps on word boundaries so long names stay fully readable. */
     var fileName=(D&&D.header&&D.header.cluster_names?D.header.cluster_names[cid]:null)||("Cluster "+cid);
     var aiName="";
     if(llmAnnotations&&llmAnnotations[cid]&&llmAnnotations[cid].length>0){
@@ -9114,21 +9177,27 @@ function _gvPopulateClusterDropdown(){
     var nCells=(clusterCounts&&clusterCounts[cid]!=null)?clusterCounts[cid]:0;
     var nCellsStr=nCells.toLocaleString();
     /* Hover tooltip: both names + cell count + reasoning from Claude if available. */
-    var _tip=(aiName?"AI: "+aiName+"\nFile: "+fileName:fileName);
+    var _tip=(aiName?"File: "+fileName+"\nAI: "+aiName:fileName);
     _tip+="\n"+nCellsStr+" cell"+(nCells===1?"":"s");
     if(aiName&&llmAnnotations[cid][0].reasoning){_tip+="\n\n"+llmAnnotations[cid][0].reasoning;}
     _tip=_tip.replace(/"/g,"&quot;");
     var labelHtml;
     if(aiName){
       labelHtml='<span style="display:flex;flex-direction:column;min-width:0;line-height:1.25;">'
-        +'<span style="overflow-wrap:break-word;word-break:break-word;">'+aiName+'<\/span>'
-        +'<span style="font-size:10px;color:var(--text4);overflow-wrap:break-word;word-break:break-word;">'+fileName+'<\/span>'
+        +'<span style="overflow-wrap:break-word;word-break:break-word;">'+fileName+'<\/span>'
+        +'<span style="font-size:10px;color:#c4b5fd;overflow-wrap:break-word;word-break:break-word;">'+aiName+'<\/span>'
         +'<\/span>';
     }else{
       labelHtml='<span style="overflow-wrap:break-word;word-break:break-word;">'+fileName+'<\/span>';
     }
     var countHtml='<span style="margin-left:8px;font-size:10px;color:var(--text4);font-variant-numeric:tabular-nums;flex-shrink:0;align-self:center;">'+nCellsStr+'<\/span>';
-    var html='<div class="gv-dd-item'+(cid===_gvClusterId?' active':'')+'" data-cid="'+cid+'" onclick="_gvDdSelect('+cid+')" style="padding-left:'+(6+depth*12)+'px;white-space:normal;align-items:flex-start;" title="'+_tip+'">'
+    /* data-search collects every searchable token (file name + AI name +
+       reasoning) lowercase, so the search input below can do a single
+       indexOf check against it. Falls back to fileName alone when no AI. */
+    var searchBlob=fileName.toLowerCase();
+    if(aiName)searchBlob+=" "+aiName.toLowerCase();
+    if(aiName&&llmAnnotations[cid][0].reasoning)searchBlob+=" "+llmAnnotations[cid][0].reasoning.toLowerCase();
+    var html='<div class="gv-dd-item'+(cid===_gvClusterId?' active':'')+'" data-cid="'+cid+'" data-search="'+searchBlob.replace(/"/g,"&quot;")+'" onclick="_gvDdSelect('+cid+')" style="padding-left:'+(6+depth*12)+'px;white-space:normal;align-items:flex-start;" title="'+_tip+'">'
       +_gvDotHtml(cid,7)
       +'<span style="margin-left:4px;flex:1;min-width:0;">'+labelHtml+'<\/span>'
       +countHtml
@@ -9139,7 +9208,16 @@ function _gvPopulateClusterDropdown(){
      silently fall back to alpha so the dropdown still populates. */
   var effectiveMode=_gvSortMode;
   if(effectiveMode==="lineage"&&!lineageTree)effectiveMode="alpha";
-  var h="";
+  /* Sticky search input at the top — same UX as the gene-search box and
+     the cell-types search. Filter is purely client-side: each item carries
+     a data-search blob (file name + AI name + reasoning, lowercased) that
+     a single indexOf check matches against the typed query. */
+  var h='<input type="text" id="gv-dd-search" placeholder="Search clusters..." '
+       +'oninput="_gvDdFilter(this.value)" '
+       +'onkeydown="_gvDdSearchKey(event)" '
+       +'onclick="event.stopPropagation()" '
+       +'style="position:sticky;top:0;z-index:2;width:calc(100% - 8px);margin:0 4px 4px 4px;padding:5px 8px;border-radius:3px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;font-family:inherit;outline:none;box-sizing:border-box;">'
+       +'<div id="gv-dd-items">';
   if(effectiveMode==="lineage"){
     function _addNode(node,depth){
       var cids=node.cluster_ids||[];
@@ -9169,6 +9247,7 @@ function _gvPopulateClusterDropdown(){
     }
     for(var j=0;j<indices.length;j++)h+=_addItem(indices[j],0);
   }
+  h+='</div>'; /* close gv-dd-items */
   list.innerHTML=h;
   /* Update button label */
   var lbl=document.getElementById("gv-dd-label");
@@ -9762,16 +9841,27 @@ function _updateAnnotBtns(){
   var cb=document.getElementById("annotate-llm-btn");
   if(mb){
     if(markerAnnotations){
-      mb.style.opacity="0.4";mb.style.cursor="default";mb.innerHTML="Markers<span style=\"display:inline-block;width:1em;text-align:center;margin-left:3px;margin-right:-2px;\">\u2713<\/span>";
+      /* Mark "done" with a checkmark but keep it clickable \u2014 clicking
+         confirms a re-run that wipes the disk cache server-side and
+         recomputes with the current algorithm + databases. */
+      mb.style.opacity="0.7";
+      mb.style.cursor="pointer";
+      mb.innerHTML="Markers<span style=\"display:inline-block;width:1em;text-align:center;margin-left:3px;margin-right:-2px;\">\u2713<\/span>";
+      mb.title="Marker annotations loaded. Click to re-run (will discard cache and recompute with the current scoring algorithm + databases).";
     }else{
       mb.style.opacity="";mb.style.cursor="pointer";mb.textContent="Markers";
+      mb.title="Infer cell types from marker gene database";
     }
   }
   if(cb){
     if(llmAnnotations){
-      cb.style.opacity="0.4";cb.style.cursor="default";cb.innerHTML="Claude<span style=\"display:inline-block;width:1em;text-align:center;margin-left:3px;margin-right:-2px;\">\u2713<\/span>";
+      cb.style.opacity="0.7";
+      cb.style.cursor="pointer";
+      cb.innerHTML="Claude<span style=\"display:inline-block;width:1em;text-align:center;margin-left:3px;margin-right:-2px;\">\u2713<\/span>";
+      cb.title="Claude annotations loaded. Click to re-run (uses your API key \u2014 will incur Claude API cost).";
     }else{
       cb.style.opacity="";cb.style.cursor="pointer";cb.textContent="Claude";
+      cb.title="Use Claude (LLM) to infer cell types from top marker genes per cluster";
     }
   }
 }
@@ -9976,16 +10066,29 @@ function _stopAnnotPoll(){
 
 function runAnnotation(){
   if(!D)return;
-  if(markerAnnotations)return; /* already done */
   var btn=document.getElementById("annotate-btn");
   if(_annotAbort){_annotAbort.abort();_annotAbort=null;_stopAnnotPoll();btn.textContent="Markers";btn.style.color="#34d399";btn.style.borderColor="rgba(52,211,153,0.3)";return;}
+  /* If annotations are already loaded (from a previous run or cache),
+     ask before re-running. This is the explicit re-run path that fires
+     "force: true" to wipe the disk cache server-side. Without this the
+     button was stuck once any annotations were in memory — including
+     when the subset was reading remapped annotations from a parent's
+     cache, with no subset-local badge to delete. */
+  var force=false;
+  if(markerAnnotations){
+    if(!confirm("Re-run marker annotation?\n\nThis will discard the cached results and recompute with the current scoring algorithm + database(s)."))return;
+    force=true;
+    markerAnnotations=null;
+    /* Hide the in-Data-panel cached-Markers badge while the rerun is in flight */
+    if(_lastLoadSettings){_lastLoadSettings.annot_markers_cached=false;showLoadBadges(_lastLoadSettings);}
+  }
   _annotAbort=new AbortController();
   btn.textContent="Stop";
   btn.style.color="#f87171";btn.style.borderColor="#f87171";
   fetch("/api/annotate",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({top_n:50,test:"wilcoxon"}),
+    body:JSON.stringify({top_n:200,test:"wilcoxon",force:force}),
     signal:_annotAbort.signal
   })
   .then(function(r){return r.json();})
@@ -10352,19 +10455,39 @@ function _renderNode(node,path,searchQ,subtreeMatchFn){
     +' onclick="event.stopPropagation();lineageClick(event,\''+path+'\',true)"'
     +' title="'+_ldTip.replace(/"/g,"&quot;")+'"></span>';
 
-  /* Name */
-  html+='<span class="lin-name'+(present?'':' inferred')+'">'+node.name+'</span>';
-
-  /* Show Claude annotation for present nodes if different from node name */
-  if(present&&cids.length>0&&llmAnnotations){
-    var ci=cids[0];
-    if(llmAnnotations[ci]&&llmAnnotations[ci].length>0){
-      var pred=llmAnnotations[ci][0].cell_type;
-      if(pred&&pred!==node.name){
-        html+='<span style="font-size:10px;color:#c4b5fd;margin-left:2px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;" title="Claude: '+pred.replace(/"/g,"&quot;")+'">'+pred+'</span>';
-      }
+  /* Two-line layout (max):
+       L1: original cluster name from the file (or, for inferred parent
+           nodes with no cluster_ids, the lineage tree's name italicized).
+       L2: a single AI label — Claude's per-cluster annotation if present,
+           else the lineage-tree label. Shown only when it differs from
+           the file name. The previous 3-line layout (file + lineage +
+           per-cluster) was confusing because the two AI labels often
+           disagree (they come from independent Claude calls) and looked
+           like extra noise. */
+  html+='<span class="lin-namecol">';
+  if(present&&cids.length>0&&D&&D.header&&D.header.cluster_names){
+    var fileName=D.header.cluster_names[cids[0]]||node.name;
+    html+='<span class="lin-name">'+fileName+'</span>';
+    var aiName="";
+    var aiReasoning="";
+    if(llmAnnotations&&llmAnnotations[cids[0]]&&llmAnnotations[cids[0]].length>0){
+      aiName=llmAnnotations[cids[0]][0].cell_type||"";
+      aiReasoning=llmAnnotations[cids[0]][0].reasoning||"";
     }
+    if(!aiName&&node.name&&node.name!==fileName)aiName=node.name;
+    if(aiName&&aiName!==fileName){
+      /* Tooltip mirrors the flat cell-types list: AI + file name, cell
+         count, and Claude's reasoning when available. */
+      var _aiTip="AI: "+aiName+"\nFile: "+fileName
+        +"\n"+(cellCount||0).toLocaleString()+" cell"+((cellCount||0)===1?"":"s");
+      if(aiReasoning)_aiTip+="\n\n"+aiReasoning;
+      _aiTip=_aiTip.replace(/"/g,"&quot;");
+      html+='<span class="lin-claude" title="'+_aiTip+'">'+aiName+'</span>';
+    }
+  }else{
+    html+='<span class="lin-name inferred">'+node.name+'</span>';
   }
+  html+='</span>'; /* end lin-namecol */
 
   /* Cell count */
   if(cellCount>0){
