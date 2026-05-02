@@ -4,8 +4,8 @@
 
 RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool. It consists of:
 
-- **`fleek.html`** — Single-file frontend (~10000 lines). Three.js WebGL renderer for 2D/3D point clouds of cells. All JS is inline inside `<script>` tags. No build system, no framework.
-- **`fleek_server.py`** — Python HTTP server (~4000 lines). Loads h5ad files, computes embeddings (UMAP/PCA/PaCMAP), DEG (single-cell + pseudo-bulk), clustering, serves binary data to the client.
+- **`rna_fleek/fleek.html`** — Single-file frontend (~22000 lines). Three.js WebGL renderer for 2D/3D point clouds of cells. All JS is inline inside `<script>` tags. No build system, no framework. (Top-level `fleek.html` is a symlink to this file.)
+- **`rna_fleek/server.py`** — Python HTTP server (~7000 lines). Loads h5ad files, computes embeddings (UMAP/PCA/PaCMAP), DEG (single-cell + pseudo-bulk), clustering, serves binary data to the client. (Top-level `fleek_server.py` is a thin shim.)
 - **Utility scripts**: `download_census.py`, `preprocess_census.py`, `download_markers.py`
 - **GitHub repo**: `tubuliferous/rna-fleek`
 
@@ -23,7 +23,7 @@ RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool
 - Custom dropdown menus (div-based) replacing native `<select>` popups for theme consistency
 - 2D point picking bypasses raycaster — pure pixel-space projection for accuracy
 
-### Server (`fleek_server.py`)
+### Server (`rna_fleek/server.py`)
 - stdlib `http.server` with `ThreadingMixIn` — no Flask/FastAPI
 - Loads h5ad via anndata/scanpy
 - Binary SCRN format for init payload (header JSON + float32/int32 arrays)
@@ -57,6 +57,33 @@ RNA-FLEEK is a browser-based single-cell RNA-seq visualization and analysis tool
 | `/api/heartbeat` | POST | Client heartbeat for auto-unload |
 
 ## Critical Conventions
+
+### Single source of truth: `rna_fleek/`
+**All server and frontend code lives in `rna_fleek/`.** There are no mirrors.
+
+| Concern | Canonical file |
+|---------|---------------|
+| Server | `rna_fleek/server.py` |
+| Frontend | `rna_fleek/fleek.html` |
+
+The top-level `fleek_server.py` is a **3-line shim** that does `from rna_fleek.server import main; main()` — it exists only so the historical `python fleek_server.py …` dev workflow keeps working without duplication. The top-level `fleek.html` is a **symlink** to `rna_fleek/fleek.html`. Do not edit either of the top-level files directly; edit `rna_fleek/`.
+
+The PyInstaller specs and `pip install rna-fleek` already point at the package layout; nothing else needed to change when the mirrors were collapsed.
+
+**Version bumps** still touch four spots (no fifth `fleek_server.py FLEEK_VERSION` constant — the shim has none): `pyproject.toml`, `rna_fleek/__init__.py`, `rna_fleek/server.py` (`FLEEK_VERSION = "x.y.z"`), and `rna_fleek/fleek.html` (`var FLEEK_VERSION="vx.y.z"`). All four must match.
+
+### Stay inside the requested scope
+**When the user asks for a specific change, change ONLY what was asked. Do not "improve" adjacent code, restyle nearby UI, rename unrelated variables, refactor surrounding logic, or "fix" things that look wrong but weren't part of the request.** Drift like that is the most common source of regressions in this project — wrappers added "for safety" change flex-layout dimensions, a "tightened" CSS rule changes a button's size, a "cleaned-up" function loses a side-effect callers depend on. The user has to spot the change visually, then ask for it to be reverted. That cycle is more expensive than the alleged improvement was worth.
+
+**Applies to every edit:**
+- If the request is "fix bug X", touch only the code path that produces X. Don't tidy nearby code in the same edit.
+- If the request is "add feature Y", add Y. Don't reformat the file, rename variables, or restyle related elements.
+- If you spot something that genuinely looks wrong while working on the requested change, **call it out in your reply** and ask whether to fix it — don't silently fold it into the same edit.
+- Visual changes (button sizes, padding, spacing, icon swaps, color tweaks) are especially load-bearing: users notice them immediately. Never change a control's appearance unless that's the explicit ask.
+
+**When wrapping or restructuring HTML (a frequent regression source):** any wrapper around a flex/grid item inherits the parent's layout role. If the original element had `flex:1` or any width-defining rule, the wrapper now needs that rule and the inner element needs to fill the wrapper. Test the visual result before submitting — the example here was wrapping the disabled DEG button in a `<span>` for tooltip-on-disabled support; the span didn't get `flex:1`, so the toolbar collapsed the button to text-width.
+
+**Why:** the user's mental model is "I asked for one thing; one thing changed". Side effects break that model and make every future change harder to trust.
 
 ### Keep Help/About in sync with user-facing changes
 **When adding or changing a user-facing feature, update the corresponding Help panel section in `fleek.html` (inside `#help-body`) as part of the same change.** This is a workflow rule, not an optional polish step — the Help panel is the app's only built-in documentation, and each drift is a small paper cut for users.
@@ -314,13 +341,13 @@ python fleek_server.py path/to/data.h5ad --port 8080 --api-key sk-ant-...
 python fleek_server.py data.h5ad --host 0.0.0.0 --port 8080 --cache-mode server --no-browser
 
 # Quick validation
-python3 -c "import ast; ast.parse(open('fleek_server.py').read()); print('Server syntax OK')"
+python3 -c "import ast; ast.parse(open('rna_fleek/server.py').read()); print('Server syntax OK')"
 ```
 
 After editing `fleek.html`, always verify:
 1. Script tags balanced: `grep -c '<script' fleek.html` should equal `grep -c '</script>' fleek.html`
 2. No unescaped closing tags in script (see SVG section above)
-3. Server syntax: `python3 -c "import ast; ast.parse(open('fleek_server.py').read())"`
+3. Server syntax: `python3 -c "import ast; ast.parse(open('rna_fleek/server.py').read())"`
 
 ### Pseudo-bulk DEG
 Uses selection groups as conditions (not obs columns). User selects a single "Replicate column" dropdown.

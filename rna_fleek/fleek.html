@@ -770,6 +770,14 @@
   .sv-export:hover{opacity:var(--op-active);color:var(--success)!important;}
   /* sg-add-btn removed — replaced by + button in header */
   .sg-toolbar{display:flex;gap:3px;margin-top:6px;flex-wrap:wrap;}
+  /* The DEG button is wrapped in a span so its tooltip remains reachable
+     while disabled (browsers swallow pointer events on a disabled button).
+     The wrapper needs `flex:1` so it shares toolbar width with the other
+     buttons, and the inner button needs to fill the wrapper. Without this
+     the span collapses to fit the "DEG" text and the button becomes much
+     narrower than the rest of the toolbar. */
+  .sg-toolbar > span{flex:1;display:inline-flex;min-width:0;}
+  .sg-toolbar > span > button{width:100%;}
   .sg-toolbar button{flex:1;padding:4px 2px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text3);font-size:10px;font-family:inherit;cursor:pointer;letter-spacing:0.02em;transition:all 0.1s;white-space:nowrap;min-width:0;overflow:hidden;}
   .sg-toolbar button:hover{background:var(--bg-hover);border-color:var(--border2);color:var(--text2);}
   .sg-toolbar button.deg-run{background:rgba(16,185,129,0.15);border-color:var(--success);color:var(--success);font-weight:600;}
@@ -962,6 +970,12 @@
   #ct-sec .col-hdr button:hover{color:var(--text)!important;}
   #annotate-btn:hover{background:rgba(52,211,153,0.15)!important;border-color:rgba(52,211,153,0.5)!important;}
   #annotate-llm-btn:hover{background:rgba(196,181,253,0.15)!important;border-color:rgba(196,181,253,0.5)!important;}
+  /* Annotation-done state: gray + non-clickable cursor by default.
+     When Alt is held (body.alt-held) we un-gray and switch the cursor
+     back to a pointer so the user gets visible feedback that the
+     button is now press-able for an Option/Alt-click recompute. */
+  .annot-done{opacity:0.55;cursor:default;}
+  body.alt-held .annot-done{opacity:1;cursor:pointer;}
   .nbr-close:hover{color:var(--text2)!important;}
   #deg-mode-sc:hover,#deg-mode-pb:hover{opacity:0.8;}
   #pb-run-btn:hover{background:rgba(99,102,241,0.35)!important;}
@@ -1298,6 +1312,20 @@
       <div id="csc-status" style="font-size:10px;color:var(--accent);margin-top:2px;display:none;">
         <span id="csc-spinner-static"></span>
         Building gene index — first lookups may be slow
+      </div>
+      <!-- Recompute subsection — collapsible, populated from D.header
+           when a dataset is loaded. UMAP / PaCMAP / PCA each show their
+           current source ("computed_quick · scVI", "obsm", etc.) with
+           a tooltip explaining what that means, and (where supported)
+           a Recompute button + parameter inputs. Hidden until a dataset
+           lands; toggled by the chevron header. -->
+      <div id="recompute-wrap" style="display:none;margin-top:8px;">
+        <div onclick="_recomputeToggle()" style="cursor:pointer;user-select:none;font-size:10px;color:var(--text3);display:flex;align-items:center;gap:4px;" title="Recompute embeddings (UMAP / PaCMAP / etc.) with custom parameters. Only the current variant is overwritten — saved variants from prior load options are preserved on disk.">
+          <span id="recompute-chev" style="display:inline-block;transform:rotate(-90deg);transition:transform 0.15s;">&#9660;</span>
+          <span>Recompute</span>
+          <span style="color:var(--text4);">— embeddings &amp; parameters</span>
+        </div>
+        <div id="recompute-body" style="display:none;margin-top:6px;font-size:10px;color:var(--text2);line-height:1.5;"></div>
       </div>
       <!-- Upload popover + progress/status/stop moved above .col-body so they
            always appear near the top of the Data panel on drop/upload. -->
@@ -1736,8 +1764,8 @@
     </div>
     <div class="col-body">
       <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;min-width:0;">
-        <button id="annotate-btn" onclick="runAnnotation()" style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.3);border-radius:3px;color:#34d399;cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;text-align:center;" title="Infer cell types from marker gene database">Markers</button>
-        <button id="annotate-llm-btn" onclick="runAnnotationLLM()" style="background:rgba(196,181,253,0.06);border:1px solid rgba(196,181,253,0.3);border-radius:3px;color:#c4b5fd;cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;text-align:center;" title="Infer cell types using Claude AI (requires ANTHROPIC_API_KEY env var or ~/.fleek.env)">Claude</button>
+        <button id="annotate-btn" onclick="runAnnotation(event)" style="background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.3);border-radius:3px;color:#34d399;cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;text-align:center;" title="Infer cell types from marker gene database">Markers</button>
+        <button id="annotate-llm-btn" onclick="runAnnotationLLM(event)" style="background:rgba(196,181,253,0.06);border:1px solid rgba(196,181,253,0.3);border-radius:3px;color:#c4b5fd;cursor:pointer;font-size:10px;font-family:inherit;padding:3px 8px;white-space:nowrap;line-height:1;flex-shrink:1;min-width:0;display:inline-flex;align-items:center;justify-content:center;text-align:center;" title="Infer cell types using Claude AI (requires ANTHROPIC_API_KEY env var or ~/.fleek.env)">Claude</button>
         <span id="lineage-toggle" style="display:inline-flex;border:1px solid rgba(251,191,36,0.3);border-radius:3px;overflow:hidden;font-size:10px;font-family:inherit;flex-shrink:0;margin-left:auto;">
           <button id="lineage-btn-flat" onclick="if(lineageView)toggleLineageView()" style="background:rgba(251,191,36,0.15);border:none;color:#fbbf24;cursor:pointer;font-size:10px;font-family:inherit;padding:3px 6px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex-shrink:0;"></button>
           <button id="lineage-btn-tree" onclick="if(!lineageView)toggleLineageView()" style="background:rgba(251,191,36,0.06);border:none;border-left:1px solid rgba(251,191,36,0.2);color:#fbbf24;cursor:pointer;font-size:10px;font-family:inherit;padding:3px 6px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;flex-shrink:0;" title="Show developmental lineage tree (uses Claude AI)"></button>
@@ -2205,6 +2233,10 @@
   </div>
   <div id="help-body">
     <p class="help-tagline">Fast Lightweight Expression Exploration Kit — a browser-based single-cell RNA-seq visualizer with cell type annotation.</p>
+    <div id="help-search-row" style="display:flex;align-items:center;gap:8px;margin:0 0 14px;">
+      <input type="text" id="help-search" placeholder="Search help… (matches inside any section, expands them)" oninput="_helpSearch(this.value)" onkeydown="if(event.key==='Escape'){this.value='';_helpSearch('');}" autocomplete="off" style="flex:1;padding:6px 10px;border-radius:5px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:12px;font-family:inherit;outline:none;">
+      <span id="help-search-count" style="font-size:10px;color:var(--text4);min-width:80px;text-align:right;"></span>
+    </div>
     <div class="help-toc">
       <a href="#" onclick="event.preventDefault();helpJump('help-nav')">Navigation</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-panels')">Sidebar &amp; Panels</a>
@@ -2300,6 +2332,7 @@
         <p><strong>Input feature space (for FLEEK-computed embeddings).</strong> When FLEEK computes a UMAP or PaCMAP itself, it picks the highest-priority obsm rep available as input: <strong>X_scVI</strong> &rarr; <strong>X_scANVI</strong> &rarr; <strong>X_totalVI</strong> &rarr; <strong>X_pca</strong>, falling back to a freshly-computed PCA only when none of those exist. This matters because scVI-family files typically ship a 2D <code>X_umap</code> that was built on the scVI latent — picking that same latent for the 3D pass keeps both dimensions in the same coordinate system rather than forcing the 3D into PCA-of-X geometry. The HUD label in the canvas overlay shows the input alongside the embedding name (e.g. "UMAP &middot; scVI" vs "UMAP &middot; PCA"), and the Data panel's Embeddings section spells it out per dimension.</p>
         <p><strong>Native 2D embeddings:</strong> By default, FLEEK computes only the 3D embedding and derives 2D by slicing the first two coordinates — halving computation time. Enable <strong>Native 2D embeddings</strong> in the load options to compute 2D independently, which produces tighter cluster separation in 2D views at the cost of longer load times. If a native 2D cache exists from a previous load, it is automatically preferred regardless of the current setting.</p>
         <p><strong>Keyboard shortcuts:</strong> Press <span class="help-key">D</span> to toggle between 2D and 3D views. Press <span class="help-key">E</span> to cycle through available embeddings (UMAP &rarr; PCA &rarr; PaCMAP &rarr; &hellip;).</p>
+        <p><strong>Recompute on demand.</strong> The Data panel has a collapsible <strong>Recompute</strong> subsection. Both <strong>UMAP</strong> and <strong>PaCMAP</strong> can be recomputed without restarting the server: the panel shows the current embedding source per dimension and exposes the parameters that matter. UMAP knobs are <em>QuickMap</em> (subsample-and-project on / off), <em>Fit cells</em> (subsample size), <em>n_neighbors</em>, and <em>min_dist</em>; PaCMAP knobs are the analogous <em>QuickPaCMAP</em>, <em>Fit cells</em>, <em>n_neighbors</em>, and <em>Project k</em> (k-NN size for the projection step on subsampled cells). Recompute overwrites the matching cache variant on disk (only the variant that matches your current QuickMap setting — the other variant is left intact, so you can flip back without recomputing). PCA is read-only; FLEEK uses <code>adata.obsm['X_pca']</code> when present or computes it once at load. The new coordinates appear in the viewer as soon as the recompute returns; a confirm dialog shows the chosen settings before the work starts so you don't overwrite cache by accident.</p>
       </div>
     </div>
 
@@ -2528,6 +2561,7 @@
         <p><strong>Colocalization colorblind-safety:</strong> the default palette is <strong>magenta + green</strong>, which is discriminable for all forms of color-vision deficiency (red-green deficiency is by far the most common; magenta and green remain distinct there). Uncheck the <em>Colorblind-safe</em> toggle to switch to <em>red + green</em> if you specifically want to match a figure that uses the classic pair. Each channel's expression is normalized independently (per-gene 98th-percentile of expressing cells), so intensity is comparable across channels regardless of absolute expression levels. Coloc state (mode + both gene names + colorblind toggle) is persisted to sessionStorage so your setup survives page reloads.</p>
         <p><strong>Interaction with the gradient picker:</strong> single-gene mode uses the selected gradient (Viridis, Plasma, etc.). Colocalization mode ignores the gradient entirely — the two channel colors are fixed by the colorblind-safe toggle. Raincloud plots always use cluster colors, so colocalization mode doesn't affect them.</p>
         <p>Expression values are fetched on demand from the server and cached client-side. Values are normalized 0–1 using the 98th percentile of expressing cells, then mapped to a color gradient. The legend appears inside the Gene panel whenever a gene is selected.</p>
+        <p><strong>Cell tooltip — raw counts and library size.</strong> When you hover a cell in single-gene mode, the tooltip shows the gene's normalized expression (e.g. <code>Olfm4: 38.4%</code>) and, when raw counts are available, appends <code>(N raw / lib M)</code>: <strong>N</strong> is the unnormalized integer count for that gene in that cell, and <strong>M</strong> is the cell's <em>library size</em> (sum of all raw counts across genes for that cell). The two together make the percentage interpretable: normalization divides counts by per-cell library size, so a cell with fewer raw counts but a smaller library will read <em>higher</em> as a percentage than a cell with more raw counts and a larger library — that's exactly what library-size normalization is for, and seeing both numbers in the tooltip makes the relationship explicit. The library size is fetched once per dataset and reused across all gene tooltips.</p>
         <p><strong>Gradient picker:</strong> click the gradient bar (or the "<em>Viridis&nbsp;▾</em>" button next to the "Expression" label) to choose a different colormap. The dropdown lists every available gradient grouped by character, each with a live preview strip and a one-line note:</p>
         <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
           <li><strong>Auto</strong> (default) — resolves to <em>Viridis</em> in dark mode and <em>Blues</em> in light mode. Matches FLEEK's historical look and usually reads well on either background without you having to pick a colormap per theme.</li>
@@ -2681,7 +2715,7 @@
         </ol>
         <p><strong>Statistical tests:</strong> <strong>pyDESeq2</strong> is used by default — it models count dispersion across replicates using a negative-binomial GLM. The pre-built desktop apps ship with pyDESeq2 bundled, so it's the default backend out of the box (single-threaded inside the bundle — loky/joblib worker processes don't survive in a frozen executable). Picking the <strong>Welch's t-test (CPM)</strong> option from the Method dropdown bypasses DESeq2 entirely; the server also falls back to this automatically if DESeq2 fails at runtime (the server console prints the actual failure reason).</p>
         <p><strong>Requirements:</strong> A raw counts matrix must be detected in the dataset (checked automatically on load — see the Data panel). Each group needs cells in <strong>at least 2 replicates</strong>. More replicates improve statistical power. Genes with fewer than 10 total counts across all samples are filtered out.</p>
-        <p><strong>Counts source visibility &amp; smoothed-count guard:</strong> The Pseudo-bulk controls show which matrix was detected as counts (e.g. <code>adata.X</code>, a layer, or <code>adata.raw.X</code>) along with median UMI/cell, max, and the computed <strong>median Fano factor</strong> (variance/mean across ~500 well-expressed genes). Real UMI data is overdispersed (median Fano typically &gt; 1.5) because of biological cell-to-cell variation; model-generated integer counts (scVI <code>denoised_counts</code>, MAGIC, similar denoisers) follow a Poisson distribution with Fano ≈ 1. If the detected matrix looks smoothed (Fano &lt; 1.5), pseudo-bulk is <strong>disabled</strong> and an amber banner explains why: on Poisson-distributed counts the negative-binomial dispersion estimate collapses near zero, yielding anti-conservative p-values — everything looks significant. This guard prevents silently invalid DEG results when a denoised matrix is mistaken for raw counts.</p>
+        <p><strong>Counts source visibility &amp; smoothed-count guard:</strong> The Pseudo-bulk controls show which matrix was detected as counts (e.g. <code>adata.X</code>, a layer, or <code>adata.raw.X</code>) along with median UMI/cell, max, and the computed <strong>median Fano factor</strong> (variance/mean across moderately-expressed genes). Real UMI data is overdispersed (median Fano typically &gt; 1.5) because of biological cell-to-cell variation; model-generated integer counts (scVI <code>denoised_counts</code>, MAGIC, similar denoisers) follow a Poisson distribution with Fano ≈ 1. Pseudo-bulk is <strong>disabled</strong> when the detected matrix is unambiguously smoothed: <strong>Fano &lt; 1.0</strong> (under-dispersed; impossible for true raw counts), or <strong>Fano in [1.0, 1.5)</strong> with a layer name that hints at smoothing (<code>denoised</code>, <code>smooth</code>, <code>magic</code>, <code>imput</code>, <code>scvi</code>, <code>saver</code>, <code>dca</code>). The borderline zone (Fano 1.0–1.5 without a smoothing hint) is treated as raw — homogeneous cell populations and tightly-filtered datasets can produce real UMI counts in this range, and gating pseudo-bulk off for them was too conservative. If gated, an amber banner explains why: on Poisson-distributed counts the negative-binomial dispersion estimate collapses near zero, yielding anti-conservative p-values — everything looks significant. This guard prevents silently invalid DEG results when a denoised matrix is mistaken for raw counts.</p>
         <p><strong>Results:</strong> Displayed in the same volcano plot and gene table as single-cell DEG. The note above the plot shows the method used, group names, replicate counts, and number of genes tested. Cohen's d is not computed for pseudo-bulk (shown as 0).</p>
         <p><strong>Cancel mid-compute:</strong> During either a single-cell DEG or pseudo-bulk run, the Run button turns red and displays <strong>Stop</strong>. Click it (or refresh) to abort. The server checks for the abort flag at natural checkpoints (each replicate aggregation, before pyDESeq2 fit/summary, every 512 genes in the t-test fallback) so cancellation takes effect promptly without leaving the server spinning. The status line names the backend (<em>pyDESeq2</em> vs <em>t-test (CPM)</em>) while running.</p>
       </div>
@@ -2739,7 +2773,7 @@
         <p>A single <code>.h5ad</code> can contain several expression matrices — <code>adata.X</code>, <code>adata.raw.X</code>, and any number of <code>adata.layers[...]</code>. These usually hold different <em>stages</em> of processing (raw UMI counts, denoised counts, log-normalized, scaled/z-scored, etc.). FLEEK inspects every matrix at load time, classifies it, and routes each analysis task to the most appropriate one. The "Data source" dropdown in the Data panel lists every matrix found and what it's being used for.</p>
         <table class="help-table">
           <tr><th>Kind</th><th>How FLEEK detects it</th><th>Typical content</th></tr>
-          <tr><td><strong>raw counts</strong></td><td>Integer values, reasonable per-cell totals, median Fano &gt; 1.5 (biologically overdispersed)</td><td>Direct UMI counts from CellRanger / STARsolo. What pseudo-bulk DEG actually needs.</td></tr>
+          <tr><td><strong>raw counts</strong></td><td>Integer values, reasonable per-cell totals, median Fano ≥ 1.0 (or 1.0–1.5 with no smoothing hint in the matrix name)</td><td>Direct UMI counts from CellRanger / STARsolo. What pseudo-bulk DEG actually needs.</td></tr>
           <tr><td><strong>denoised counts</strong></td><td>Integer values, but median Fano &lt; 1.5 (Poisson-like)</td><td>Output of scVI <code>denoised_counts</code>, MAGIC, SAVER, or similar. Looks like counts but biological overdispersion has been regressed out.</td></tr>
           <tr><td><strong>log-normalized</strong></td><td>Decimal-valued, non-negative, max &lt; ~100</td><td>Output of <code>sc.pp.normalize_total</code> + <code>sc.pp.log1p</code>. Standard for visualization, PCA, Wilcoxon-DEG.</td></tr>
           <tr><td><strong>scaled</strong></td><td>Decimal-valued, has negative values</td><td>Output of <code>sc.pp.scale</code> (z-score per gene). Useful for PCA input but unsuitable for Fano / DE on its own.</td></tr>
@@ -3198,7 +3232,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.36";
+var FLEEK_VERSION="v0.5.37";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 /* Ghost (non-expressing) cell render style — picked from the Debug menu so
@@ -4191,6 +4225,11 @@ function _pickColocScheme(cbSafe){
    the user isn't stuck with a ghost name that can't be rendered. */
 function _colocFetchGene(g){
   if(!g)return;
+  /* Coloc tooltips show per-channel %; raw counts could be added later
+     but the priority is single-gene mode. Keep the raw fetch alive so
+     hovering over a coloc cell still reports raw counts for the active
+     selGene if one was set previously. */
+  _fetchGeneRaw(g);
   if(geneExprCache[g]){if(D&&pts)recolor();return;}
   if(_genePrefetchInflight&&_genePrefetchInflight[g]){
     document.getElementById("gene-loading").style.display="inline";
@@ -5448,9 +5487,20 @@ function _updateClearBtn(e){
   if(!btn)return;
   btn.textContent=e&&e.altKey?"ClearAll":"Clear";
 }
-/* Listen for Alt key changes while hovering the clear button */
-document.addEventListener("keydown",function(e){if(e.key==="Alt"){_updateClearBtn(e);}});
-document.addEventListener("keyup",function(e){if(e.key==="Alt"){_updateClearBtn(e);}});
+/* Listen for Alt key changes while hovering the clear button. Also
+   toggle a body.alt-held class so any element whose visual state
+   should reflect "Alt is currently held" (e.g., grayed Markers /
+   Claude buttons that need to look press-able while Alt is down)
+   can react via CSS without each handler tracking the key itself. */
+document.addEventListener("keydown",function(e){
+  if(e.key==="Alt"){_updateClearBtn(e);document.body.classList.add("alt-held");}
+});
+document.addEventListener("keyup",function(e){
+  if(e.key==="Alt"){_updateClearBtn(e);document.body.classList.remove("alt-held");}
+});
+/* Window blur clears stuck Alt state — otherwise switching apps with
+   Alt-Tab can leave the body class on indefinitely. */
+window.addEventListener("blur",function(){document.body.classList.remove("alt-held");});
 
 var _preHideGroupVis=null; /* saved state before 'h' hide-all */
 
@@ -6094,6 +6144,8 @@ function buildPts(data){
   selGroups=[];activeGroupId=null;selGroupIdCounter=0;groupVisible={};
   degData=null;degCache={};
   geneExprCache={}; /* free old gene expression arrays */
+  geneRawCache={};  /* and the parallel raw-counts cache */
+  libSizesCache=null;_libSizesInflight=false;_libSizesMiss=false;
   _pathwayScoreCache={};_pathwayColorId="";_pathwayColorName="";
   if(typeof _geneBufCacheInvalidate==="function")_geneBufCacheInvalidate();
   /* Clear recent genes only when switching to a different dataset */
@@ -7352,6 +7404,30 @@ function animate(){
         }else if(mode==="gene"&&selGene&&geneExprCache[selGene]){
           var val=geneExprCache[selGene][idx];
           text=name+" \u00b7 "+selGene+": "+(val*100).toFixed(1)+"%";
+          /* Append raw count when the dataset has a counts matrix and
+             we've fetched the column for this gene. Format compactly:
+             integer counts shown as int, fractional shown to 1 decimal
+             (some datasets store raw-ish floats). */
+          if(geneRawCache&&geneRawCache[selGene]){
+            var rawV=geneRawCache[selGene][idx];
+            if(rawV!=null&&!isNaN(rawV)){
+              var rawTxt=(Math.abs(rawV-Math.round(rawV))<0.0001)?(""+(rawV|0)):rawV.toFixed(1);
+              /* Append library size when we've fetched it. Compact format:
+                 "(3 raw / lib 4,210)". The library size makes the
+                 "fewer raw counts but higher %" pattern interpretable —
+                 normalization divides by per-cell total, so a small
+                 library lifts modest raw counts to higher relative %. */
+              var libTxt="";
+              if(libSizesCache&&idx<libSizesCache.length){
+                var lv=libSizesCache[idx];
+                if(lv!=null&&!isNaN(lv)&&lv>0){
+                  libTxt=" / lib "+(lv>=1e4?Math.round(lv).toLocaleString():
+                                    (Math.abs(lv-Math.round(lv))<0.0001?(""+(lv|0)):lv.toFixed(1)));
+                }
+              }
+              text+=" ("+rawTxt+" raw"+libTxt+")";
+            }
+          }
         }
         if(cellGroupMap&&cellGroupMap[idx]>=0){
           var gi=cellGroupMap[idx];
@@ -8382,6 +8458,12 @@ function _resetEmbOption(m){
    on a 700k-cell dataset). */
 var _geneLru=[]; /* gene names, most-recent last */
 var GENE_CACHE_MAX=50;
+/* Raw-counts cache mirrors geneExprCache. Populated only when the
+   dataset has a detected counts matrix (D.header.counts_available).
+   Used by per-cell tooltips to surface "ALB: 78% (4 raw)" alongside
+   the normalized expression. Same LRU window as geneExprCache; entries
+   are evicted together. */
+var geneRawCache={};
 var _genePrefetchInflight={}; /* name -> Promise */
 var _genePrefetchTimer=null;
 function _geneLruBump(name){
@@ -8391,6 +8473,7 @@ function _geneLruBump(name){
   while(_geneLru.length>GENE_CACHE_MAX){
     var evict=_geneLru.shift();
     if(evict===selGene){_geneLru.push(evict);break;} /* guard current gene; tolerate one extra */
+    delete geneRawCache[evict];
     delete geneExprCache[evict];
   }
 }
@@ -8412,12 +8495,58 @@ function prefetchGeneHover(name){
   clearTimeout(_genePrefetchTimer);
   _genePrefetchTimer=setTimeout(function(){prefetchGene(name);},80);
 }
+/* Fetch raw counts for the named gene into geneRawCache. Best-effort:
+   silently no-ops when the server has no counts matrix (404) or when
+   already cached. Runs in parallel with the normalized fetch — hover
+   tooltips read directly from the cache so they appear as soon as the
+   raw column lands, without blocking the visible coloring.
+     We DON'T gate on D.header.counts_available because that flag is
+   tied to the pseudo-bulk-DEG-safety check (pb_ok). A dataset that
+   FLEEK flagged as "smoothed-counts, no DEG" still has integer-ish
+   values in adata.X that are useful in tooltips. The endpoint
+   itself returns 404 when COUNTS_MATRIX is genuinely None, so trying
+   per-gene is cheap and self-validating. */
+function _fetchGeneRaw(name){
+  if(!name||geneRawCache[name]||geneRawCache[name+"::miss"])return;
+  fetch("/api/gene-raw?name="+encodeURIComponent(name))
+    .then(function(r){if(!r.ok)throw new Error("no raw");return r.arrayBuffer();})
+    .then(function(buf){geneRawCache[name]=new Float32Array(buf);})
+    .catch(function(){
+      /* Mark the miss so we don't keep re-asking on every hover. */
+      geneRawCache[name+"::miss"]=true;
+    });
+  /* Piggy-back on the first raw-counts fetch to also pull per-cell library
+     sizes — the tooltip uses both for "(N raw, lib M)" annotations. Only
+     fires the network request once per dataset; subsequent gene fetches
+     are no-ops. */
+  _fetchLibSizes();
+}
+/* Per-cell library size (sum of raw counts), shown in the cell tooltip
+   alongside raw counts for context. Single network fetch per dataset;
+   server returns Float32Array of length n_cells. Same 404-as-miss
+   behavior as the gene-raw endpoint. */
+var libSizesCache=null;       /* Float32Array | null */
+var _libSizesInflight=false;
+var _libSizesMiss=false;      /* set on 404 so we stop retrying */
+function _fetchLibSizes(){
+  if(libSizesCache||_libSizesInflight||_libSizesMiss)return;
+  _libSizesInflight=true;
+  fetch("/api/library-size")
+    .then(function(r){if(!r.ok)throw new Error("no lib");return r.arrayBuffer();})
+    .then(function(buf){libSizesCache=new Float32Array(buf);_libSizesInflight=false;})
+    .catch(function(){_libSizesMiss=true;_libSizesInflight=false;});
+}
+
 function loadGene(name){
   /* Track recent genes */
   recentGenes=recentGenes.filter(function(g){return g!==name;});
   recentGenes.unshift(name);
   if(recentGenes.length>MAX_RECENT)recentGenes.pop();
   try{sessionStorage.setItem("fleek_recent_genes",JSON.stringify(recentGenes));}catch(e){}
+  /* Kick off the raw-count fetch alongside the normalized one — the
+     tooltip uses raw counts when they arrive but everything works
+     without them (404 on datasets with no detected counts matrix). */
+  _fetchGeneRaw(name);
 
   if(geneExprCache[name]){selGene=name;_geneLruBump(name);recolor();showRecentGenes();return;}
   /* Piggy-back on an in-flight prefetch instead of firing a duplicate request. */
@@ -9753,7 +9882,18 @@ function toggleAuto(){autoRotate=!autoRotate;document.getElementById("b-auto").c
 
 function toggleHelp(){
   var el=document.getElementById("help-overlay");
-  el.style.display=el.style.display==="block"?"none":"block";
+  var nowOpen=el.style.display!=="block";
+  el.style.display=nowOpen?"block":"none";
+  if(nowOpen){
+    var sb=document.getElementById("help-search");
+    if(sb){
+      sb.value="";
+      _helpSearch("");
+      /* Defer focus so browsers that animate display:block in CSS
+         don't lose the focus call to a re-layout. */
+      setTimeout(function(){sb.focus();},10);
+    }
+  }
 }
 function helpJump(id){
   var sec=document.getElementById(id);
@@ -9761,6 +9901,58 @@ function helpJump(id){
   sec.classList.remove("collapsed");
   var body=document.getElementById("help-body");
   body.scrollTop=sec.offsetTop-body.offsetTop;
+}
+
+/* Help-panel search: filters visible sections and the TOC on each
+   keystroke. Case-insensitive substring match against the section's
+   full text; matched sections auto-expand and stay visible, the rest
+   hide. Empty query restores everything. Tokens (whitespace-split)
+   are AND-combined so "lasso shift" matches a section that mentions
+   both, regardless of order. */
+function _helpSearch(q){
+  q=(q||"").toLowerCase().trim();
+  var tokens=q?q.split(/\s+/).filter(Boolean):[];
+  var body=document.getElementById("help-body");
+  if(!body)return;
+  var secs=body.querySelectorAll(".help-sec");
+  var nMatched=0;
+  for(var i=0;i<secs.length;i++){
+    var sec=secs[i];
+    if(!tokens.length){
+      sec.style.display="";
+      /* Restore the user's prior collapsed state — sections collapse
+         by default in the markup, so removing inline display is fine.
+         Don't force-expand on empty query. */
+      continue;
+    }
+    var text=(sec.textContent||"").toLowerCase();
+    var hit=true;
+    for(var t=0;t<tokens.length;t++){if(text.indexOf(tokens[t])<0){hit=false;break;}}
+    if(hit){
+      sec.style.display="";
+      sec.classList.remove("collapsed"); /* expand matching sections */
+      nMatched++;
+    }else{
+      sec.style.display="none";
+    }
+  }
+  /* Hide TOC links whose target section is hidden so the user can't
+     jump into a hidden section via the TOC. Empty query restores all. */
+  var tocLinks=body.querySelectorAll(".help-toc a");
+  for(var j=0;j<tocLinks.length;j++){
+    var a=tocLinks[j];
+    var href=a.getAttribute("onclick")||"";
+    var m=href.match(/helpJump\(['"]([^'"]+)['"]\)/);
+    if(!m){a.style.display="";continue;}
+    var t2=document.getElementById(m[1]);
+    a.style.display=(!tokens.length||(t2&&t2.style.display!=="none"))?"":"none";
+  }
+  var cnt=document.getElementById("help-search-count");
+  if(cnt){
+    cnt.textContent=tokens.length?(nMatched+" section"+(nMatched===1?"":"s")):"";
+  }
+  /* Scroll to the top of the body so the first match is visible. */
+  if(tokens.length)body.scrollTop=0;
 }
 function resetView(e){
   var hc=_homeCameras[embMethod]||_homeCamera;
@@ -9844,30 +10036,43 @@ function toggleTypeSort(){
   if(lineageView)_renderLineageTree();
 }
 function _updateAnnotBtns(){
+  /* (word + \u2713) compound \u2014 inline-flex so the button's own
+     justify-content:center treats the pair as one block. Tight 1 px
+     margin keeps the check right next to the word instead of dangling
+     toward the right edge.  \u2713 is sized down (0.85em, opacity 0.85) so
+     it reads as a confirmation chip rather than a second character of
+     equal weight. */
+  function _checkLabel(word){
+    return '<span style="display:inline-flex;align-items:center;line-height:1;">'
+      +word
+      +'<span style="font-size:0.85em;opacity:0.85;margin-left:1px;">\u2713<\/span>'
+      +'<\/span>';
+  }
   var mb=document.getElementById("annotate-btn");
   var cb=document.getElementById("annotate-llm-btn");
+  var _alt=(typeof _ALT!=="undefined")?_ALT:"Alt";
+  /* "annot-done" class lets the global Alt-key listener un-gray and
+     re-pointerize the button via CSS, without each updateAnnotBtns
+     call having to know whether Alt is currently held. */
   if(mb){
     if(markerAnnotations){
-      /* Mark "done" with a checkmark but keep it clickable \u2014 clicking
-         confirms a re-run that wipes the disk cache server-side and
-         recomputes with the current algorithm + databases. */
-      mb.style.opacity="0.7";
-      mb.style.cursor="pointer";
-      mb.innerHTML="Markers<span style=\"display:inline-block;width:1em;text-align:center;margin-left:3px;margin-right:-2px;\">\u2713<\/span>";
-      mb.title="Marker annotations loaded. Click to re-run (will discard cache and recompute with the current scoring algorithm + databases).";
+      mb.classList.add("annot-done");
+      mb.innerHTML=_checkLabel("Markers");
+      mb.title="Marker annotations loaded.\n"+_alt+"-click to recompute (will OVERWRITE the cached annotations with a fresh run).";
     }else{
-      mb.style.opacity="";mb.style.cursor="pointer";mb.textContent="Markers";
+      mb.classList.remove("annot-done");
+      mb.textContent="Markers";
       mb.title="Infer cell types from marker gene database";
     }
   }
   if(cb){
     if(llmAnnotations){
-      cb.style.opacity="0.7";
-      cb.style.cursor="pointer";
-      cb.innerHTML="Claude<span style=\"display:inline-block;width:1em;text-align:center;margin-left:3px;margin-right:-2px;\">\u2713<\/span>";
-      cb.title="Claude annotations loaded. Click to re-run (uses your API key \u2014 will incur Claude API cost).";
+      cb.classList.add("annot-done");
+      cb.innerHTML=_checkLabel("Claude");
+      cb.title="Claude annotations loaded.\n"+_alt+"-click to recompute (uses your API key, incurs Claude API cost; will OVERWRITE the cached annotations).";
     }else{
-      cb.style.opacity="";cb.style.cursor="pointer";cb.textContent="Claude";
+      cb.classList.remove("annot-done");
+      cb.textContent="Claude";
       cb.title="Use Claude (LLM) to infer cell types from top marker genes per cluster";
     }
   }
@@ -10071,19 +10276,18 @@ function _stopAnnotPoll(){
   if(_annotPollTimer){clearInterval(_annotPollTimer);_annotPollTimer=null;}
 }
 
-function runAnnotation(){
+function runAnnotation(e){
   if(!D)return;
   var btn=document.getElementById("annotate-btn");
   if(_annotAbort){_annotAbort.abort();_annotAbort=null;_stopAnnotPoll();btn.textContent="Markers";btn.style.color="#34d399";btn.style.borderColor="rgba(52,211,153,0.3)";return;}
-  /* If annotations are already loaded (from a previous run or cache),
-     ask before re-running. This is the explicit re-run path that fires
-     "force: true" to wipe the disk cache server-side. Without this the
-     button was stuck once any annotations were in memory — including
-     when the subset was reading remapped annotations from a parent's
-     cache, with no subset-local badge to delete. */
+  /* When annotations exist, the button is grayed: a plain click does
+     nothing (so users don't accidentally lose existing results). Only
+     Option/Alt-click reaches the recompute path, and even then we
+     confirm — the recompute OVERWRITES the cached annotations on disk. */
   var force=false;
   if(markerAnnotations){
-    if(!confirm("Re-run marker annotation?\n\nThis will discard the cached results and recompute with the current scoring algorithm + database(s)."))return;
+    if(!(e&&e.altKey))return; /* plain click on grayed button: no-op */
+    if(!confirm("Recompute marker annotations?\n\nThis will OVERWRITE the cached annotations on disk and recompute from scratch with the current scoring algorithm + database(s)."))return;
     force=true;
     markerAnnotations=null;
     /* Hide the in-Data-panel cached-Markers badge while the rerun is in flight */
@@ -10125,18 +10329,28 @@ function runAnnotation(){
 
 /* ── Claude LLM annotation ── */
 var _llmAbort=null;
-function runAnnotationLLM(){
+function runAnnotationLLM(e){
   if(!D)return;
-  if(llmAnnotations)return; /* already done */
   var btn=document.getElementById("annotate-llm-btn");
   if(_llmAbort){_llmAbort.abort();_llmAbort=null;_stopAnnotPoll();btn.textContent="Claude";btn.style.color="#c4b5fd";btn.style.borderColor="rgba(196,181,253,0.3)";return;}
+  /* Grayed → plain click is a no-op. Option/Alt-click reaches the
+     recompute path and confirms — Claude annotation costs API tokens
+     and OVERWRITES the cached results. */
+  var force=false;
+  if(llmAnnotations){
+    if(!(e&&e.altKey))return;
+    if(!confirm("Recompute Claude annotations?\n\nThis will OVERWRITE the cached annotations on disk and incur a fresh Claude API charge."))return;
+    force=true;
+    llmAnnotations=null;
+    if(_lastLoadSettings){_lastLoadSettings.annot_llm_cached=false;showLoadBadges(_lastLoadSettings);}
+  }
   _llmAbort=new AbortController();
   btn.textContent="Stop";
   btn.style.color="#f87171";btn.style.borderColor="#f87171";
   fetch("/api/annotate-llm",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({top_n:30, model:getClaudeModelKey()}),
+    body:JSON.stringify({top_n:30, model:getClaudeModelKey(), force:force}),
     signal:_llmAbort.signal
   })
   .then(function(r){return r.json();})
@@ -12017,6 +12231,162 @@ function _matrixInfoToggle(){
   if(body)body.style.display=_matrixInfoOpen?"block":"none";
   if(chev)chev.style.transform=_matrixInfoOpen?"rotate(0deg)":"rotate(-90deg)";
 }
+
+/* Recompute subsection — open/close + render. */
+var _recomputeOpen=false;
+function _recomputeToggle(){
+  _recomputeOpen=!_recomputeOpen;
+  var body=document.getElementById("recompute-body");
+  var chev=document.getElementById("recompute-chev");
+  if(body)body.style.display=_recomputeOpen?"block":"none";
+  if(chev)chev.style.transform=_recomputeOpen?"rotate(0deg)":"rotate(-90deg)";
+  if(_recomputeOpen)_renderRecomputeBody();
+}
+function _renderRecomputeBody(){
+  var body=document.getElementById("recompute-body");
+  if(!body||!D||!D.header)return;
+  var src=D.header.embedding_sources||{};
+  var inp=D.header.embedding_inputs||{};
+  function _srcLabel(k){
+    var s=src[k]||"";
+    var i=inp[k]||"";
+    var srcWord={obsm:"file (obsm)",cache_full:"cache (full)",cache_quick:"cache (quick)",cache_legacy:"cache (legacy)",computed_full:"computed (full)",computed_quick:"computed (quick)",derived_from_3d:"derived from 3D",padded_from_2d:"padded from 2D"}[s]||s||"unknown";
+    var label=srcWord;
+    if(i&&typeof _embInputPretty==="function"){var pp=_embInputPretty(i);if(pp)label+=" · "+pp;}
+    return label;
+  }
+  function _row(method,label,statusKey2d,statusKey3d,extraHtml){
+    var s2=_srcLabel(statusKey2d), s3=_srcLabel(statusKey3d);
+    var statusLine= (s2===s3)
+      ? '2D + 3D: <code style="color:var(--text2);">'+s2+'</code>'
+      : '2D: <code style="color:var(--text2);">'+s2+'</code> &middot; 3D: <code style="color:var(--text2);">'+s3+'</code>';
+    return '<div style="margin:0 0 10px 0;padding:6px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);">'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
+      +'<span style="font-weight:600;color:var(--text);">'+label+'</span>'
+      +'<span style="font-size:9px;color:var(--text4);">'+statusLine+'</span>'
+      +'</div>'
+      +(extraHtml||'')
+      +'</div>';
+  }
+  /* PaCMAP — first since the user's tendril-fringe issue is here. */
+  var pacmap=_row("pacmap","PaCMAP","pacmap_2d","pacmap_3d",
+    '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;font-size:10px;">'
+    +'<label title="Subsample-and-project: fits PaCMAP on a stratified sample of the dataset, then projects the remaining cells via k-NN-weighted interpolation in input-feature space. Much faster on large datasets, at the cost of fringe / tendril artifacts where the fit-cell density is low.">QuickPaCMAP</label>'
+    +'<span></span>'
+    +'<label class="s-toggle"><input type="checkbox" id="rc-pm-fast" checked><span class="s-slider"></span></label>'
+    +'<label title="Number of cells to FIT PaCMAP on. Higher = smoother projection (less fringe in tendrils) but slower.  ⚠ Above ~150k the fit step starts costing more than full PaCMAP would, on most hardware.">Fit cells</label>'
+    +'<input type="range" id="rc-pm-sub" min="20000" max="200000" step="10000" value="50000" oninput="document.getElementById(\'rc-pm-sub-val\').value=this.value;">'
+    +'<input type="number" id="rc-pm-sub-val" min="20000" max="200000" step="10000" value="50000" oninput="document.getElementById(\'rc-pm-sub\').value=this.value;" style="width:64px;font-size:10px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-family:inherit;">'
+    +'<label title="PaCMAP\'s n_neighbors. PaCMAP\'s default is auto = max(10, n_cells / 50). Higher = wider neighborhood, smoother global structure. 5–30 is a reasonable manual range.">n_neighbors</label>'
+    +'<input type="range" id="rc-pm-nn" min="5" max="50" step="1" value="10" oninput="document.getElementById(\'rc-pm-nn-val\').value=this.value;">'
+    +'<input type="number" id="rc-pm-nn-val" min="5" max="50" step="1" value="10" oninput="document.getElementById(\'rc-pm-nn\').value=this.value;" style="width:48px;font-size:10px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-family:inherit;">'
+    +'<label title="When QuickPaCMAP is on, increase k for the k-NN projection step. Higher = smoother (less fringe) but more averaged. Only used when QuickPaCMAP is enabled.">Project k</label>'
+    +'<input type="range" id="rc-pm-projk" min="3" max="50" step="1" value="5" oninput="document.getElementById(\'rc-pm-projk-val\').value=this.value;">'
+    +'<input type="number" id="rc-pm-projk-val" min="3" max="50" step="1" value="5" oninput="document.getElementById(\'rc-pm-projk\').value=this.value;" style="width:48px;font-size:10px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-family:inherit;">'
+    +'</div>'
+    +'<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
+    +'<button class="btn" onclick="_recomputePacmap()" style="background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;padding:3px 10px;font-size:10px;" title="Recompute PaCMAP with the parameters above. OVERWRITES the current cache; sensible defaults are pre-filled.">Recompute PaCMAP</button>'
+    +'<span id="rc-pm-status" style="font-size:10px;color:var(--text4);"></span>'
+    +'</div>');
+  /* UMAP — same parameter shape as PaCMAP (QuickMap + fit cells + n_neighbors)
+     plus a min_dist slider. Defaults match the load-time path. */
+  var umap=_row("umap","UMAP","umap_2d","umap_3d",
+    '<div style="display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;align-items:center;font-size:10px;">'
+    +'<label title="QuickMap: fits UMAP on a stratified subsample, then transforms remaining cells via the fitted reducer. Faster on huge datasets at the cost of some embedding quality. Off = full UMAP (sc.tl.umap on the whole dataset).">QuickMap</label>'
+    +'<span></span>'
+    +'<label class="s-toggle"><input type="checkbox" id="rc-um-fast"><span class="s-slider"></span></label>'
+    +'<label title="Number of cells to FIT UMAP on when QuickMap is enabled. Higher = better quality, slower. Above ~150k the fit step starts costing more than full UMAP would, on most hardware.">Fit cells</label>'
+    +'<input type="range" id="rc-um-sub" min="20000" max="200000" step="10000" value="50000" oninput="document.getElementById(\'rc-um-sub-val\').value=this.value;">'
+    +'<input type="number" id="rc-um-sub-val" min="20000" max="200000" step="10000" value="50000" oninput="document.getElementById(\'rc-um-sub\').value=this.value;" style="width:64px;font-size:10px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-family:inherit;">'
+    +'<label title="UMAP n_neighbors. Default 15. Lower (5–10) emphasizes local structure / more clusters; higher (30–100) emphasizes global structure / smoother manifold.">n_neighbors</label>'
+    +'<input type="range" id="rc-um-nn" min="5" max="100" step="1" value="15" oninput="document.getElementById(\'rc-um-nn-val\').value=this.value;">'
+    +'<input type="number" id="rc-um-nn-val" min="5" max="100" step="1" value="15" oninput="document.getElementById(\'rc-um-nn\').value=this.value;" style="width:48px;font-size:10px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-family:inherit;">'
+    +'<label title="UMAP min_dist. Default 0.3 (scanpy convention). Lower (0.05–0.2) → tighter clumps, more separation between clusters. Higher (0.5–0.99) → looser, more uniform spread.">min_dist</label>'
+    +'<input type="range" id="rc-um-md" min="1" max="99" step="1" value="30" oninput="document.getElementById(\'rc-um-md-val\').value=(this.value/100).toFixed(2);">'
+    +'<input type="number" id="rc-um-md-val" min="0.01" max="0.99" step="0.01" value="0.30" oninput="document.getElementById(\'rc-um-md\').value=Math.round(parseFloat(this.value)*100);" style="width:64px;font-size:10px;background:var(--bg2);color:var(--text);border:1px solid var(--border);border-radius:3px;padding:2px 4px;font-family:inherit;">'
+    +'</div>'
+    +'<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
+    +'<button class="btn" onclick="_recomputeUmap()" style="background:rgba(99,102,241,0.15);border-color:var(--accent);color:var(--accent2);font-weight:600;padding:3px 10px;font-size:10px;" title="Recompute UMAP with the parameters above. OVERWRITES the current cache; sensible defaults are pre-filled.">Recompute UMAP</button>'
+    +'<span id="rc-um-status" style="font-size:10px;color:var(--text4);"></span>'
+    +'</div>');
+  /* PCA is omitted from this panel — it's deterministic given the input
+     matrix (adata.obsm['X_pca'] when present, fresh PCA at load otherwise),
+     and FLEEK doesn't expose any tunable params (n_comps, alternate input)
+     so a recompute would produce identical coords. The Data-source
+     subsection still shows where PCA came from. */
+  body.innerHTML=pacmap+umap;
+}
+/* Trigger a PaCMAP recompute with the user's current panel settings. */
+function _recomputePacmap(){
+  var status=document.getElementById("rc-pm-status");
+  var btn=document.querySelector("#recompute-body button");
+  function _ui(t,col){if(status){status.textContent=t;status.style.color=col||"var(--text4)";}}
+  var fast=document.getElementById("rc-pm-fast").checked;
+  var sub=parseInt(document.getElementById("rc-pm-sub-val").value,10)||50000;
+  var nn=parseInt(document.getElementById("rc-pm-nn-val").value,10)||10;
+  var projk=parseInt(document.getElementById("rc-pm-projk-val").value,10)||5;
+  if(!confirm("Recompute PaCMAP with these settings?\n\nQuick: "+(fast?"yes":"no")+(fast?(" (fit "+sub+" cells, project k="+projk+")"):"")+"\nn_neighbors: "+nn+"\n\nThis OVERWRITES the current PaCMAP cache."))return;
+  _ui("Recomputing… (subprocess)","var(--accent2)");
+  if(btn)btn.disabled=true;
+  fetch("/api/compute-embedding",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({method:"pacmap",force:true,fast:fast,max_cells:sub,n_neighbors:nn,project_k:projk})})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(btn)btn.disabled=false;
+      if(data&&data.error){_ui("Error: "+data.error,"var(--danger)");return;}
+      _ui("Done. Reloading view…","var(--success)");
+      /* Reload init payload so the embedding manifest, sources, and
+         arrays all refresh. Cheaper than full page reload. */
+      _refetchInit();
+    })
+    .catch(function(err){if(btn)btn.disabled=false;_ui("Error: "+(err&&err.message||"failed"),"var(--danger)");});
+}
+/* Trigger a UMAP recompute with the user's current panel settings.
+   Mirrors _recomputePacmap structurally — same UI feedback pattern,
+   same _refetchInit on success. */
+function _recomputeUmap(){
+  var status=document.getElementById("rc-um-status");
+  /* The PaCMAP querySelector grabbed the first button in #recompute-body,
+     so it was effectively pinning the wrong button when both blocks have
+     a Recompute button. Scope by id instead. */
+  var btn=document.querySelector("#recompute-body button[onclick='_recomputeUmap()']");
+  function _ui(t,col){if(status){status.textContent=t;status.style.color=col||"var(--text4)";}}
+  var fast=document.getElementById("rc-um-fast").checked;
+  var sub=parseInt(document.getElementById("rc-um-sub-val").value,10)||50000;
+  var nn=parseInt(document.getElementById("rc-um-nn-val").value,10)||15;
+  var md=parseFloat(document.getElementById("rc-um-md-val").value)||0.3;
+  if(!confirm("Recompute UMAP with these settings?\n\nQuickMap: "+(fast?("yes (fit "+sub+" cells)"):"no (full)")+
+    "\nn_neighbors: "+nn+"\nmin_dist: "+md.toFixed(2)+"\n\nThis OVERWRITES the current UMAP cache."))return;
+  _ui("Recomputing UMAP…","var(--accent2)");
+  if(btn)btn.disabled=true;
+  fetch("/api/compute-embedding",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({method:"umap",force:true,fast:fast,max_cells:sub,n_neighbors:nn,min_dist:md})})
+    .then(function(r){return r.json();})
+    .then(function(data){
+      if(btn)btn.disabled=false;
+      if(data&&data.error){_ui("Error: "+data.error,"var(--danger)");return;}
+      _ui("Done ("+(data.elapsed||"?")+"s). Reloading view…","var(--success)");
+      _refetchInit();
+    })
+    .catch(function(err){if(btn)btn.disabled=false;_ui("Error: "+(err&&err.message||"failed"),"var(--danger)");});
+}
+/* Re-fetch /api/init binary to pick up the freshly-computed embedding
+   without a full page reload. Re-runs buildPts so the new coords land
+   in the geometry buffers and the HUD overlay updates. */
+function _refetchInit(){
+  fetch("/api/init")
+    .then(function(r){return r.arrayBuffer();})
+    .then(function(buf){
+      if(typeof parseSCRN==="function"){
+        var data=parseSCRN(buf);
+        if(typeof buildPts==="function"){buildPts(data);buildLeg();}
+        if(typeof recolor==="function")recolor();
+        /* Re-render the Recompute panel since sources / inputs changed. */
+        _renderRecomputeBody();
+      }
+    })
+    .catch(function(err){console.warn("re-init failed",err);});
+}
 /* Render the "Data source" subsection — lists each matrix found in the h5ad
    with its classification, then lists how each FLEEK task was routed. */
 function _renderMatrixInfo(){
@@ -12193,6 +12563,12 @@ function showLoadBadges(ls){
   if(dataSec)dataSec.classList.remove("no-data");
   /* Now that a dataset is loaded, let the Data panel be draggable. */
   if(typeof _panelsSetDataMovable==="function")_panelsSetDataMovable(true);
+  /* Reveal the Recompute subsection now that we have header info to
+     populate it with. Re-render its body if it's currently expanded
+     so the source labels reflect the freshest sources after a load. */
+  var rcWrap=document.getElementById("recompute-wrap");
+  if(rcWrap)rcWrap.style.display="block";
+  if(_recomputeOpen)_renderRecomputeBody();
 }
 
 /* ── Custom confirm dialog ── */
@@ -20294,6 +20670,11 @@ function _buildSearchRegistry(){
        half-shaded panel that read as broken. The panel's own
        appearance is the destination cue here; no spotlight needed. */
     {id:"panel-deg",label:"DEG panel",secondary:"Panel",keywords:"differential expression cohen volcano",available:_canRunDEG,action:function(){if(typeof openDEG==="function")openDEG();}},
+    /* Recompute embeddings — both expand the Data panel + Recompute
+       subsection, then click the matching Recompute button so the
+       confirm dialog fires. Available only when a dataset is loaded. */
+    {id:"recompute-umap",label:"Recompute UMAP",secondary:"Action",keywords:"embedding rerun n_neighbors min_dist quickmap",available:_hasData,panel:"data-sec",action:function(){var s=document.getElementById("data-sec");if(s)s.classList.remove("collapsed");var rw=document.getElementById("recompute-wrap");if(rw)rw.style.display="";if(typeof _recomputeOpen!=="undefined"&&!_recomputeOpen&&typeof _recomputeToggle==="function")_recomputeToggle();setTimeout(function(){var b=document.querySelector("#recompute-body button[onclick='_recomputeUmap()']");if(b)b.click();},80);}},
+    {id:"recompute-pacmap",label:"Recompute PaCMAP",secondary:"Action",keywords:"embedding rerun fringe tendril quickpacmap",available:_hasData,panel:"data-sec",action:function(){var s=document.getElementById("data-sec");if(s)s.classList.remove("collapsed");var rw=document.getElementById("recompute-wrap");if(rw)rw.style.display="";if(typeof _recomputeOpen!=="undefined"&&!_recomputeOpen&&typeof _recomputeToggle==="function")_recomputeToggle();setTimeout(function(){var b=document.querySelector("#recompute-body button[onclick='_recomputePacmap()']");if(b)b.click();},80);}},
     {id:"open-help",label:"Help & About",secondary:"Action",keywords:"docs documentation reference",action:function(){if(typeof toggleHelp==="function")toggleHelp();}},
     {id:"open-settings",label:"Settings",secondary:"Action",keywords:"preferences api key theme",shortcut:"⌥ ,",action:function(){if(typeof toggleSettings==="function")toggleSettings();else{var s=document.getElementById("settings-popup");if(s)s.style.display="block";}}},
     /* Color modes */
@@ -20836,9 +21217,54 @@ function setupSliderWheelPassthrough(){
   });
 }
 
+/* Modifier-held wheel events on a sub-scrollable INSIDE the sidebar
+   bypass that sub-scrollable and scroll the sidebar itself. Lets users
+   wheel past a long virtual list (gene variability, lineage tree, etc.)
+   without first having to drift the cursor to a tiny gap between
+   panels. Triggered by Option/Alt OR Cmd/Meta — both Mac and
+   Linux/Windows users get a usable bypass key. */
+function _bypassScrollTrap(trapEl){
+  if(!trapEl||trapEl.dataset.trapBypass==="1")return;
+  trapEl.dataset.trapBypass="1";
+  trapEl.addEventListener("wheel",function(e){
+    if(!(e.altKey||e.metaKey||e.ctrlKey))return;
+    /* Find the nearest ancestor scrollable that ISN'T this trap. */
+    var p=trapEl.parentNode;
+    while(p&&p.nodeType===1){
+      if(p.scrollHeight>p.clientHeight){
+        var oy=getComputedStyle(p).overflowY;
+        if(oy==="auto"||oy==="scroll")break;
+      }
+      p=p.parentNode;
+    }
+    if(!p||p===document.body)p=document.getElementById("sidebar-upper");
+    if(!p)return;
+    e.preventDefault();
+    p.scrollTop+=e.deltaY;
+  },{passive:false});
+}
 function setupScrollTraps(){
   var sb=document.getElementById("sidebar-upper");
   if(!sb)return;
+  /* Wire the bypass behavior on every .sb-trap currently in the DOM
+     plus on any .sb-trap added later (panels and virtual lists are
+     rebuilt during data load / mode change). MutationObserver is
+     cheap because we only add a single wheel listener per element. */
+  document.querySelectorAll(".sb-trap").forEach(_bypassScrollTrap);
+  try{
+    var mo=new MutationObserver(function(records){
+      for(var i=0;i<records.length;i++){
+        var added=records[i].addedNodes;
+        for(var j=0;j<added.length;j++){
+          var n=added[j];
+          if(n.nodeType!==1)continue;
+          if(n.classList&&n.classList.contains("sb-trap"))_bypassScrollTrap(n);
+          if(n.querySelectorAll){var nested=n.querySelectorAll(".sb-trap");for(var k=0;k<nested.length;k++)_bypassScrollTrap(nested[k]);}
+        }
+      }
+    });
+    mo.observe(document.body,{childList:true,subtree:true});
+  }catch(_){/* MutationObserver missing in very old browsers */}
   var scrollTimer=null;
   var _sbScrolling=false;
   /* Traps are now always clickable. The only lock we still apply is the brief

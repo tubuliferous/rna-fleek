@@ -38,7 +38,7 @@ import numpy as np
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
 # Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
-FLEEK_VERSION = "0.5.36"
+FLEEK_VERSION = "0.5.37"
 
 # Globals set at startup
 ADATA = None
@@ -950,7 +950,16 @@ def _classify_all_matrices():
                     _do_fano = False
                     _denom = 1
                     if mat_format == "csc":
-                        n_sub_genes = min(500, n_genes)
+                        # Scale subsample with n_genes. On a 1.6M × 61k matrix
+                        # a hardcoded 500-col sample produces row sums that are
+                        # ~0.8% of the true total, so most stride-sampled cells
+                        # land at 0 and median_total collapses to 0.0; it also
+                        # pushes <50 genes through the moderate-rate gate, so
+                        # Fano falls to None. Result: kind="unknown" → no
+                        # raw-counts candidate → pseudo-bulk silently disabled.
+                        # Use ~5% of genes (capped at 5000) so big matrices get
+                        # enough columns to estimate both stats reliably.
+                        n_sub_genes = min(max(500, n_genes // 20), 5000, n_genes)
                         if n_sub_genes > 0 and n_cells > 0:
                             stride = max(1, n_genes // n_sub_genes)
                             gene_idx = np.arange(0, n_genes, stride)[:n_sub_genes]
@@ -1014,30 +1023,33 @@ def _classify_all_matrices():
                         # Using a mean-rate threshold makes the gate denominator-
                         # invariant.
                         moderate = (mean_arr > 0) & (var_arr > 0) & (mean_arr > 50.0 / 3000.0)
-                        if moderate.sum() >= 50:
+                        if moderate.sum() >= 25:
                             fano_median = float(
                                 np.median(var_arr[moderate] / mean_arr[moderate])
                             )
                         _cls_step("Fano via reduceat")
-                        # Derive median_total from the same sub-matrix.
-                        # CSC sub_csc.indices stores the row index of each
-                        # nonzero; np.add.at scatters the data into per-row
-                        # bins. Then scale by (n_genes / n_cols_sub) to convert
-                        # the partial-genes row sum into an estimate of the
-                        # full per-cell total. Median over a stride of ~200
-                        # cells matches the original semantic.
-                        sub_row_sums = np.zeros(n_cells, dtype=np.float64)
-                        if data.size > 0:
-                            np.add.at(sub_row_sums, sub_csc.indices, data)
+                        # Estimate per-cell total from the same sub-matrix.
+                        # The old code scattered sub_csc.data into per-row bins
+                        # and took the stride-sampled median, but on a huge
+                        # sparse matrix most cells get zero hits from a small
+                        # column subsample → median collapses to 0. Use the
+                        # mean-of-data estimator instead: it's an unbiased
+                        # estimate of mean per-cell counts, which is close
+                        # enough to median for raw-count distributions and is
+                        # robust regardless of subsample size. The divisor is
+                        # `_denom`, which is n_cells for the CSC column-
+                        # subsample path (whole-matrix coverage) and n_sub_rows
+                        # for the CSR / fallback row-subsample path (partial-
+                        # cell coverage). Using n_cells in the CSR case
+                        # underestimates by ~n_sub_rows/n_cells (≈ 0.5% on a
+                        # 660k-cell file) and was the secondary cause of
+                        # median_total=0 mis-classifications.
                         scale_total = float(n_genes) / float(max(1, n_cols_sub))
-                        sub_row_sums *= scale_total
-                        if sub_row_sums.size > 200:
-                            _stride_r = max(1, sub_row_sums.size // 200)
-                            row_sums = sub_row_sums[::_stride_r][:200]
+                        if data.size > 0 and _denom > 0:
+                            median_total = float(data.sum()) * scale_total / float(_denom)
                         else:
-                            row_sums = sub_row_sums
-                        median_total = float(np.median(row_sums)) if row_sums.size else 0.0
-                        _cls_step("median_total (from sub_csc, scaled)")
+                            median_total = 0.0
+                        _cls_step("median_total (mean-of-data estimator)")
                 else:
                     n_sub = min(3000, n_cells)
                     if n_sub > 0:
@@ -1052,7 +1064,7 @@ def _classify_all_matrices():
                         # Same mean-rate threshold as the sparse path so the
                         # classification stays consistent across formats.
                         moderate = (mean_arr > 0) & (var_arr > 0) & (mean_arr > 50.0 / 3000.0)
-                        if moderate.sum() >= 50:
+                        if moderate.sum() >= 25:
                             fano_median = float(
                                 np.median(var_arr[moderate] / mean_arr[moderate])
                             )
@@ -1072,15 +1084,51 @@ def _classify_all_matrices():
             if any_neg:
                 kind = "scaled"
                 notes = "has negative values — likely z-scored / sc.pp.scale output"
-            elif is_int and max_val >= 3 and median_total >= 50:
-                if fano_median is not None and fano_median < 1.5:
+            elif is_int and max_val >= 3 and (
+                median_total >= 50
+                or (fano_median is not None and fano_median >= 1.5)
+                or any(t in label.lower() for t in ("raw_counts", "raw counts", "umi", "spliced"))
+                or label.lower().endswith(".raw_counts")
+                or label.lower().endswith("['raw']")
+            ):
+                # The median_total >= 50 gate was the original filter for "is
+                # this actually a count matrix"; the alternate signals catch
+                # the cases where median_total computation breaks down
+                # (mostly the CSR/COO sub-matrix paths, where my mean-of-data
+                # fix only covers CSC). Fano >= 1.5 alone is unambiguous —
+                # only true raw UMI counts produce that level of overdispersion.
+                # An explicit "raw_counts" / "umi" / "spliced" name is also
+                # treated as authoritative since the user/dataset author
+                # already labeled it that way.
+                # Fano gate. True scVI / MAGIC / SAVER output has Fano ≤ 1.0
+                # (Poisson or under-dispersed) and that's the only unambiguous
+                # signal for "definitely smoothed". The gray zone 1.0 ≤ Fano < 1.5
+                # CAN be raw UMI counts on a homogeneous population (filtered
+                # cells, narrow celltype mix, very low-count regions), and gating
+                # pseudo-bulk off for those is too aggressive — NB dispersion
+                # estimates are still meaningful at Fano≈1.2. Decide by:
+                #   • Fano < 1.0  → denoised (under-dispersed, impossible for raw)
+                #   • Fano in [1.0, 1.5) → defer to name hint; default raw
+                #   • Fano ≥ 1.5  → raw counts
+                _label_low_pre = label.lower()
+                _name_hints_smoothed = any(t in _label_low_pre for t in
+                    ("denois", "smooth", "magic", "imput", "scvi", "saver", "dca"))
+                if fano_median is not None and fano_median < 1.0:
                     kind = "denoised_counts"
-                    notes = (f"integer + Fano≈{fano_median:.2f} (Poisson-like) — denoiser output "
+                    notes = (f"integer + Fano≈{fano_median:.2f} (under-dispersed) — denoiser output "
                              f"(e.g. scVI denoised_counts)")
+                elif fano_median is not None and fano_median < 1.5 and _name_hints_smoothed:
+                    kind = "denoised_counts"
+                    notes = (f"integer + Fano≈{fano_median:.2f} (Poisson-like) and label suggests "
+                             f"smoothed input — treating as denoiser output")
                 else:
                     kind = "raw_counts"
                     if fano_median is not None:
-                        notes = f"integer UMI counts (Fano≈{fano_median:.2f})"
+                        if fano_median < 1.5:
+                            notes = (f"integer UMI counts (Fano≈{fano_median:.2f}; borderline — "
+                                     f"raw assumed since name has no smoothing hint)")
+                        else:
+                            notes = f"integer UMI counts (Fano≈{fano_median:.2f})"
                     else:
                         notes = "integer counts"
             elif (not is_int) and min_nz > 0 and max_val < 100:
@@ -1513,9 +1561,19 @@ def detect_counts():
         # (e.g. exception during classify).
         fano_median = None
         looks_smoothed = False
+        # Use the same gating logic as the classifier: Fano < 1.0 is the only
+        # unambiguous "definitely smoothed" signal; the [1.0, 1.5) gray zone
+        # is treated as smoothed only when the matrix label hints at it
+        # (denois/smooth/magic/imput/scvi/saver/dca). True UMI counts in
+        # homogeneous populations can fall in the gray zone and pseudo-bulk
+        # is still informative there.
+        _best_label_low = (_best_entry.get("label") if _best_entry else "") or ""
+        _best_label_low = _best_label_low.lower()
+        _name_hints_smoothed = any(t in _best_label_low for t in
+            ("denois", "smooth", "magic", "imput", "scvi", "saver", "dca"))
         if _best_entry is not None and _best_entry.get("fano_median") is not None:
             fano_median = float(_best_entry["fano_median"])
-            looks_smoothed = fano_median < 1.5
+            looks_smoothed = (fano_median < 1.0) or (fano_median < 1.5 and _name_hints_smoothed)
         else:
             # Fallback: same column-subsample recompute, but only when
             # classify failed. Should be rare.
@@ -1525,7 +1583,7 @@ def detect_counts():
                     fmt = COUNTS_MATRIX.format
                     if fmt == "csc":
                         n_genes_total = COUNTS_MATRIX.shape[1]
-                        n_sub = min(500, n_genes_total)
+                        n_sub = min(max(500, n_genes_total // 20), 5000, n_genes_total)
                         gstride = max(1, n_genes_total // n_sub)
                         gene_idx = np.arange(0, n_genes_total, gstride)[:n_sub]
                         sub_csc = COUNTS_MATRIX[:, gene_idx]
@@ -1549,7 +1607,7 @@ def detect_counts():
                         sqmean = col_sumsq / _denom_fb
                         vars_ = np.maximum(sqmean - means ** 2, 0.0)
                         moderate = (means > 0) & (vars_ > 0) & (means > 50.0 / 3000.0)
-                        if moderate.sum() >= 50:
+                        if moderate.sum() >= 25:
                             fano = vars_[moderate] / np.maximum(means[moderate], 1e-9)
                             fano_median = float(np.median(fano))
                             looks_smoothed = fano_median < 1.5
@@ -3257,7 +3315,7 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
             _cr_writable = True
     cached = {}
     _cache_time = 0.0  # accumulate time spent loading caches
-    _CACHE_SKIP_VALIDATE = {"leiden_names", "embedding_inputs", "matrix_registry"}  # byte arrays, not cell-indexed
+    _CACHE_SKIP_VALIDATE = {"leiden_names", "embedding_inputs", "matrix_registry", "matrix_registry_version"}  # byte arrays / scalars, not cell-indexed
     if cache_read and cache_read.exists():
         _progress("Checking cache...", 20)
         _ct0 = time.time()
@@ -3292,10 +3350,51 @@ def load_and_prepare(h5ad_path, max_cells=0, n_dims_list=[2, 3], fast_umap=False
     # cache when the path/shape signature still matches the current adata,
     # so detect_counts can skip the full classify pass.
     _registry_cache_hit = False
+    # Bumped whenever the classifier's behavior changes in a way that would
+    # change cached registry entries. Old caches missing this key, or with
+    # an older value, are forcibly invalidated. v2 = v0.5.37 (mean-of-data
+    # median_total estimator + relaxed Fano gate + Fano≥1.5/name-hint
+    # alternate raw-counts signal).
+    _REG_ALG_VERSION = 2
+    if "matrix_registry_version" in cached:
+        try:
+            _cached_alg_version = int(cached["matrix_registry_version"][0])
+        except Exception:
+            _cached_alg_version = 0
+    else:
+        _cached_alg_version = 0
     if "matrix_registry" in cached:
         try:
             _reg_cached = json.loads(cached["matrix_registry"].tobytes().decode("utf-8"))
-            if _registry_matches_adata(_reg_cached, adata):
+            # Versioning: registries written before v0.5.37 lack the version
+            # tag and were produced by the buggy classifier (median_total=0,
+            # over-strict Fano gate, etc.). A version mismatch is the
+            # primary invalidation signal — the per-entry suspect tests
+            # below are kept as belt-and-suspenders for any registries
+            # that survived a partial upgrade.
+            _stale_alg = _cached_alg_version < _REG_ALG_VERSION
+            def _is_suspect_entry(e):
+                if not isinstance(e, dict):
+                    return False
+                if e.get("kind") == "unknown" and e.get("is_integer") and (e.get("max") or 0) >= 3:
+                    return True
+                # Any "denoised_counts" entry whose label has no smoothing hint
+                # and whose Fano is ≥ 1.0 was almost certainly mis-classified
+                # under the old too-aggressive < 1.5 threshold.
+                if e.get("kind") == "denoised_counts":
+                    fm = e.get("fano_median")
+                    lbl = (e.get("label") or "").lower()
+                    has_hint = any(t in lbl for t in
+                        ("denois", "smooth", "magic", "imput", "scvi", "saver", "dca"))
+                    if fm is not None and fm >= 1.0 and not has_hint:
+                        return True
+                return False
+            _suspect = _stale_alg or any(_is_suspect_entry(e) for e in (_reg_cached if isinstance(_reg_cached, list) else []))
+            if _stale_alg:
+                print(f"  Matrix registry cache is stale (alg v{_cached_alg_version} < v{_REG_ALG_VERSION}); will recompute")
+            if _suspect:
+                print(f"  Matrix registry cache contains suspect 'unknown' integer entries; will recompute")
+            elif _registry_matches_adata(_reg_cached, adata):
                 MATRIX_REGISTRY = _reg_cached
                 _registry_cache_hit = True
                 print(f"  Matrix registry loaded from cache ({len(_reg_cached)} matrices)")
@@ -4362,8 +4461,9 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
             cached["matrix_registry"] = np.frombuffer(
                 json.dumps(MATRIX_REGISTRY).encode("utf-8"), dtype=np.uint8
             )
+            cached["matrix_registry_version"] = np.array([2], dtype=np.int32)
             _safe_savez(".fleek_cache.npz", **cached)
-            print(f"  Matrix registry persisted to cache ({len(MATRIX_REGISTRY)} matrices)")
+            print(f"  Matrix registry persisted to cache ({len(MATRIX_REGISTRY)} matrices, alg v2)")
         except Exception as _re:
             print(f"  Could not persist matrix registry ({_re})")
     _phase("persist matrix registry")
@@ -4433,10 +4533,28 @@ def _pick_latent_rep(adata):
     return None, 0
 
 
-def _ensure_neighbors(adata):
+def _ensure_neighbors(adata, n_neighbors=15, force=False):
     """Build neighbor graph if missing. Prefers scVI-family latents over
-    PCA (matches the priority used for UMAP / PaCMAP input selection)."""
+    PCA (matches the priority used for UMAP / PaCMAP input selection).
+
+    n_neighbors — knn size for the neighbor graph. Default 15 matches the
+    historical implicit value. Pass a different value when the caller
+    needs a custom graph (e.g. on-demand UMAP recompute with a user-set
+    n_neighbors).
+
+    force — when True, drop any existing neighbor graph and rebuild with
+    the given n_neighbors. Used by the recompute path so a user changing
+    n_neighbors actually gets a fresh graph.
+    """
     import scanpy as sc
+
+    if force:
+        adata.uns.pop("neighbors", None)
+        for k in ("connectivities", "distances"):
+            try:
+                del adata.obsp[k]
+            except Exception:
+                pass
 
     has_conn = "connectivities" in adata.obsp
     has_uns = "neighbors" in adata.uns
@@ -4447,7 +4565,7 @@ def _ensure_neighbors(adata):
     # If we have connectivities but no uns metadata, synthesize it
     if has_conn and not has_uns:
         adata.uns["neighbors"] = {"connectivities_key": "connectivities", "distances_key": "distances",
-                                  "params": {"n_neighbors": 15, "method": "umap"}}
+                                  "params": {"n_neighbors": n_neighbors, "method": "umap"}}
         print("    Synthesized missing neighbors metadata from existing connectivities")
         return
 
@@ -4464,13 +4582,13 @@ def _ensure_neighbors(adata):
                 emb[nan_mask] = 0
         except Exception:
             pass
-        print(f"    Building neighbors from {latent_key} ({latent_dims}D latent)...")
-        sc.pp.neighbors(adata, use_rep=latent_key, n_neighbors=15)
+        print(f"    Building neighbors from {latent_key} ({latent_dims}D latent, n_neighbors={n_neighbors})...")
+        sc.pp.neighbors(adata, use_rep=latent_key, n_neighbors=n_neighbors)
     elif latent_key == "X_pca":
-        print("    Building neighbors from existing PCA...")
-        sc.pp.neighbors(adata, n_pcs=min(50, latent_dims), n_neighbors=15)
+        print(f"    Building neighbors from existing PCA (n_neighbors={n_neighbors})...")
+        sc.pp.neighbors(adata, n_pcs=min(50, latent_dims), n_neighbors=n_neighbors)
     else:
-        print("    Running PCA + neighbors from scratch...")
+        print(f"    Running PCA + neighbors from scratch (n_neighbors={n_neighbors})...")
         tmp = adata.copy()
         sc.pp.normalize_total(tmp, target_sum=1e4)
         sc.pp.log1p(tmp)
@@ -4479,10 +4597,140 @@ def _ensure_neighbors(adata):
         tmp = tmp[:, tmp.var.highly_variable].copy()
         sc.pp.scale(tmp, max_value=10)
         sc.tl.pca(tmp, n_comps=50)
-        sc.pp.neighbors(tmp, n_pcs=50, n_neighbors=15)
+        sc.pp.neighbors(tmp, n_pcs=50, n_neighbors=n_neighbors)
         adata.obsp["distances"] = tmp.obsp["distances"]
         adata.obsp["connectivities"] = tmp.obsp["connectivities"]
         adata.uns["neighbors"] = tmp.uns["neighbors"]
+
+
+def _recompute_umap_fresh(use_fast=True, fast_subsample=50000, n_neighbors=15, min_dist=0.3):
+    """Recompute UMAP 2D + 3D from scratch with the given parameters.
+
+    Drops UMAP_2D / UMAP_3D and removes umap_*d_* keys from the on-disk
+    cache, then runs either the QuickMap (subsample-and-project) or the
+    full sc.tl.umap path. Honors user-provided n_neighbors and min_dist.
+
+    Mirrors the load-time UMAP path (around line 3576) but is
+    self-contained — no progress callbacks, no shared cache dict — so
+    it can be called on demand from /api/compute-embedding without
+    threading state through the loader.
+
+    Returns the elapsed wall-clock seconds.
+    """
+    global UMAP_2D, UMAP_3D, EMBEDDING_SOURCES, EMBEDDING_INPUTS
+    import scanpy as sc
+    import scipy.sparse as sp
+
+    if ADATA is None:
+        raise ValueError("No dataset loaded")
+    if N_CELLS is None or N_CELLS <= 0:
+        raise ValueError("N_CELLS not initialized")
+
+    # Wipe in-memory results so a partial failure can't leave a stale half-result.
+    UMAP_2D = None
+    UMAP_3D = None
+    # Strip any cached UMAP arrays so the next reload doesn't pick up the
+    # pre-recompute coords. We touch only umap_* keys; everything else
+    # (PaCMAP, PCA, leiden, embedding_inputs) is left in place.
+    cp, _ = _cache_read_path(".fleek_cache.npz")
+    if cp and cp.exists():
+        try:
+            cached_old = dict(np.load(cp, allow_pickle=False))
+            removed = [k for k in cached_old if k.startswith("umap_")]
+            for k in removed:
+                del cached_old[k]
+            if removed:
+                np.savez(cp, **cached_old)
+                print(f"  Removed cached UMAP arrays from {cp}: {removed}")
+        except Exception as e:
+            print(f"  Could not strip UMAP from cache: {e}")
+
+    actual_fast = bool(use_fast) and N_CELLS > fast_subsample
+    n_neighbors = max(2, int(n_neighbors))
+    min_dist = float(min_dist)
+
+    t0 = time.time()
+    if actual_fast:
+        # QuickMap path: fit on a stratified subsample, then transform the rest.
+        import umap as umap_lib
+
+        rng = np.random.default_rng(42)
+        sub_idx = _stratified_subsample(CLUSTER_IDS, fast_subsample, rng)
+
+        latent_key, latent_dims = _pick_latent_rep(ADATA)
+        if not latent_key:
+            raise ValueError(
+                "QuickMap recompute needs an existing latent rep "
+                "(X_scVI / X_pca / etc.) in adata.obsm; none found"
+            )
+        n_use = min(latent_dims, 50)
+        X_all = np.asarray(ADATA.obsm[latent_key][:, :n_use], dtype=np.float32)
+        X_sub = X_all[sub_idx].copy()
+        input_name = latent_key
+        sub_set = set(sub_idx.tolist())
+        rest_idx = np.array([i for i in range(N_CELLS) if i not in sub_set])
+
+        for nd in (2, 3):
+            print(f"  QuickMap {nd}D: fitting UMAP on {len(sub_idx):,} cells "
+                  f"(n_neighbors={n_neighbors}, min_dist={min_dist})...")
+            reducer = umap_lib.UMAP(
+                n_components=nd, n_neighbors=n_neighbors, min_dist=min_dist,
+                low_memory=True, n_jobs=-1
+            )
+            emb_sub = reducer.fit_transform(X_sub)
+            full = np.empty((N_CELLS, nd), dtype=np.float32)
+            full[sub_idx] = emb_sub.astype(np.float32)
+            if len(rest_idx) > 0:
+                batch = 50000
+                for bi in range(0, len(rest_idx), batch):
+                    be = min(bi + batch, len(rest_idx))
+                    full[rest_idx[bi:be]] = reducer.transform(X_all[rest_idx[bi:be]]).astype(np.float32)
+            if nd == 2:
+                UMAP_2D = full
+            else:
+                UMAP_3D = full
+            EMBEDDING_SOURCES[f"umap_{nd}d"] = "computed_quick"
+            EMBEDDING_INPUTS[f"umap_{nd}d"] = input_name
+    else:
+        # Full path: rebuild the neighbor graph with the user's n_neighbors,
+        # then sc.tl.umap with min_dist override.
+        latent_key, _ = _pick_latent_rep(ADATA)
+        input_name = latent_key if latent_key else "computed_pca"
+        _ensure_neighbors(ADATA, n_neighbors=n_neighbors, force=True)
+        for nd in (2, 3):
+            print(f"  Full UMAP {nd}D (n_neighbors={n_neighbors}, min_dist={min_dist})...")
+            sc.tl.umap(ADATA, n_components=nd, min_dist=min_dist)
+            arr = ADATA.obsm["X_umap"].astype(np.float32)
+            if nd == 2:
+                UMAP_2D = arr
+            else:
+                UMAP_3D = arr
+            EMBEDDING_SOURCES[f"umap_{nd}d"] = "computed_full"
+            EMBEDDING_INPUTS[f"umap_{nd}d"] = input_name
+
+    elapsed = time.time() - t0
+    print(f"  UMAP recompute done ({elapsed:.1f}s, fast={actual_fast})")
+
+    # Persist with the matching suffix so the next load picks up the new coords.
+    cache_path = _cache_write_path(".fleek_cache.npz")
+    if cache_path is not None:
+        try:
+            cached_now = {}
+            if cache_path.exists():
+                cached_now = dict(np.load(cache_path, allow_pickle=False))
+            sfx = "_quick" if actual_fast else "_full"
+            cached_now[f"umap_2d{sfx}"] = UMAP_2D
+            cached_now[f"umap_3d{sfx}"] = UMAP_3D
+            if EMBEDDING_INPUTS:
+                cached_now["embedding_inputs"] = np.frombuffer(
+                    json.dumps(EMBEDDING_INPUTS).encode("utf-8"), dtype=np.uint8
+                )
+            _safe_savez(".fleek_cache.npz", **cached_now)
+            print(f"  UMAP cached ({sfx.lstrip('_')})")
+        except Exception as e:
+            print(f"  Could not persist UMAP to cache: {e}")
+
+    return elapsed
 
 
 _CELL_LIB_SIZES = None  # lazily computed per-cell totals for normalize+log1p
@@ -5137,6 +5385,11 @@ class FleekHandler(SimpleHTTPRequestHandler):
         elif path == "/api/gene":
             gene = params.get("name", [""])[0]
             self._serve_gene(gene)
+        elif path == "/api/gene-raw":
+            gene = params.get("name", [""])[0]
+            self._serve_gene_raw(gene)
+        elif path == "/api/library-size":
+            self._serve_library_size()
         elif path == "/api/search":
             q = params.get("q", [""])[0]
             self._serve_search(q)
@@ -5268,6 +5521,61 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self.send_error(404, f"Gene '{gene_name}' not found")
             return
         data = expr.tobytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_gene_raw(self, gene_name):
+        """Return raw counts (per-cell, float32) for the named gene from
+        the detected raw-counts matrix. Used by per-cell tooltips so we
+        can show "ALB: 4.0 raw counts" alongside the normalized expression
+        the gene-display matrix produces. Returns 404 when no raw-counts
+        matrix was detected (denoised-only dataset, or counts route is
+        disabled by the smoothed-counts guard)."""
+        import scipy.sparse as sp
+        if ADATA is None:
+            self.send_error(503, "No dataset loaded");return
+        if COUNTS_MATRIX is None:
+            self.send_error(404, "No raw counts matrix available")
+            return
+        idx = GENE_INDEX.get(gene_name)
+        if idx is None:
+            self.send_error(404, f"Gene '{gene_name}' not found")
+            return
+        try:
+            col = COUNTS_MATRIX[:, idx]
+            if sp.issparse(col):
+                col = col.toarray().ravel()
+            else:
+                col = np.asarray(col).ravel()
+            col = col.astype(np.float32, copy=False)
+        except Exception as e:
+            self.send_error(500, f"Failed to fetch raw counts: {e}")
+            return
+        data = col.tobytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _serve_library_size(self):
+        """Per-cell library size (sum of raw counts) as a float32 array, used
+        by the cell tooltip alongside the raw-count display. Computed from
+        COUNTS_MATRIX via _get_lib_sizes (cached, single pass)."""
+        if ADATA is None:
+            self.send_error(503, "No dataset loaded");return
+        if COUNTS_MATRIX is None:
+            self.send_error(404, "No raw counts matrix available")
+            return
+        try:
+            lib = _get_lib_sizes(COUNTS_MATRIX).astype(np.float32, copy=False)
+        except Exception as e:
+            self.send_error(500, f"Failed to compute library sizes: {e}")
+            return
+        data = lib.tobytes()
         self.send_response(200)
         self.send_header("Content-Type", "application/octet-stream")
         self.send_header("Content-Length", str(len(data)))
@@ -6168,11 +6476,19 @@ class FleekHandler(SimpleHTTPRequestHandler):
                 raise ValueError("No API key configured. Set ANTHROPIC_API_KEY env var or add it to ~/.fleek.env.")
             top_n = req.get("top_n", 30)
             tissue = req.get("tissue", "")
-            # `model` may be a short key ('sonnet') or a full model ID;
-            # _resolve_claude_model handles both. Defaults to Sonnet 4.6
-            # when absent or unrecognized — see CLAUDE_MODELS for the
-            # supported set + cost guidance the UI shows.
             model = req.get("model")
+            force = bool(req.get("force", False))
+            if force:
+                # Drop the on-disk cache so annotate_clusters_llm recomputes.
+                # Both the dataset-side and server-side copies removed.
+                for cp in (_dataset_cache_path(".annot_llm.json"),
+                           _server_cache_path(".annot_llm.json")):
+                    try:
+                        if cp and cp.exists():
+                            cp.unlink()
+                            print(f"  Claude annotation cache cleared (force re-run): {cp}")
+                    except Exception as e:
+                        print(f"  Could not delete {cp}: {e}")
             result = annotate_clusters_llm(top_n=top_n, tissue_hint=tissue, model=model)
             data = json.dumps(_json_safe(result)).encode("utf-8")
             self.send_response(200)
@@ -7077,16 +7393,59 @@ Every non-empty cluster_id listed above must appear exactly once in the tree. Em
                 pass
 
     def _serve_compute_embedding(self, req):
-        """Compute an embedding on demand (e.g. PaCMAP) and return coordinates."""
-        global PACMAP_2D, PACMAP_3D
+        """Compute an embedding on demand (e.g. PaCMAP) and return coordinates.
+
+        Optional override fields (when set, take precedence over the global
+        load-time settings; persist back into PACMAP_SETTINGS so reloads
+        and subsequent automated calls remember the user's choice):
+          - force        bool  drop the in-memory result and recompute
+          - fast         bool  Quick (subsample-and-project) on/off
+          - max_cells    int   subsample size when fast=True
+          - n_neighbors  int   PaCMAP n_neighbors override (>=2)
+          - project_k    int   k-NN size for the subsample-projection step
+        """
+        global PACMAP_2D, PACMAP_3D, PACMAP_SETTINGS
         method = req.get("method", "")
+        force = bool(req.get("force", False))
         try:
             if ADATA is None:
                 raise ValueError("No dataset loaded")
 
             if method == "pacmap":
-                # Check if already computed
-                if PACMAP_2D is not None and PACMAP_3D is not None:
+                # Apply per-call PaCMAP settings overrides FIRST so the cache-
+                # hit short-circuit below honours a user-driven recompute.
+                _pm_overrides = {}
+                if "fast" in req:        _pm_overrides["fast"] = bool(req.get("fast"))
+                if "max_cells" in req:   _pm_overrides["max_cells"] = max(1000, int(req.get("max_cells", 50000) or 0))
+                if "n_neighbors" in req: _pm_overrides["n_neighbors"] = max(2, int(req.get("n_neighbors", 10) or 0))
+                if "project_k" in req:   _pm_overrides["project_k"] = max(2, int(req.get("project_k", 5) or 0))
+                if _pm_overrides:
+                    PACMAP_SETTINGS = dict(PACMAP_SETTINGS or {})
+                    PACMAP_SETTINGS.update(_pm_overrides)
+                    print(f"  PaCMAP settings overridden: {_pm_overrides}")
+
+                # If forced or overrides changed parameters, drop the in-mem
+                # results and the on-disk cache so the recompute path runs.
+                if force:
+                    PACMAP_2D = None
+                    PACMAP_3D = None
+                    cp, _ = _cache_read_path(".fleek_cache.npz")
+                    if cp and cp.exists():
+                        try:
+                            cached = dict(np.load(cp, allow_pickle=False))
+                            removed = False
+                            for k in ("pacmap_2d", "pacmap_3d"):
+                                if k in cached:
+                                    del cached[k]
+                                    removed = True
+                            if removed:
+                                np.savez(cp, **cached)
+                                print(f"  Removed cached PaCMAP arrays from {cp}")
+                        except Exception as e:
+                            print(f"  Could not strip PaCMAP from cache: {e}")
+
+                # Check if already computed (only when not force)
+                if PACMAP_2D is not None and PACMAP_3D is not None and not force:
                     result = {"ok": True, "cached": True}
                     data = json.dumps(result).encode("utf-8")
                     self.send_response(200)
@@ -7115,29 +7474,35 @@ Every non-empty cluster_id listed above must appear exactly once in the tree. Em
                     out3_path = os.path.join(tmpdir, "pacmap_3d.npy")
                     np.save(input_path, pca_input)
 
+                    # Resolve n_neighbors and project_k from settings (with
+                    # auto-fallback when not user-overridden).
+                    _pm_nn_override = PACMAP_SETTINGS.get("n_neighbors")
+                    _pm_projk = int(PACMAP_SETTINGS.get("project_k", 5) or 5)
                     if PACMAP_SUB > 0 and n_total > PACMAP_SUB:
                         sub_idx = _stratified_subsample(CLUSTER_IDS, PACMAP_SUB,
                                                         np.random.default_rng(42))
                         sub_path = os.path.join(tmpdir, "sub_idx.npy")
                         np.save(sub_path, np.array(sub_idx, dtype=np.int32))
+                        _nn_expr = (str(int(_pm_nn_override)) if _pm_nn_override
+                                    else "min(10, max(2, len(sub_idx) // 50))")
                         script = f"""
 import numpy as np, pacmap, time
 from scipy.spatial import cKDTree
 X = np.load("{input_path}")
 sub_idx = np.load("{sub_path}")
 X_sub = X[sub_idx]
-nn = min(10, max(2, len(sub_idx) // 50))
+nn = {_nn_expr}
 t0 = time.time()
-print(f"  PaCMAP 2D ({{len(sub_idx):,}} / {{X.shape[0]:,}} cells)...")
+print(f"  PaCMAP 2D ({{len(sub_idx):,}} / {{X.shape[0]:,}} cells, n_neighbors={{nn}})...")
 Y2_sub = pacmap.PaCMAP(n_components=2, n_neighbors=nn, verbose=False).fit_transform(X_sub).astype(np.float32)
 print(f"  PaCMAP 3D...")
 Y3_sub = pacmap.PaCMAP(n_components=3, n_neighbors=nn, verbose=False).fit_transform(X_sub).astype(np.float32)
-print(f"  Projecting remaining cells (k=5 weighted)...")
+print(f"  Projecting remaining cells (k={_pm_projk} weighted)...")
 tree = cKDTree(X_sub)
 rest_mask = np.ones(X.shape[0], dtype=bool)
 rest_mask[sub_idx] = False
 rest_idx = np.where(rest_mask)[0]
-dists, knn_idx = tree.query(X[rest_idx], k=5)
+dists, knn_idx = tree.query(X[rest_idx], k={_pm_projk})
 weights = 1.0 / (dists + 1e-10)
 weights /= weights.sum(axis=1, keepdims=True)
 Y2 = np.empty((X.shape[0], 2), dtype=np.float32)
@@ -7149,10 +7514,12 @@ np.save("{out2_path}", Y2); np.save("{out3_path}", Y3)
 print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
 """
                     else:
+                        _nn_expr2 = (str(int(_pm_nn_override)) if _pm_nn_override
+                                     else "min(10, max(2, X.shape[0] // 50))")
                         script = f"""
 import numpy as np, pacmap, time
 X = np.load("{input_path}")
-nn = min(10, max(2, X.shape[0] // 50))
+nn = {_nn_expr2}
 t0 = time.time()
 print(f"  PaCMAP 2D ({{X.shape[0]:,}} cells, {{nn}} neighbors)...")
 Y2 = pacmap.PaCMAP(n_components=2, n_neighbors=nn, verbose=False).fit_transform(X).astype(np.float32)
@@ -7205,6 +7572,20 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
                             pass
 
                 result = {"ok": True, "elapsed": elapsed}
+            elif method == "umap":
+                # On-demand UMAP recompute. Always force=True semantics (the
+                # endpoint exists to redo the coords, not to hit cache); the
+                # `force` field is accepted for API symmetry but doesn't gate
+                # anything for this branch.
+                use_fast = bool(req.get("fast", False))
+                fast_sub = max(5000, int(req.get("max_cells", 50000) or 0))
+                nn = max(2, int(req.get("n_neighbors", 15) or 0))
+                md = float(req.get("min_dist", 0.3) or 0.3)
+                elapsed = _recompute_umap_fresh(
+                    use_fast=use_fast, fast_subsample=fast_sub,
+                    n_neighbors=nn, min_dist=md,
+                )
+                result = {"ok": True, "elapsed": round(elapsed, 1)}
             else:
                 raise ValueError(f"Unknown embedding method: {method}")
 
