@@ -3198,7 +3198,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.35";
+var FLEEK_VERSION="v0.5.36";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 /* Ghost (non-expressing) cell render style — picked from the Debug menu so
@@ -4532,6 +4532,13 @@ function snapState(){
   var sf=null;
   if(sliceFilter){sf={};for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
   return JSON.stringify({
+    /* Tag the session with the dataset path so _applySessionState can
+       detect a dataset switch and skip per-dataset fields (recentGenes,
+       selGroups, selGene, sliceFilter, deletedCells, …) — otherwise
+       a state saved against e.g. a Mouse dataset gets restored on top
+       of a Human one and you see Title-case genes in your recents,
+       cell indices that point at the wrong cluster, etc. */
+    loaded_path:(D&&D.header&&D.header.loaded_path)||"",
     viewIs3d:viewIs3d, embMethod:embMethod, mode:mode, selGene:selGene,
     visibleClusters:JSON.parse(JSON.stringify(visibleClusters)),
     autoRotate:autoRotate,
@@ -18584,19 +18591,31 @@ function onSessionSelect(){
 
 function _applySessionState(s){
   _sessionLoading=true;_restoring=true;
+  /* If the saved session was tagged with a dataset path and that path
+     differs from the currently-loaded dataset, the per-dataset fields
+     don't apply to this dataset (recents would carry the wrong-organism
+     gene names, selGroups' cell indices would point to wrong cells,
+     visibleClusters would reference cluster ids that no longer exist,
+     etc.). Generic UI prefs (auto-rotate, pt size, bg dim, theme) still
+     restore — only the dataset-specific bits are gated. Sessions saved
+     before this tag was added (no s.loaded_path) keep their old behavior. */
+  var _samePath=true;
+  if(s.loaded_path&&D&&D.header&&D.header.loaded_path){
+    _samePath=(s.loaded_path===D.header.loaded_path);
+  }
   if(s.autoRotate!==undefined){autoRotate=s.autoRotate;document.getElementById("b-auto").className="rrbtn"+(autoRotate?" on":"");}
   if(s.ptSize!==undefined){basePtSz=Math.max(1,Math.min(100,Math.round(s.ptSize)));document.getElementById("pt-size").value=basePtSz;}
   if(s.ptOpacity!==undefined){var op=Math.max(0.05,Math.min(1,s.ptOpacity));document.getElementById("pt-opacity").value=op;if(pts)pts.material.opacity=op;}
   if(s.bgDim!==undefined){bgDimPct=s.bgDim;document.getElementById("bg-dim").value=100-bgDimPct;}
-  if(s.visibleClusters){visibleClusters={};for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];_guardAllHiddenVisibility();}
-  if(s.selGroups){
+  if(_samePath&&s.visibleClusters){visibleClusters={};for(var k in s.visibleClusters)visibleClusters[k]=s.visibleClusters[k];_guardAllHiddenVisibility();}
+  if(_samePath&&s.selGroups){
     selGroups=s.selGroups.map(function(g){return{id:g.id,name:g.name,color:g.color,cells:new Set(g.cells)};});
     activeGroupId=s.activeGroupId||null;
     selGroupIdCounter=s.selGroupIdCounter||selGroups.length;
     if(s.groupVisible){groupVisible={};for(var k in s.groupVisible)groupVisible[k]=s.groupVisible[k];}
     rebuildCellGroupMap();
   }
-  if(s.sliceFilter){
+  if(_samePath&&s.sliceFilter){
     sliceFilter={};for(var col in s.sliceFilter)sliceFilter[col]=new Set(s.sliceFilter[col]);
     /* Rebuild sliceMask inline */
     if(D){
@@ -18614,9 +18633,14 @@ function _applySessionState(s){
     for(var col in cats2){var n2=cats2[col].categories.length;sliceFilter[col]=new Set();for(var j=0;j<n2;j++)sliceFilter[col].add(j);}
     _syncSlicePills();_updateSliceUI();
   }
-  /* Restore individually deleted (Delete-key-hidden) cells */
-  _deletedCells=s.deletedCells?new Set(s.deletedCells):null;
-  if(s.recentGenes)recentGenes=s.recentGenes;
+  /* Restore individually deleted (Delete-key-hidden) cells — but only
+     when the dataset matches; cell indices from a different dataset
+     would silently delete the wrong cells. */
+  if(_samePath)_deletedCells=s.deletedCells?new Set(s.deletedCells):null;
+  /* Recent genes are dataset-specific (gene names + casing differ
+     across organisms/datasets). On a path mismatch, drop the saved
+     recents so a Mouse "Cd3d" doesn't show up in a Human dataset. */
+  if(_samePath&&s.recentGenes)recentGenes=s.recentGenes;
   var needReposition=false;
   if(s.embMethod&&D&&D.embeddings[s.embMethod]&&embMethod!==s.embMethod){
     embMethod=s.embMethod;var esel=document.getElementById("emb-select");if(esel)esel.value=s.embMethod;needReposition=true;
@@ -18627,7 +18651,11 @@ function _applySessionState(s){
   if(s.tgt3){tgt3.set(s.tgt3.x,s.tgt3.y,s.tgt3.z);}
   if(s.pan2){pan2.x=s.pan2.x;pan2.y=s.pan2.y;}
   if(s.zoom2!==undefined)zoom2=s.zoom2;
-  if(s.mode){mode=s.mode;}if(s.selGene)selGene=s.selGene;
+  /* Mode + selGene are dataset-specific in practice — a Mouse selGene
+     applied to a Human dataset would 404 and revert to cluster mode
+     with a flash of "blank cloud" UI. Skip on path mismatch. */
+  if(_samePath&&s.mode){mode=s.mode;}
+  if(_samePath&&s.selGene)selGene=s.selGene;
   var _cms=document.getElementById("color-mode-select");if(_cms)_cms.value=mode;
   /* Single-gene legend only shows in single sub-mode + actual selGene. */
   var _showSingleLegend=(mode==="gene"&&_geneMode==="single"&&selGene);
