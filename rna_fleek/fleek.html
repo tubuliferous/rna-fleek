@@ -234,6 +234,10 @@
   .light .rrbtn.on{background:rgba(67,56,202,0.12);}
   .gbtn{display:inline-block;padding:3px 7px;border-radius:3px;border:none;cursor:pointer;font-size:11px;margin:1px;background:var(--bg3);color:var(--text4);font-family:inherit;transition:all 0.1s;border:1px solid var(--border);}
   .gbtn:hover{background:var(--bg-hover);color:#22c55e;border-color:var(--border2);}
+  /* Inline "active gene" name shown in collapsed gene-panel headers
+     and similar contexts. Theme-aware so light mode uses the deeper
+     emerald (the bright #22c55e washes out on light bg). */
+  .gene-name-on{color:#22c55e;}
   /* Shared dropdown row primitive — used by the gene-search results in
      the Gene panel and the GO-term search results. The keyboard cursor
      and the mouse hover both highlight via .active so a row's "ready
@@ -682,10 +686,15 @@
   .light .annot-tag-llm{color:#7c3aed!important;background:rgba(124,58,237,0.12)!important;}
   .light #no-key-banner{color:#7c3aed!important;border-color:rgba(124,58,237,0.4)!important;}
   .light #no-key-banner button{color:#7c3aed!important;border-color:rgba(124,58,237,0.4)!important;background:rgba(124,58,237,0.1)!important;}
-  /* Green (#34d399) → deeper emerald */
+  /* Green (#34d399 / #22c55e) → deeper emerald (#059669) in light mode.
+     Hardcoded green text on light backgrounds is hard to read; swap to
+     the darker --success value used by the Render Plot button. */
   .light #annotate-btn{color:#059669!important;border-color:rgba(5,150,105,0.35)!important;background:rgba(5,150,105,0.06)!important;}
   .light .annot-tag{color:#059669!important;background:rgba(5,150,105,0.12)!important;}
   .light .fleek-option.active{color:#059669!important;border-color:rgba(5,150,105,0.45)!important;}
+  .light .gbtn:hover{color:#059669!important;}
+  .light .gbtn.on{color:#059669!important;background:rgba(5,150,105,0.10)!important;border-color:rgba(5,150,105,0.30)!important;}
+  .light .gene-name-on{color:#059669;}
   /* partial class no longer used — all pill backgrounds set inline by _syncSlicePills */
   .light #slice-active-badge{color:#059669!important;}
   .light #slice-footer .sf-count{color:#059669!important;}
@@ -925,6 +934,15 @@
      to visually balance the header without competing with the title. */
   .help-fb-btn{padding:4px 10px;font-size:11px;font-family:inherit;font-weight:500;background:rgba(99,102,241,0.12);color:var(--accent2);border:1px solid rgba(99,102,241,0.35);border-radius:4px;cursor:pointer;white-space:nowrap;transition:background var(--dur-fast),border-color var(--dur-fast);}
   .help-fb-btn:hover{background:rgba(99,102,241,0.22);border-color:var(--accent);}
+  /* Changelog entries inside the Help panel — one block per version
+     with a small caps version header and a tight bullet list. */
+  .changelog-entry{margin-bottom:14px;padding-bottom:10px;border-bottom:1px dashed var(--border);}
+  .changelog-entry:last-of-type{border-bottom:none;}
+  .changelog-entry h4{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--accent2);letter-spacing:0.02em;font-variant-numeric:tabular-nums;}
+  .changelog-entry ul{margin:0;padding-left:18px;font-size:12px;line-height:1.55;color:var(--text2);}
+  .changelog-entry li{margin-bottom:4px;}
+  .changelog-entry li strong{color:var(--text);}
+  .changelog-entry code{font-size:11px;}
   /* Feedback modal — stacks above the help overlay so launching it
      from the help panel doesn't force the user to re-open help after
      submitting. Close via the × button, Esc, or clicking the backdrop. */
@@ -1724,7 +1742,7 @@
             </button>
           </div>
         </div>
-        <button id="plot-render-btn" onclick="_plotRender()" class="btn-primary-like" style="width:100%;padding:5px 10px;background:rgba(16,185,129,0.15);border:1px solid var(--success);border-radius:4px;color:var(--success);font-weight:600;font-size:11px;font-family:inherit;cursor:pointer;transition:filter 0.1s,background 0.1s;">Render plot</button>
+        <button id="plot-render-btn" onclick="_plotRender()" class="btn-primary-like" style="width:100%;padding:5px 10px;background:rgba(16,185,129,0.15);border:1px solid var(--success);border-radius:4px;color:var(--success);font-weight:600;font-size:11px;font-family:inherit;cursor:pointer;transition:filter 0.1s,background 0.1s;">Render Plot</button>
         <div id="plot-status" style="font-size:10px;color:var(--text4);margin-top:4px;min-height:11px;"></div>
       </div>
     </div>
@@ -2294,6 +2312,7 @@
   <div id="help-hdr">
     <h1><span>RNA</span><span>-FLEEK</span><span id="help-version" style="font-size:12px;font-weight:500;color:var(--text4);margin-left:10px;letter-spacing:0;font-variant-numeric:tabular-nums;opacity:0.8;"></span></h1>
     <div style="display:flex;align-items:center;gap:10px;">
+      <button class="help-fb-btn" onclick="helpJump('help-changelog')" title="What's new in recent versions">Changelog</button>
       <button class="help-fb-btn" onclick="_feedbackOpen()" title="Report a bug or request a feature">Send feedback</button>
       <button id="help-close" onclick="toggleHelp()">&times;</button>
     </div>
@@ -2327,6 +2346,7 @@
       <a href="#" onclick="event.preventDefault();helpJump('help-settings')">Settings</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-ref')">Quick Reference</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-stats')">Methods</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-changelog')">Changelog</a>
     </div>
 
     <!-- Navigation -->
@@ -2732,6 +2752,7 @@
         <p><strong>Include zeros in density / Include zeros in IQR:</strong> the two toggles in the Plots panel let you flip those defaults per plot. Turn <em>Include zeros in density</em> on if you want the curve to literally show the full per-cell distribution including the zero mass (note: the zero spike will dominate every cluster, so this is useful mainly for single-cluster reference figures, not for cross-cluster comparison). Turn <em>Include zeros in IQR</em> off if you want the median and IQR bar to describe the spread of cells that <em>actually express</em> — independent of detection rate — instead of the truthful "most cells don't express, so median = 0" picture. Re-render after toggling.</p>
         <p><strong>Boundary handling:</strong> normalized expression is bounded on <code>[0, 1]</code>, so a naive smoother biases the density inward at the edges — a cluster piling up at 100% would show its smoothed peak visibly <em>below</em> where the raindrops pile up, because the gaussian kernel gets truncated against the boundary. FLEEK uses two standard bounded-KDE corrections: (1) <strong>reflection smoothing</strong> — kernel taps that fall past the edge are mirrored back into the support, preserving total mass and keeping the mode flush against the boundary; and (2) <strong>edge-flush rendering</strong> — the density path is extended from each bin's center to the plot's top and bottom edges with the edge bin's width, closing the half-bin visual gap between the curve and the raindrop pile. Peaks at 0 or 1 now align with the raindrops instead of hovering half a bin away.</p>
         <p><strong>Labels:</strong> each cluster column is labeled with its full name, total cell count, and detection rate — e.g., <code>T cell (4,521 · 42% expr)</code>. Labels rotate 90° (straight down) so horizontal footprint is zero and adjacent cluster labels never overlap regardless of length. The bottom margin scales dynamically with the longest visible label — short names → compact plots, long names → taller plots. Hover any label for the native tooltip as a redundant affordance.</p>
+        <p><strong>Reorder columns by drag:</strong> grab any cell-type column on a raincloud, violin, or dot plot and drop it left or right to move it. While you drag, the picked-up column dims in place, a small floating chip with the cluster's color and name follows the cursor, and a cyan dashed line marks the drop position. The new order propagates across every facet of the plot and is remembered for the rest of the session (persisted to <code>sessionStorage</code>, so a refresh keeps your ordering). Small accidental clicks (under the drag threshold) don't reorder anything.</p>
         <p><strong>Stopping a render:</strong> click the Render button again (it flips red and reads "Stop") to abort an in-flight gene fetch. Useful when you queued a render on a dataset that needs a slow first-time fetch.</p>
         <p><strong>Popup controls:</strong> the plot opens in a floating window centered on screen. The header has a <strong>download</strong> button (saves the current plot as a standalone <code>.svg</code> file, named by plot type + gene + facet) and a <strong>close</strong> button. <strong>Drag the header</strong> to reposition the window — useful for comparing a plot against the main canvas or another panel without closing it. Press <strong>Esc</strong> or click anywhere outside the window to close. Theme changes (dark ↔ light) re-skin the open plot in place with no re-render cost — the computed distribution is cached and only the SVG styling is rebuilt.</p>
       </div>
@@ -3111,6 +3132,82 @@
       </div>
     </div>
 
+    <!-- Changelog — what's new in recent versions. Update this section
+         every time the version is bumped (see CLAUDE.md). -->
+    <div class="help-sec" id="help-changelog">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Changelog</span>
+      </div>
+      <div class="help-sec-body">
+        <p style="font-size:10px;color:var(--text4);margin-bottom:14px;">User-facing changes by version. Most-recent first. Internal refactors / performance work is omitted unless it affects how the app feels.</p>
+
+        <div class="changelog-entry">
+          <h4>v0.5.40</h4>
+          <ul>
+            <li><strong>Drag-to-reorder columns in plots:</strong> Grab any cell-type column on a raincloud, violin, or dot plot and drop it left or right. The picked-up column dims in place, a floating chip with the cluster's color and name follows the cursor, and a cyan dashed line shows where it'll land. The new order propagates across every facet of the plot and is remembered for next time (per session, persisted via <code>sessionStorage</code>). Clicks under the drag-threshold are ignored, so a stray click won't reorder anything.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry">
+          <h4>v0.5.39</h4>
+          <ul>
+            <li><strong>HUD popups:</strong> The bottom-left Info overlay's <em>Hidden</em> and <em>Embedding</em> rows are now clickable. Clicking <em>Hidden N</em> opens an "Unhide:" drop-up menu listing every hidden cell type (with its colored dot), every hidden slice value (grouped by obs column, e.g. <code>organ: Liver</code>), every hidden selection group, and arbitrarily-deleted cells; first item is "all" to restore everything in that split. Clicking <em>Embedding</em> opens a switcher for that split's embedding (UMAP / PCA / PaCMAP). Outside click or Esc closes.</li>
+            <li><strong>Per-split state isolation:</strong> Activating split mode (or expanding the count) now auto-clones the active view into a fresh snapshot for each extra quadrant, so cell-type and slice toggles in one split no longer leak into the others. Arbitrary deletes (Backspace) remain global because they operate on global selection groups.</li>
+            <li><strong>Shortcuts:</strong> Theme toggle moved from <span class="help-key">T</span> to <span class="help-key">`</span> (backtick). <span class="help-key">T</span> now toggles the active split's camera tether. <span class="help-key">⌥ Opt</span> + arrow keys move the active highlight to the adjacent split.</li>
+            <li><strong>Single-view label is a dropdown again</strong> with the same look as the split-mode view selector — pick a different split from the list to switch active. Click-to-rename was removed; rename is still available from the Split Views sidebar panel.</li>
+            <li><strong>Canvas overlay margins unified</strong> at 8px (HUD, split labels, FPS box, history buttons, settings button) so every overlay has the same offset from the edge of its viewport.</li>
+            <li>Hover-brighten now works in every split (was only working in the top-left). Click-to-activate-split is more reliable (recomputes the hovered quad fresh on mousedown). H-key show/restore toggle works correctly in split mode (previously stuck after one press).</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry">
+          <h4>v0.5.38</h4>
+          <ul>
+            <li><strong>Per-split embedding:</strong> Tethered halves share embedding (since they share a camera, they must share coordinate space) — switching the embedding from any tethered half changes the whole tethered group together. Untethered halves manage their own embedding independently. Re-tethering snaps a half's embedding to the master's.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry">
+          <h4>v0.5.37</h4>
+          <ul>
+            <li><strong>Pseudo-bulk DEG fix:</strong> The matrix classifier was rejecting valid raw-count matrices on huge datasets, leaving pseudo-bulk silently disabled. Classifier now uses a column-subsample that scales with gene count, a robust mean-of-data estimator for median library size, and a relaxed Fano gate (Fano &lt; 1.0 is the only unambiguous "denoised" signal; the gray zone uses layer-name hints).</li>
+            <li><strong>UMAP recompute:</strong> The Data panel's Recompute subsection can now rerun UMAP with custom parameters (QuickMap toggle, fit-cells subsample size, n_neighbors, min_dist) without restarting the server.</li>
+            <li><strong>Library size in tooltip:</strong> Cell mouseover tooltips show <code>Olfm4: 38.4% (3 raw / lib 4,210)</code> — the percentage is the normalized display value, raw is the unnormalized count, lib is the cell's total raw counts. Makes the "fewer counts but higher %" pattern interpretable (it's just per-cell library-size normalization).</li>
+            <li><strong>Repo cleanup:</strong> The dual <code>fleek_server.py</code> / <code>rna_fleek/server.py</code> and <code>fleek.html</code> / <code>rna_fleek/fleek.html</code> mirror pairs collapsed into a single source of truth. Top-level files are now a 3-line shim and a symlink respectively.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry">
+          <h4>v0.5.36</h4>
+          <ul>
+            <li>Saved sessions are now tagged with the loaded h5ad path; per-dataset state (recent genes, selections, slice filter, deleted cells, active gene) is gated on a path match so a Mouse-dataset session no longer restores Title-case genes onto a Human dataset.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry">
+          <h4>v0.5.35</h4>
+          <ul>
+            <li><strong>Marker scoring v2:</strong> Annotation now uses rank-weighted overlap (top-N markers contribute more) with a hypergeometric universe, plus a housekeeping-gene mask (RPL/RPS/MT-/HSP/HIST + ACTB/GAPDH/B2M/etc.) to prevent dominant-but-uninformative genes from inflating scores.</li>
+            <li><strong>PanglaoDB ensemble:</strong> When PanglaoDB markers are available, FLEEK averages CellMarker2 and PanglaoDB scores per cluster so cell-type calls aren't dominated by either DB's idiosyncrasies.</li>
+            <li>Lineage tree polish — tighter indents, aligned caret/dot/text, file-name + AI-name on separate lines (lavender for AI), Claude reasoning in tooltip.</li>
+          </ul>
+        </div>
+
+        <div class="changelog-entry">
+          <h4>v0.5.30 — v0.5.34</h4>
+          <ul>
+            <li>Dot-rendering pass — opaque dots, faux-3D rim, glow controls, occlusion-aware picker, expression-driven size with sum-of-channels scaling for coloc.</li>
+            <li>Splits + Selection Groups panels are scrollable + drag-resize.</li>
+            <li>Matrix-classify cache (~3 s saved per load), fast subset export, pan/rotate gain tweaks, <span class="help-key">⌥ Opt</span> + <span class="help-key">,</span> for Settings.</li>
+            <li>Load-time speedup: 100 s → ~12 s on the canonical large-dataset benchmark.</li>
+          </ul>
+        </div>
+
+        <p style="font-size:10px;color:var(--text4);font-style:italic;margin-top:8px;">For commit-level history, see <a href="https://github.com/tubuliferous/rna-fleek/commits/main" target="_blank" rel="noopener" style="color:var(--accent2);">github.com/tubuliferous/rna-fleek</a>.</p>
+      </div>
+    </div>
+
     <p style="font-size:10px;color:var(--text4);text-align:center;margin-top:16px;margin-bottom:0;">RNA-FLEEK · Built with Three.js, scanpy, and anndata</p>
   </div>
 </div>
@@ -3323,7 +3420,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.39";
+var FLEEK_VERSION="v0.5.40";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 /* Ghost (non-expressing) cell render style — picked from the Debug menu so
@@ -4923,7 +5020,8 @@ function saveState(){
       plotDpMeanAll:(function(){var el=document.getElementById("plot-dp-mean-all");return el?!!el.checked:true;})(),
       plotDpMinCells:(function(){var el=document.getElementById("plot-dp-min-cells");return el?parseInt(el.value||"5",10):5;})(),
       plotDpGradient:_plotDpGradient||"",
-      plotColor:_plotColor
+      plotColor:_plotColor,
+      plotClusterOrder:(_plotClusterOrder&&_plotClusterOrder.slice())||[]
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
@@ -4969,7 +5067,8 @@ function saveCameraOnly(){
       plotDpMeanAll:(function(){var el=document.getElementById("plot-dp-mean-all");return el?!!el.checked:true;})(),
       plotDpMinCells:(function(){var el=document.getElementById("plot-dp-min-cells");return el?parseInt(el.value||"5",10):5;})(),
       plotDpGradient:_plotDpGradient||"",
-      plotColor:_plotColor
+      plotColor:_plotColor,
+      plotClusterOrder:(_plotClusterOrder&&_plotClusterOrder.slice())||[]
     };
     sessionStorage.setItem("fleek_state",JSON.stringify(s));
   }catch(e){}
@@ -5165,6 +5264,18 @@ function restoreState(preloaded){
     _plotColor=s.plotColor;
     var pcEl=document.getElementById("plot-color");
     if(pcEl)pcEl.checked=_plotColor;
+  }
+  if(s.plotClusterOrder&&s.plotClusterOrder.length){
+    /* Sanitize: keep only integer cluster ids that fall within the current
+       dataset's cluster count. A user reload onto a different dataset
+       could otherwise carry a stale order with out-of-range ids. */
+    var nClu=(D&&D.header&&D.header.cluster_names)?D.header.cluster_names.length:Infinity;
+    var clean=[]; var seen={};
+    for(var poi=0;poi<s.plotClusterOrder.length;poi++){
+      var pcid=s.plotClusterOrder[poi]|0;
+      if(pcid>=0&&pcid<nClu&&!seen[pcid]){clean.push(pcid);seen[pcid]=true;}
+    }
+    _plotClusterOrder=clean;
   }
   /* If the restored plot type is dotplot, swap in the textarea + dotplot
      toggles so the user sees their saved gene list immediately. */
@@ -10652,7 +10763,7 @@ function _updateGeneCollapsedName(){
     return;
   }
   if(selGene){
-    el.innerHTML='<span style="color:#22c55e;">'+selGene+'</span>';
+    el.innerHTML='<span class="gene-name-on">'+selGene+'</span>';
     el.style.display="inline";
     return;
   }
@@ -16052,6 +16163,7 @@ function _plotRerenderForTheme(){
     else return;
     document.getElementById("plot-canvas").innerHTML=svg;
     if(typeof _plotUpdateHeaderControls==="function")_plotUpdateHeaderControls();
+    if(typeof _plotAttachDragHandlers==="function")_plotAttachDragHandlers();
   }catch(e){console.error(e);}
 }
 
@@ -16064,6 +16176,239 @@ function _plotSetColor(on){
   if(typeof saveState==="function")saveState();
   _plotRerenderForTheme();
 }
+
+/* ── Drag-and-drop column reordering for plots ────────────────────────
+   User can grab any column on a raincloud / violin / dotplot and drop it
+   left or right to reorder. The new order is stored in _plotClusterOrder
+   (cluster IDs in user-preferred order), persists across reloads via
+   saveState, and propagates across every facet on the next draw because
+   we sort each facet's clusters by the same global rank. */
+var _plotClusterOrder=[];
+var _plotDragState=null;
+function _plotApplyClusterOrder(cluList){
+  if(!_plotClusterOrder||!_plotClusterOrder.length)return cluList.slice();
+  var present={}; for(var i=0;i<cluList.length;i++)present[cluList[i]]=true;
+  var head=[], used={};
+  for(var k=0;k<_plotClusterOrder.length;k++){
+    var cid=_plotClusterOrder[k];
+    if(present[cid]&&!used[cid]){head.push(cid);used[cid]=true;}
+  }
+  for(var j=0;j<cluList.length;j++)if(!used[cluList[j]])head.push(cluList[j]);
+  return head;
+}
+function _plotReorderInPlace(){
+  if(!_plotLast||!_plotLast.data)return;
+  var ord=_plotClusterOrder||[];
+  var rank={}; for(var i=0;i<ord.length;i++)rank[ord[i]]=i;
+  var max=ord.length+1;
+  var rk=function(cid){return (cid in rank)?rank[cid]:max;};
+  if(_plotLast.data.facets){
+    for(var f=0;f<_plotLast.data.facets.length;f++){
+      _plotLast.data.facets[f].clusters.sort(function(a,b){return rk(a.cid)-rk(b.cid);});
+    }
+  }
+  if(_plotLast.data.clusters)_plotLast.data.clusters.sort(function(a,b){return rk(a)-rk(b);});
+  if(_plotLast.selClus)_plotLast.selClus.sort(function(a,b){return rk(a)-rk(b);});
+}
+function _plotReorderColumn(srcCid, dstCid){
+  if(srcCid===dstCid||srcCid==null||dstCid==null)return;
+  /* Use the currently rendered selClus (already in display order) as the
+     baseline, then move srcCid to the slot occupied by dstCid. */
+  var sel=(_plotLast&&_plotLast.selClus)?_plotLast.selClus.slice():[];
+  if(!sel.length)return;
+  var srcIdx=sel.indexOf(srcCid), dstIdx=sel.indexOf(dstCid);
+  if(srcIdx<0||dstIdx<0)return;
+  sel.splice(srcIdx,1);
+  if(srcIdx<dstIdx)dstIdx--;
+  sel.splice(dstIdx,0,srcCid);
+  _plotClusterOrder=sel.slice();
+  _plotReorderInPlace();
+  _plotRerenderForTheme();
+  if(typeof saveState==="function")saveState();
+}
+function _plotColumnFromX(x){
+  /* Layout differs by plot type. Raincloud / violin: LEFT=56, W_PER_CLU=52.
+     Dotplot: LEFT depends on the longest gene name (~7px/char + padding),
+     and column width is DOT_W=22. We recompute LEFT here so the drag
+     hit-test matches the renderer exactly. */
+  if(_plotLast&&_plotLast.type==="dotplot"){
+    var gns=(_plotLast.data&&_plotLast.data.genes)||[];
+    var maxLen=0;
+    for(var i=0;i<gns.length;i++)if(gns[i].length>maxLen)maxLen=gns[i].length;
+    var LEFT=Math.max(60,Math.ceil(7*maxLen+18));
+    return Math.floor((x-LEFT)/22);
+  }
+  return Math.floor((x-56)/52);
+}
+function _plotColumnLayout(){
+  /* Returns {LEFT, W} for the active plot type — used by drop-indicator
+     placement and column hit-testing. */
+  if(_plotLast&&_plotLast.type==="dotplot"){
+    var gns=(_plotLast.data&&_plotLast.data.genes)||[];
+    var maxLen=0;
+    for(var i=0;i<gns.length;i++)if(gns[i].length>maxLen)maxLen=gns[i].length;
+    return {LEFT:Math.max(60,Math.ceil(7*maxLen+18)), W:22};
+  }
+  return {LEFT:56, W:52};
+}
+function _plotCcHex(cid){
+  var c=cc(cid);
+  function h(v){var x=Math.round(v*255);if(x<0)x=0;if(x>255)x=255;return (x<16?"0":"")+x.toString(16);}
+  return "#"+h(c[0])+h(c[1])+h(c[2]);
+}
+function _plotDragChipShow(cid, clientX, clientY){
+  var chip=document.getElementById("plot-drag-chip");
+  if(!chip){
+    chip=document.createElement("div");
+    chip.id="plot-drag-chip";
+    chip.style.cssText="position:fixed;z-index:99999;pointer-events:none;background:var(--bg2);border:1px solid var(--accent2);border-radius:4px;padding:4px 8px;font-size:11px;color:var(--text);box-shadow:0 4px 12px rgba(0,0,0,0.35);display:flex;align-items:center;gap:6px;font-family:inherit;opacity:0.95;";
+    document.body.appendChild(chip);
+  }
+  var nm=(D&&D.header&&D.header.cluster_names&&D.header.cluster_names[cid])||("Cluster "+cid);
+  var hex=_plotCcHex(cid);
+  chip.innerHTML='<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+hex+';flex:none;"><\/span><span>'+_esc(nm)+'<\/span>';
+  _plotDragChipMove(clientX, clientY);
+}
+function _plotDragChipMove(clientX, clientY){
+  var chip=document.getElementById("plot-drag-chip");
+  if(!chip)return;
+  chip.style.left=(clientX+12)+"px";
+  chip.style.top=(clientY+12)+"px";
+}
+function _plotDragChipHide(){
+  var chip=document.getElementById("plot-drag-chip");
+  if(chip)chip.remove();
+}
+function _plotShowDragOverlays(svg, srcCol, dstCol){
+  /* Source column: muted rect overlay so the picked-up column visibly
+     dims in place. Drop indicator: cyan dashed line at the LEFT edge of
+     the destination column (or the right edge of the last column when
+     dropping past it). */
+  var lay=_plotColumnLayout();
+  var vb=svg.viewBox.baseVal;
+  var H=vb.height||+svg.getAttribute("height")||0;
+  var ns="http://www.w3.org/2000/svg";
+  var srcRect=svg.querySelector("rect.plot-drag-source");
+  if(!srcRect){
+    srcRect=document.createElementNS(ns,"rect");
+    srcRect.setAttribute("class","plot-drag-source");
+    var isLight=document.body.classList.contains("light");
+    srcRect.setAttribute("fill", isLight?"#ffffff":"#0c0c14");
+    srcRect.setAttribute("fill-opacity","0.55");
+    srcRect.setAttribute("stroke", isLight?"#9aa0b8":"#5a607a");
+    srcRect.setAttribute("stroke-dasharray","3,3");
+    srcRect.setAttribute("pointer-events","none");
+    svg.appendChild(srcRect);
+  }
+  srcRect.setAttribute("x", (lay.LEFT+srcCol*lay.W));
+  srcRect.setAttribute("y", 28);
+  srcRect.setAttribute("width", lay.W);
+  srcRect.setAttribute("height", Math.max(10,H-40));
+  var line=svg.querySelector("line.plot-drop-line");
+  if(!line){
+    line=document.createElementNS(ns,"line");
+    line.setAttribute("class","plot-drop-line");
+    line.setAttribute("stroke","#22d3ee");
+    line.setAttribute("stroke-width","2.5");
+    line.setAttribute("stroke-linecap","round");
+    line.setAttribute("pointer-events","none");
+    svg.appendChild(line);
+  }
+  line.setAttribute("x1", lay.LEFT+dstCol*lay.W);
+  line.setAttribute("x2", lay.LEFT+dstCol*lay.W);
+  line.setAttribute("y1", 28);
+  line.setAttribute("y2", Math.max(38,H-10));
+}
+function _plotClearDragOverlays(){
+  var canvas=document.getElementById("plot-canvas");
+  if(!canvas)return;
+  var nodes=canvas.querySelectorAll("rect.plot-drag-source, line.plot-drop-line");
+  for(var i=0;i<nodes.length;i++)nodes[i].remove();
+}
+function _plotAttachDragHandlers(){
+  if(!_plotLast)return;
+  var canvas=document.getElementById("plot-canvas");
+  if(!canvas)return;
+  var svgs=canvas.querySelectorAll("svg");
+  for(var i=0;i<svgs.length;i++){
+    (function(svg, fi){
+      svg.style.cursor="grab";
+      svg.addEventListener("mousedown", function(e){
+        if(e.button!==0)return;
+        var pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+        var ctm=svg.getScreenCTM(); if(!ctm)return;
+        var p=pt.matrixTransform(ctm.inverse());
+        var ci=_plotColumnFromX(p.x);
+        var fac=(_plotLast&&_plotLast.data&&_plotLast.data.facets&&_plotLast.data.facets[fi])||null;
+        if(!fac||ci<0||ci>=fac.clusters.length)return;
+        _plotDragState={svg:svg, facetIdx:fi, srcCol:ci, srcCid:fac.clusters[ci].cid, startX:e.clientX, startY:e.clientY, didDrag:false};
+        svg.style.cursor="grabbing";
+        e.preventDefault();
+      });
+    })(svgs[i], i);
+  }
+}
+document.addEventListener("mousemove", function(e){
+  if(!_plotDragState)return;
+  var st=_plotDragState;
+  var dx=e.clientX-st.startX, dy=e.clientY-st.startY;
+  if(!st.didDrag && (dx*dx+dy*dy)>16){
+    st.didDrag=true;
+    _plotDragChipShow(st.srcCid, e.clientX, e.clientY);
+  }
+  if(!st.didDrag)return;
+  _plotDragChipMove(e.clientX, e.clientY);
+  /* Compute target column from cursor position over the source SVG. */
+  try{
+    var pt=st.svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+    var ctm=st.svg.getScreenCTM(); if(!ctm)return;
+    var p=pt.matrixTransform(ctm.inverse());
+    var fac=_plotLast.data.facets[st.facetIdx];
+    var nCol=fac.clusters.length;
+    var lay=_plotColumnLayout();
+    /* Column boundary index = round((x - LEFT) / W). Range [0..nCol]. */
+    var raw=(p.x-lay.LEFT)/lay.W;
+    var dstBound=Math.round(raw);
+    if(dstBound<0)dstBound=0;
+    if(dstBound>nCol)dstBound=nCol;
+    /* Suppress indicator at boundaries adjacent to the source (no-op move). */
+    if(dstBound===st.srcCol||dstBound===st.srcCol+1){
+      var line=st.svg.querySelector("line.plot-drop-line");
+      if(line)line.remove();
+      /* Still show source dim. */
+      _plotShowDragOverlays(st.svg, st.srcCol, st.srcCol);
+      var l2=st.svg.querySelector("line.plot-drop-line"); if(l2)l2.remove();
+      return;
+    }
+    _plotShowDragOverlays(st.svg, st.srcCol, dstBound);
+    st.dstBound=dstBound;
+  }catch(err){}
+});
+document.addEventListener("mouseup", function(e){
+  if(!_plotDragState)return;
+  var st=_plotDragState; _plotDragState=null;
+  if(st.svg)st.svg.style.cursor="grab";
+  _plotDragChipHide();
+  _plotClearDragOverlays();
+  if(!st.didDrag)return;
+  try{
+    var fac=_plotLast.data.facets[st.facetIdx];
+    var nCol=fac.clusters.length;
+    var dstBound=(typeof st.dstBound==="number")?st.dstBound:st.srcCol;
+    /* Boundary → destination column index. Inserting at boundary B means
+       the moved column ends up at slot B (with everything from B onward
+       shifted right). When the source moves rightward, removing it first
+       shifts the boundary index down by 1. */
+    var dstCol;
+    if(dstBound<=st.srcCol)dstCol=dstBound;
+    else dstCol=dstBound-1;
+    if(dstCol<0)dstCol=0;
+    if(dstCol>=nCol)dstCol=nCol-1;
+    if(dstCol===st.srcCol)return;
+    var dstCid=fac.clusters[dstCol].cid;
+    _plotReorderColumn(st.srcCid, dstCid);
+  }catch(err){}
+});
 /* ── Dot plot gradient picker (shared sidebar + popup-header) ─────────
    _plotDpGradient is the canonical state. "" means "Auto" (resolves to
    the global gradient via _gradientResolvedName). Two triggers
@@ -16632,7 +16977,7 @@ function _plotSetRenderBtn(running){
     btn.style.borderColor="var(--danger)";
     btn.style.color="var(--danger)";
   }else{
-    btn.textContent="Render plot";
+    btn.textContent="Render Plot";
     btn.style.background="rgba(16,185,129,0.15)";
     btn.style.borderColor="var(--success)";
     btn.style.color="var(--success)";
@@ -16666,6 +17011,7 @@ function _plotRender(){
   var n=(D.header&&D.header.cluster_names||[]).length;
   for(var i=0;i<n;i++)if(visibleClusters[i]!==false&&!_isEmptyCluster(i))selClus.push(i);
   if(selClus.length===0){_plotStatus("No cell types visible \u2014 show at least one in the Cell Types panel",true);return;}
+  selClus=_plotApplyClusterOrder(selClus);
   _plotRendering=true;
   _plotSetRenderBtn(true);
   _plotStatus("Fetching "+gene+"\u2026");
@@ -16688,7 +17034,7 @@ function _plotRender(){
         var svg=(type==="violin")
           ?_plotDrawViolin(gene, facetCol, data)
           :_plotDrawRaincloud(gene, facetCol, data);
-        _plotLast={type:type, gene:gene, facetCol:facetCol, data:data};
+        _plotLast={type:type, gene:gene, facetCol:facetCol, data:data, selClus:selClus.slice()};
         var typeLabel=(type==="violin")?"Violin plot":"Raincloud plot";
         document.getElementById("plot-title").textContent=typeLabel+" \u00b7 "+gene;
         var sub=facetCol?("faceted by "+facetCol+" \u00b7 "+data.facets.length+" panel"+(data.facets.length!==1?"s":"")):("single panel");
@@ -16719,6 +17065,7 @@ function _plotRender(){
         var _pcEl=document.getElementById("plot-color");
         if(_pcEl)_pcEl.checked=_plotColor;
         if(typeof _plotUpdateHeaderControls==="function")_plotUpdateHeaderControls();
+        if(typeof _plotAttachDragHandlers==="function")_plotAttachDragHandlers();
         document.getElementById("plot-overlay").style.display="flex";
         _plotStatus("");
       }catch(e){console.error(e);_plotStatus("Render failed: "+e.message,true);}
@@ -16761,6 +17108,7 @@ function _plotRenderDotplot(){
   var nClu=(D.header&&D.header.cluster_names||[]).length;
   for(var i=0;i<nClu;i++)if(visibleClusters[i]!==false&&!_isEmptyCluster(i))selClus.push(i);
   if(selClus.length===0){_plotStatus("No cell types visible — show at least one in the Cell Types panel",true);return;}
+  selClus=_plotApplyClusterOrder(selClus);
   _plotRendering=true;
   _plotSetRenderBtn(true);
   /* Fetch any uncached genes in parallel. We resolve all promises
@@ -16811,7 +17159,7 @@ function _plotRenderDotplot(){
         var data=_plotComputeDotplot(geneEx,validGenes,selClus,facetCol);
         if(!_plotRendering)return;
         var svg=_plotDrawDotplot(facetCol,data);
-        _plotLast={type:"dotplot", genes:validGenes, facetCol:facetCol, data:data};
+        _plotLast={type:"dotplot", genes:validGenes, facetCol:facetCol, data:data, selClus:selClus.slice()};
         document.getElementById("plot-title").textContent="Dot plot · "+validGenes.length+" gene"+(validGenes.length!==1?"s":"");
         var sub=facetCol?("faceted by "+facetCol+" · "+data.facets.length+" panel"+(data.facets.length!==1?"s":"")):("single panel");
         if(missing.length){
@@ -16825,6 +17173,7 @@ function _plotRenderDotplot(){
         var _pcEl=document.getElementById("plot-color");
         if(_pcEl)_pcEl.checked=_plotColor;
         if(typeof _plotUpdateHeaderControls==="function")_plotUpdateHeaderControls();
+        if(typeof _plotAttachDragHandlers==="function")_plotAttachDragHandlers();
         document.getElementById("plot-overlay").style.display="flex";
         _plotStatus("");
       }catch(e){console.error(e);_plotStatus("Render failed: "+e.message,true);}
@@ -21757,6 +22106,7 @@ function _buildSearchRegistry(){
     {id:"recompute-umap",label:"Recompute UMAP",secondary:"Action",keywords:"embedding rerun n_neighbors min_dist quickmap",available:_hasData,panel:"data-sec",action:function(){var s=document.getElementById("data-sec");if(s)s.classList.remove("collapsed");var rw=document.getElementById("recompute-wrap");if(rw)rw.style.display="";if(typeof _recomputeOpen!=="undefined"&&!_recomputeOpen&&typeof _recomputeToggle==="function")_recomputeToggle();setTimeout(function(){var b=document.querySelector("#recompute-body button[onclick='_recomputeUmap()']");if(b)b.click();},80);}},
     {id:"recompute-pacmap",label:"Recompute PaCMAP",secondary:"Action",keywords:"embedding rerun fringe tendril quickpacmap",available:_hasData,panel:"data-sec",action:function(){var s=document.getElementById("data-sec");if(s)s.classList.remove("collapsed");var rw=document.getElementById("recompute-wrap");if(rw)rw.style.display="";if(typeof _recomputeOpen!=="undefined"&&!_recomputeOpen&&typeof _recomputeToggle==="function")_recomputeToggle();setTimeout(function(){var b=document.querySelector("#recompute-body button[onclick='_recomputePacmap()']");if(b)b.click();},80);}},
     {id:"open-help",label:"Help & About",secondary:"Action",keywords:"docs documentation reference",action:function(){if(typeof toggleHelp==="function")toggleHelp();}},
+    {id:"open-changelog",label:"Changelog",secondary:"Action",keywords:"changes new versions release notes whats new updates",action:function(){if(typeof helpJump==="function")helpJump('help-changelog');}},
     {id:"open-settings",label:"Settings",secondary:"Action",keywords:"preferences api key theme",shortcut:"⌥ ,",action:function(){if(typeof toggleSettings==="function")toggleSettings();else{var s=document.getElementById("settings-popup");if(s)s.style.display="block";}}},
     /* Color modes */
     {id:"mode-cluster",label:"Color by cell type",secondary:"Mode",keywords:"cluster category palette",shortcut:"C",available:_hasData,action:function(){if(typeof setMode==="function")setMode("cluster");}},
@@ -21800,7 +22150,7 @@ function _buildSearchRegistry(){
     {id:"coloc-g",label:"Coloc G / green channel",secondary:"Colocalization",keywords:"channel",available:_isColoc,target:"coloc-row-G",panel:"gene-sec",action:function(){if(typeof _colocSetActiveChannel==="function"){_colocSetActiveChannel("G");if(typeof _colocFocusSearch==="function")_colocFocusSearch();}}},
     {id:"coloc-scheme",label:"Coloc color scheme",secondary:"Colocalization",keywords:"magenta green red",available:_isColoc,target:"coloc-legend-wrap",panel:"gene-sec",action:function(){if(typeof _toggleColocSchemeDropdown==="function"){var t=document.getElementById("coloc-legend-wrap");if(t)_toggleColocSchemeDropdown({stopPropagation:function(){},target:t});}}},
     /* Plots */
-    {id:"plot-render",label:"Render plot",secondary:"Plots",keywords:"draw build go",available:_hasData,target:"plot-render-btn",panel:"plots-sec",action:_click("plot-render-btn")},
+    {id:"plot-render",label:"Render Plot",secondary:"Plots",keywords:"draw build go",available:_hasData,target:"plot-render-btn",panel:"plots-sec",action:_click("plot-render-btn")},
     {id:"plot-raincloud",label:"Switch to raincloud plot",secondary:"Plots",keywords:"density distribution dots",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="raincloud";s.dispatchEvent(new Event("change"));}}},
     {id:"plot-violin",label:"Switch to violin plot",secondary:"Plots",keywords:"density seaborn",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="violin";s.dispatchEvent(new Event("change"));}}},
     {id:"plot-dotplot",label:"Switch to dot plot",secondary:"Plots",keywords:"marker panel cellxgene",available:_hasData,target:"plot-type",panel:"plots-sec",action:function(){var s=document.getElementById("plot-type");if(s){s.value="dotplot";s.dispatchEvent(new Event("change"));}}},

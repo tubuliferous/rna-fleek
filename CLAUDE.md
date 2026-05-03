@@ -72,6 +72,37 @@ The PyInstaller specs and `pip install rna-fleek` already point at the package l
 
 **Version bumps** still touch four spots (no fifth `fleek_server.py FLEEK_VERSION` constant — the shim has none): `pyproject.toml`, `rna_fleek/__init__.py`, `rna_fleek/server.py` (`FLEEK_VERSION = "x.y.z"`), and `rna_fleek/fleek.html` (`var FLEEK_VERSION="vx.y.z"`). All four must match.
 
+### Every version bump gets a Changelog entry
+**Whenever you bump the version (the four files above), you MUST also add a new entry to the Changelog section in `rna_fleek/fleek.html`.** The Changelog lives at `<div class="help-sec" id="help-changelog">` near the bottom of the help body and is surfaced via the "Changelog" button in the help header (left of "Send feedback") and the search-palette `open-changelog` entry. It's the in-app release-notes feed users open to find out what's new.
+
+**Format:** add a fresh `<div class="changelog-entry">` block at the TOP of the changelog body (most-recent first). Use this template:
+
+```html
+<div class="changelog-entry">
+  <h4>vX.Y.Z</h4>
+  <ul>
+    <li><strong>Headline change:</strong> One or two sentences describing the user-visible behavior. Reference UI elements by name when possible.</li>
+    <li>Smaller bullets for secondary changes — keyboard shortcuts, fixes, polish.</li>
+  </ul>
+</div>
+```
+
+**What to include:**
+- New features, panels, dialogs, or click affordances.
+- Keyboard-shortcut changes (especially remaps — these break muscle memory).
+- Visible behavior changes (new defaults, removed/relocated controls, semantic shifts).
+- Bug fixes that users would have noticed (silent feature gating, broken-looking states).
+- Performance changes that change how the app *feels* (load time wins, big interaction snappiness improvements).
+
+**What NOT to include:**
+- Pure refactors, file moves, internal renames.
+- CI / build / packaging plumbing.
+- Per-commit minutiae — group by theme. The commit log on GitHub has the full granular history; the in-app changelog is for "what does this mean for me as a user".
+
+**Tone:** matter-of-fact, second-person where natural ("Click <em>Hidden N</em> to open …"), worked examples for compound interactions. Match the voice of existing entries — read the most recent ones before writing a new one. Use `<code>`, `<strong>`, `<em>`, `<span class="help-key">` for inline emphasis (same idiom as the rest of the help panel).
+
+**The version number's job is to point at the changelog, not stand alone.** Bumping the version without writing the entry is the same kind of half-job as touching `rna_fleek/server.py` without bumping the version — it leaves the user wondering what changed.
+
 ### Stay inside the requested scope — strictly
 **When the user asks for a specific change, change ONLY what was asked. Nothing else.** No silent improvements to adjacent code, no restyling nearby UI, no renaming unrelated variables, no refactoring surrounding logic, no "fixing" things that look wrong but weren't part of the request. The user is the only judge of whether a related change is welcome — and they have to find each unwelcome change manually, then ask for it to be reverted. That cycle is far more expensive than any alleged improvement is worth, and it has happened repeatedly in this project. The drift is the single largest source of regressions.
 
