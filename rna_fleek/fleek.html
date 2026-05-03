@@ -285,7 +285,7 @@
   #cw{flex:1;position:relative;overflow:hidden;}
   #c{width:100%;height:100%;display:block;cursor:crosshair;}
   #c:active{cursor:grabbing;}
-  #fps-box{position:absolute;top:12px;right:12px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
+  #fps-box{position:absolute;top:8px;right:8px;background:var(--bg2);padding:8px 12px;border-radius:6px;border:1px solid var(--border);pointer-events:none;}
   #fpsn{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;}
   /* Hint bar: shows briefly on user activity (mouse move, scroll,
      keystroke) then fades out, instead of being permanently visible.
@@ -298,7 +298,7 @@
      in single-view; in 2-up split it stays bottom-left. In 3/4-up the
      quadrant index drives placement via cw class — see the .split-N rules
      further down. */
-  .hud-quad{position:absolute;bottom:12px;left:12px;z-index:10;font-size:10px;color:var(--text3);max-width:220px;}
+  .hud-quad{position:absolute;bottom:8px;left:8px;z-index:10;font-size:10px;color:var(--text3);max-width:220px;}
   .hud-quad .hud-body{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:4px;line-height:1.6;}
   .hud-quad.open .hud-body{display:block;}
   /* HUD rows: fixed gap between label and value, NOT space-between.
@@ -316,6 +316,25 @@
      the FIRST line instead of the last (which is what align-items:
      baseline does for inline-block content). */
   .hud-quad .hud-row{display:flex;justify-content:flex-start;gap:12px;align-items:flex-start;}
+  /* Clickable HUD rows (Hidden / Embedding). Elegant clickability cue:
+     the label text gets a faint dotted underline drawn via
+     text-decoration so it tracks the actual glyphs (border-bottom
+     spans the whole flex item, which is wider than the word due to
+     the min-width:7ch label rule). Always-visible but unobtrusive,
+     reads as "this is interactive" without an ASCII arrow. On hover
+     the underline tightens to accent2 and the row picks up bg-hover. */
+  .hud-quad .hud-row-clickable{cursor:pointer;border-radius:3px;padding:1px 3px;margin:0 -3px;transition:background 0.1s,color 0.1s;}
+  .hud-quad .hud-row-clickable .hud-label{text-decoration:underline dotted rgba(255,255,255,0.20);text-underline-offset:2px;text-decoration-thickness:1px;transition:text-decoration-color 0.1s,color 0.1s;}
+  body.light .hud-quad .hud-row-clickable .hud-label{text-decoration-color:rgba(0,0,0,0.25);}
+  .hud-quad .hud-row-clickable:hover{background:var(--bg-hover);}
+  .hud-quad .hud-row-clickable:hover .hud-val,.hud-quad .hud-row-clickable:hover .hud-label{color:var(--accent2);}
+  .hud-quad .hud-row-clickable:hover .hud-label{text-decoration-color:var(--accent2);}
+  /* Empty state (e.g. "Hidden 0") — drop the affordance so the row
+     reads as flat info. */
+  .hud-quad .hud-row-clickable.hud-row-empty{cursor:default;}
+  .hud-quad .hud-row-clickable.hud-row-empty .hud-label{text-decoration:none;}
+  .hud-quad .hud-row-clickable.hud-row-empty:hover{background:transparent;}
+  .hud-quad .hud-row-clickable.hud-row-empty:hover .hud-val,.hud-quad .hud-row-clickable.hud-row-empty:hover .hud-label{color:var(--text3);}
   /* min-width:7ch fits the longest label ("Visible") in the HUD's
      monospace font, so every value starts at the same x — the leftmost
      character of the right column lines up across rows. Multi-line
@@ -346,7 +365,7 @@
   .split-focus-box{display:none;position:absolute;border:2px solid var(--accent);pointer-events:none;z-index:5;box-sizing:border-box;opacity:0.6;}
   #cw.split-2 .split-focus-box.active,#cw.split-3 .split-focus-box.active,#cw.split-4 .split-focus-box.active{display:block;}
   /* Per-quadrant labels at the top edge of each quadrant. */
-  .split-view-label{display:none;position:absolute;z-index:7;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:auto;user-select:none;white-space:nowrap;}
+  .split-view-label{display:none;position:absolute;z-index:7;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 5px;border-radius:4px;border:1px solid var(--border);pointer-events:auto;user-select:none;white-space:nowrap;}
   #cw.split-2 .split-view-label,#cw.split-3 .split-view-label,#cw.split-4 .split-view-label{display:flex;align-items:center;gap:4px;}
   /* Quadrant rect rules (count-aware). split-1 = single view, no overrides.
      split-2 = side-by-side, two columns. split-3 / split-4 = 2x2 grid.
@@ -360,8 +379,8 @@
   #cw.split-2 .split-focus-box[data-quad="1"]{left:50%;top:0;width:50%;height:100%;}
   #cw.split-2 .split-view-label[data-quad="0"]{left:8px;top:8px;}
   #cw.split-2 .split-view-label[data-quad="1"]{left:calc(50% + 8px);top:8px;}
-  #cw.split-2 .hud-quad[data-quad="0"]{bottom:12px;left:12px;}
-  #cw.split-2 .hud-quad[data-quad="1"]{bottom:12px;left:calc(50% + 12px);top:auto;}
+  #cw.split-2 .hud-quad[data-quad="0"]{bottom:8px;left:8px;}
+  #cw.split-2 .hud-quad[data-quad="1"]{bottom:8px;left:calc(50% + 8px);top:auto;}
   /* split-3: 2x2 grid with bottom-right empty (quad 3 hidden) */
   #cw.split-3 [data-quad="3"]{display:none!important;}
   /* split-3 + split-4 share the 2x2 quadrant placement for quads 0-2 (and
@@ -377,12 +396,46 @@
   /* HUDs anchor to each quadrant's bottom-left corner. Quad 0/1 in 3/4-up
      anchor to the MIDLINE bottom rather than the canvas bottom so they
      stay inside their quadrant. */
-  #cw.split-3 .hud-quad[data-quad="0"],#cw.split-4 .hud-quad[data-quad="0"]{bottom:calc(50% + 12px);left:12px;top:auto;}
-  #cw.split-3 .hud-quad[data-quad="1"],#cw.split-4 .hud-quad[data-quad="1"]{bottom:calc(50% + 12px);left:calc(50% + 12px);top:auto;}
-  #cw.split-3 .hud-quad[data-quad="2"],#cw.split-4 .hud-quad[data-quad="2"]{bottom:12px;left:12px;top:auto;}
-  #cw.split-4 .hud-quad[data-quad="3"]{bottom:12px;left:calc(50% + 12px);top:auto;}
+  #cw.split-3 .hud-quad[data-quad="0"],#cw.split-4 .hud-quad[data-quad="0"]{bottom:calc(50% + 8px);left:8px;top:auto;}
+  #cw.split-3 .hud-quad[data-quad="1"],#cw.split-4 .hud-quad[data-quad="1"]{bottom:calc(50% + 8px);left:calc(50% + 8px);top:auto;}
+  #cw.split-3 .hud-quad[data-quad="2"],#cw.split-4 .hud-quad[data-quad="2"]{bottom:8px;left:8px;top:auto;}
+  #cw.split-4 .hud-quad[data-quad="3"]{bottom:8px;left:calc(50% + 8px);top:auto;}
   /* In split-1 (single-view) all the per-quad split UI is hidden. */
   #cw.split-1 .split-view-label,#cw.split-1 .split-focus-box{display:none!important;}
+
+  /* HUD popup — drop-up menu attached to a clicked HUD row (e.g. the
+     "Hidden N ▾" row opens an Unhide picker; the "Embedding UMAP" row
+     opens an embedding switcher). Single element repositioned per
+     click. Closes on outside click or Esc. Lives inside #cw so its
+     absolute position is relative to the canvas wrapper, allowing
+     pixel-perfect alignment with the HUD row that triggered it. */
+  #hud-popup{display:none;position:absolute;z-index:20;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;min-width:170px;max-width:280px;max-height:60vh;overflow-y:auto;box-shadow:0 6px 18px rgba(0,0,0,0.35);font-size:11px;color:var(--text3);user-select:none;pointer-events:auto;}
+  body.light #hud-popup{box-shadow:0 6px 18px rgba(0,0,0,0.18);}
+  #hud-popup.open{display:block;}
+  /* "Unhide:" / "Embedding:" header */
+  #hud-popup .hp-title{color:var(--text2);font-size:11px;font-weight:600;letter-spacing:0.02em;padding:1px 4px 5px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+  /* Section labels — same subtle style as the rest of the menu, just
+     a small-caps marker between buckets. No heavy borders, dashed
+     separators, or weight changes — keeps the popup looking like the
+     Embedding menu (one consistent column of clickable lines). The
+     small top margin gives each section a bit of breathing room
+     without breaking the visual rhythm. */
+  #hud-popup .hp-section{margin-top:5px;}
+  #hud-popup .hp-section:first-of-type{margin-top:2px;}
+  #hud-popup .hp-section-label{color:var(--text4);font-size:9px;text-transform:uppercase;letter-spacing:0.06em;padding:1px 4px 2px;}
+  /* Slice column prefix is folded INTO each slice item's label
+     ("organ: Liver" rather than a sub-header "organ:" + "Liver"
+     below) so we don't need a hp-slice-col distinction at all. The
+     prefix uses the meta color to read as context rather than
+     content. */
+  #hud-popup .hp-item-prefix{color:var(--text4);font-size:10px;margin-right:2px;}
+  /* Item row — full-width clickable line with optional dot + name. */
+  #hud-popup .hp-item{display:flex;align-items:center;gap:6px;padding:3px 6px;background:transparent;border:none;color:var(--text2);cursor:pointer;font-family:inherit;font-size:11px;width:100%;text-align:left;border-radius:3px;line-height:1.3;}
+  #hud-popup .hp-item:hover{background:var(--bg-hover);color:var(--accent2);}
+  #hud-popup .hp-item.hp-current{color:var(--accent2);font-weight:600;}
+  #hud-popup .hp-dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,0.15);}
+  #hud-popup .hp-item-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+  #hud-popup .hp-item-meta{color:var(--text4);font-size:9px;flex-shrink:0;}
   #cw.split-1 .hud-quad[data-quad="1"],#cw.split-1 .hud-quad[data-quad="2"],#cw.split-1 .hud-quad[data-quad="3"]{display:none!important;}
   /* Empty-quadrant placeholder. In 3-up the bottom-right slot has no
      live view; this dashed pill sits in the centre of that slot and
@@ -393,12 +446,6 @@
   #split-empty-add .split-empty-plus{font-size:14px;line-height:1;color:var(--text4);}
   #split-empty-add:hover{border-color:var(--accent2);color:var(--text2);}
   .split-view-select{background:transparent;border:none;color:inherit;font:inherit;font-size:11px;padding:0;cursor:pointer;outline:none;}
-  /* Per-half embedding selector — shown only when the half is untethered.
-     Same baseline look as .split-view-select but a notch smaller and faded
-     to read as a secondary control rather than competing with the split
-     name. _splitUpdateLabels toggles display based on tether state. */
-  .split-emb-select{background:transparent;border:none;color:inherit;font:inherit;font-size:10px;padding:0 2px;cursor:pointer;outline:none;opacity:0.75;margin-left:4px;}
-  .split-emb-select:hover{opacity:1;}
   /* Tether chain icon — shown in both the single-view label (#view-label) and
      each half's label in split mode (.split-view-label). Baseline opacity and
      hover-brighten match the neutral .btn-icon primitive so the chain reads at
@@ -455,10 +502,19 @@
   #plot-gene-results .pg-hit,#plot-dp-genes-results .pg-hit{padding:3px 8px;font-size:10px;color:var(--text2);cursor:pointer;}
   #plot-gene-results .pg-hit:hover,#plot-dp-genes-results .pg-hit:hover{background:var(--bg-hover);color:var(--text);}
   #plot-gene-results .pg-hit.active,#plot-dp-genes-results .pg-hit.active{background:rgba(99,102,241,0.15);color:var(--accent2);}
+  /* Info-toggle arrow — wraps the ▸ glyph so we can rotate it via CSS
+     instead of swapping characters. Convention: collapsed → right-
+     pointing (▸); expanded → up-pointing (matching the drop-up nature
+     of the menus that anchor to the HUD's clickable rows). The fixed
+     width + small translateY centers the glyph horizontally between
+     the word and the box's left edge, and lifts the (visually low) ▸
+     baseline up to match the cap-height of "Info". */
+  #hud-toggle .ht-chev,.hud-quad-toggle .ht-chev{display:inline-flex;align-items:center;justify-content:center;width:9px;height:1em;font-size:9px;transition:transform 0.15s;line-height:1;transform-origin:50% 50%;transform:translateY(-0.5px);}
+  #hud.open #hud-toggle .ht-chev,.hud-quad.open .hud-quad-toggle .ht-chev{transform:translateY(-0.5px) rotate(-90deg);}
   /* Info-toggle button — quad 0 has a fixed id (#hud-toggle); the other
      three quadrants share the .hud-quad-toggle class. Each toggles its
      OWN HUD's open state; the I keyboard shortcut still toggles all. */
-  #hud-toggle,.hud-quad-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;color:var(--accent2);display:inline-flex;align-items:center;gap:4px;user-select:none;opacity:var(--op-rest);transition:opacity var(--dur-fast),border-color var(--dur-fast);}
+  #hud-toggle,.hud-quad-toggle{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:2px 8px 2px 6px;cursor:pointer;font-size:10px;color:var(--accent2);display:inline-flex;align-items:center;gap:6px;user-select:none;opacity:var(--op-rest);transition:opacity var(--dur-fast),border-color var(--dur-fast);}
   #hud-toggle:hover,.hud-quad-toggle:hover{opacity:var(--op-active);border-color:var(--border2);}
   /* Backwards-compat: #hud-body matches the same display rules now governed
      by .hud-quad. */
@@ -1043,7 +1099,7 @@
   .icon-btn:disabled,.icon-btn[disabled]{opacity:var(--op-disabled)!important;cursor:default;pointer-events:none;}
   .icon-btn svg{width:var(--ic-md);height:var(--ic-md);fill:currentColor;}
   /* Settings */
-  #settings-btn{position:absolute;bottom:12px;right:12px;z-index:50;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer;color:var(--accent2);line-height:1;display:flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast);}
+  #settings-btn{position:absolute;bottom:8px;right:8px;z-index:50;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px;cursor:pointer;color:var(--accent2);line-height:1;display:flex;align-items:center;justify-content:center;opacity:var(--op-rest);transition:opacity var(--dur-fast);}
   #settings-btn:hover{opacity:var(--op-active);}
   #settings-btn:hover{color:var(--text2);border-color:var(--border2);}
   #settings-btn svg{width:14px;height:14px;fill:currentColor;}
@@ -1793,8 +1849,8 @@
 <div id="cw">
   <img id="compare-img" style="display:none;position:absolute;top:0;left:0;width:50%;height:100%;object-fit:cover;z-index:2;border-right:2px solid var(--accent);">
   <div id="compare-label" style="display:none;position:absolute;top:8px;left:8px;z-index:3;font-size:11px;color:var(--accent2);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);pointer-events:none;"></div>
-  <div id="view-label" style="display:none;position:absolute;top:8px;left:8px;z-index:5;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 8px;border-radius:4px;border:1px solid var(--border);align-items:center;gap:6px;">
-    <span id="view-label-name" style="cursor:pointer;" onclick="_viewRename()" title="Click to rename this view split"></span>
+  <div id="view-label" style="display:none;position:absolute;top:8px;left:8px;z-index:5;font-size:11px;color:var(--text3);background:var(--bg2);padding:2px 5px;border-radius:4px;border:1px solid var(--border);align-items:center;gap:6px;">
+    <select id="view-label-select" class="split-view-select" onchange="_viewLabelPick(parseInt(this.value))" title="Pick a split"></select>
     <span class="dl-btn" onclick="if(_activeViewId!=null)_exportOpen(_activeViewId)" title="Download points shown in this view (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
     <span id="view-label-tether" class="tether-btn" onclick="_toggleTetherById(_activeViewId)" title="Toggle camera tether"></span>
   </div>
@@ -1809,10 +1865,10 @@
   <div id="split-focus-1" class="split-focus-box" data-quad="1"></div>
   <div id="split-focus-2" class="split-focus-box" data-quad="2"></div>
   <div id="split-focus-3" class="split-focus-box" data-quad="3"></div>
-  <div id="split-label-0" class="split-view-label" data-quad="0"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0]!=null)_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><select class="split-emb-select" onchange="_setHalfEmbedding(0,this.value)" title="Per-half embedding (untethered only)" style="display:none;"></select><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
-  <div id="split-label-1" class="split-view-label" data-quad="1"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1]!=null)_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><select class="split-emb-select" onchange="_setHalfEmbedding(1,this.value)" title="Per-half embedding (untethered only)" style="display:none;"></select><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
-  <div id="split-label-2" class="split-view-label" data-quad="2"><select class="split-view-select" onchange="_splitReassign(2,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[2]!=null)_exportOpen(_splitViewIds[2])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><select class="split-emb-select" onchange="_setHalfEmbedding(2,this.value)" title="Per-half embedding (untethered only)" style="display:none;"></select><span class="tether-btn" onclick="_toggleTether(2)" title="Toggle camera tether"></span></div>
-  <div id="split-label-3" class="split-view-label" data-quad="3"><select class="split-view-select" onchange="_splitReassign(3,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[3]!=null)_exportOpen(_splitViewIds[3])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><select class="split-emb-select" onchange="_setHalfEmbedding(3,this.value)" title="Per-half embedding (untethered only)" style="display:none;"></select><span class="tether-btn" onclick="_toggleTether(3)" title="Toggle camera tether"></span></div>
+  <div id="split-label-0" class="split-view-label" data-quad="0"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0]!=null)_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
+  <div id="split-label-1" class="split-view-label" data-quad="1"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1]!=null)_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
+  <div id="split-label-2" class="split-view-label" data-quad="2"><select class="split-view-select" onchange="_splitReassign(2,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[2]!=null)_exportOpen(_splitViewIds[2])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(2)" title="Toggle camera tether"></span></div>
+  <div id="split-label-3" class="split-view-label" data-quad="3"><select class="split-view-select" onchange="_splitReassign(3,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[3]!=null)_exportOpen(_splitViewIds[3])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(3)" title="Toggle camera tether"></span></div>
   <!-- Empty 4th-quadrant pick affordance (visible only in 3-up mode).
        Selecting a split here expands to 4-up with that split assigned
        to quad 3. The dropdown is populated by _splitUpdateLabels. -->
@@ -1821,10 +1877,15 @@
   <div id="gene-indicator-1" class="gene-indicator" data-quad="1"></div>
   <div id="gene-indicator-2" class="gene-indicator" data-quad="2"></div>
   <div id="gene-indicator-3" class="gene-indicator" data-quad="3"></div>
+  <!-- Drop-up popup attached to the HUD info overlay. Single element,
+       repositioned above whichever HUD row was clicked (Hidden →
+       "Unhide:" picker; Embedding → embedding switcher). Populated on
+       demand by _hudPopupShow; closes on outside click or Esc. -->
+  <div id="hud-popup" onclick="event.stopPropagation();"></div>
   <canvas id="c"></canvas>
   <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show sidebar (\)">&raquo;</button>
   <div id="fps-box" style="display:none;"><span id="fpsn" style="color:var(--text2)">--</span><span style="font-size:10px;color:var(--text4);margin-left:4px;">FPS</span></div>
-  <div id="hist-btns" style="position:absolute;top:8px;right:44px;display:flex;gap:1px;z-index:15;">
+  <div id="hist-btns" style="position:absolute;top:8px;right:8px;display:flex;gap:1px;z-index:15;">
     <button id="hist-back" onclick="histUndo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:4px 0 0 4px;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx>0)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="10 3 5 8 10 13"/><\/svg></button>
     <button id="hist-fwd" onclick="histRedo()" style="background:var(--bg2);border:1px solid var(--border);border-radius:0 4px 4px 0;color:var(--accent2);cursor:default;padding:4px 6px;line-height:0;transition:background 0.15s,color 0.15s;" onmouseenter="if(_histIdx<_history.length-1)this.style.background='rgba(99,102,241,0.2)'" onmouseleave="this.style.background='var(--bg2)'"><svg viewBox="0 0 16 16" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><polyline points="6 3 11 8 6 13"/><\/svg></button>
   </div>
@@ -1836,46 +1897,46 @@
   <div id="hud" class="open hud-quad" data-quad="0">
     <div id="hud-body">
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-visible">—</span></div>
-      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-hidden">—</span></div>
+      <div class="hud-row hud-row-clickable" id="hud-hidden-row" data-hud-popup-anchor="1" onclick="_hudPopupShow(0,'hidden',this)" title="Click to unhide hidden cell types, slices, groups, or arbitrarily-deleted cells"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-total">—</span></div>
-      <div class="hud-row" id="hud-embedding-row"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-embedding" title="Current embedding (press E to cycle)">—</span></div>
+      <div class="hud-row hud-row-clickable" id="hud-embedding-row" data-hud-popup-anchor="1" onclick="_hudPopupShow(0,'embedding',this)" title="Click to switch this split's embedding"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-embedding">—</span></div>
       <div class="hud-row" id="hud-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-color">—</span></div>
       <div class="hud-row" id="hud-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-group">—</span></div>
     </div>
-    <span id="hud-toggle" onclick="_hudToggleOne(0)" title="Toggle this Info overlay (I = toggle all)">&#9662; Info</span>
+    <span id="hud-toggle" onclick="_hudToggleOne(0)" title="Toggle this Info overlay (I = toggle all)"><span class="ht-chev">&#9656;</span> Info</span>
   </div>
   <div id="hud-1" class="open hud-quad" data-quad="1">
     <div class="hud-body">
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-1-visible">—</span></div>
-      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-1-hidden">—</span></div>
+      <div class="hud-row hud-row-clickable" id="hud-1-hidden-row" data-hud-popup-anchor="1" onclick="_hudPopupShow(1,'hidden',this)" title="Click to unhide hidden cell types, slices, groups, or arbitrarily-deleted cells"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-1-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-1-total">—</span></div>
-      <div class="hud-row" id="hud-1-embedding-row"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-1-embedding" title="Current embedding (press E to cycle)">—</span></div>
+      <div class="hud-row hud-row-clickable" id="hud-1-embedding-row" data-hud-popup-anchor="1" onclick="_hudPopupShow(1,'embedding',this)" title="Click to switch this split's embedding"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-1-embedding">—</span></div>
       <div class="hud-row" id="hud-1-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-1-color">—</span></div>
       <div class="hud-row" id="hud-1-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-1-group">—</span></div>
     </div>
-    <span class="hud-quad-toggle" onclick="_hudToggleOne(1)" title="Toggle Info overlay for this split (I = toggle all)">&#9662; Info</span>
+    <span class="hud-quad-toggle" onclick="_hudToggleOne(1)" title="Toggle Info overlay for this split (I = toggle all)"><span class="ht-chev">&#9656;</span> Info</span>
   </div>
   <div id="hud-2" class="open hud-quad" data-quad="2">
     <div class="hud-body">
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-2-visible">—</span></div>
-      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-2-hidden">—</span></div>
+      <div class="hud-row hud-row-clickable" id="hud-2-hidden-row" data-hud-popup-anchor="1" onclick="_hudPopupShow(2,'hidden',this)" title="Click to unhide hidden cell types, slices, groups, or arbitrarily-deleted cells"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-2-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-2-total">—</span></div>
-      <div class="hud-row" id="hud-2-embedding-row"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-2-embedding" title="Current embedding (press E to cycle)">—</span></div>
+      <div class="hud-row hud-row-clickable" id="hud-2-embedding-row" data-hud-popup-anchor="1" onclick="_hudPopupShow(2,'embedding',this)" title="Click to switch this split's embedding"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-2-embedding">—</span></div>
       <div class="hud-row" id="hud-2-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-2-color">—</span></div>
       <div class="hud-row" id="hud-2-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-2-group">—</span></div>
     </div>
-    <span class="hud-quad-toggle" onclick="_hudToggleOne(2)" title="Toggle Info overlay for this split (I = toggle all)">&#9662; Info</span>
+    <span class="hud-quad-toggle" onclick="_hudToggleOne(2)" title="Toggle Info overlay for this split (I = toggle all)"><span class="ht-chev">&#9656;</span> Info</span>
   </div>
   <div id="hud-3" class="open hud-quad" data-quad="3">
     <div class="hud-body">
       <div class="hud-row"><span class="hud-label">Visible</span><span class="hud-val" id="hud-3-visible">—</span></div>
-      <div class="hud-row"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-3-hidden">—</span></div>
+      <div class="hud-row hud-row-clickable" id="hud-3-hidden-row" data-hud-popup-anchor="1" onclick="_hudPopupShow(3,'hidden',this)" title="Click to unhide hidden cell types, slices, groups, or arbitrarily-deleted cells"><span class="hud-label">Hidden</span><span class="hud-val" id="hud-3-hidden">—</span></div>
       <div class="hud-row"><span class="hud-label">Total</span><span class="hud-val" id="hud-3-total">—</span></div>
-      <div class="hud-row" id="hud-3-embedding-row"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-3-embedding" title="Current embedding (press E to cycle)">—</span></div>
+      <div class="hud-row hud-row-clickable" id="hud-3-embedding-row" data-hud-popup-anchor="1" onclick="_hudPopupShow(3,'embedding',this)" title="Click to switch this split's embedding"><span class="hud-label">Embedding</span><span class="hud-val" id="hud-3-embedding">—</span></div>
       <div class="hud-row" id="hud-3-color-row" style="margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Color</span><span class="hud-val" id="hud-3-color">—</span></div>
       <div class="hud-row" id="hud-3-group-row" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:4px;"><span class="hud-label">Group</span><span class="hud-val" id="hud-3-group">—</span></div>
     </div>
-    <span class="hud-quad-toggle" onclick="_hudToggleOne(3)" title="Toggle Info overlay for this split (I = toggle all)">&#9662; Info</span>
+    <span class="hud-quad-toggle" onclick="_hudToggleOne(3)" title="Toggle Info overlay for this split (I = toggle all)"><span class="ht-chev">&#9656;</span> Info</span>
   </div>
   <div id="hint">Drag pan · Scroll zoom</div>
   <div id="action-flash"></div>
@@ -2250,6 +2311,7 @@
       <a href="#" onclick="event.preventDefault();helpJump('help-sel')">Selection</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-celltypes')">Cell Types</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-slice')">Slice</a>
+      <a href="#" onclick="event.preventDefault();helpJump('help-hidden')">Hidden Collections</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-views')">View Splits</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-export')">Export</a>
       <a href="#" onclick="event.preventDefault();helpJump('help-annot')">Annotation</a>
@@ -2386,7 +2448,8 @@
           <tr><th>Action</th><th>How</th></tr>
           <tr><td>Show/hide type</td><td>Click the row (dot fills = visible, ring = hidden)</td></tr>
           <tr><td>Solo type</td><td><span class="help-key">⌥ Opt</span>+click (click again to restore)</td></tr>
-          <tr><td>Select into group</td><td><span class="help-key">Shift</span>+click</td></tr>
+          <tr><td>Select into group</td><td><span class="help-key">Shift</span>+click (toggles this type into / out of the active group)</td></tr>
+          <tr><td>Isolate in group</td><td><span class="help-key">⌥ Opt</span>+<span class="help-key">Shift</span>+click (clears the active group, then selects only this type)</td></tr>
           <tr><td>Show/hide all</td><td><strong>all</strong> / <strong>none</strong> buttons in header</td></tr>
           <tr><td>Sort</td><td><strong>A→Z</strong> (alphabetical) / <strong>#↓</strong> (by count)</td></tr>
           <tr><td>Search</td><td>Type in the search box — filters by name and annotations</td></tr>
@@ -2417,6 +2480,24 @@
         <p>Cells that fall outside the current filter are exiled from the visualization — they are not just faded, they are removed entirely. All downstream tools (selection, DEG analysis, cell type visibility) respect the active slice.</p>
         <p><strong>Download slice:</strong> Click the download button to export all cells matching the current filter as an .h5ad file.</p>
         <p>Session auto-save captures the current slice state, so your filter persists across browser sessions.</p>
+      </div>
+    </div>
+
+    <!-- Hidden Collections / HUD popups -->
+    <div class="help-sec" id="help-hidden">
+      <div class="help-sec-hdr" onclick="this.parentElement.classList.toggle('collapsed')">
+        <span class="help-sec-chev">&#9660;</span>
+        <span class="help-sec-title">Hidden Collections &amp; Embedding picker</span>
+      </div>
+      <div class="help-sec-body">
+        <p>The Info HUD overlay (bottom-left of the canvas, one per split when split mode is on) has two clickable rows that surface inline drop-up menus:</p>
+        <ul style="margin:4px 0 6px 16px;font-size:12px;line-height:1.5;">
+          <li><strong>Hidden N</strong> — click to open the <em>Unhide:</em> menu. Lists every hidden cell type (with its colored dot), hidden slice values grouped by obs column, hidden selection groups, and arbitrarily-hidden cells (via Delete/Backspace). The first item is <em>all</em> — one click restores everything in that split. Each individual row brings that one back.</li>
+          <li><strong>Embedding</strong> — click to open the embedding switcher. Lists every loaded embedding (UMAP, PCA, PaCMAP) with its provenance suffix; click one to switch this split's embedding. Tethered halves switch together (since they share a camera and so must share coords); untethered halves switch independently.</li>
+        </ul>
+        <p>Either popup closes on outside click or Esc. The Hidden row dims (no caret, no hover highlight) when nothing's hidden in that split — there's nothing to unhide.</p>
+        <p><strong>Per-split scope.</strong> Cell-type, slice, and arbitrary visibility live on each split's snapshot, so each split's Hidden popup reflects only what's hidden in THAT split. Selection-group visibility is global across splits (so cross-split DEG works on a shared set), so unhiding a group from any split's popup affects every split.</p>
+        <p><strong>Undo.</strong> Every unhide and every embedding switch pushes to the history stack, so Cmd/Ctrl+Z (or the Back arrow in the top-right) unwinds them step-by-step.</p>
       </div>
     </div>
 
@@ -2849,7 +2930,7 @@
         <p>Click the <strong>gear icon</strong> in the top-right corner to open the Settings popup. Changes take effect immediately and are persisted in the browser.</p>
         <table class="help-table">
           <tr><th>Setting</th><th>Options</th><th>Description</th></tr>
-          <tr><td><strong>Theme</strong></td><td>Dark / Light</td><td>Switches the entire UI and canvas between dark and light themes. Light mode uses a Blues sequential colorscale for gene expression (low expression fades into the white background). Dark mode uses Viridis. Press <span class="help-key">T</span> to toggle.</td></tr>
+          <tr><td><strong>Theme</strong></td><td>Dark / Light</td><td>Switches the entire UI and canvas between dark and light themes. Light mode uses a Blues sequential colorscale for gene expression (low expression fades into the white background). Dark mode uses Viridis. Press <span class="help-key">`</span> (backtick) to toggle.</td></tr>
           <tr><td><strong>UI scale</strong></td><td>75%–150%</td><td>Adjusts the size of all UI elements — sidebar, panels, text, buttons. Useful on high-DPI displays or when using FLEEK on a projector.</td></tr>
           <tr><td><strong>Hint bar</strong></td><td>On / Off</td><td>The hint bar at the bottom of the canvas shows contextual tips about modifier keys and available actions. Disable for a cleaner view once you know the shortcuts.</td></tr>
           <tr><td><strong>Shortcut flash</strong></td><td>On / Off</td><td>Brief overlay that flashes on screen when you press a keyboard shortcut, showing the action name and key combination. Helps learn shortcuts. Disable for a quieter interface.</td></tr>
@@ -2886,7 +2967,8 @@
           <tr><td><span class="help-key">Shift</span>+<span class="help-key">⌥</span>+drag</td><td>Lasso deselect</td></tr>
           <tr><td><span class="help-key">Shift</span>+click (UMAP)</td><td>Toggle single cell in active group</td></tr>
           <tr><td><span class="help-key">Shift</span>+dblclick (UMAP)</td><td>Toggle entire cell type in active group</td></tr>
-          <tr><td><span class="help-key">Shift</span>+click (Cell Types)</td><td>Select cell type into active group</td></tr>
+          <tr><td><span class="help-key">Shift</span>+click (Cell Types)</td><td>Toggle cell type into / out of active group</td></tr>
+          <tr><td><span class="help-key">⌥</span>+<span class="help-key">Shift</span>+click (Cell Types)</td><td>Isolate cell type — clear active group, then select only this type</td></tr>
           <tr><td><span class="help-key">⌥ Opt</span>+click (legend dot)</td><td>Solo / unsolo cell type</td></tr>
           <tr><th colspan="2" style="color:var(--text2);padding-top:8px;">Lineage View (dot = this node only, name = node + descendants)</th></tr>
           <tr><td>Click name</td><td>Toggle visibility of branch (node + descendants)</td></tr>
@@ -2925,7 +3007,9 @@
           <tr><td><span class="help-key">I</span></td><td>Toggle Info overlay (cell counts / color mode / active group)</td></tr>
           <tr><td><span class="help-key">D</span></td><td>Toggle 2D/3D view</td></tr>
           <tr><td><span class="help-key">E</span></td><td>Cycle embedding (UMAP &rarr; PCA &rarr; PaCMAP)</td></tr>
-          <tr><td><span class="help-key">T</span></td><td>Toggle dark/light theme</td></tr>
+          <tr><td><span class="help-key">`</span></td><td>Toggle dark/light theme</td></tr>
+          <tr><td><span class="help-key">T</span></td><td>Toggle camera tether on the active split</td></tr>
+          <tr><td><span class="help-key">⌥</span>+<span class="help-key">←</span> / <span class="help-key">→</span> / <span class="help-key">↑</span> / <span class="help-key">↓</span></td><td>Move the active highlight to the adjacent split</td></tr>
           <tr><td><span class="help-key">\</span></td><td>Toggle sidebar</td></tr>
           <tr><td><span class="help-key">⌥</span>+<span class="help-key">,</span></td><td>Open Settings</td></tr>
           <tr><td><span class="help-key">S</span></td><td>Toggle split-screen (side-by-side) — requires ≥2 view splits</td></tr>
@@ -3239,7 +3323,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.38";
+var FLEEK_VERSION="v0.5.39";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 /* Ghost (non-expressing) cell render style — picked from the Debug menu so
@@ -5413,6 +5497,40 @@ function _isCellVisible(i){
   if(_deletedCells&&_deletedCells.has(i))return false;
   return true;
 }
+/* Replace the active group's selection with cells of a single cell type.
+   Clears whatever is currently in the active group AND any other group's
+   claim on these cells, then adds every visible cell of the given
+   cluster. Bound to Opt+Shift+click on a legend pill (and on lineage
+   nodes) so the user can isolate a single cell type into the active
+   group with one gesture. */
+function selOnlyCellType(clusterIdx){
+  var ag=getActiveGroup();
+  if(!ag||!D){
+    if(typeof addSelGroup==="function")addSelGroup();
+    ag=getActiveGroup();
+    if(!ag)return;
+  }
+  if(!cellGroupMap&&typeof initCellGroupMap==="function")initCellGroupMap();
+  var agi=getActiveGroupIndex();
+  /* Clear the active group's existing cells first. */
+  ag.cells.forEach(function(i){if(cellGroupMap)cellGroupMap[i]=-1;});
+  ag.cells.clear();
+  /* Add every visible cell of the chosen type, evicting from any
+     other group that claimed it. */
+  for(var i=0;i<D.header.n_cells;i++){
+    if(D.cluster_ids[i]===clusterIdx){
+      if(!_isCellVisible(i))continue;
+      for(var g=0;g<selGroups.length;g++){selGroups[g].cells.delete(i);}
+      ag.cells.add(i);
+      if(cellGroupMap)cellGroupMap[i]=agi;
+    }
+  }
+  renderSelPanel();
+  recolor();
+  if(!_splitActive)_forceRingRebuild();
+  saveState();
+}
+
 function selToggleCellType(clusterIdx){
   var ag=getActiveGroup();
   if(!ag||!D)return;
@@ -6487,6 +6605,466 @@ function buildPts(data){
 
 function getBG(){return document.body.classList.contains("light")?[0.96,0.97,0.98]:[0.031,0.031,0.055];}
 var EXILE=99999; // off-screen position for hidden cells
+
+/* ── HUD popup ──────────────────────────────────────────────────────
+   Drop-up menu attached to a clicked HUD row. Two flavors:
+     - "hidden": Unhide picker (cell types, slices, groups, arbitrary).
+       Anchored by the HUD's "Hidden N" row.
+     - "embedding": Embedding switcher (UMAP / PCA / PaCMAP / …).
+       Anchored by the HUD's Embedding row. Calls _setHalfEmbedding so
+       tethered halves stay tethered (the whole tethered group switches
+       together) and untethered halves get their own snap embedding.
+   Each unhide / pick pushes to history so Cmd+Z reverts.
+
+   Single popup element (#hud-popup) repositioned per click. Outside
+   clicks and Esc close it. */
+
+function _hbEsc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");}
+
+/* Toggle the .hud-row-empty class on the Hidden row for a given quad
+   based on whether the quad has any hidden items. The class disables
+   the hover affordance and the "▾" caret so a "Hidden 0" row reads
+   as flat info, not a no-op button. */
+function _hudUpdateHiddenRowState(quad){
+  var row=document.getElementById((quad===0?"hud":"hud-"+quad)+"-hidden-row");
+  if(!row)return;
+  var hasHidden=false;
+  if(D&&D.header){
+    var inSplit=_splitActive&&_splitViewIds&&_splitViewIds.length>=2;
+    var snap=inSplit&&quad>=0&&quad<_splitViewIds.length?_splitViewById(_splitViewIds[quad]):null;
+    var st=_hbReadState(quad,snap);
+    var names=(D.header.cluster_names)||[];
+    for(var ci=0;ci<names.length;ci++){if(st.vc[ci]===false){hasHidden=true;break;}}
+    if(!hasHidden){
+      var cats=D.header.obs_categories||{};
+      for(var col in cats){
+        var totalCats=(cats[col].categories||[]).length;
+        var setOfActive=st.sf[col];
+        if(!setOfActive)continue;
+        if((setOfActive.size||0)<totalCats){hasHidden=true;break;}
+      }
+    }
+    if(!hasHidden){
+      for(var gi=0;gi<selGroups.length;gi++){
+        if(selGroups[gi].cells.size>0&&groupVisible[selGroups[gi].id]===false){hasHidden=true;break;}
+      }
+    }
+    if(!hasHidden&&st.dc&&st.dc.size>0)hasHidden=true;
+  }
+  row.classList.toggle("hud-row-empty",!hasHidden);
+}
+
+/* Track which (quad, kind, anchor) is currently open so the unhide
+   handlers can refresh the popup body in place after a click. */
+var _hudPopupState={open:false,quad:0,kind:"",anchor:null};
+
+function _hudPopupShow(quad,kind,anchorEl){
+  var pop=document.getElementById("hud-popup");
+  if(!pop)return;
+  /* Re-clicking the same anchor toggles closed (drop-up menu pattern). */
+  if(_hudPopupState.open&&_hudPopupState.kind===kind&&_hudPopupState.quad===quad&&_hudPopupState.anchor===anchorEl){
+    _hudPopupClose();
+    return;
+  }
+  /* Build content for this kind. If empty, show a "(nothing hidden)" /
+     "(no embeddings)" placeholder rather than silently doing nothing
+     — gives the user feedback that the click registered. */
+  var html="";
+  if(kind==="hidden"){
+    html=_buildHidePopupHTML(quad);
+    if(!html)html='<div class="hp-title">Unhide:</div><div class="hp-section"><div class="hp-section-label">Nothing is hidden in this split</div></div>';
+  }
+  else if(kind==="embedding"){
+    html=_buildEmbPopupHTML(quad);
+    if(!html)html='<div class="hp-title">Embedding:</div><div class="hp-section"><div class="hp-section-label">No embeddings loaded</div></div>';
+  }
+  if(!html){_hudPopupClose();return;}
+  pop.innerHTML=html;
+  /* Position above the anchor row, in #cw-relative coords. The popup
+     can grow upward/downward depending on available space — for a
+     drop-up we anchor by `bottom`. */
+  var cw=document.getElementById("cw");
+  if(cw&&anchorEl){
+    var cwRect=cw.getBoundingClientRect();
+    var aRect=anchorEl.getBoundingClientRect();
+    pop.style.left=Math.max(8,(aRect.left-cwRect.left))+"px";
+    pop.style.right="auto";
+    pop.style.top="auto";
+    pop.style.bottom=Math.max(8,(cwRect.bottom-aRect.top+4))+"px";
+  }
+  pop.classList.add("open");
+  _hudPopupState={open:true,quad:quad,kind:kind,anchor:anchorEl};
+}
+
+function _hudPopupClose(){
+  var pop=document.getElementById("hud-popup");
+  if(pop){
+    pop.classList.remove("open");
+    pop.innerHTML="";
+  }
+  _hudPopupState={open:false,quad:0,kind:"",anchor:null};
+}
+
+/* If the popup is open, rebuild its content in place (called by unhide
+   handlers so the menu updates after each click without losing
+   position). If the source becomes empty, close. */
+function _hudPopupRefresh(){
+  if(!_hudPopupState.open)return;
+  var pop=document.getElementById("hud-popup");
+  if(!pop)return;
+  var html="";
+  if(_hudPopupState.kind==="hidden")html=_buildHidePopupHTML(_hudPopupState.quad);
+  else if(_hudPopupState.kind==="embedding")html=_buildEmbPopupHTML(_hudPopupState.quad);
+  if(!html){_hudPopupClose();return;}
+  pop.innerHTML=html;
+}
+
+/* Read the visibility state for a given quad. In split mode, returns
+   {vc, sf, dc} from the quad's snapshot. In single-view, returns the
+   live globals. The active half in split mode reads from globals —
+   that's what _restoreSplitViewState last loaded — so changes the
+   user just made show up immediately, before _viewSaveCurrent has
+   flushed them back to the snap. */
+function _hbReadState(quad,snap){
+  /* deletedCells is GLOBAL (Delete-key operates on global selection
+     groups), so it's the same `_deletedCells` for every quad. Cell
+     types and slices ARE per-snap. */
+  if(!snap||snap.id===_activeViewId){
+    return {vc:visibleClusters||{}, sf:sliceFilter||{}, dc:_deletedCells};
+  }
+  /* Non-active in split mode: read visibleClusters + sliceFilter from
+     snap. snap.sliceFilter is {col: Array}; convert to {col: Set} for
+     uniform consumption. deletedCells stays global. */
+  var sf={};
+  if(snap.sliceFilter){
+    for(var c in snap.sliceFilter){sf[c]=new Set(snap.sliceFilter[c]);}
+  }
+  return {vc:snap.visibleClusters||{}, sf:sf, dc:_deletedCells};
+}
+
+/* Build the Unhide popup body for a given quad. Returns empty string
+   when nothing's hidden so the caller can keep the popup closed. */
+function _buildHidePopupHTML(quad){
+  if(!D||!D.header)return "";
+  var inSplit=_splitActive&&_splitViewIds&&_splitViewIds.length>=2;
+  var snap=inSplit&&quad>=0&&quad<_splitViewIds.length?_splitViewById(_splitViewIds[quad]):null;
+  var st=_hbReadState(quad,snap);
+  var names=(D.header.cluster_names)||[];
+  var cats=D.header.obs_categories||{};
+
+  /* Hidden cell types in this quad. */
+  var hTypes=[];
+  for(var ci=0;ci<names.length;ci++){
+    if(st.vc[ci]===false)hTypes.push({cid:ci,name:names[ci]});
+  }
+  /* Hidden slice values, grouped by obs column. */
+  var hSlicesByCol={}, sliceColOrder=[];
+  for(var col in cats){
+    var totalCats=(cats[col].categories||[]).length;
+    var setOfActive=st.sf[col];
+    if(!setOfActive)continue;
+    var activeSize=setOfActive.size||0;
+    if(activeSize>=totalCats)continue;
+    var hiddenInCol=[];
+    for(var idx=0;idx<totalCats;idx++){
+      if(!setOfActive.has(idx))hiddenInCol.push({col:col,idx:idx,name:cats[col].categories[idx]});
+    }
+    if(hiddenInCol.length>0){hSlicesByCol[col]=hiddenInCol;sliceColOrder.push(col);}
+  }
+  /* Hidden selection groups (global). */
+  var hGroups=[];
+  for(var gi=0;gi<selGroups.length;gi++){
+    var sg=selGroups[gi];
+    if(sg.cells.size>0&&groupVisible[sg.id]===false){
+      hGroups.push({gi:gi,id:sg.id,name:sg.name,count:sg.cells.size,color:sg.color});
+    }
+  }
+  /* Arbitrarily-hidden cells. */
+  var arbCount=st.dc?st.dc.size:0;
+
+  if(hTypes.length===0&&sliceColOrder.length===0&&hGroups.length===0&&arbCount===0)return "";
+
+  var html='<div class="hp-title">Unhide:</div>';
+  /* "all" shortcut at the top — always present when there's anything
+     hidden, restores everything in one click. */
+  html+='<button class="hp-item hp-all" onclick="_unhideAllInQuad('+quad+')">all</button>';
+
+  if(hTypes.length>0){
+    html+='<div class="hp-section">';
+    html+='<div class="hp-section-label">Cell types</div>';
+    for(var ti=0;ti<hTypes.length;ti++){
+      var ht=hTypes[ti];
+      var c=(typeof cc==="function")?cc(ht.cid):[0.5,0.5,0.5];
+      var dotStyle="background:rgb("+(c[0]*255|0)+","+(c[1]*255|0)+","+(c[2]*255|0)+");";
+      html+='<button class="hp-item" onclick="_unhideCellType('+quad+','+ht.cid+')">'
+        +'<span class="hp-dot" style="'+dotStyle+'"></span>'
+        +'<span class="hp-item-name">'+_hbEsc(ht.name)+'</span></button>';
+    }
+    html+='</div>';
+  }
+
+  if(sliceColOrder.length>0){
+    html+='<div class="hp-section"><div class="hp-section-label">Slices</div>';
+    for(var ci2=0;ci2<sliceColOrder.length;ci2++){
+      var sc=sliceColOrder[ci2];
+      var arr=hSlicesByCol[sc];
+      for(var si=0;si<arr.length;si++){
+        var hs=arr[si];
+        var colArg='\''+_hbEsc(hs.col).replace(/\\/g,"\\\\").replace(/'/g,"\\'")+'\'';
+        /* Show "col: value" inline so the obs-column context lives in
+           the same row as the value. Avoids the equal-weight
+           categories-vs-sub-categories confusion of having a separate
+           "organ:" sub-header with values listed below it. */
+        html+='<button class="hp-item" onclick="_unhideSliceVal('+quad+','+colArg+','+hs.idx+')">'
+          +'<span class="hp-item-prefix">'+_hbEsc(hs.col)+':</span>'
+          +'<span class="hp-item-name">'+_hbEsc(hs.name)+'</span></button>';
+      }
+    }
+    html+='</div>';
+  }
+
+  if(hGroups.length>0){
+    html+='<div class="hp-section"><div class="hp-section-label">Groups</div>';
+    for(var hi=0;hi<hGroups.length;hi++){
+      var hg=hGroups[hi];
+      var gc=hg.color||[0.5,0.5,0.5];
+      var gdot="background:rgb("+(gc[0]*255|0)+","+(gc[1]*255|0)+","+(gc[2]*255|0)+");";
+      html+='<button class="hp-item" onclick="_unhideGroup('+hg.id+')">'
+        +'<span class="hp-dot" style="'+gdot+'"></span>'
+        +'<span class="hp-item-name">'+_hbEsc(hg.name)+'</span>'
+        +'<span class="hp-item-meta">'+hg.count.toLocaleString()+'</span></button>';
+    }
+    html+='</div>';
+  }
+
+  if(arbCount>0){
+    html+='<div class="hp-section"><div class="hp-section-label">Arbitrary</div>';
+    html+='<button class="hp-item" onclick="_unhideArbitrary('+quad+')">'
+      +'<span class="hp-item-name">'+arbCount.toLocaleString()+' cells</span></button>';
+    html+='</div>';
+  }
+  return html;
+}
+
+/* Build the Embedding popup body for a given quad. Lists every loaded
+   embedding; clicking switches that quad to that embedding via the
+   existing _setHalfEmbedding routing (tethered group → all tethered
+   move together; untethered → only that snap). */
+function _buildEmbPopupHTML(quad){
+  if(!D||!D.embeddings)return "";
+  var inSplit=_splitActive&&_splitViewIds&&_splitViewIds.length>=2;
+  var snap=inSplit&&quad>=0&&quad<_splitViewIds.length?_splitViewById(_splitViewIds[quad]):null;
+  var curEmb=(snap&&snap.embMethod)?snap.embMethod:embMethod;
+  var avail=[];
+  ["umap","pca","pacmap"].forEach(function(m){if(D.embeddings[m])avail.push(m);});
+  if(avail.length===0)return "";
+  var pretty={"umap":"UMAP","pca":"PCA","pacmap":"PaCMAP"};
+  var html='<div class="hp-title">Embedding:</div>';
+  for(var i=0;i<avail.length;i++){
+    var m=avail[i];
+    var label=pretty[m]||m.toUpperCase();
+    var suf=(typeof _embSourceSuffix==="function")?_embSourceSuffix(m):"";
+    var meta=suf?'<span class="hp-item-meta">'+_hbEsc(suf)+'</span>':"";
+    var cls="hp-item"+(m===curEmb?" hp-current":"");
+    html+='<button class="'+cls+'" onclick="_hudPopupPickEmbedding('+quad+',\''+m+'\')">'
+      +'<span class="hp-item-name">'+label+'</span>'+meta+'</button>';
+  }
+  return html;
+}
+
+function _hudPopupPickEmbedding(quad,method){
+  /* Route through the existing per-half helper which knows about
+     tethered-group vs untethered-snap semantics. Close the popup
+     after picking — embedding switches are usually a single decision. */
+  if(typeof _setHalfEmbedding==="function"&&_splitActive){
+    _setHalfEmbedding(quad,method);
+  }else if(typeof setEmbMethod==="function"){
+    setEmbMethod(method);
+  }
+  _hudPopupClose();
+}
+
+/* Outside-click dismiss. Bound to document — must run after any inline
+   onclick on the popup itself (those use stopPropagation to keep the
+   popup open). Anchor clicks are handled by the row's onclick which
+   toggles the popup; the dismiss check below ignores those by
+   detecting when the click target is within #hud-popup or any element
+   with data-hud-popup-anchor (set on the clickable HUD rows). */
+document.addEventListener("click",function(e){
+  if(!_hudPopupState.open)return;
+  var pop=document.getElementById("hud-popup");
+  if(!pop)return;
+  var t=e.target;
+  while(t&&t!==document.body){
+    if(t===pop)return;
+    if(t.getAttribute&&t.getAttribute("data-hud-popup-anchor")!=null)return;
+    t=t.parentNode;
+  }
+  _hudPopupClose();
+},true);
+document.addEventListener("keydown",function(e){
+  if(_hudPopupState.open&&e.key==="Escape"){
+    _hudPopupClose();
+    e.stopPropagation();
+  }
+},true);
+
+/* Mutate the appropriate scope (active globals OR non-active snap)
+   and call recolor + refresh. fn is invoked with a "writeable view"
+   — for active/single-view that's the live globals, for non-active
+   snap that's the snap object itself. */
+function _hbMutateQuad(quad,fnGlobal,fnSnap){
+  var inSplit=_splitActive&&_splitViewIds&&_splitViewIds.length>=2;
+  if(inSplit&&quad>=0&&quad<_splitViewIds.length){
+    var snap=_splitViewById(_splitViewIds[quad]);
+    if(!snap)return;
+    if(snap.id===_activeViewId){
+      if(typeof fnGlobal==="function")fnGlobal();
+    }else{
+      if(typeof fnSnap==="function")fnSnap(snap);
+    }
+  }else{
+    if(typeof fnGlobal==="function")fnGlobal();
+  }
+}
+
+function _unhideCellType(quad,cid){
+  _hbMutateQuad(quad,function(){
+    visibleClusters[cid]=true;
+  },function(snap){
+    if(!snap.visibleClusters)snap.visibleClusters={};
+    snap.visibleClusters[cid]=true;
+  });
+  if(typeof recolor==="function")recolor();
+  if(typeof renderLeg==="function")renderLeg();
+  if(typeof _hudPopupRefresh==="function")_hudPopupRefresh();
+  if(typeof _updateHudGroup==="function")_updateHudGroup();
+  if(typeof pushHistory==="function")pushHistory();
+}
+
+function _unhideAllCellTypes(quad){
+  if(!D||!D.header||!D.header.cluster_names)return;
+  var n=D.header.cluster_names.length;
+  _hbMutateQuad(quad,function(){
+    for(var i=0;i<n;i++)visibleClusters[i]=true;
+  },function(snap){
+    if(!snap.visibleClusters)snap.visibleClusters={};
+    for(var i=0;i<n;i++)snap.visibleClusters[i]=true;
+  });
+  if(typeof recolor==="function")recolor();
+  if(typeof renderLeg==="function")renderLeg();
+  if(typeof _hudPopupRefresh==="function")_hudPopupRefresh();
+  if(typeof _updateHudGroup==="function")_updateHudGroup();
+  if(typeof pushHistory==="function")pushHistory();
+}
+
+function _unhideSliceVal(quad,col,idx){
+  _hbMutateQuad(quad,function(){
+    if(!sliceFilter[col])sliceFilter[col]=new Set();
+    sliceFilter[col].add(idx);
+    if(typeof applySlice==="function")applySlice();
+  },function(snap){
+    if(!snap.sliceFilter)snap.sliceFilter={};
+    if(!snap.sliceFilter[col])snap.sliceFilter[col]=[];
+    if(snap.sliceFilter[col].indexOf(idx)<0)snap.sliceFilter[col].push(idx);
+  });
+  if(typeof recolor==="function")recolor();
+  if(typeof _syncSlicePills==="function")_syncSlicePills();
+  if(typeof _updateSliceUI==="function")_updateSliceUI();
+  if(typeof _hudPopupRefresh==="function")_hudPopupRefresh();
+  if(typeof _updateHudGroup==="function")_updateHudGroup();
+  if(typeof pushHistory==="function")pushHistory();
+}
+
+function _unhideAllSlicesInCol(quad,col){
+  if(!D||!D.header)return;
+  var cats=D.header.obs_categories||{};
+  if(!cats[col])return;
+  var n=(cats[col].categories||[]).length;
+  _hbMutateQuad(quad,function(){
+    sliceFilter[col]=new Set();
+    for(var i=0;i<n;i++)sliceFilter[col].add(i);
+    if(typeof applySlice==="function")applySlice();
+  },function(snap){
+    if(!snap.sliceFilter)snap.sliceFilter={};
+    var arr=[];for(var i=0;i<n;i++)arr.push(i);
+    snap.sliceFilter[col]=arr;
+  });
+  if(typeof recolor==="function")recolor();
+  if(typeof _syncSlicePills==="function")_syncSlicePills();
+  if(typeof _updateSliceUI==="function")_updateSliceUI();
+  if(typeof _hudPopupRefresh==="function")_hudPopupRefresh();
+  if(typeof _updateHudGroup==="function")_updateHudGroup();
+  if(typeof pushHistory==="function")pushHistory();
+}
+
+function _unhideArbitrary(quad){
+  /* deletedCells is global, so the same action affects every split.
+     The `quad` argument is ignored — kept for API symmetry with the
+     other unhide handlers and so the popup can call this regardless
+     of which split's Hidden row triggered it. */
+  _deletedCells=null;
+  if(typeof recolor==="function")recolor();
+  if(typeof _hudPopupRefresh==="function")_hudPopupRefresh();
+  if(typeof _updateHudGroup==="function")_updateHudGroup();
+  if(typeof pushHistory==="function")pushHistory();
+}
+
+/* Selection-group visibility is GLOBAL — toggling here affects every
+   split. (Cell vis, slice filter, deleted cells are per-snap; group
+   visibility is shared by design so cross-split DEG works on a single
+   set of groups.) */
+function _unhideGroup(groupId){
+  if(typeof groupVisible!=="object")return;
+  groupVisible[groupId]=true;
+  if(typeof recolor==="function")recolor();
+  if(typeof renderSelPanel==="function")renderSelPanel();
+  if(typeof _hudPopupRefresh==="function")_hudPopupRefresh();
+  if(typeof _updateHudGroup==="function")_updateHudGroup();
+  if(typeof pushHistory==="function")pushHistory();
+}
+
+function _unhideAllInQuad(quad){
+  if(!D||!D.header)return;
+  var names=D.header.cluster_names||[];
+  var cats=D.header.obs_categories||{};
+  _hbMutateQuad(quad,function(){
+    for(var i=0;i<names.length;i++)visibleClusters[i]=true;
+    for(var col in cats){
+      var n=(cats[col].categories||[]).length;
+      sliceFilter[col]=new Set();
+      for(var k=0;k<n;k++)sliceFilter[col].add(k);
+    }
+    _deletedCells=null;
+    if(typeof applySlice==="function")applySlice();
+  },function(snap){
+    if(!snap.visibleClusters)snap.visibleClusters={};
+    for(var i=0;i<names.length;i++)snap.visibleClusters[i]=true;
+    snap.sliceFilter={};
+    for(var col in cats){
+      var n=(cats[col].categories||[]).length;
+      var arr=[];for(var k=0;k<n;k++)arr.push(k);
+      snap.sliceFilter[col]=arr;
+    }
+    /* deletedCells is global — clear it once, regardless of which
+       split this "unhide all" was invoked from. */
+    _deletedCells=null;
+  });
+  /* Also unhide all hidden global groups while we're at it — the user
+     hit "unhide all" expecting a clean slate in this quad. */
+  for(var gi=0;gi<selGroups.length;gi++){
+    if(groupVisible[selGroups[gi].id]===false)groupVisible[selGroups[gi].id]=true;
+  }
+  if(typeof recolor==="function")recolor();
+  if(typeof renderLeg==="function")renderLeg();
+  if(typeof renderSelPanel==="function")renderSelPanel();
+  if(typeof _syncSlicePills==="function")_syncSlicePills();
+  if(typeof _updateSliceUI==="function")_updateSliceUI();
+  if(typeof _hudPopupRefresh==="function")_hudPopupRefresh();
+  if(typeof _updateHudGroup==="function")_updateHudGroup();
+  if(typeof pushHistory==="function")pushHistory();
+}
+
 function _updateHudGroup(){
   var _ag=getActiveGroup();
   var _html="",_show=false;
@@ -7018,6 +7596,7 @@ function recolor(){
     if(_hudVc)_hudVc.textContent=(n-_nHidden).toLocaleString();
     if(_hudHc)_hudHc.textContent=_nHidden>0?_nHidden.toLocaleString():"0";
     if(_hudTc)_hudTc.textContent=n.toLocaleString();
+    if(typeof _hudUpdateHiddenRowState==="function")_hudUpdateHiddenRowState(0);
     _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
     _scheduleVisStats();
     if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
@@ -7164,6 +7743,7 @@ function recolor(){
   if(_hudV){_hudV.textContent=(n-_nHidden).toLocaleString();}
   if(_hudH){_hudH.textContent=_nHidden>0?_nHidden.toLocaleString():"0";}
   if(_hudT){_hudT.textContent=n.toLocaleString();}
+  if(typeof _hudUpdateHiddenRowState==="function")_hudUpdateHiddenRowState(0);
   _updateHudGroup();if(typeof _updateHudColor==="function")_updateHudColor();if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
   _scheduleVisStats();
   if(typeof _updateGeneIndicators==="function")_updateGeneIndicators();
@@ -7436,7 +8016,12 @@ function animate(){
       var hits=raycaster.intersectObject(_hPts);
       if(hits.length>0){var _bh=_bestVisibleHit(hits);if(_bh)_newHover=_bh.index;}
     }
-    /* Hover highlight — brighten hovered cell */
+    /* Hover highlight — brighten hovered cell. Writes color into the
+       hovered quad's geometry (_hPts), so the dirty flag MUST also be
+       set on that geometry. Using the global `pts` here always sets
+       quad 0's flag and the GPU never re-uploads the modified color
+       buffer for quads 1-3 → no visible hover highlight outside the
+       top-left split. */
     var _col=_hPts.geometry.attributes.color.array;
     if(_newHover!==_hoverIdx){
       if(_hoverIdx>=0&&_hoverPrevColor){
@@ -7451,7 +8036,7 @@ function animate(){
         _col[_newHover*3+2]=_hoverPrevColor[2]*(1-_hf)+_hf;
       }else{_hoverPrevColor=null;}
       _hoverIdx=_newHover;
-      pts.geometry.attributes.color.needsUpdate=true;
+      _hPts.geometry.attributes.color.needsUpdate=true;
     }
     if(_newHover>=0){
       var idx=_newHover;
@@ -7617,10 +8202,21 @@ function setupCtrl(){
     /* Release focus from any slider/input so keyboard shortcuts work */
     if(document.activeElement&&document.activeElement!==cv)document.activeElement.blur();
     introAnim=null;_flyAnim=null;_introTargetCam=null;
-    /* Click in split quadrant → activate that split */
-    if(_splitActive&&_splitViewIds.length>=2&&_hoveredViewIdx>=0&&_hoveredViewIdx<_splitViewIds.length){
-      var _clickId=_splitViewIds[_hoveredViewIdx];
-      if(_clickId!==_activeViewId)_viewSwitch(_clickId);
+    /* Click in split quadrant → activate that split. Recompute the
+       hovered quadrant fresh from the mouse position rather than
+       trusting whatever mousemove last cached, so a click without a
+       preceding mousemove still picks the right half (e.g. the user
+       just released a popup, or the mouse is over a sub-element that
+       doesn't propagate move events to the canvas). */
+    if(_splitActive&&_splitViewIds.length>=2){
+      var _mdLocalX=e.clientX-_cvRect.left;
+      var _mdLocalY=e.clientY-_cvRect.top;
+      var _mdHov=_splitQuadrantAt(_mdLocalX,_mdLocalY,_liveViews.length,_cvRect.width,_cvRect.height);
+      if(_mdHov>=0&&_mdHov<_splitViewIds.length){
+        _hoveredViewIdx=_mdHov;
+        var _clickId=_splitViewIds[_mdHov];
+        if(_clickId!==_activeViewId)_viewSwitch(_clickId);
+      }
     }
     if(tooltipEl)tooltipEl.style.display="none";
     if(shiftHeld&&e.button===0){
@@ -8228,12 +8824,75 @@ function setupCtrl(){
     }
     /* Shift+V = select all visible cells */
     if(e.key==="V"&&e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){selAllVisible();_flashAction("Select All Visible","Shift+V");}
-    /* t = toggle theme dark/light */
-    if(e.key==="t"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+    /* ` (backtick) = toggle theme dark/light. Moved off T so T can drive
+       tether-toggle on the active split (which is a much more frequent
+       split-mode action). The backtick is a single-finger reach in the
+       upper-left of every layout and was previously unbound. */
+    if(e.key==="`"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
       var _sel=document.getElementById("set-theme");
       _sel.value=_sel.value==="dark"?"light":"dark";
       saveSettings();
-      _flashAction(_sel.value==="dark"?"Dark Theme":"Light Theme","T");
+      _flashAction(_sel.value==="dark"?"Dark Theme":"Light Theme","`");
+    }
+    /* T = toggle camera tether for the currently active split. In single
+       view mode this still toggles the active view's tether bit (which
+       takes effect when the user drops back into split mode). */
+    if(e.key==="t"&&!e.shiftKey&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+      if(typeof _toggleTetherById==="function"&&typeof _activeViewId!=="undefined"){
+        _toggleTetherById(_activeViewId);
+        var _sv=(typeof _splitViewById==="function")?_splitViewById(_activeViewId):null;
+        var _isT=_sv?(_sv.tethered!==false):true;
+        _flashAction(_isT?"Tethered":"Untethered","T");
+      }
+    }
+    /* Opt+Arrow = move the active highlight to the adjacent split. The
+       2x2 quadrant layout means ← / → flip horizontally and ↑ / ↓ flip
+       vertically; in 2-up only ← / → are meaningful, in 3-up some
+       directions wrap around the missing 4th quadrant, in 4-up all four
+       are honored. No-op outside split mode. */
+    if(e.altKey&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&_splitActive&&_liveViews&&_liveViews.length>=2){
+      var _arrowDir=null;
+      if(e.key==="ArrowLeft")_arrowDir="left";
+      else if(e.key==="ArrowRight")_arrowDir="right";
+      else if(e.key==="ArrowUp")_arrowDir="up";
+      else if(e.key==="ArrowDown")_arrowDir="down";
+      if(_arrowDir){
+        e.preventDefault();
+        var _curIdx=_splitViewIds.indexOf(_activeViewId);
+        if(_curIdx<0)_curIdx=0;
+        var _N=_liveViews.length;
+        /* Compute the candidate target quad based on direction + layout.
+           Quad indices: 0 = top-left, 1 = top-right, 2 = bottom-left,
+           3 = bottom-right (in 4-up). 2-up uses 0/1 horizontally; 3-up
+           uses 0/1 on top + 2 on bottom-left (no quad 3). */
+        var _next=_curIdx;
+        if(_N===2){
+          /* horizontal pair only — left/right move to the other half,
+             up/down no-op. The single-axis behavior matches a 1x2
+             grid without pretending it has rows. */
+          if(_arrowDir==="left"&&_curIdx>0)_next=_curIdx-1;
+          else if(_arrowDir==="right"&&_curIdx<1)_next=_curIdx+1;
+        }else{
+          /* 3-up or 4-up — directional, no wrap. Going off-edge or to
+             a non-existent quad (3-up has no bottom-right) is a no-op
+             so the user feels the wall instead of jumping unexpectedly. */
+          var _row=_curIdx>>1, _col=_curIdx&1;
+          if(_arrowDir==="left"&&_col>0)_col--;
+          else if(_arrowDir==="right"&&_col<1)_col++;
+          else if(_arrowDir==="up"&&_row>0)_row--;
+          else if(_arrowDir==="down"&&_row<1)_row++;
+          var _cand=_row*2+_col;
+          if(_cand!==_curIdx&&_cand>=0&&_cand<_N)_next=_cand;
+        }
+        if(_next!==_curIdx&&_next>=0&&_next<_N){
+          var _newId=_splitViewIds[_next];
+          if(_newId!=null&&typeof _viewSwitch==="function"){
+            _viewSwitch(_newId);
+            var _name=(typeof _splitViewById==="function"&&_splitViewById(_newId)||{}).name||"Split "+(_next+1);
+            _flashAction(_name,_ALT+"+"+(_arrowDir==="left"?"←":_arrowDir==="right"?"→":_arrowDir==="up"?"↑":"↓"));
+          }
+        }
+      }
     }
     /* \ = toggle sidebar */
     if(e.key==="\\"&&!e.metaKey&&!e.ctrlKey&&!e.altKey){toggleSidebar();_flashAction(_sidebarHidden?"Hide Sidebar":"Show Sidebar","\\");}
@@ -10410,7 +11069,7 @@ function _legRenderRow(j){
       +'<\/div>';
   }
   var _visTip=_vn.toLocaleString()+" / "+_tn.toLocaleString()+" visible ("+pct+"%)";
-  var _tip="Click: toggle \u00b7 "+_ALT+": solo \u00b7 Shift: select\n"+_visTip;
+  var _tip="Click: toggle \u00b7 "+_ALT+": solo \u00b7 Shift: select \u00b7 "+_ALT+"+Shift: isolate (clear + select only this)\n"+_visTip;
   var _cntText=partial?_vn.toLocaleString()+" / "+cnt.toLocaleString():cnt.toLocaleString();
   return '<div class="li leg-item" style="position:absolute;left:0;right:0;top:'+_legRowY[j]+'px;height:'+_legRowH[j]+'px;cursor:pointer;user-select:none;" data-ci="'+i+'" onclick="toggleCluster('+i+',event)" title="'+_tip+'">'
     +'<div class="leg-row">'
@@ -11089,6 +11748,16 @@ function _getNodeByPath(path){
 }
 
 function toggleCluster(i,ev){
+  /* Opt+Shift+click: isolate — replace the active group's selection
+     with ONLY this cell type (clears whatever was there). Distinct from
+     plain Shift+click, which TOGGLES this type into/out of the
+     existing selection. */
+  if(ev&&ev.altKey&&ev.shiftKey){
+    if(selGroups.length===0)addSelGroup();
+    if(!cellGroupMap)initCellGroupMap();
+    selOnlyCellType(i);
+    return;
+  }
   if(ev&&ev.altKey){soloCluster(i);return;}
   if(ev&&ev.shiftKey){
     /* Shift+click: select all cells of this type into active group */
@@ -13352,6 +14021,7 @@ function _recolorView(vIdx){
   if(_hV)_hV.textContent=(n-_nHidden).toLocaleString();
   if(_hH)_hH.textContent=_nHidden>0?_nHidden.toLocaleString():"0";
   if(_hT)_hT.textContent=n.toLocaleString();
+  if(typeof _hudUpdateHiddenRowState==="function")_hudUpdateHiddenRowState(vIdx);
   /* Recompute bounding spheres so frustum culling doesn't hide geometry */
   vPts.geometry.computeBoundingSphere();
   if(vRing)vRing.geometry.computeBoundingSphere();
@@ -13407,6 +14077,34 @@ function _ensureSplitGenesLoaded(){
   Promise.all(pending.map(function(p){return p&&p.catch?p.catch(function(){}):p;}))
     .then(function(){if(D&&pts&&typeof recolor==="function")recolor();});
 }
+/* Clone the active view into a fresh snapshot with a new id + name, so
+   every split quadrant can hold genuinely independent state. Used when
+   the user activates split mode (or expands the count) but doesn't have
+   enough distinct named views to fill every quadrant — without cloning,
+   the auto-fill would repeat the active view's ID and editing one quad
+   would visibly leak into the other (because they'd share the same
+   snap object). */
+function _viewCloneActive(){
+  var src=_views.find(function(v){return v.id===_activeViewId;});
+  if(!src)return null;
+  var newId=_viewIdCounter++;
+  var clone={
+    id:newId,name:_nextSplitName(),
+    sliceFilter:JSON.parse(JSON.stringify(src.sliceFilter||{})),
+    visibleClusters:JSON.parse(JSON.stringify(src.visibleClusters||{})),
+    /* deletedCells is global, not per-snap. */
+    mode:src.mode,selGene:src.selGene||"",
+    geneMode:src.geneMode,colocR:src.colocR||"",colocG:src.colocG||"",
+    colocActiveChannel:src.colocActiveChannel,
+    pathwayColorId:src.pathwayColorId||"",pathwayColorName:src.pathwayColorName||"",
+    embMethod:src.embMethod||embMethod||"umap",
+    tethered:src.tethered!==false,
+    camera:src.camera?JSON.parse(JSON.stringify(src.camera)):null
+  };
+  _views.push(clone);
+  return clone;
+}
+
 function _splitViewActivate(count){
   /* Activate split-screen with `count` views (default 2, max 4). Live
      views hold ONLY GPU resources + cameras; all state lives in _views[]
@@ -13428,13 +14126,20 @@ function _splitViewActivate(count){
   _viewSaveCurrent();
   /* Pick which views populate quad 0..count-1: active first, then the
      next distinct views in declaration order. If we don't have enough
-     unique views to fill `count`, fill remaining quadrants by repeating
-     the active view (user can reassign via the per-label dropdown). */
+     unique views to fill `count`, AUTO-CLONE the active view into a
+     fresh snapshot for each extra quadrant — so per-split state
+     (visibility, slice filter, arbitrarily-deleted cells) actually
+     isolates instead of leaking through a shared snap. Users can
+     still reassign any quad's view via the per-label dropdown. */
   var ids=[_activeViewId];
   for(var i=0;i<_views.length&&ids.length<count;i++){
     if(_views[i].id!==_activeViewId)ids.push(_views[i].id);
   }
-  while(ids.length<count)ids.push(_activeViewId);
+  while(ids.length<count){
+    var _cln=_viewCloneActive();
+    if(_cln)ids.push(_cln.id);
+    else break;
+  }
   _splitViewIds=ids.slice();
   _liveViews=[];
   for(var q=0;q<count;q++){
@@ -13446,6 +14151,9 @@ function _splitViewActivate(count){
   }
   _masterViewIdx=0;
   _splitActive=true;
+  /* Activating split mode resets the H-toggle anchor (which was based
+     on the prior single-view's hidden state). */
+  _preShowAllVis=null;_preDeletedCells=null;
   /* Restore globals to the ACTIVE split's state so sidebar matches */
   _restoreSplitViewState(_splitViewById(_splitViewIds[0]));
   /* Recolor all views (recolor() handles save/load of each snapshot) */
@@ -13522,13 +14230,16 @@ function _splitSetCount(newCount){
   if(newCount===cur)return;
   if(newCount>cur){
     /* Add live views for new quadrants. Pick splits not yet shown, in
-       declaration order; fall back to repeating the active split. */
+       declaration order; if there aren't enough distinct ones,
+       AUTO-CLONE the active view so each new quadrant gets an
+       independent snapshot (otherwise per-split state would leak
+       between quads sharing the same id). */
     for(var add=cur;add<newCount;add++){
       var picked=null;
       for(var i=0;i<_views.length;i++){
         if(_splitViewIds.indexOf(_views[i].id)<0){picked=_views[i];break;}
       }
-      if(!picked)picked=_splitViewById(_activeViewId)||_views[0];
+      if(!picked)picked=_viewCloneActive()||_splitViewById(_activeViewId)||_views[0];
       _splitViewIds.push(picked.id);
       var lv=_createLiveView(add,picked.name);
       if(picked.camera)_applyCameraToLive(picked.camera,lv);
@@ -13705,31 +14416,6 @@ function _splitUpdateLabels(){
       tb.innerHTML=v.tethered?_CHAIN_SVG:_CHAIN_BROKEN_SVG;
       tb.className="tether-btn"+(v.tethered?" tethered":"");
       tb.title=v.tethered?"Camera tethered — click to untether":"Camera independent — click to tether";
-    }
-    /* Per-half embedding selector — populated with available embeddings,
-       value pulled from the snapshot's embMethod. Shown whenever ≥2
-       embeddings are loaded (regardless of tether state). Acts as an
-       explicit "what is this half showing" indicator + control. */
-    var es=lbl.querySelector(".split-emb-select");
-    if(es){
-      var snap=_splitViewById(_splitViewIds[q3]);
-      var snapEmb=(snap&&snap.embMethod)||embMethod||"umap";
-      var avail=[];
-      if(D&&D.embeddings){
-        ["umap","pca","pacmap"].forEach(function(m){
-          if(D.embeddings[m])avail.push(m);
-        });
-      }
-      es.innerHTML="";
-      var prettyL={"umap":"UMAP","pca":"PCA","pacmap":"PaCMAP"};
-      for(var ai=0;ai<avail.length;ai++){
-        var opt=document.createElement("option");
-        opt.value=avail[ai];
-        opt.textContent=prettyL[avail[ai]]||avail[ai].toUpperCase();
-        if(avail[ai]===snapEmb)opt.selected=true;
-        es.appendChild(opt);
-      }
-      es.style.display=(avail.length>1)?"":"none";
     }
   }
   /* Highlight the quadrant containing the ACTIVE split. */
@@ -13972,14 +14658,13 @@ function _viewAdd(isDefault,forceName){
      selGroupIdCounter / groupVisible are intentionally NOT saved per-split —
      selections are fully global across splits so that cross-split DEG and
      other selection-based analyses work as expected. Per-view state is:
-     slice filter, cluster visibility, color mode + active gene, deleted-cells
-     mask, camera, tether flag. */
+     slice filter, cluster visibility, color mode + active gene, camera,
+     tether flag. (deletedCells is global, not per-snap, since it's
+     keyed off the global selection groups.) */
   var sf={};
   if(sliceFilter){for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
   var vc=JSON.parse(JSON.stringify(visibleClusters));
-  var dc=_deletedCells?Array.from(_deletedCells):null;
   _views.push({id:id,name:name,sliceFilter:sf,visibleClusters:vc,
-    deletedCells:dc,
     mode:mode,selGene:selGene||"",
     /* Per-view coloc sub-state — new splits inherit the current globals so
        a freshly-spawned split starts where the user left off, then can
@@ -14049,7 +14734,12 @@ function _viewSaveCurrent(){
   if(sliceFilter){for(var col in sliceFilter)sf[col]=Array.from(sliceFilter[col]);}
   v.sliceFilter=sf;
   v.visibleClusters=JSON.parse(JSON.stringify(visibleClusters));
-  v.deletedCells=_deletedCells?Array.from(_deletedCells):null;
+  /* deletedCells is GLOBAL, not per-snap — Delete/Backspace operates on
+     selection groups (which are also global), so arbitrarily-hidden
+     cells are visible-or-hidden uniformly across every split. Don't
+     write it onto the snap. Strip any legacy field so older saved
+     sessions don't re-overwrite the global on switch. */
+  delete v.deletedCells;
   /* Strip legacy per-view selection fields. */
   delete v.selGroups;delete v.activeGroupId;delete v.selGroupIdCounter;delete v.groupVisible;
   /* Per-view color mode + selected gene so split views can show different genes /
@@ -14147,7 +14837,8 @@ function _restoreViewState(v,opts){
   _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
   for(var k in v.visibleClusters)visibleClusters[k]=v.visibleClusters[k];
-  _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
+  /* _deletedCells is GLOBAL (Delete-key operates on global selection
+     groups), so leave it alone on view switch. */
   _preShowAllVis=null;_preDeletedCells=null;
   if(typeof v.mode==="string")mode=v.mode;
   if(typeof v.selGene==="string")selGene=v.selGene;
@@ -14180,13 +14871,20 @@ function _restoreSplitViewState(v){
      design). embMethod is intentionally NOT pushed into the global here —
      _recolorView pulls the snapshot's embMethod directly so per-half
      embedding works without temporarily clobbering the active half's
-     global state during the per-half loop. */
+     global state during the per-half loop.
+
+     Note: _preShowAllVis / _preDeletedCells (the H-key toggle's saved
+     state) are NOT cleared here, even though they're cleared in the
+     single-view _restoreViewState. recolor() in split mode calls this
+     function once per half per pass — clearing here would wipe the
+     toggle state on the very first recolor after pressing H, breaking
+     the second press. _viewSwitch and other actual view-changing
+     entry points clear them explicitly at their own sites. */
   if(!v)return;
   _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
   for(var k in v.visibleClusters)visibleClusters[k]=v.visibleClusters[k];
-  _deletedCells=v.deletedCells?new Set(v.deletedCells):null;
-  _preShowAllVis=null;_preDeletedCells=null;
+  /* _deletedCells is GLOBAL — leave it alone. */
   if(typeof v.mode==="string")mode=v.mode;
   if(typeof v.selGene==="string")selGene=v.selGene;
   _geneMode=(v.geneMode==="coloc")?"coloc":"single";
@@ -14257,6 +14955,11 @@ function _syncColorModeUIToGlobals(){
 }
 function _viewSwitch(id){
   if(id===_activeViewId)return;
+  /* The H-key show-all/restore toggle's saved state is anchored to the
+     PREVIOUS active half's hidden pattern; switching to a different
+     active view makes that anchor irrelevant. Clear it here so the
+     toggle starts fresh against the new active half's state. */
+  _preShowAllVis=null;_preDeletedCells=null;
   if(_splitActive){
     /* Save current active's state to its snapshot */
     _viewSaveCurrent();
@@ -14351,6 +15054,14 @@ function _viewRename(){
   var name=prompt("Rename split:",v.name);
   if(name&&name.trim()){v.name=name.trim();_viewUpdateUI();}
 }
+/* Single-view #view-label-select onchange — switch the active view to
+   the picked split. Mirrors the behavior of split-mode's
+   split-view-select (which calls _splitReassign for a quadrant). */
+function _viewLabelPick(id){
+  if(!isFinite(id))return;
+  if(id===_activeViewId)return;
+  if(typeof _viewSwitch==="function")_viewSwitch(id);
+}
 function _viewUpdateUI(){
   var listEl=document.getElementById("split-list");
   var cmpBtn=document.getElementById("view-compare-btn");
@@ -14430,9 +15141,23 @@ function _viewUpdateUI(){
   if(label){
     if(D&&!_splitActive&&_views&&_views.length>=1){
       var av=_views.find(function(v){return v.id===_activeViewId;})||_views[0];
-      var nameEl=document.getElementById("view-label-name");
+      var sel=document.getElementById("view-label-select");
       var tEl=document.getElementById("view-label-tether");
-      if(nameEl)nameEl.textContent=av?av.name:"";
+      if(sel){
+        /* Populate the dropdown with every available split. Picking one
+           switches the active view to it (parallel to the split-mode
+           split-view-select that reassigns a quadrant). Double-click
+           still opens the rename prompt — see ondblclick on the
+           markup. */
+        sel.innerHTML="";
+        for(var _vi=0;_vi<_views.length;_vi++){
+          var opt=document.createElement("option");
+          opt.value=_views[_vi].id;
+          opt.textContent=_views[_vi].name;
+          if(av&&_views[_vi].id===av.id)opt.selected=true;
+          sel.appendChild(opt);
+        }
+      }
       if(tEl&&av){
         var isT=av.tethered!==false;
         var onlyOne=_views.length<2;
@@ -17739,7 +18464,7 @@ function _exportCountVisible(snap, includeGhost){
   if(!D)return 0;
   var sliceM=_buildSliceMask(snap.sliceFilter||{});
   var visClus=snap.visibleClusters||{};
-  var delSet=snap.deletedCells?new Set(snap.deletedCells):null;
+  var delSet=_deletedCells||null; /* deletedCells is global, not per-snap */
   var snapMode=snap.mode||mode;
   var snapGene=snap.selGene||"";
   var ex=(snapMode==="gene"&&snapGene&&geneExprCache[snapGene])?geneExprCache[snapGene]:null;
@@ -17781,7 +18506,7 @@ function _exportComputeRenderState(snap, includeGhost){
   var n=D.header.n_cells;
   var sliceM=_buildSliceMask(snap.sliceFilter||{});
   var visClus=snap.visibleClusters||{};
-  var delSet=snap.deletedCells?new Set(snap.deletedCells):null;
+  var delSet=_deletedCells||null; /* deletedCells is global, not per-snap */
   var snapMode=snap.mode||mode;
   var snapGM=snap.geneMode||"single";
   var snapGene=snap.selGene||"";
@@ -21040,7 +21765,12 @@ function _buildSearchRegistry(){
     /* View toggles */
     {id:"view-2d3d",label:"Toggle 2D / 3D",secondary:"View",keywords:"dimension projection",shortcut:"D",available:_hasData,action:function(){if(typeof setView==="function")setView(viewIs3d?"2d":"3d");}},
     {id:"view-embedding",label:"Cycle embedding (UMAP / PCA / PaCMAP)",secondary:"View",keywords:"projection coordinates",shortcut:"E",available:_hasData,action:_cycleEmbedding},
-    {id:"view-theme",label:"Toggle dark / light theme",secondary:"View",shortcut:"T",action:_setTheme},
+    {id:"view-theme",label:"Toggle dark / light theme",secondary:"View",shortcut:"`",action:_setTheme},
+    {id:"view-tether",label:"Toggle camera tether (active split)",secondary:"View",keywords:"chain link untether camera shared",shortcut:"T",available:_hasData,action:function(){if(typeof _toggleTetherById==="function"&&typeof _activeViewId!=="undefined")_toggleTetherById(_activeViewId);}},
+    {id:"view-split-left",label:"Active split: move left",secondary:"View",keywords:"split focus active highlight quadrant",shortcut:"⌥ ←",available:function(){return _splitActive&&_liveViews&&_liveViews.length>=2;},action:function(){var ev={key:"ArrowLeft",altKey:true,metaKey:false,ctrlKey:false,shiftKey:false,preventDefault:function(){}};/* re-issue a synthetic event-like object via the same handler is invasive, so dispatch a real keydown instead. */ var k=new KeyboardEvent("keydown",{key:"ArrowLeft",altKey:true,bubbles:true});window.dispatchEvent(k);}},
+    {id:"view-split-right",label:"Active split: move right",secondary:"View",keywords:"split focus active highlight quadrant",shortcut:"⌥ →",available:function(){return _splitActive&&_liveViews&&_liveViews.length>=2;},action:function(){var k=new KeyboardEvent("keydown",{key:"ArrowRight",altKey:true,bubbles:true});window.dispatchEvent(k);}},
+    {id:"view-split-up",label:"Active split: move up",secondary:"View",keywords:"split focus active highlight quadrant",shortcut:"⌥ ↑",available:function(){return _splitActive&&_liveViews&&_liveViews.length>=3;},action:function(){var k=new KeyboardEvent("keydown",{key:"ArrowUp",altKey:true,bubbles:true});window.dispatchEvent(k);}},
+    {id:"view-split-down",label:"Active split: move down",secondary:"View",keywords:"split focus active highlight quadrant",shortcut:"⌥ ↓",available:function(){return _splitActive&&_liveViews&&_liveViews.length>=3;},action:function(){var k=new KeyboardEvent("keydown",{key:"ArrowDown",altKey:true,bubbles:true});window.dispatchEvent(k);}},
     {id:"view-sidebar",label:"Toggle sidebar",secondary:"View",shortcut:"\\",action:function(){if(typeof toggleSidebar==="function")toggleSidebar();}},
     {id:"view-expand-all",label:"Expand all panels (or restore previous)",secondary:"View",keywords:"collapse panels open everything",shortcut:"⌥ \\",action:function(){if(typeof toggleAllPanels==="function")toggleAllPanels("expand");}},
     {id:"view-collapse-all",label:"Collapse all panels (or restore previous)",secondary:"View",keywords:"close panels minimize everything",shortcut:"^ ⌥ \\",action:function(){if(typeof toggleAllPanels==="function")toggleAllPanels("collapse");}},
@@ -21048,6 +21778,17 @@ function _buildSearchRegistry(){
     {id:"view-rotate",label:"Toggle auto-rotate",secondary:"View",keywords:"spin",action:_click("b-auto")},
     {id:"view-reset",label:"Reset camera",secondary:"View",keywords:"recenter zoom",shortcut:"R",available:_hasData,action:function(){if(typeof resetView==="function")resetView();}},
     {id:"view-reset-all",label:"Reset everything (camera + visibility)",secondary:"View",keywords:"unhide all",shortcut:"⌥+R",available:_hasData,action:function(){if(typeof resetView==="function")resetView({altKey:true});}},
+    /* Unhide everything in the active split via the Hidden Collections
+       box's "unhide all". Uses the active half's quad index in split
+       mode; falls back to quad 0 in single-view. */
+    {id:"unhide-all-active",label:"Show all (active split)",secondary:"Action",keywords:"hidden unhide cell types slices groups arbitrary deleted",available:_hasData,action:function(){
+      var q=0;
+      if(_splitActive&&_splitViewIds&&_splitViewIds.length>=2){
+        var ai=_splitViewIds.indexOf(_activeViewId);
+        if(ai>=0)q=ai;
+      }
+      if(typeof _unhideAllInQuad==="function")_unhideAllInQuad(q);
+    }},
     {id:"view-show-all",label:"Show all cells",secondary:"View",keywords:"unhide visibility restore",shortcut:"H",available:_hasData,action:function(){if(typeof showAllClusters==="function")showAllClusters();}},
     /* Gene-mode toggles + controls */
     {id:"gene-show-nonexpr",label:"Toggle non-expressing cells",secondary:"Gene mode",keywords:"ghost zero",available:function(){return _hasData()&&mode==="gene";},target:"show-non-expr",panel:"gene-sec",action:_toggle("show-non-expr")},

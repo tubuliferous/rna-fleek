@@ -72,18 +72,34 @@ The PyInstaller specs and `pip install rna-fleek` already point at the package l
 
 **Version bumps** still touch four spots (no fifth `fleek_server.py FLEEK_VERSION` constant — the shim has none): `pyproject.toml`, `rna_fleek/__init__.py`, `rna_fleek/server.py` (`FLEEK_VERSION = "x.y.z"`), and `rna_fleek/fleek.html` (`var FLEEK_VERSION="vx.y.z"`). All four must match.
 
-### Stay inside the requested scope
-**When the user asks for a specific change, change ONLY what was asked. Do not "improve" adjacent code, restyle nearby UI, rename unrelated variables, refactor surrounding logic, or "fix" things that look wrong but weren't part of the request.** Drift like that is the most common source of regressions in this project — wrappers added "for safety" change flex-layout dimensions, a "tightened" CSS rule changes a button's size, a "cleaned-up" function loses a side-effect callers depend on. The user has to spot the change visually, then ask for it to be reverted. That cycle is more expensive than the alleged improvement was worth.
+### Stay inside the requested scope — strictly
+**When the user asks for a specific change, change ONLY what was asked. Nothing else.** No silent improvements to adjacent code, no restyling nearby UI, no renaming unrelated variables, no refactoring surrounding logic, no "fixing" things that look wrong but weren't part of the request. The user is the only judge of whether a related change is welcome — and they have to find each unwelcome change manually, then ask for it to be reverted. That cycle is far more expensive than any alleged improvement is worth, and it has happened repeatedly in this project. The drift is the single largest source of regressions.
 
-**Applies to every edit:**
-- If the request is "fix bug X", touch only the code path that produces X. Don't tidy nearby code in the same edit.
-- If the request is "add feature Y", add Y. Don't reformat the file, rename variables, or restyle related elements.
-- If you spot something that genuinely looks wrong while working on the requested change, **call it out in your reply** and ask whether to fix it — don't silently fold it into the same edit.
-- Visual changes (button sizes, padding, spacing, icon swaps, color tweaks) are especially load-bearing: users notice them immediately. Never change a control's appearance unless that's the explicit ask.
+**This rule overrides any conflicting impulse.** Even when the change "obviously" needs follow-up work, even when the surrounding code is "clearly" inconsistent, even when polishing it would only take a moment — STOP. The right action is to call it out in your reply and ask the user whether to address it, not to fold it silently into the same edit.
+
+**The only exceptions are absolutely essential to the requested change:**
+- A new control needs a new state variable, event handler, and CSS rule — those are part of the change.
+- A bug fix in function A requires also patching function B that calls A and would now misbehave — that's part of the change.
+- A removed feature requires deleting its now-orphan call sites — that's part of the change.
+
+If you can describe the side change as "while I was in there, I also …" — it does NOT belong in the edit. Pull it out.
+
+**Concrete examples of forbidden drift, all of which have actually happened:**
+- Renaming a function or variable "for clarity" while fixing a bug in it.
+- Tightening a CSS rule to "match the design system" while wiring up a new feature nearby.
+- Reformatting an HTML block (line breaks, attribute order) while editing one attribute inside it.
+- Replacing inline styles with classes while moving a node.
+- Adding `event.stopPropagation()` to a handler that doesn't strictly need it because "it's safer."
+- Removing seemingly-unused markup or click handlers without verifying they really aren't reached.
+- Swapping a `<span>` for a `<select>`, or vice versa, because the new one "fits better" — when the user just asked for a label change.
+
+**Visual changes are especially dangerous.** Users notice button sizes, padding, spacing, icon swaps, color tweaks, and font changes immediately. Never change a control's appearance unless that's the explicit ask. Same for keyboard shortcuts and event-handler behavior — users build muscle memory around these and any silent change feels like the app broke.
 
 **When wrapping or restructuring HTML (a frequent regression source):** any wrapper around a flex/grid item inherits the parent's layout role. If the original element had `flex:1` or any width-defining rule, the wrapper now needs that rule and the inner element needs to fill the wrapper. Test the visual result before submitting — the example here was wrapping the disabled DEG button in a `<span>` for tooltip-on-disabled support; the span didn't get `flex:1`, so the toolbar collapsed the button to text-width.
 
-**Why:** the user's mental model is "I asked for one thing; one thing changed". Side effects break that model and make every future change harder to trust.
+**Self-check before submitting any edit:** for each line you changed, ask "did the user explicitly request this change, or is it logically required by the user's request?" If the honest answer is "no" — revert that line. If you're unsure, revert it AND mention it in your reply for the user to weigh in.
+
+**Why:** the user's mental model is "I asked for one thing; one thing changed". Every side effect breaks that model and makes every future change harder to trust. Trust, once spent, is hard to rebuild.
 
 ### Keep Help/About in sync with user-facing changes
 **When adding or changing a user-facing feature, update the corresponding Help panel section in `fleek.html` (inside `#help-body`) as part of the same change.** This is a workflow rule, not an optional polish step — the Help panel is the app's only built-in documentation, and each drift is a small paper cut for users.
