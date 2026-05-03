@@ -393,6 +393,12 @@
   #split-empty-add .split-empty-plus{font-size:14px;line-height:1;color:var(--text4);}
   #split-empty-add:hover{border-color:var(--accent2);color:var(--text2);}
   .split-view-select{background:transparent;border:none;color:inherit;font:inherit;font-size:11px;padding:0;cursor:pointer;outline:none;}
+  /* Per-half embedding selector — shown only when the half is untethered.
+     Same baseline look as .split-view-select but a notch smaller and faded
+     to read as a secondary control rather than competing with the split
+     name. _splitUpdateLabels toggles display based on tether state. */
+  .split-emb-select{background:transparent;border:none;color:inherit;font:inherit;font-size:10px;padding:0 2px;cursor:pointer;outline:none;opacity:0.75;margin-left:4px;}
+  .split-emb-select:hover{opacity:1;}
   /* Tether chain icon — shown in both the single-view label (#view-label) and
      each half's label in split mode (.split-view-label). Baseline opacity and
      hover-brighten match the neutral .btn-icon primitive so the chain reads at
@@ -1803,10 +1809,10 @@
   <div id="split-focus-1" class="split-focus-box" data-quad="1"></div>
   <div id="split-focus-2" class="split-focus-box" data-quad="2"></div>
   <div id="split-focus-3" class="split-focus-box" data-quad="3"></div>
-  <div id="split-label-0" class="split-view-label" data-quad="0"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0]!=null)_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
-  <div id="split-label-1" class="split-view-label" data-quad="1"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1]!=null)_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
-  <div id="split-label-2" class="split-view-label" data-quad="2"><select class="split-view-select" onchange="_splitReassign(2,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[2]!=null)_exportOpen(_splitViewIds[2])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(2)" title="Toggle camera tether"></span></div>
-  <div id="split-label-3" class="split-view-label" data-quad="3"><select class="split-view-select" onchange="_splitReassign(3,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[3]!=null)_exportOpen(_splitViewIds[3])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><span class="tether-btn" onclick="_toggleTether(3)" title="Toggle camera tether"></span></div>
+  <div id="split-label-0" class="split-view-label" data-quad="0"><select class="split-view-select" onchange="_splitReassign(0,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[0]!=null)_exportOpen(_splitViewIds[0])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><select class="split-emb-select" onchange="_setHalfEmbedding(0,this.value)" title="Per-half embedding (untethered only)" style="display:none;"></select><span class="tether-btn" onclick="_toggleTether(0)" title="Toggle camera tether"></span></div>
+  <div id="split-label-1" class="split-view-label" data-quad="1"><select class="split-view-select" onchange="_splitReassign(1,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[1]!=null)_exportOpen(_splitViewIds[1])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><select class="split-emb-select" onchange="_setHalfEmbedding(1,this.value)" title="Per-half embedding (untethered only)" style="display:none;"></select><span class="tether-btn" onclick="_toggleTether(1)" title="Toggle camera tether"></span></div>
+  <div id="split-label-2" class="split-view-label" data-quad="2"><select class="split-view-select" onchange="_splitReassign(2,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[2]!=null)_exportOpen(_splitViewIds[2])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><select class="split-emb-select" onchange="_setHalfEmbedding(2,this.value)" title="Per-half embedding (untethered only)" style="display:none;"></select><span class="tether-btn" onclick="_toggleTether(2)" title="Toggle camera tether"></span></div>
+  <div id="split-label-3" class="split-view-label" data-quad="3"><select class="split-view-select" onchange="_splitReassign(3,parseInt(this.value))"></select><span class="dl-btn" onclick="if(_splitViewIds[3]!=null)_exportOpen(_splitViewIds[3])" title="Download points shown in this split (SVG / PLY / CSV)"><svg viewBox="0 0 24 24" width="12" height="12" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-2px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span><select class="split-emb-select" onchange="_setHalfEmbedding(3,this.value)" title="Per-half embedding (untethered only)" style="display:none;"></select><span class="tether-btn" onclick="_toggleTether(3)" title="Toggle camera tether"></span></div>
   <!-- Empty 4th-quadrant pick affordance (visible only in 3-up mode).
        Selecting a split here expands to 4-up with that split assigned
        to quad 3. The dropdown is populated by _splitUpdateLabels. -->
@@ -2429,6 +2435,7 @@
         <table class="help-table">
           <tr><th>Feature</th><th>Details</th></tr>
           <tr><td>Camera tethering</td><td>By default cameras are tethered (they move together). Click the chain-link icon on a half's label, or on any view row in the Split Views panel, to untether — that view keeps its own independent camera. Tether state is persisted per view and works in single-view mode too: switching between two tethered splits keeps the same camera position, while switching to or from an untethered split restores that split's own saved camera.</td></tr>
+          <tr><td>Per-split embedding</td><td>Tethered halves share an embedding (since they share a camera, they must share coordinate space) — changing the embedding from the View panel, <span class="help-key">E</span>, or any tethered half's per-half dropdown switches every tethered half together. Untethered halves manage their own embedding independently — changing one of them touches only that half. The per-half dropdown is shown whenever ≥2 embeddings are loaded. Re-tethering a split snaps its embedding to the tethered group's so cameras and coords stay consistent; untethering leaves the embedding alone so you can immediately diverge.</td></tr>
           <tr><td>Navcross behavior</td><td>In 3D, the orbit-pivot cross stays at the active view's target, so it's always centered in the active half and drifts in the inactive half as you pan. 2D uses a fixed-size screen crosshair in the active half only.</td></tr>
           <tr><td>Focus</td><td>Click a split in the sidebar dropdown or use the number keys to focus a half. The focused half gets a highlight border.</td></tr>
           <tr><td>Navigation</td><td>Mouse interactions (rotate, zoom, pan, lasso) affect the half the cursor is over. Dragging across the divider stays locked to the original half. Fly/pan direction is computed from the hovered view's own orientation, so untethered halves navigate correctly regardless of where the other view is pointing.</td></tr>
@@ -3232,7 +3239,7 @@ var _ALT_LONG=_isMac?"⌥ Opt":"Alt"; /* longer form */
 var _MOD_KEY=_isMac?"metaKey":"ctrlKey"; /* event property name */
 /* Displayed in the sidebar title and the help/about header. Bump in lockstep
    with pyproject.toml / the GitHub release tag. */
-var FLEEK_VERSION="v0.5.37";
+var FLEEK_VERSION="v0.5.38";
 var D=null, mode="cluster", selGene="", geneExprCache={};
 var showNonExpressing=true; /* show zero-expression cells as ghost color in gene mode */
 /* Ghost (non-expressing) cell render style — picked from the Debug menu so
@@ -6118,6 +6125,42 @@ function positionPts(data,nD){
   data._cachedPos.set(pos);
 }
 
+/* Build (and memoize) a normalized position buffer for a (embMethod, nD)
+   pair. Same normalization as positionPts: mid-center each axis, scale to
+   50 units max range, fill z with 0 in 2D. Used by split-view rendering
+   so each half can show a different embedding without rebuilding the
+   shared geometry. Returns null when the requested embedding/dim isn't
+   available; callers fall back to D._cachedPos (the active embedding).
+   Cache is per-dataset (D._cachedPositionsByEmb) and cleared in buildPts
+   when a new dataset loads. */
+function _getPositionsForEmb(method,nD){
+  if(!D||!D.embeddings)return null;
+  var emb=D.embeddings[method];
+  if(!emb)return null;
+  var axes=emb[nD];
+  if(!axes)return null;
+  if(!D._cachedPositionsByEmb)D._cachedPositionsByEmb={};
+  var key=method+"_"+nD;
+  if(D._cachedPositionsByEmb[key])return D._cachedPositionsByEmb[key];
+  var n=D.header.n_cells;
+  var arr=new Float32Array(n*3);
+  var mins=[],maxs=[],mids=[];
+  for(var d=0;d<nD;d++){
+    var mn=Infinity,mx=-Infinity;var a=axes[d];
+    for(var i=0;i<n;i++){if(a[i]<mn)mn=a[i];if(a[i]>mx)mx=a[i];}
+    mins.push(mn);maxs.push(mx);mids.push((mn+mx)/2);
+  }
+  var maxR=0;for(var d=0;d<nD;d++){var r=maxs[d]-mins[d]||1;if(r>maxR)maxR=r;}
+  var sc=50/maxR;
+  for(var i=0;i<n;i++){
+    arr[i*3]=(axes[0][i]-mids[0])*sc;
+    arr[i*3+1]=nD>=2?(axes[1][i]-mids[1])*sc:0;
+    arr[i*3+2]=nD>=3?(axes[2][i]-mids[2])*sc:0;
+  }
+  D._cachedPositionsByEmb[key]=arr;
+  return arr;
+}
+
 /* Helper: max point world-size at slider=100 (includes density multiplier).
    All point-size computations should use this so adding a new call site
    doesn't forget the density factor. */
@@ -6131,6 +6174,9 @@ function buildPts(data){
   if(pts){scene.remove(pts);pts.geometry.dispose();pts.material.dispose();}
   if(ringPts){scene.remove(ringPts);ringPts.geometry.dispose();ringPts.material.dispose();ringPts=null;}
   if(haloPts){scene.remove(haloPts);haloPts.material.dispose();haloPts=null;}
+  /* Drop the per-(embedding,nD) position cache from the previous dataset.
+     Used by split-view per-half embedding rendering. */
+  if(data)data._cachedPositionsByEmb=null;
   D=data;
   hvgGenes=data.header.hvg_genes||[];
   hvgVar=data.header.hvg_var||{};
@@ -6592,10 +6638,18 @@ function _embInputLabel(){
      - (empty)    — no source info at all (legacy datasets)
    The Data panel still shows the longer phrasing — this is just the
    one-line HUD label. */
-function _embSourceSuffix(){
+function _embSourceSuffix(method){
+  /* Provenance suffix ("· cached" / "· scVI" / etc.) for an embedding.
+     Optional `method` arg picks which embedding to look up — defaults
+     to the global so existing callers behave the same. The HUD passes
+     each half's own snap.embMethod so per-half suffixes show correctly
+     even when the global is on a different embedding (e.g. tethered
+     half on UMAP while user cycles an untethered half through PCA →
+     tethered HUD keeps "UMAP · cached" instead of dropping the suffix). */
   if(typeof D==="undefined"||!D||!D.header)return "";
-  if(typeof embMethod==="undefined"||!embMethod)return "";
-  var key=embMethod+"_"+(viewIs3d?"3d":"2d");
+  var m=method||(typeof embMethod!=="undefined"?embMethod:"");
+  if(!m)return "";
+  var key=m+"_"+(viewIs3d?"3d":"2d");
   var input=(D.header.embedding_inputs&&D.header.embedding_inputs[key])||"";
   if(input)return _embInputPretty(input);
   var source=(D.header.embedding_sources&&D.header.embedding_sources[key])||"";
@@ -6608,14 +6662,35 @@ function _embSourceSuffix(){
 }
 
 function _updateHudEmbedding(){
-  /* Per-quadrant Embedding row. embMethod is currently a global, not
-     per-view, so every visible quadrant shows the same value (same
-     embedding renders into both halves). When per-view embeddings
-     ship later, this becomes a snapshot read like _updateHudColor.
-     The "· <suffix>" surfaces where the embedding came from:
-     "scVI"/"PCA"/etc. when FLEEK built it on a known feature space;
-     "file" when loaded directly from h5ad obsm; "cached" / "derived" /
-     "computed" otherwise. Empty when we have no attribution at all. */
+  /* Per-quadrant Embedding row. In split mode each half can show a
+     different embedding (when untethered), so the HUD chip reads each
+     half's snapshot — NOT the global embMethod (which is scratch state
+     during the cross-half render loop and would always show the active
+     half's value in every chip). In single-view, all four chips show
+     the global. The "· <suffix>" surfaces where the embedding came
+     from: "scVI"/"PCA"/etc. when FLEEK built it on a known feature
+     space; "file" when loaded directly from h5ad obsm; "cached" /
+     "derived" / "computed" otherwise. */
+  if(_splitActive&&_splitViewIds&&_splitViewIds.length>=2&&D){
+    for(var q=0;q<4;q++){
+      var el=document.getElementById(_hudFieldId(q,"embedding"));
+      if(!el)continue;
+      var snap=q<_splitViewIds.length?_splitViewById(_splitViewIds[q]):null;
+      var m=(snap&&snap.embMethod)?snap.embMethod:embMethod;
+      var lab="—";
+      if(m){
+        lab=_embPrettyLabels[m]||m.toUpperCase();
+        /* Per-half source suffix: pass `m` so each half looks up its
+           OWN provenance, not the global's. This keeps the "· cached"
+           / "· scVI" suffix correct on tethered halves even when the
+           user is cycling an untethered half through other embeddings. */
+        var suf=_embSourceSuffix(m);
+        if(suf)lab+=" · "+suf;
+      }
+      el.textContent=lab;
+    }
+    return;
+  }
   var label="—";
   if(typeof D!=="undefined"&&D&&typeof embMethod!=="undefined"&&embMethod){
     label=_embPrettyLabels[embMethod]||embMethod.toUpperCase();
@@ -8130,10 +8205,22 @@ function setupCtrl(){
         }
       }
       if(methods.length>1){
-        var ci=methods.indexOf(embMethod);
+        /* Cycle anchor: use the ACTIVE half's snap.embMethod when in split
+           mode (it can diverge from the global when the active half is
+           untethered — bumping the global there would change the
+           tethered group's coords). Falls back to the global in single
+           view, or when no snap is found. Without this, repeated E presses
+           in an untethered half keep computing "next after global" and
+           never advance past the second embedding. */
+        var _curEmb=embMethod;
+        if(_splitActive&&typeof _activeViewId!=="undefined"){
+          var _aS=_splitViewById(_activeViewId);
+          if(_aS&&_aS.embMethod)_curEmb=_aS.embMethod;
+        }
+        var ci=methods.indexOf(_curEmb);
         if(ci<0)ci=0;
         var next=methods[(ci+1)%methods.length];
-        if(next!==embMethod){
+        if(next!==_curEmb){
           setEmbMethod(next);
           _flashAction(next.toUpperCase(),"E");
         }
@@ -8282,7 +8369,7 @@ function setView(v){
   saveState();
 }
 
-function setEmbMethod(m){
+function setEmbMethod(m,opts){
   if(!D)return;
   window._saved2dCam=null; /* clear saved 2D camera — positions differ per embedding */
   /* If embedding not loaded yet, check if computing or compute on demand */
@@ -8297,7 +8384,61 @@ function setEmbMethod(m){
     _computeAndLoadEmbedding(m);
     return;
   }
+  opts=opts||{};
+  /* Decide whether this change is GLOBAL (drives all tethered halves) or
+     ACTIVE-ONLY (just the active half's snap). Rule:
+       • Single-view → global
+       • Split-mode + active half tethered → global
+       • Split-mode + active half untethered → active-only
+       • Caller may force one mode via opts.scope = "global" | "active-only"
+         (used by _setHalfEmbedding when the user picks an emb on a
+         tethered half whose snap isn't currently active). */
+  var _scope=opts.scope;
+  if(!_scope){
+    if(_splitActive){
+      var _activeS=_splitViewById(_activeViewId);
+      _scope=(_activeS&&_activeS.tethered===false)?"active-only":"global";
+    }else{
+      _scope="global";
+    }
+  }
+  if(_splitActive&&_scope==="active-only"){
+    /* Active-only path — change just the active untethered half's
+       snap.embMethod and re-render that half. Crucially, we DO NOT
+       bump the global `embMethod`: it represents the tethered group's
+       embedding (which drives D._cachedPos). Bumping it here would
+       break tethered halves' provenance suffix and confuse the
+       embedding-source lookups. The View-panel dropdown is synced
+       below as a display-only follower of the active half. */
+    var _aSnap2=_splitViewById(_activeViewId);
+    if(_aSnap2)_aSnap2.embMethod=m;
+    /* Pre-build the cache so _recolorView's lookup hits warm. */
+    _getPositionsForEmb(m,viewIs3d?3:2);
+    /* Sync UI dropdown + mini label as a DISPLAY of the active half's
+       embedding. The underlying global stays put. */
+    var _sel2=document.getElementById("emb-select");
+    if(_sel2)_sel2.value=m;
+    var _ml2=document.getElementById("emb-mini-label");
+    var _lbl2={"umap":"","pca":"PCA","pacmap":"PaCMAP","trimap":"TriMap"};
+    if(_ml2){_ml2.textContent=_lbl2[m]||m.toUpperCase();_ml2.style.display=m==="umap"?"none":"inline";}
+    if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
+    if(typeof _splitUpdateLabels==="function")_splitUpdateLabels();
+    if(typeof recolor==="function")recolor();
+    saveState();
+    return;
+  }
+  /* Global path: bump the global, drive all tethered halves' snap to
+     match (so the HUD shows the right value for tethered halves), leave
+     untethered halves' snap alone (they keep their independent
+     embedding). */
   embMethod=m;
+  if(_splitActive&&_splitViewIds){
+    for(var _gi=0;_gi<_splitViewIds.length;_gi++){
+      var _gs=_splitViewById(_splitViewIds[_gi]);
+      if(!_gs)continue;
+      if(_gs.tethered!==false)_gs.embMethod=m;
+    }
+  }
   /* Update dropdown */
   var sel=document.getElementById("emb-select");
   if(sel)sel.value=m;
@@ -8327,24 +8468,32 @@ function setEmbMethod(m){
   }
   recolor();
   if(!_navigating){
-    /* Save camera for current embedding before switching */
-    if(!window._embCameras)window._embCameras={};
-    if(window._prevEmbMethod){
-      window._embCameras[window._prevEmbMethod]={
-        sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
-        tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
-        pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2
-      };
-    }
-    window._prevEmbMethod=m;
-    /* Restore camera if we've been here before */
-    var saved=window._embCameras[m];
-    if(saved){
-      sph.theta=saved.sph.theta;sph.phi=saved.sph.phi;sph.radius=saved.sph.radius;
-      tgt3.set(saved.tgt3.x,saved.tgt3.y,saved.tgt3.z);
-      pan2.x=saved.pan2.x;pan2.y=saved.pan2.y;zoom2=saved.zoom2;
-    }else{
-      resetView();
+    /* Per-embedding camera memory only makes sense in single-view: in
+       split mode, each half has its own camera, and writing through the
+       globals would bleed into every tethered half (bug: changing one
+       half's embedding moved the other halves' cameras). Skip the
+       global save/restore there — the user can hit Reset on the active
+       half if they want a fresh camera for the new embedding. */
+    if(!_splitActive){
+      /* Save camera for current embedding before switching */
+      if(!window._embCameras)window._embCameras={};
+      if(window._prevEmbMethod){
+        window._embCameras[window._prevEmbMethod]={
+          sph:{theta:sph.theta,phi:sph.phi,radius:sph.radius},
+          tgt3:{x:tgt3.x,y:tgt3.y,z:tgt3.z},
+          pan2:{x:pan2.x,y:pan2.y},zoom2:zoom2
+        };
+      }
+      window._prevEmbMethod=m;
+      /* Restore camera if we've been here before */
+      var saved=window._embCameras[m];
+      if(saved){
+        sph.theta=saved.sph.theta;sph.phi=saved.sph.phi;sph.radius=saved.sph.radius;
+        tgt3.set(saved.tgt3.x,saved.tgt3.y,saved.tgt3.z);
+        pan2.x=saved.pan2.x;pan2.y=saved.pan2.y;zoom2=saved.zoom2;
+      }else{
+        resetView();
+      }
     }
     saveState();
   }
@@ -8394,6 +8543,14 @@ function _computeAndLoadEmbedding(m){
       for(var d=0;d<nd;d++){axes.push(copyF32(buf,off,h.n_cells));off+=h.n_cells*4;}
       D.embeddings[m][nd]=axes;
     }
+    /* Invalidate per-(embMethod,nD) position cache entries for this method
+       so split-view halves pointing at it pick up the fresh axes on next
+       render. Other methods' cached arrays stay valid. */
+    if(D._cachedPositionsByEmb){
+      for(var k in D._cachedPositionsByEmb){
+        if(k.indexOf(m+"_")===0)delete D._cachedPositionsByEmb[k];
+      }
+    }
     /* Update manifest */
     if(!D.embManifest)D.embManifest={};
     D.embManifest[m]=h.dims;
@@ -8430,6 +8587,13 @@ function _fetchPacmapCoords(){
       var nd=h.dims[di], axes=[];
       for(var d=0;d<nd;d++){axes.push(copyF32(buf,off,h.n_cells));off+=h.n_cells*4;}
       D.embeddings["pacmap"][nd]=axes;
+    }
+    /* Drop stale per-half pacmap position cache so split-view halves see the
+       fresh axes immediately. */
+    if(D._cachedPositionsByEmb){
+      for(var k in D._cachedPositionsByEmb){
+        if(k.indexOf("pacmap_")===0)delete D._cachedPositionsByEmb[k];
+      }
     }
     if(!D.embManifest)D.embManifest={};
     D.embManifest["pacmap"]=h.dims;
@@ -9956,10 +10120,20 @@ function _helpSearch(q){
 }
 function resetView(e){
   var hc=_homeCameras[embMethod]||_homeCamera;
+  /* Compute the target camera state once, then route it to either the
+     globals or the active half's live view fields. Untethered live
+     views don't follow globals (the per-frame sync at line ~7305 only
+     touches tethered halves), so writing to globals never reached an
+     untethered half — the user clicked Reset and nothing happened.
+     Now: in split mode we always target the active half's live view
+     directly so reset works for both tethered and untethered. */
+  var camState;
   if(viewIs3d){
     if(hc){
-      sph={theta:hc.theta,phi:hc.phi,radius:hc.radius};
-      tgt3.set(hc.tgt.x,hc.tgt.y,hc.tgt.z);
+      camState={
+        sph:{theta:hc.theta,phi:hc.phi,radius:hc.radius},
+        tgt3:{x:hc.tgt.x,y:hc.tgt.y,z:hc.tgt.z}
+      };
     }else{
       var r=cloudBounds.radius;
       var fovRad=cam3d.fov*Math.PI/180;
@@ -9967,11 +10141,43 @@ function resetView(e){
       var hHalf=Math.atan(Math.tan(vHalf)*(canvasW/canvasH));
       var halfAngle=Math.min(vHalf,hHalf);
       var fitDist=r/Math.sin(halfAngle)*1.05;
-      sph={theta:0.5,phi:1.0,radius:fitDist};tgt3.copy(cloudBounds.center);
+      camState={
+        sph:{theta:0.5,phi:1.0,radius:fitDist},
+        tgt3:{x:cloudBounds.center.x,y:cloudBounds.center.y,z:cloudBounds.center.z}
+      };
     }
   }else{
-    zoom2=zoom2Fit();
-    pan2={x:cloudBounds.center.x,y:cloudBounds.center.y};
+    camState={pan2:{x:cloudBounds.center.x,y:cloudBounds.center.y},zoom2:zoom2Fit()};
+  }
+  /* Pick the target. In split mode, write to the active half's live
+     view fields; if the half is tethered, the per-frame sync will
+     propagate the new camera to the other tethered halves on its own.
+     If untethered, only the active half moves — exactly the desired
+     behavior. In single-view, target the globals. */
+  var _wroteLive=false;
+  if(_splitActive&&_liveViews&&_liveViews.length>=2){
+    var _ai=_splitViewIds.indexOf(_activeViewId);
+    if(_ai>=0&&_liveViews[_ai]){
+      _applyCameraToLive(camState,_liveViews[_ai]);
+      /* If the active half is tethered, also update globals so the
+         render-loop sync (which copies globals → tethered halves)
+         immediately propagates the reset to peers without waiting for
+         the next user interaction. */
+      if(_liveViews[_ai].tethered){
+        _applyCameraToGlobals(camState);
+      }
+      _wroteLive=true;
+    }
+  }
+  if(!_wroteLive){
+    /* Single-view (or no active match) — fall back to globals. */
+    if(viewIs3d){
+      sph={theta:camState.sph.theta,phi:camState.sph.phi,radius:camState.sph.radius};
+      tgt3.set(camState.tgt3.x,camState.tgt3.y,camState.tgt3.z);
+    }else{
+      pan2={x:camState.pan2.x,y:camState.pan2.y};
+      zoom2=camState.zoom2;
+    }
   }
   /* Alt+click/Alt+R: show everything — clusters, groups, slices, deleted cells */
   if(e&&e.altKey&&D){
@@ -12965,6 +13171,21 @@ function _recolorView(vIdx){
   var col=vPts.geometry.attributes.color.array,n=D.header.n_cells;
   var pos=vPts.geometry.attributes.position.array;
   var BG=getBG();
+  /* Per-half embedding lookup. Tethered halves share a camera, so they
+     also share an embedding — they all read from D._cachedPos (which
+     positionPts keeps in sync with the global). Untethered halves
+     manage their own embedding via snap.embMethod and pull from the
+     per-(embedding,nD) cache when it differs from the global. Falls
+     back to D._cachedPos if the snapshot embedding isn't loaded yet.
+     This mirrors the "tether = camera + embedding share" rule that
+     keeps the per-half view geometrically coherent. */
+  var _halfSnap=_splitViewById(_splitViewIds[vIdx]);
+  var _halfPos=D._cachedPos;
+  if(_halfSnap&&_halfSnap.tethered===false&&_halfSnap.embMethod&&_halfSnap.embMethod!==embMethod){
+    var _halfNd=viewIs3d?3:2;
+    var _alt=_getPositionsForEmb(_halfSnap.embMethod,_halfNd);
+    if(_alt)_halfPos=_alt;
+  }
   /* Read from globals */
   var vSliceMask=sliceMask;
   var vVisibleClusters=visibleClusters;
@@ -13041,7 +13262,7 @@ function _recolorView(vIdx){
       if(ringPos){ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;}
       continue;
     }
-    pos[i*3]=D._cachedPos[i*3];pos[i*3+1]=D._cachedPos[i*3+1];pos[i*3+2]=D._cachedPos[i*3+2];
+    pos[i*3]=_halfPos[i*3];pos[i*3+1]=_halfPos[i*3+1];pos[i*3+2]=_halfPos[i*3+2];
     var sg=vCellGroupMap?vCellGroupMap[i]:-1;
     var inGroup=sg>=0&&sg<vSelGroups.length&&vGroupVisible[vSelGroups[sg].id]!==false;
     var c;
@@ -13082,7 +13303,7 @@ function _recolorView(vIdx){
     if(ringPos){
       if(inGroup&&useRing){
         var sc2=vSelGroups[sg].color;
-        ringPos[i*3]=D._cachedPos[i*3];ringPos[i*3+1]=D._cachedPos[i*3+1];ringPos[i*3+2]=D._cachedPos[i*3+2];
+        ringPos[i*3]=_halfPos[i*3];ringPos[i*3+1]=_halfPos[i*3+1];ringPos[i*3+2]=_halfPos[i*3+2];
         ringCol[i*3]=sc2[0];ringCol[i*3+1]=sc2[1];ringCol[i*3+2]=sc2[2];
       }else{
         ringPos[i*3]=EXILE;ringPos[i*3+1]=EXILE;ringPos[i*3+2]=EXILE;
@@ -13485,6 +13706,31 @@ function _splitUpdateLabels(){
       tb.className="tether-btn"+(v.tethered?" tethered":"");
       tb.title=v.tethered?"Camera tethered — click to untether":"Camera independent — click to tether";
     }
+    /* Per-half embedding selector — populated with available embeddings,
+       value pulled from the snapshot's embMethod. Shown whenever ≥2
+       embeddings are loaded (regardless of tether state). Acts as an
+       explicit "what is this half showing" indicator + control. */
+    var es=lbl.querySelector(".split-emb-select");
+    if(es){
+      var snap=_splitViewById(_splitViewIds[q3]);
+      var snapEmb=(snap&&snap.embMethod)||embMethod||"umap";
+      var avail=[];
+      if(D&&D.embeddings){
+        ["umap","pca","pacmap"].forEach(function(m){
+          if(D.embeddings[m])avail.push(m);
+        });
+      }
+      es.innerHTML="";
+      var prettyL={"umap":"UMAP","pca":"PCA","pacmap":"PaCMAP"};
+      for(var ai=0;ai<avail.length;ai++){
+        var opt=document.createElement("option");
+        opt.value=avail[ai];
+        opt.textContent=prettyL[avail[ai]]||avail[ai].toUpperCase();
+        if(avail[ai]===snapEmb)opt.selected=true;
+        es.appendChild(opt);
+      }
+      es.style.display=(avail.length>1)?"":"none";
+    }
   }
   /* Highlight the quadrant containing the ACTIVE split. */
   var _focusHalf=_splitViewIds.indexOf(_activeViewId);
@@ -13556,6 +13802,40 @@ function _toggleTether(vIdx){
   if(!_splitActive||vIdx>=_liveViews.length)return;
   _toggleTetherById(_splitViewIds[vIdx]);
 }
+/* Change which embedding the given half draws.
+     - Tethered half → routes through setEmbMethod with scope="global"
+       so the entire tethered group switches embeddings together (since
+       they share a camera, they must share coordinate space).
+     - Untethered half → updates only that snap.embMethod; other halves
+       are unaffected. */
+function _setHalfEmbedding(half,method){
+  if(!_splitActive||half<0||half>=_liveViews.length)return;
+  if(!D||!D.embeddings||!D.embeddings[method])return;
+  var snap=_splitViewById(_splitViewIds[half]);
+  if(!snap)return;
+  if(snap.embMethod===method)return;
+  if(snap.tethered===false){
+    /* Untethered: only this snap. setEmbMethod with the active-only
+       scope handles the case where the user picked the active half.
+       For non-active untethered halves, do the snap update directly. */
+    if(snap.id===_activeViewId){
+      if(typeof setEmbMethod==="function")setEmbMethod(method,{scope:"active-only"});
+      return;
+    }
+    snap.embMethod=method;
+    _getPositionsForEmb(method,viewIs3d?3:2);
+    if(typeof recolor==="function")recolor();
+    if(typeof _splitUpdateLabels==="function")_splitUpdateLabels();
+    if(typeof _updateHudEmbedding==="function")_updateHudEmbedding();
+    saveState();
+    return;
+  }
+  /* Tethered half: drive the whole tethered group via the global path,
+     even when the picked half isn't the active one. setEmbMethod's
+     "global" scope handles updating the global + every tethered snap +
+     positionPts. */
+  if(typeof setEmbMethod==="function")setEmbMethod(method,{scope:"global"});
+}
 function _toggleTetherById(viewId){
   /* No-op if only one split exists — tethering only means something when
      there's a second view to sync to. The canvas-overlay label shows the
@@ -13572,6 +13852,33 @@ function _toggleTetherById(viewId){
   if(!_splitActive&&viewId===_activeViewId&&!sv.tethered){
     sv.camera=_snapCameraFromGlobals();
   }
+  /* Embedding snap on re-tether: a tethered half shares the master's
+     camera, so the only coherent thing to share is also the embedding —
+     otherwise the camera moves through coords that don't match what
+     this half is rendering. On re-link, snap this half's snap.embMethod
+     to the master's. (Untether leaves embMethod alone — the user might
+     want to immediately diverge.) If the re-tethered half is the active
+     half, also bump the global + main dropdown so the View-panel
+     control reflects the now-shared embedding. */
+  if(_splitActive&&sv.tethered){
+    var _hiET=_splitViewIds.indexOf(viewId);
+    var _masterSnap=(typeof _masterViewIdx!=="undefined"&&_splitViewIds[_masterViewIdx]!=null)
+      ? _splitViewById(_splitViewIds[_masterViewIdx]) : null;
+    var _newEmb=(_masterSnap&&_masterSnap.embMethod)?_masterSnap.embMethod:(embMethod||"umap");
+    if(sv.embMethod!==_newEmb){
+      sv.embMethod=_newEmb;
+      if(sv.id===_activeViewId&&D&&D.embeddings&&D.embeddings[_newEmb]){
+        embMethod=_newEmb;
+        var _vTd=viewIs3d?3:2;
+        if(D.embeddings[embMethod]&&D.embeddings[embMethod][_vTd])positionPts(D,_vTd);
+        var _es2=document.getElementById("emb-select");
+        if(_es2)_es2.value=embMethod;
+        var _ml2=document.getElementById("emb-mini-label");
+        var _embLabels2={"umap":"","pca":"PCA","pacmap":"PaCMAP","trimap":"TriMap"};
+        if(_ml2){_ml2.textContent=_embLabels2[embMethod]||embMethod.toUpperCase();_ml2.style.display=embMethod==="umap"?"none":"inline";}
+      }
+    }
+  }
   /* If split is active and this view occupies a half, mirror to the live view
      and snap its camera to the master if re-tethered. */
   if(_splitActive){
@@ -13580,6 +13887,9 @@ function _toggleTetherById(viewId){
       _liveViews[hi].tethered=sv.tethered;
       if(sv.tethered)_syncViewCamera(_liveViews[_masterViewIdx],_liveViews[hi]);
       _splitUpdateLabels();
+      /* Recolor so the re-tethered half's positions update to the master's
+         embedding (and any non-tether-driven UI rerun the renderer needs). */
+      if(sv.tethered&&typeof recolor==="function")recolor();
     }
   }
   _viewUpdateUI();
@@ -13681,6 +13991,11 @@ function _viewAdd(isDefault,forceName){
        is a display-only mirror so the HUD chip can label even before the
        full pathway results have re-loaded after a session restore. */
     pathwayColorId:_pathwayColorId||"",pathwayColorName:_pathwayColorName||"",
+    /* Per-view embedding method. Used when the half is untethered so the
+       user can compare e.g. UMAP on the left and PaCMAP on the right.
+       Tethered halves are forced back to the global embMethod (see
+       _toggleTether) so their shared camera makes sense. */
+    embMethod:embMethod||"umap",
     tethered:true,
     camera:_snapCameraFromGlobals()});
   _activeViewId=id;
@@ -13751,6 +14066,13 @@ function _viewSaveCurrent(){
   v.colocActiveChannel=_colocActiveChannel;
   v.pathwayColorId=_pathwayColorId||"";
   v.pathwayColorName=_pathwayColorName||"";
+  /* Per-view embedding. Tethered halves track the global embMethod so a
+     change via the main embedding selector applies to them. Untethered
+     halves keep their own — set by the per-half selector handler — so
+     don't clobber it here. (For non-split single-view, the active view
+     is effectively tethered to the global, so we mirror it.) */
+  if(v.tethered!==false)v.embMethod=embMethod||"umap";
+  else if(!v.embMethod)v.embMethod=embMethod||"umap";
   /* Camera: pull from active live view in split mode, else from globals */
   if(_splitActive&&_liveViews.length>=2&&_splitViewIds.length>=2){
     var _ah=_splitViewIds.indexOf(_activeViewId);
@@ -13840,13 +14162,25 @@ function _restoreViewState(v,opts){
      haven't been re-fetched yet on session restore. */
   _pathwayColorId=(typeof v.pathwayColorId==="string")?v.pathwayColorId:"";
   _pathwayColorName=(typeof v.pathwayColorName==="string")?v.pathwayColorName:"";
+  /* Restore the per-view embedding into the global (single-view path).
+     setEmbMethod handles dropdown sync, position recompute, and recolor.
+     Skip if the snapshot doesn't have an embMethod (older sessions) or
+     if it matches the global already. */
+  if(typeof v.embMethod==="string"&&v.embMethod&&v.embMethod!==embMethod
+     &&D&&D.embeddings&&D.embeddings[v.embMethod]
+     &&typeof setEmbMethod==="function"){
+    setEmbMethod(v.embMethod);
+  }
   if(!(opts&&opts.shareCam))_applyCameraToGlobals(v.camera);
 }
 function _restoreSplitViewState(v){
   /* Load slice + visibility + color mode + selected gene + coloc sub-state
      into globals so each view can render with its OWN coloring during the
      split recolor loop. Selections stay global (shared across splits by
-     design). */
+     design). embMethod is intentionally NOT pushed into the global here —
+     _recolorView pulls the snapshot's embMethod directly so per-half
+     embedding works without temporarily clobbering the active half's
+     global state during the per-half loop. */
   if(!v)return;
   _rebuildSliceMaskFrom(v.sliceFilter||{});
   visibleClusters={};
@@ -13933,6 +14267,28 @@ function _viewSwitch(id){
     /* Load new split's slice/visibility/mode/selGene into globals (not selections) */
     var _sv=_views.find(function(v){return v.id===id;});
     if(_sv)_restoreSplitViewState(_sv);
+    /* Sync the View-panel embedding control to the new active half's
+       embedding. Two cases:
+         - New active is TETHERED: bump the global + refresh D._cachedPos
+           so the tethered group's coords match its dropdown reading.
+         - New active is UNTETHERED: do NOT bump the global. The global
+           continues to track the tethered group; we just sync the
+           dropdown (display-only) so the user sees what the active
+           half is rendering. */
+    if(_sv&&_sv.embMethod&&D&&D.embeddings&&D.embeddings[_sv.embMethod]){
+      var _es=document.getElementById("emb-select");
+      var _ml=document.getElementById("emb-mini-label");
+      var _embLabels={"umap":"","pca":"PCA","pacmap":"PaCMAP","trimap":"TriMap"};
+      if(_sv.tethered!==false&&_sv.embMethod!==embMethod){
+        embMethod=_sv.embMethod;
+        var _vTd=viewIs3d?3:2;
+        if(D.embeddings[embMethod]&&D.embeddings[embMethod][_vTd])positionPts(D,_vTd);
+        if(typeof recolor==="function")recolor();
+      }
+      /* Always sync the dropdown UI to reflect the active half. */
+      if(_es)_es.value=_sv.embMethod;
+      if(_ml){_ml.textContent=_embLabels[_sv.embMethod]||_sv.embMethod.toUpperCase();_ml.style.display=_sv.embMethod==="umap"?"none":"inline";}
+    }
     /* Sync the sidebar color/gene UI to the active split's coloring. If the
        active view needs a gene that isn't cached yet, fetch it. */
     _syncColorModeUIToGlobals();
