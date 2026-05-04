@@ -38,7 +38,7 @@ import numpy as np
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
 # Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
-FLEEK_VERSION = "0.5.40"
+FLEEK_VERSION = "0.5.56"
 
 # Globals set at startup
 ADATA = None
@@ -4747,10 +4747,28 @@ def _get_lib_sizes(src_mat):
     return lib
 
 
-def get_gene_expression(gene_name):
-    """Get normalized 0-1 expression for a single gene, routed to the best
-    available matrix per MATRIX_ROUTING['gene_display']. Applies normalize+log1p
-    on the fly if the chosen matrix is raw/denoised counts.
+def get_gene_expression(gene_name, units="normalized"):
+    """Get expression for a single gene, routed to the best available matrix
+    per MATRIX_ROUTING['gene_display']. Applies normalize+log1p on the fly
+    if the chosen matrix is raw/denoised counts.
+
+    units (used by raincloud / violin Y-axis units picker):
+      "normalized"   — per-gene p98-clip-to-[0,1] rescale (default; used by
+                       viewer coloring and the dot plot too).
+      "log"          — return the routed display values without the [0,1]
+                       rescale. If the route specifies normalize+log1p, that
+                       is still applied. Backwards-compatible alias for what
+                       used to be the only "raw magnitudes" mode.
+      "log1p_cp10k"  — ALWAYS recompute log1p(value / lib × 1e4) from the
+                       detected raw-counts matrix (COUNTS_MATRIX). Returns
+                       None when no raw counts are available. This is the
+                       canonical scanpy / Seurat unit (typical max ~5).
+      "log1p_cpm"    — same but with 1e6 denominator (typical max ~10).
+      "as_is"        — return the routed display matrix column with no
+                       transform of any kind — useful when the user wants
+                       to see whatever's literally in adata.X.
+      "raw_counts"   — return COUNTS_MATRIX integers untransformed. Returns
+                       None when no raw counts are available.
 
     Fast-path philosophy: whenever the routed matrix has a CSC index available
     (either X_CSC, which covers adata.X, or DISPLAY_CSC, a lazily-built CSC
@@ -4767,6 +4785,32 @@ def get_gene_expression(gene_name):
     idx = GENE_INDEX.get(gene_name)
     if idx is None:
         return None
+
+    # ── Units that pull from the raw-counts layer (independent of routing).
+    # When raw counts aren't present we return None so the client can
+    # display a proper "not available" message rather than silently falling
+    # back to a different scale.
+    if units in ("log1p_cp10k", "log1p_cpm", "raw_counts"):
+        if COUNTS_MATRIX is None:
+            return None
+        try:
+            col_src = COUNTS_MATRIX[:, idx]
+            if sp.issparse(col_src):
+                col = col_src.toarray().ravel()
+            else:
+                col = np.asarray(col_src).ravel()
+            col = col.astype(np.float32, copy=False)
+        except Exception:
+            return None
+        if units == "raw_counts":
+            return np.clip(col, 0, None).astype(np.float32, copy=False)
+        denom = 1e4 if units == "log1p_cp10k" else 1e6
+        lib = _get_lib_sizes(COUNTS_MATRIX)
+        col = np.asarray(col, dtype=np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            col = np.where(lib > 0, col / lib * denom, 0.0)
+        col = np.log1p(np.clip(col, 0, None)).astype(np.float32)
+        return col
 
     route = MATRIX_ROUTING.get("gene_display", {}) if MATRIX_ROUTING else {}
     src_path = route.get("path") or "X"
@@ -4809,6 +4853,11 @@ def get_gene_expression(gene_name):
                 col = np.asarray(col_src).ravel()
             col = col.astype(np.float32)
 
+    # "as_is" exits before any transform or rescale — caller wants whatever
+    # the routed display matrix literally holds for that column.
+    if units == "as_is":
+        return col.astype(np.float32, copy=False)
+
     # Apply on-the-fly normalisation for routes that expose raw-ish counts.
     if transform == "normalize+log1p":
         src_mat = _get_matrix_by_path(src_path) if src_path else ADATA.X
@@ -4816,6 +4865,13 @@ def get_gene_expression(gene_name):
         col = np.asarray(col, dtype=np.float64)
         col = col / lib * 1e4
         col = np.log1p(col).astype(np.float32)
+
+    if units == "log":
+        # Caller wants real log-normalized magnitudes (Y-axis-units toggle).
+        # Skip the p98-clip-to-[0,1] rescale entirely; clamp negatives to 0
+        # in case adata.X carried some artifact (z-scored layers).
+        col = np.clip(col, 0, None).astype(np.float32, copy=False)
+        return col
 
     # Normalize to 0-1 for the client's colormap.
     pos = col[col > 0]
@@ -5384,7 +5440,8 @@ class FleekHandler(SimpleHTTPRequestHandler):
             self._serve_init()
         elif path == "/api/gene":
             gene = params.get("name", [""])[0]
-            self._serve_gene(gene)
+            units = params.get("units", ["normalized"])[0]
+            self._serve_gene(gene, units)
         elif path == "/api/gene-raw":
             gene = params.get("name", [""])[0]
             self._serve_gene_raw(gene)
@@ -5513,10 +5570,18 @@ class FleekHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
-    def _serve_gene(self, gene_name):
+    def _serve_gene(self, gene_name, units="normalized"):
         if ADATA is None:
             self.send_error(503, "No dataset loaded");return
-        expr = get_gene_expression(gene_name)
+        if units not in ("normalized", "log", "log1p_cp10k", "log1p_cpm", "as_is", "raw_counts"):
+            units = "normalized"
+        # Units that need raw counts — fail fast with a useful message
+        # instead of returning 404 "gene not found" when the gene IS in
+        # the dataset but the requested scale isn't computable.
+        if units in ("log1p_cp10k", "log1p_cpm", "raw_counts") and COUNTS_MATRIX is None:
+            self.send_error(404, f"Units {units!r} need a raw-counts matrix; this dataset has none")
+            return
+        expr = get_gene_expression(gene_name, units=units)
         if expr is None:
             self.send_error(404, f"Gene '{gene_name}' not found")
             return
@@ -7780,6 +7845,20 @@ print(f"  PaCMAP done ({{time.time()-t0:.1f}}s)")
 
 
 def main():
+    # Bump the soft file-descriptor limit on Unix-like systems. The
+    # default on macOS is 256, which a user mashing j/k through the gene
+    # list can exhaust before client-side aborts catch up — each pickGene
+    # opens up to ~6 sockets. Raising to 4096 (or the hard limit, if
+    # lower) buys plenty of headroom; a no-op on systems that don't
+    # support resource.setrlimit (e.g. Windows).
+    try:
+        import resource
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        target = min(4096, hard) if hard != resource.RLIM_INFINITY else 4096
+        if soft < target:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+    except Exception:
+        pass
     parser = argparse.ArgumentParser(description="RNA-FLEEK: serve h5ad directly to browser")
     parser.add_argument("h5ad", type=str, nargs="?", default=None,
                         help="Path to h5ad file (optional — can upload via browser)")
