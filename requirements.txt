@@ -26,6 +26,13 @@ pacmap<0.8
 pydeseq2
 statsmodels
 
+# Threadsafe numba threading backend. Intel only ships TBB wheels for
+# Linux + Windows x86_64; on macOS the server uses OMP (libomp from
+# Homebrew) and a single-threaded fallback otherwise. The platform
+# marker keeps pip from erroring on macOS / arm64 hosts where no wheel
+# exists. server.py auto-selects which layer to use at runtime.
+tbb; sys_platform != "darwin" and platform_machine == "x86_64"
+
 # Build only (not needed to run FLEEK)
 # hatchling
 # pyinstaller

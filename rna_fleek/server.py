@@ -12,11 +12,70 @@ Usage:
 Then open: http://localhost:8080
 """
 
+import os
+
+# ── Numba threading layer (must be set BEFORE any numba/numpy/scanpy/umap
+#    import — those eagerly initialize the threading backend). The default
+#    "workqueue" layer is NOT threadsafe; two concurrent HTTP requests that
+#    both trigger numba-parallel code (UMAP / PaCMAP / leiden) abort the
+#    process with "Concurrent access has been detected." We prefer TBB
+#    (Intel Threading Building Blocks; threadsafe, fastest) when the `tbb`
+#    package is installed, otherwise pin to single-threaded workqueue.
+# Set sane defaults at module-top FIRST. The function below may upgrade
+# to TBB if available, but if anything in the function path fails the
+# defaults still keep numba's parallel-region abort from happening.
+os.environ.setdefault("NUMBA_THREADING_LAYER", "workqueue")
+os.environ.setdefault("NUMBA_NUM_THREADS", "1")
+
+def _select_numba_threading_layer():
+    """Pick a threadsafe numba threading layer at process startup.
+
+    The default `workqueue` layer is NOT threadsafe; FLEEK's
+    ThreadingMixIn HTTP server can have two requests touching numba
+    at once (e.g., UMAP recompute + gene-variability) and the
+    workqueue layer aborts the process with "Concurrent access has
+    been detected."
+
+    Threadsafe options + platform reality:
+      - TBB: Intel publishes wheels for Linux and Windows x86_64 only.
+        Linux/Windows installs and bundles get this.
+      - OMP via Intel's libiomp5: numba on macOS specifically demands
+        Intel's runtime, not LLVM's libomp from Homebrew. The
+        `intel-openmp` pip package provides it but has no arm64 macOS
+        wheels.
+      - Fallback: force NUMBA_NUM_THREADS=1, which makes the workqueue
+        layer effectively single-threaded and immune to the concurrent-
+        access abort. UMAP/PaCMAP/leiden run serially — slower for big
+        datasets but always correct.
+
+    Apple Silicon Macs land on the single-thread fallback. That's
+    unavoidable until either Intel ships arm64 macOS wheels or numba
+    accepts LLVM's libomp on Mac.
+    """
+    # Respect explicit user override (env var set BEFORE process start).
+    # The setdefault() calls at module-top set workqueue/1 already, so a
+    # bare `os.environ.get(...)` would always be truthy here — we want
+    # to detect the case where the USER pinned a specific layer.
+    if os.environ.get("FLEEK_NUMBA_LAYER_OVERRIDE"):
+        return
+    try:
+        import importlib.util
+        if importlib.util.find_spec("tbb") is not None:
+            # Upgrade from the safe default to TBB (multi-threaded,
+            # threadsafe). Linux/Windows x86_64 — bundled apps and pip
+            # installs both have it via requirements.txt.
+            os.environ["NUMBA_THREADING_LAYER"] = "tbb"
+            os.environ.pop("NUMBA_NUM_THREADS", None)
+    except Exception:
+        # Stay on the module-top defaults (workqueue / 1 thread) —
+        # always safe, no further action needed.
+        pass
+_select_numba_threading_layer()
+
 import argparse
 import io
 import json
 import math
-import os
 import struct
 import sys
 import time
@@ -38,7 +97,7 @@ import numpy as np
 _BUNDLE_DIR = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
 
 # Kept in sync with rna_fleek/__init__.py, pyproject.toml, fleek.html FLEEK_VERSION.
-FLEEK_VERSION = "0.5.56"
+FLEEK_VERSION = "0.5.57"
 
 # Globals set at startup
 ADATA = None

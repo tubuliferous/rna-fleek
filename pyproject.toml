@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rna-fleek"
-version = "0.5.56"
+version = "0.5.57"
 description = "Fast Lightweight Expression Exploration Kit — browser-based scRNA-seq visualization"
 license = "MIT"
 requires-python = ">=3.9"
@@ -22,6 +22,11 @@ dependencies = [
     "certifi",
     "pydeseq2",
     "statsmodels",
+    # Threadsafe numba threading backend on Linux + Windows x86_64
+    # (Intel doesn't publish macOS or arm64 wheels). On macOS the server
+    # auto-selects OMP instead — recommend `brew install libomp`. The
+    # marker is liberal so a missing match (e.g. macOS) silently skips.
+    'tbb; sys_platform != "darwin" and platform_machine == "x86_64"',
 ]
 
 [project.optional-dependencies]
